@@ -1,0 +1,22 @@
+{
+  "name": "lux-lang",
+  "version": "0.1.0",
+  "description": "Lux — a modern programming language that transpiles to JavaScript, unifying frontend and backend",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "lux": "./bin/lux.js"
+  },
+  "scripts": {
+    "test": "bun test",
+    "test:lexer": "bun test tests/lexer.test.js",
+    "test:parser": "bun test tests/parser.test.js",
+    "test:codegen": "bun test tests/codegen.test.js"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {},
+  "keywords": ["language", "transpiler", "fullstack", "javascript"],
+  "license": "MIT"
+}

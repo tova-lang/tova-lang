@@ -1,0 +1,27 @@
+// Counter App in Lux — demonstrates reactive UI
+
+client {
+  state count = 0
+
+  computed doubled = count * 2
+  computed message = match count {
+    0 => "Click the button!"
+    1..5 => "Keep going..."
+    n if n >= 10 => "You're on fire! 🔥"
+    _ => "Nice!"
+  }
+
+  component App {
+    <div class="counter-app">
+      <h1>"Lux Counter"</h1>
+      <p class="count">"{count}"</p>
+      <p class="doubled">"Doubled: {doubled}"</p>
+      <p class="message">"{message}"</p>
+      <div class="buttons">
+        <button on:click={fn() count -= 1}>"-"</button>
+        <button on:click={fn() count += 1}>"+"</button>
+        <button on:click={fn() count = 0}>"Reset"</button>
+      </div>
+    </div>
+  }
+}

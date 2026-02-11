@@ -1,0 +1,88 @@
+// Hello World in Lux
+
+name = "World"
+greeting = "Hello, {name}!"
+print(greeting)
+
+// Variables
+x = 42
+var count = 0
+count += 1
+print("x = {x}, count = {count}")
+
+// Functions
+fn add(a, b) {
+  a + b
+}
+
+fn greet(name = "friend") {
+  "Hey, {name}!"
+}
+
+print(add(1, 2))
+print(greet())
+print(greet("Alice"))
+
+// Pattern matching
+fn describe(value) {
+  match value {
+    0 => "zero"
+    1..10 => "small"
+    n if n > 100 => "big: {n}"
+    _ => "other"
+  }
+}
+
+print(describe(0))
+print(describe(5))
+print(describe(200))
+
+// List comprehension
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+evens = [x * 2 for x in numbers if x > 3]
+print(evens)
+
+// Pipe operator
+result = numbers
+  |> filter(fn(x) x > 3)
+  |> map(fn(x) x * 10)
+  |> sum()
+print("Pipe result: {result}")
+
+// Chained comparisons
+y = 5
+if 1 < y < 10 {
+  print("{y} is between 1 and 10")
+}
+
+// Membership test
+fruits = ["apple", "banana", "cherry"]
+if "banana" in fruits {
+  print("We have bananas!")
+}
+
+// Multiple assignment & swap
+var a = 1
+var b = 2
+a, b = b, a
+print("After swap: a={a}, b={b}")
+
+// Types
+type Color {
+  Red,
+  Green,
+  Blue,
+  Custom(r: Int, g: Int, b: Int)
+}
+
+fn color_name(c) {
+  match c {
+    Red => "red"
+    Green => "green"
+    Blue => "blue"
+    Custom(r, g, b) => "rgb({r},{g},{b})"
+  }
+}
+
+print(color_name(Red))
+print(color_name(Custom(255, 128, 0)))
