@@ -567,7 +567,7 @@ describe('Codegen — Server coverage', () => {
     expect(result.server).toContain('__addRoute("GET"');
     expect(result.server).toContain('__addRoute("POST"');
     expect(result.server).toContain('"/rpc/get_data"');
-    expect(result.server).toContain('const { name } = body');
+    expect(result.server).toContain('body.__args ? body.__args[0] : body.name');
   });
 
   test('server with no routes', () => {

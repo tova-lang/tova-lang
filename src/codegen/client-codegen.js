@@ -4,6 +4,17 @@ export class ClientCodegen extends BaseCodegen {
   constructor() {
     super();
     this.stateNames = new Set(); // Track state variable names for setter transforms
+    this.computedNames = new Set(); // Track computed variable names for getter transforms
+    this.componentNames = new Set(); // Track component names for JSX
+  }
+
+  // Override to add () for signal/computed reads
+  genExpression(node) {
+    if (node && node.type === 'Identifier' &&
+        (this.stateNames.has(node.name) || this.computedNames.has(node.name))) {
+      return `${node.name}()`;
+    }
+    return super.genExpression(node);
   }
 
   // Override to transform state assignments to setter calls
@@ -85,6 +96,11 @@ export class ClientCodegen extends BaseCodegen {
       lines.push('');
     }
 
+    // Stdlib core functions (available in all Lux code)
+    lines.push('// ── Stdlib ──');
+    lines.push(this.getStdlibCore());
+    lines.push('');
+
     // Server RPC proxy
     lines.push('// ── Server RPC Proxy ──');
     lines.push('const server = new Proxy({}, {');
@@ -115,6 +131,16 @@ export class ClientCodegen extends BaseCodegen {
     // Register state names for setter transforms
     for (const s of states) {
       this.stateNames.add(s.name);
+    }
+
+    // Register computed names for getter transforms
+    for (const c of computeds) {
+      this.computedNames.add(c.name);
+    }
+
+    // Register component names
+    for (const comp of components) {
+      this.componentNames.add(comp.name);
     }
 
     // Generate state signals
@@ -155,11 +181,31 @@ export class ClientCodegen extends BaseCodegen {
     if (effects.length > 0) {
       lines.push('// ── Effects ──');
       for (const e of effects) {
-        lines.push(`createEffect(() => {`);
-        this.indent++;
-        lines.push(this.genBlockStatements(e.body));
-        this.indent--;
-        lines.push(`});`);
+        // Check if effect body contains server.* calls (async RPC)
+        const bodyCode = (() => {
+          this.indent++;
+          const code = this.genBlockStatements(e.body);
+          this.indent--;
+          return code;
+        })();
+        const hasRPC = bodyCode.includes('server.') || bodyCode.includes('rpc(');
+        if (hasRPC) {
+          lines.push(`createEffect(() => {`);
+          lines.push(`  (async () => {`);
+          // Re-generate with await on server calls
+          this.indent += 2;
+          const asyncBody = this.genBlockStatements(e.body).replace(/\b(server\.\w+\([^)]*\))/g, 'await $1');
+          this.indent -= 2;
+          lines.push(asyncBody);
+          lines.push(`  })();`);
+          lines.push(`});`);
+        } else {
+          lines.push(`createEffect(() => {`);
+          this.indent++;
+          lines.push(this.genBlockStatements(e.body));
+          this.indent--;
+          lines.push(`});`);
+        }
         lines.push('');
       }
     }
@@ -235,7 +281,7 @@ export class ClientCodegen extends BaseCodegen {
   }
 
   genJSXElement(node) {
-    const tag = JSON.stringify(node.tag);
+    const isComponent = node.tag[0] === node.tag[0].toUpperCase() && /^[A-Z]/.test(node.tag);
 
     // Attributes
     const attrs = {};
@@ -261,6 +307,13 @@ export class ClientCodegen extends BaseCodegen {
     }
     propsStr += propParts.join(', ');
     propsStr += '}';
+
+    // Components: call as function, passing props
+    if (isComponent) {
+      return `${node.tag}(${propsStr})`;
+    }
+
+    const tag = JSON.stringify(node.tag);
 
     if (node.selfClosing || node.children.length === 0) {
       return `lux_el(${tag}, ${propsStr})`;
@@ -303,6 +356,35 @@ export class ClientCodegen extends BaseCodegen {
     }
 
     return `(${cond}) ? ${thenPart} : null`;
+  }
+
+  // Override function declaration to make async if it contains server.* calls
+  genFunctionDeclaration(node) {
+    const params = this.genParams(node.params);
+    this.pushScope();
+    for (const p of node.params) this.declareVar(p.name);
+    const body = this.genBlockBody(node.body);
+    this.popScope();
+    const hasRPC = body.includes('server.') || body.includes('rpc(');
+    const asyncPrefix = hasRPC ? 'async ' : '';
+    let finalBody = body;
+    if (hasRPC) {
+      finalBody = body.replace(/\b(server\.\w+\([^)]*\))/g, 'await $1');
+    }
+    return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${finalBody}\n${this.i()}}`;
+  }
+
+  getStdlibCore() {
+    return `function print(...args) { console.log(...args); }
+function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
+function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }
+function enumerate(a) { return a.map((v, i) => [i, v]); }
+function sum(a) { return a.reduce((x, y) => x + y, 0); }
+function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }
+function reversed(a) { return [...a].reverse(); }
+function zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
+function min(a) { return Math.min(...a); }
+function max(a) { return Math.max(...a); }`;
   }
 }
 

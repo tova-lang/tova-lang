@@ -106,6 +106,6 @@ describe('Codegen — genBlock exercised via nested if', () => {
 describe('Codegen — slice with step via compile', () => {
   test('slice with step through pipeline', () => {
     const result = compile('shared { x = list[:5:2] }');
-    expect(result.shared).toContain('for(let i');
+    expect(result.shared).toContain('for (let i');
   });
 });

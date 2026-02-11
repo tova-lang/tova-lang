@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { resolve, basename, dirname, join, relative } from 'path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync } from 'fs';
 import { spawn } from 'child_process';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
@@ -113,9 +113,10 @@ function runFile(filePath) {
   try {
     const output = compileLux(source, filePath);
 
-    // Execute the generated JavaScript
+    // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-    const code = output.shared + '\n' + (output.server || output.client || '');
+    const stdlib = getStdlibForRuntime();
+    const code = stdlib + '\n' + output.shared + '\n' + (output.server || output.client || '');
     const fn = new AsyncFunction(code);
     fn();
   } catch (err) {
@@ -142,6 +143,18 @@ function buildProject(args) {
   }
 
   mkdirSync(outDir, { recursive: true });
+
+  // Copy runtime files to output directory
+  const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+  const runtimeSrc = join(luxRoot, 'src', 'runtime');
+  const runtimeDest = join(outDir, 'runtime');
+  mkdirSync(runtimeDest, { recursive: true });
+  for (const file of ['reactivity.js', 'rpc.js', 'router.js']) {
+    const src = join(runtimeSrc, file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(runtimeDest, file));
+    }
+  }
 
   console.log(`\n  Building ${luxFiles.length} file(s)...\n`);
 
@@ -221,6 +234,18 @@ async function devServer(args) {
   const outDir = join(srcDir, '.lux-out');
   mkdirSync(outDir, { recursive: true });
 
+  // Copy runtime files to output directory
+  const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+  const runtimeSrc = join(luxRoot, 'src', 'runtime');
+  const runtimeDest = join(outDir, 'runtime');
+  mkdirSync(runtimeDest, { recursive: true });
+  for (const file of ['reactivity.js', 'rpc.js', 'router.js']) {
+    const src = join(runtimeSrc, file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(runtimeDest, file));
+    }
+  }
+
   const serverFiles = [];
   let hasClient = false;
 
@@ -234,20 +259,27 @@ async function devServer(args) {
         writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
       }
 
-      // Default server
-      if (output.server) {
-        const p = join(outDir, `${baseName}.server.js`);
-        writeFileSync(p, output.server);
-        serverFiles.push({ path: p, name: 'default', baseName });
-      }
-
-      // Default client
+      // Default client (generate HTML first so server can embed it)
+      let clientHTML = '';
       if (output.client) {
         const p = join(outDir, `${baseName}.client.js`);
         writeFileSync(p, output.client);
-        const html = generateDevHTML(output.client);
-        writeFileSync(join(outDir, 'index.html'), html);
+        clientHTML = generateDevHTML(output.client);
+        writeFileSync(join(outDir, 'index.html'), clientHTML);
         hasClient = true;
+      }
+
+      // Default server (inject client HTML for serving at /)
+      if (output.server) {
+        let serverCode = output.server;
+        if (clientHTML) {
+          // Inject __clientHTML constant before the request handler
+          const htmlConst = `const __clientHTML = ${JSON.stringify(clientHTML)};\n`;
+          serverCode = htmlConst + serverCode;
+        }
+        const p = join(outDir, `${baseName}.server.js`);
+        writeFileSync(p, serverCode);
+        serverFiles.push({ path: p, name: 'default', baseName });
       }
 
       // Named server blocks
@@ -329,6 +361,20 @@ async function devServer(args) {
 }
 
 function generateDevHTML(clientCode) {
+  // Read runtime files to inline them (no import needed)
+  const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+  const reactivityCode = readFileSync(join(luxRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8');
+  const rpcCode = readFileSync(join(luxRoot, 'src', 'runtime', 'rpc.js'), 'utf-8');
+
+  // Strip import/export keywords from runtime code for inlining
+  const inlineReactivity = reactivityCode.replace(/^export /gm, '');
+  const inlineRpc = rpcCode.replace(/^export /gm, '');
+
+  // Strip import lines from client code (we inline the runtime instead)
+  const inlineClient = clientCode
+    .replace(/^import\s+\{[^}]+\}\s+from\s+'[^']+';?\s*$/gm, '')
+    .trim();
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -337,20 +383,55 @@ function generateDevHTML(clientCode) {
   <title>Lux App</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; background: #fafafa; }
-    #app { max-width: 640px; margin: 2rem auto; padding: 1rem; }
-    h1 { font-size: 2rem; margin-bottom: 1rem; }
-    button { cursor: pointer; padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 6px; background: white; font-size: 0.9rem; }
-    button:hover { background: #f0f0f0; }
-    input[type="text"] { padding: 0.5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+    #app { max-width: 520px; margin: 0 auto; padding: 2rem 1rem; }
+    .app { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+    header { text-align: center; margin-bottom: 1.5rem; }
+    h1 { font-size: 2rem; margin-bottom: 0.25rem; color: #333; }
+    h2 { font-size: 1.2rem; margin-bottom: 0.75rem; color: #555; }
+    .subtitle { font-size: 0.9rem; color: #888; letter-spacing: 0.1em; text-transform: uppercase; }
+    button { cursor: pointer; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 8px; background: white; font-size: 0.9rem; transition: all 0.15s; }
+    button:hover { background: #f0f0f0; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    input[type="text"] { padding: 0.6rem 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; width: 100%; outline: none; transition: border-color 0.2s; }
+    input[type="text"]:focus { border-color: #667eea; }
     ul { list-style: none; }
-    .done { text-decoration: line-through; opacity: 0.6; }
+    .done { text-decoration: line-through; opacity: 0.5; }
+    .timer-section { text-align: center; padding: 1.5rem; margin-bottom: 1.5rem; background: #f8f9ff; border-radius: 12px; }
+    .timer-label { font-size: 0.85rem; color: #888; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+    .timer-display { font-size: 3.5rem; font-weight: 700; font-variant-numeric: tabular-nums; color: #333; margin-bottom: 0.75rem; font-family: 'SF Mono', 'Fira Code', monospace; }
+    .timer-controls { display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 0.75rem; }
+    .timer-controls button { min-width: 80px; }
+    .btn-start { background: #667eea !important; color: white !important; border-color: #667eea !important; }
+    .btn-start:hover { background: #5a6fd6 !important; }
+    .btn-pause { background: #f59e0b !important; color: white !important; border-color: #f59e0b !important; }
+    .btn-add { background: #667eea; color: white; border-color: #667eea; white-space: nowrap; }
+    .btn-add:hover { background: #5a6fd6; }
+    .pomodoro-total { font-size: 0.85rem; color: #888; }
+    .task-section { border-top: 1px solid #eee; padding-top: 1.5rem; }
+    .input-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .task-list { margin-bottom: 1rem; }
+    .task-item { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid #f0f0f0; }
+    .task-content { display: flex; align-items: center; gap: 0.5rem; flex: 1; }
+    .check-btn { background: none !important; border: none !important; padding: 0.25rem !important; font-size: 1.1rem; min-width: auto !important; }
+    .task-title { flex: 1; cursor: pointer; }
+    .delete-btn { background: none !important; border: none !important; color: #ccc; font-size: 1.2rem; padding: 0.25rem !important; min-width: auto !important; }
+    .delete-btn:hover { color: #e74c3c !important; }
+    .stats { text-align: center; font-size: 0.85rem; color: #888; }
+    .active { background: #f0f4ff; border-radius: 6px; padding-left: 0.5rem !important; }
   </style>
 </head>
 <body>
   <div id="app"></div>
-  <script type="module">
-${clientCode}
+  <script>
+// ── Lux Runtime: Reactivity ──
+${inlineReactivity}
+
+// ── Lux Runtime: RPC ──
+${inlineRpc}
+
+// ── App ──
+${inlineClient}
   </script>
 </body>
 </html>`;
@@ -453,6 +534,22 @@ bun run build
 }
 
 // ─── Utilities ──────────────────────────────────────────────
+
+function getStdlibForRuntime() {
+  return `function print(...args) { console.log(...args); }
+function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
+function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }
+function enumerate(a) { return a.map((v, i) => [i, v]); }
+function sum(a) { return a.reduce((x, y) => x + y, 0); }
+function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }
+function reversed(a) { return [...a].reverse(); }
+function zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
+function min(a) { return Math.min(...a); }
+function max(a) { return Math.max(...a); }
+function type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }
+function filter(arr, fn) { return arr.filter(fn); }
+function map(arr, fn) { return arr.map(fn); }`;
+}
 
 function findFiles(dir, ext) {
   const results = [];

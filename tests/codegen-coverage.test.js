@@ -347,7 +347,7 @@ describe('Codegen Coverage — Client other statements (line 141-142)', () => {
 describe('Codegen Coverage — Client __contains helper (lines 168-171)', () => {
   test('membership expression in client triggers __contains helper', () => {
     const result = compile('client { state items = []\neffect { x = 1 in items } }');
-    expect(result.client).toContain('__contains(items, 1)');
+    expect(result.client).toContain('__contains(items(), 1)');
     expect(result.client).toContain('function __contains');
   });
 });
@@ -416,7 +416,7 @@ describe('Codegen Coverage — Self-closing JSX (line 265-266)', () => {
 describe('Codegen Coverage — JSXText with template literal (lines 276-279)', () => {
   test('template string in JSX generates template literal', () => {
     const result = compile('client { state name = "world"\ncomponent App { <div>"Hello, {name}!"</div> } }');
-    expect(result.client).toContain('`Hello, ${name}!`');
+    expect(result.client).toContain('`Hello, ${name()}!`');
   });
 });
 
@@ -431,14 +431,14 @@ describe('Codegen Coverage — JSXFor with multiple children (lines 283-291)', (
 describe('Codegen Coverage — JSXIf conditional rendering (lines 294-305)', () => {
   test('if-else in JSX generates ternary', () => {
     const result = compile('client { state show = true\ncomponent App { <div>if show { <span>"yes"</span> } else { <span>"no"</span> }</div> } }');
-    expect(result.client).toContain('(show) ?');
+    expect(result.client).toContain('(show()) ?');
     expect(result.client).toContain(':');
     expect(result.client).toContain('lux_el("span"');
   });
 
   test('if without else in JSX generates ternary with null', () => {
     const result = compile('client { state show = true\ncomponent App { <div>if show { <span>"yes"</span> }</div> } }');
-    expect(result.client).toContain('(show) ?');
+    expect(result.client).toContain('(show()) ?');
     expect(result.client).toContain(': null');
   });
 });

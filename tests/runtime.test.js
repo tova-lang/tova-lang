@@ -131,21 +131,40 @@ describe('Reactivity — lux_fragment', () => {
 function createMockElement(tag) {
   const el = {
     tagName: tag,
+    nodeType: 1,
     children: [],
+    get childNodes() { return this.children; },
+    get firstChild() { return this.children[0] || null; },
+    get lastChild() { return this.children[this.children.length - 1] || null; },
     attributes: {},
     style: {},
     className: '',
     innerHTML: '',
+    value: '',
+    checked: false,
     eventListeners: {},
+    __handlers: {},
     appendChild(child) { this.children.push(child); return child; },
+    removeChild(child) {
+      const idx = this.children.indexOf(child);
+      if (idx >= 0) this.children.splice(idx, 1);
+      return child;
+    },
     replaceChild(newChild, oldChild) {
       const idx = this.children.indexOf(oldChild);
       if (idx >= 0) this.children[idx] = newChild;
     },
-    setAttribute(key, val) { this.attributes[key] = val; },
+    setAttribute(key, val) { this.attributes[key] = String(val); },
+    getAttribute(key) { return this.attributes[key] || null; },
+    removeAttribute(key) { delete this.attributes[key]; },
     addEventListener(event, handler) {
       if (!this.eventListeners[event]) this.eventListeners[event] = [];
       this.eventListeners[event].push(handler);
+    },
+    removeEventListener(event, handler) {
+      if (this.eventListeners[event]) {
+        this.eventListeners[event] = this.eventListeners[event].filter(h => h !== handler);
+      }
     },
     closest() { return null; },
   };

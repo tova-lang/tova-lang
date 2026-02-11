@@ -122,6 +122,11 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('      }');
     lines.push('    }');
     lines.push('  }');
+    // Serve client HTML at root if available
+    lines.push('  // Serve client HTML at root');
+    lines.push('  if (url.pathname === "/" && typeof __clientHTML !== "undefined") {');
+    lines.push('    return new Response(__clientHTML, { status: 200, headers: { "Content-Type": "text/html", ...(__corsHeaders) } });');
+    lines.push('  }');
     lines.push('  return Response.json({ error: "Not Found" }, { status: 404, headers: __corsHeaders });');
     lines.push('}');
     lines.push('');
