@@ -179,6 +179,15 @@ export class Analyzer {
       case 'SpreadExpression':
         this.visitExpression(node.argument);
         return;
+      case 'IfExpression':
+        this.visitExpression(node.condition);
+        this.visitNode(node.consequent);
+        for (const alt of node.alternates) {
+          this.visitExpression(alt.condition);
+          this.visitNode(alt.body);
+        }
+        this.visitNode(node.elseBody);
+        return;
       case 'JSXElement':
         return this.visitJSXElement(node);
     }

@@ -392,6 +392,90 @@ describe('Parser — Full-stack blocks', () => {
   });
 });
 
+describe('Parser — Named Multi-Blocks', () => {
+  test('named server block', () => {
+    const ast = parse('server "api" { fn hello() { "hi" } }');
+    expect(ast.body[0].type).toBe('ServerBlock');
+    expect(ast.body[0].name).toBe('api');
+    expect(ast.body[0].body.length).toBe(1);
+  });
+
+  test('named client block', () => {
+    const ast = parse('client "dashboard" { state count = 0 }');
+    expect(ast.body[0].type).toBe('ClientBlock');
+    expect(ast.body[0].name).toBe('dashboard');
+  });
+
+  test('named shared block', () => {
+    const ast = parse('shared "models" { type User { name: String } }');
+    expect(ast.body[0].type).toBe('SharedBlock');
+    expect(ast.body[0].name).toBe('models');
+  });
+
+  test('unnamed block has null name', () => {
+    const ast = parse('server { fn hello() { "hi" } }');
+    expect(ast.body[0].name).toBeNull();
+  });
+
+  test('multiple named server blocks', () => {
+    const ast = parse('server "api" { fn a() { 1 } } server "ws" { fn b() { 2 } }');
+    expect(ast.body.length).toBe(2);
+    expect(ast.body[0].name).toBe('api');
+    expect(ast.body[1].name).toBe('ws');
+  });
+});
+
+describe('Parser — Null Coalescing', () => {
+  test('?? produces BinaryExpression', () => {
+    const expr = parseExpr('a ?? b');
+    expect(expr.type).toBe('BinaryExpression');
+    expect(expr.operator).toBe('??');
+  });
+
+  test('?? chains left-to-right', () => {
+    const expr = parseExpr('a ?? b ?? c');
+    expect(expr.type).toBe('BinaryExpression');
+    expect(expr.operator).toBe('??');
+    // Left side should be (a ?? b)
+    expect(expr.left.type).toBe('BinaryExpression');
+    expect(expr.left.operator).toBe('??');
+  });
+
+  test('?? has lower precedence than or', () => {
+    const expr = parseExpr('a or b ?? c');
+    // Should parse as (a or b) ?? c
+    expect(expr.type).toBe('BinaryExpression');
+    expect(expr.operator).toBe('??');
+    expect(expr.left.type).toBe('LogicalExpression');
+    expect(expr.left.operator).toBe('or');
+  });
+});
+
+describe('Parser — If Expression', () => {
+  test('if-else expression in assignment', () => {
+    const ast = parse('x = if true { 1 } else { 0 }');
+    const expr = ast.body[0].values[0];
+    expect(expr.type).toBe('IfExpression');
+    expect(expr.condition.value).toBe(true);
+    expect(expr.consequent.type).toBe('BlockStatement');
+    expect(expr.elseBody.type).toBe('BlockStatement');
+  });
+
+  test('if-elif-else expression in assignment', () => {
+    const ast = parse('x = if a { 1 } elif b { 2 } else { 3 }');
+    const expr = ast.body[0].values[0];
+    expect(expr.type).toBe('IfExpression');
+    expect(expr.alternates.length).toBe(1);
+    expect(expr.elseBody).not.toBeNull();
+  });
+
+  test('if expression preserves assignment type', () => {
+    const ast = parse('x = if cond { 1 } else { 0 }');
+    expect(ast.body[0].type).toBe('Assignment');
+    expect(ast.body[0].values[0].type).toBe('IfExpression');
+  });
+});
+
 describe('Parser — Slice syntax', () => {
   test('basic slice', () => {
     const expr = parseExpr('list[1:3]');
@@ -410,5 +494,29 @@ describe('Parser — Slice syntax', () => {
     const expr = parseExpr('list[:3]');
     expect(expr.type).toBe('SliceExpression');
     expect(expr.start).toBeNull();
+  });
+
+  test('slice with double colon (reverse)', () => {
+    const expr = parseExpr('list[::-1]');
+    expect(expr.type).toBe('SliceExpression');
+    expect(expr.start).toBeNull();
+    expect(expr.end).toBeNull();
+    expect(expr.step.type).toBe('UnaryExpression'); // -1 parsed as unary minus
+  });
+
+  test('slice with double colon (positive step)', () => {
+    const expr = parseExpr('list[::2]');
+    expect(expr.type).toBe('SliceExpression');
+    expect(expr.start).toBeNull();
+    expect(expr.end).toBeNull();
+    expect(expr.step.value).toBe(2);
+  });
+
+  test('slice with start and double colon', () => {
+    const expr = parseExpr('list[1::2]');
+    expect(expr.type).toBe('SliceExpression');
+    expect(expr.start.value).toBe(1);
+    expect(expr.end).toBeNull();
+    expect(expr.step.value).toBe(2);
   });
 });

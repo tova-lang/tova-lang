@@ -269,7 +269,7 @@ shared {
   }
 }
 
-// Server code — Hono routes and server functions
+// Server code — Bun.serve() native HTTP (zero dependencies)
 server {
   fn get_users() -> [User] {
     db.query("SELECT * FROM users")
@@ -296,6 +296,50 @@ client {
   }
 }
 ```
+
+## Named Multi-Blocks (Multi-Process)
+
+Multiple blocks of the same type can run as **separate processes**, each on its
+own port. Give each block a string name:
+
+```lux
+// API server — port 3000 (env: PORT_API)
+server "api" {
+  fn get_users() -> [User] { users }
+  route GET "/api/users" => get_users
+}
+
+// WebSocket server — port 3001 (env: PORT_EVENTS)
+server "events" {
+  fn subscribe() { ... }
+  route GET "/events" => subscribe
+}
+
+// Admin dashboard
+client "admin" {
+  state users: [User] = []
+  component AdminPanel { ... }
+}
+```
+
+Build output:
+```
+.lux-out/
+├── app.server.api.js      # Separate Bun.serve() process
+├── app.server.events.js   # Separate Bun.serve() process
+├── app.client.admin.js    # Separate client bundle
+└── app.shared.js
+```
+
+Dev orchestration (`lux dev`) automatically starts each named server block
+on an incrementing port and shuts them all down together on Ctrl+C.
+
+Port assignment:
+- Default (unnamed) → `PORT` env var or 3000
+- Named → `PORT_<NAME>` env var or auto-assigned
+
+Blocks with the **same name** are merged. Blocks with **different names**
+compile to separate files and run as independent processes.
 
 ## Reactive Primitives (Client)
 

@@ -13,9 +13,7 @@
     "test:parser": "bun test tests/parser.test.js",
     "test:codegen": "bun test tests/codegen.test.js"
   },
-  "dependencies": {
-    "hono": "^4.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {},
   "keywords": ["language", "transpiler", "fullstack", "javascript"],
   "license": "MIT"

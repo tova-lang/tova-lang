@@ -2,10 +2,12 @@
 
 import { resolve, basename, dirname, join, relative } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { spawn } from 'child_process';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
+import '../src/runtime/string-proto.js';
 
 const VERSION = '0.1.0';
 
@@ -152,24 +154,44 @@ function buildProject(args) {
       const baseName = basename(file, '.lux');
 
       // Write shared
-      if (output.shared.trim()) {
+      if (output.shared && output.shared.trim()) {
         const sharedPath = join(outDir, `${baseName}.shared.js`);
         writeFileSync(sharedPath, output.shared);
         console.log(`  ✓ ${rel} → ${relative('.', sharedPath)}`);
       }
 
-      // Write server
+      // Write default server
       if (output.server) {
         const serverPath = join(outDir, `${baseName}.server.js`);
         writeFileSync(serverPath, output.server);
         console.log(`  ✓ ${rel} → ${relative('.', serverPath)}`);
       }
 
-      // Write client
+      // Write default client
       if (output.client) {
         const clientPath = join(outDir, `${baseName}.client.js`);
         writeFileSync(clientPath, output.client);
         console.log(`  ✓ ${rel} → ${relative('.', clientPath)}`);
+      }
+
+      // Write named server blocks (multi-block)
+      if (output.multiBlock && output.servers) {
+        for (const [name, code] of Object.entries(output.servers)) {
+          if (name === 'default') continue; // already written above
+          const path = join(outDir, `${baseName}.server.${name}.js`);
+          writeFileSync(path, code);
+          console.log(`  ✓ ${rel} → ${relative('.', path)} [server:${name}]`);
+        }
+      }
+
+      // Write named client blocks (multi-block)
+      if (output.multiBlock && output.clients) {
+        for (const [name, code] of Object.entries(output.clients)) {
+          if (name === 'default') continue;
+          const path = join(outDir, `${baseName}.client.${name}.js`);
+          writeFileSync(path, code);
+          console.log(`  ✓ ${rel} → ${relative('.', path)} [client:${name}]`);
+        }
       }
     } catch (err) {
       console.error(`  ✗ ${rel}: ${err.message}`);
@@ -185,7 +207,7 @@ function buildProject(args) {
 
 async function devServer(args) {
   const srcDir = resolve(args[0] || '.');
-  const port = parseInt(args.find((_, i, a) => a[i - 1] === '--port') || '3000');
+  const basePort = parseInt(args.find((_, i, a) => a[i - 1] === '--port') || '3000');
 
   const luxFiles = findFiles(srcDir, '.lux');
   if (luxFiles.length === 0) {
@@ -196,53 +218,114 @@ async function devServer(args) {
   console.log(`\n  Lux dev server starting...\n`);
 
   // Compile all files
-  let serverCode = '';
-  let clientCode = '';
-  let sharedCode = '';
+  const outDir = join(srcDir, '.lux-out');
+  mkdirSync(outDir, { recursive: true });
+
+  const serverFiles = [];
+  let hasClient = false;
 
   for (const file of luxFiles) {
     try {
       const source = readFileSync(file, 'utf-8');
       const output = compileLux(source, file);
-      sharedCode += output.shared + '\n';
-      if (output.server) serverCode += output.server + '\n';
-      if (output.client) clientCode += output.client + '\n';
+      const baseName = basename(file, '.lux');
+
+      if (output.shared && output.shared.trim()) {
+        writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
+      }
+
+      // Default server
+      if (output.server) {
+        const p = join(outDir, `${baseName}.server.js`);
+        writeFileSync(p, output.server);
+        serverFiles.push({ path: p, name: 'default', baseName });
+      }
+
+      // Default client
+      if (output.client) {
+        const p = join(outDir, `${baseName}.client.js`);
+        writeFileSync(p, output.client);
+        const html = generateDevHTML(output.client);
+        writeFileSync(join(outDir, 'index.html'), html);
+        hasClient = true;
+      }
+
+      // Named server blocks
+      if (output.multiBlock && output.servers) {
+        for (const [name, code] of Object.entries(output.servers)) {
+          if (name === 'default') continue;
+          const p = join(outDir, `${baseName}.server.${name}.js`);
+          writeFileSync(p, code);
+          serverFiles.push({ path: p, name, baseName });
+        }
+      }
+
+      // Named client blocks
+      if (output.multiBlock && output.clients) {
+        for (const [name, code] of Object.entries(output.clients)) {
+          if (name === 'default') continue;
+          const p = join(outDir, `${baseName}.client.${name}.js`);
+          writeFileSync(p, code);
+        }
+      }
     } catch (err) {
       console.error(`  ✗ ${relative(srcDir, file)}: ${err.message}`);
     }
   }
 
-  // Write compiled output to temp dir
-  const outDir = join(srcDir, '.lux-out');
-  mkdirSync(outDir, { recursive: true });
-
-  if (serverCode) {
-    writeFileSync(join(outDir, 'server.js'), serverCode);
-  }
-
-  if (clientCode) {
-    writeFileSync(join(outDir, 'client.js'), clientCode);
-
-    // Generate index.html
-    const html = generateDevHTML(clientCode);
-    writeFileSync(join(outDir, 'index.html'), html);
-  }
-
   console.log(`  ✓ Compiled ${luxFiles.length} file(s)`);
   console.log(`  ✓ Output: ${relative('.', outDir)}/`);
-  console.log(`\n  Server: http://localhost:${port}`);
-  console.log(`  Press Ctrl+C to stop\n`);
 
-  // Start a simple dev server using Bun.serve
-  if (serverCode) {
-    // Dynamic import the server
-    try {
-      const mod = await import(join(outDir, 'server.js'));
-      console.log(`  ✓ Server module loaded`);
-    } catch (e) {
-      console.log(`  ℹ Server code compiled (run separately with: bun .lux-out/server.js)`);
+  // Orchestrate: spawn each server block as a separate Bun process
+  const processes = [];
+  let portOffset = 0;
+
+  for (const sf of serverFiles) {
+    const port = basePort + portOffset;
+    const label = sf.name === 'default' ? 'server' : `server:${sf.name}`;
+    const envKey = sf.name === 'default'
+      ? 'PORT'
+      : `PORT_${sf.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+
+    console.log(`  ✓ Starting ${label} on port ${port}`);
+
+    const child = spawn('bun', ['run', sf.path], {
+      stdio: 'inherit',
+      env: { ...process.env, [envKey]: String(port), PORT: String(port) },
+    });
+
+    child.on('error', (err) => {
+      console.error(`  ✗ ${label} failed: ${err.message}`);
+    });
+
+    processes.push({ child, label, port });
+    portOffset++;
+  }
+
+  if (processes.length > 0) {
+    console.log(`\n  ${processes.length} server process(es) running`);
+    for (const p of processes) {
+      console.log(`    → ${p.label}: http://localhost:${p.port}`);
     }
   }
+
+  if (hasClient) {
+    console.log(`  ✓ Client: ${relative('.', outDir)}/index.html`);
+  }
+
+  console.log(`\n  Press Ctrl+C to stop\n`);
+
+  // Graceful shutdown
+  process.on('SIGINT', () => {
+    console.log('\n  Shutting down...');
+    for (const p of processes) {
+      p.child.kill('SIGTERM');
+    }
+    process.exit(0);
+  });
+
+  // Keep alive
+  await new Promise(() => {});
 }
 
 function generateDevHTML(clientCode) {
@@ -304,7 +387,6 @@ function newProject(name) {
     },
     dependencies: {
       'lux-lang': '^0.1.0',
-      'hono': '^4.0.0',
     },
   }, null, 2) + '\n');
 

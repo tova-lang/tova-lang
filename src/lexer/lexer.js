@@ -506,6 +506,8 @@ export class Lexer {
       case '?':
         if (this.match('.')) {
           this.tokens.push(new Token(TokenType.QUESTION_DOT, '?.', startLine, startCol));
+        } else if (this.match('?')) {
+          this.tokens.push(new Token(TokenType.QUESTION_QUESTION, '??', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.QUESTION, '?', startLine, startCol));
         }

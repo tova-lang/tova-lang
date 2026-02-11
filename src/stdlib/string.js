@@ -87,8 +87,8 @@ export function title_case(str) {
 
 export function snake_case(str) {
   return str
-    .replace(/([A-Z])/g, '_$1')
     .replace(/[-\s]+/g, '_')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .toLowerCase()
     .replace(/^_/, '');
 }

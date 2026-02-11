@@ -35,7 +35,10 @@ export class ClientCodegen extends BaseCodegen {
     const params = this.genParams(node.params);
 
     if (node.body.type === 'BlockStatement') {
+      this.pushScope();
+      for (const p of node.params) this.declareVar(p.name);
       const body = this.genBlockBody(node.body);
+      this.popScope();
       return `(${params}) => {\n${body}\n${this.i()}}`;
     }
 
@@ -159,6 +162,13 @@ export class ClientCodegen extends BaseCodegen {
         lines.push(`});`);
         lines.push('');
       }
+    }
+
+    // Include __contains helper if needed
+    if (this._needsContainsHelper) {
+      lines.push('// ── Runtime Helpers ──');
+      lines.push(this.getContainsHelper());
+      lines.push('');
     }
 
     // Auto-mount the App component if it exists

@@ -190,6 +190,22 @@ describe('Lexer — Operators', () => {
     expect(types('?.')).toEqual([TokenType.QUESTION_DOT]);
     expect(types('?')).toEqual([TokenType.QUESTION]);
   });
+
+  test('null coalescing', () => {
+    expect(types('??')).toEqual([TokenType.QUESTION_QUESTION]);
+  });
+
+  test('?? vs ?. vs ? disambiguation', () => {
+    expect(types('a ?? b')).toEqual([
+      TokenType.IDENTIFIER, TokenType.QUESTION_QUESTION, TokenType.IDENTIFIER,
+    ]);
+    expect(types('a?.b')).toEqual([
+      TokenType.IDENTIFIER, TokenType.QUESTION_DOT, TokenType.IDENTIFIER,
+    ]);
+    expect(types('a?')).toEqual([
+      TokenType.IDENTIFIER, TokenType.QUESTION,
+    ]);
+  });
 });
 
 describe('Lexer — Delimiters', () => {

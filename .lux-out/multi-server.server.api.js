@@ -1,5 +1,6 @@
 // ── Shared ──
-function Todo(id, title, completed) { return { id, title, completed }; }
+function User(id, name, email) { return { id, name, email }; }
+function Event(kind, data, timestamp) { return { kind, data, timestamp }; }
 
 // ── Router ──
 const __routes = [];
@@ -14,64 +15,40 @@ const __corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-let todos = [];
-let next_id = 1;
+let users = [];
 // ── Server Functions ──
-function get_todos() {
-  return todos;
+function get_users() {
+  return users;
 }
 
-function add_todo(title) {
-  const todo = Todo(next_id, title, false);
-  next_id += 1;
-  const todos = [...todos, todo];
-  return todo;
-}
-
-function toggle_todo(id) {
-  for (const t of todos) {
-    if ((t.id == id)) {
-      return Todo(t.id, t.title, (!t.completed));
-    }
-  }
-  return null;
-}
-
-function delete_todo(id) {
-  const todos = todos.filter((t) => (t.id != id)).map((t) => t);
+function create_user(name, email) {
+  const user = User((len(users) + 1), name, email);
+  const users = [...users, user];
+  return user;
 }
 
 // ── RPC Endpoints ──
-__addRoute("POST", "/rpc/get_todos", async (req) => {
+__addRoute("POST", "/rpc/get_users", async (req) => {
   const body = await req.json();
-  const result = await get_todos();
+  const result = await get_users();
   return Response.json({ result });
 });
 
-__addRoute("POST", "/rpc/add_todo", async (req) => {
+__addRoute("POST", "/rpc/create_user", async (req) => {
   const body = await req.json();
-  const { title } = body;
-  const result = await add_todo(title);
-  return Response.json({ result });
-});
-
-__addRoute("POST", "/rpc/toggle_todo", async (req) => {
-  const body = await req.json();
-  const { id } = body;
-  const result = await toggle_todo(id);
-  return Response.json({ result });
-});
-
-__addRoute("POST", "/rpc/delete_todo", async (req) => {
-  const body = await req.json();
-  const { id } = body;
-  const result = await delete_todo(id);
+  const { name, email } = body;
+  const result = await create_user(name, email);
   return Response.json({ result });
 });
 
 // ── Routes ──
-__addRoute("GET", "/api/todos", async (req, params) => {
-  const result = await get_todos(req, params);
+__addRoute("GET", "/api/users", async (req, params) => {
+  const result = await get_users(req, params);
+  return Response.json(result);
+});
+
+__addRoute("POST", "/api/users", async (req, params) => {
+  const result = await create_user(req, params);
   return Response.json(result);
 });
 
@@ -101,9 +78,9 @@ async function __handleRequest(req) {
 }
 
 // ── Start Server ──
-const __port = process.env.PORT || process.env.PORT || 3000;
+const __port = process.env.PORT_API || process.env.PORT || 3000;
 const __server = Bun.serve({
   port: __port,
   fetch: __handleRequest,
 });
-console.log(`Lux server running on ${__server.url}`);
+console.log(`Lux server [api] running on ${__server.url}`);

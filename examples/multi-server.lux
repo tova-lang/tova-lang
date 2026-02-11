@@ -1,0 +1,85 @@
+// Multi-Server Example — demonstrates named blocks running as separate processes
+// Each named server block compiles to its own file and runs on its own port
+
+shared {
+  type User {
+    id: Int
+    name: String
+    email: String
+  }
+
+  type Event {
+    kind: String
+    data: String
+    timestamp: Int
+  }
+}
+
+// API server — handles REST endpoints
+server "api" {
+  var users = []
+
+  fn get_users() -> [User] {
+    users
+  }
+
+  fn create_user(name: String, email: String) -> User {
+    user = User(len(users) + 1, name, email)
+    users = [...users, user]
+    user
+  }
+
+  route GET "/api/users" => get_users
+  route POST "/api/users" => create_user
+}
+
+// WebSocket / events server — handles real-time events
+server "events" {
+  var connections = []
+  var event_log = []
+
+  fn get_events() -> [Event] {
+    event_log
+  }
+
+  fn push_event(kind: String, data: String) -> Event {
+    event = Event(kind, data, 0)
+    event_log = [...event_log, event]
+    event
+  }
+
+  route GET "/events" => get_events
+  route POST "/events" => push_event
+}
+
+// Client UI
+client {
+  state users: [User] = []
+  state events: [Event] = []
+
+  effect {
+    users = server.get_users()
+  }
+
+  component App {
+    <div class="app">
+      <h1>"Multi-Server Demo"</h1>
+      <section>
+        <h2>"Users (from api server)"</h2>
+        <ul>
+          for user in users {
+            <li>"{user.name} ({user.email})"</li>
+          }
+        </ul>
+      </section>
+      <section>
+        <h2>"Events (from events server)"</h2>
+        <ul>
+          for event in events {
+            <li>"[{event.kind}] {event.data}"</li>
+          }
+        </ul>
+      </section>
+    </div>
+  }
+}

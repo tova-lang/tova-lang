@@ -16,24 +16,27 @@ export class Program {
 // ============================================================
 
 export class ServerBlock {
-  constructor(body, loc) {
+  constructor(body, loc, name = null) {
     this.type = 'ServerBlock';
+    this.name = name;
     this.body = body;
     this.loc = loc;
   }
 }
 
 export class ClientBlock {
-  constructor(body, loc) {
+  constructor(body, loc, name = null) {
     this.type = 'ClientBlock';
+    this.name = name;
     this.body = body;
     this.loc = loc;
   }
 }
 
 export class SharedBlock {
-  constructor(body, loc) {
+  constructor(body, loc, name = null) {
     this.type = 'SharedBlock';
+    this.name = name;
     this.body = body;
     this.loc = loc;
   }
@@ -197,6 +200,17 @@ export class WhileStatement {
     this.type = 'WhileStatement';
     this.condition = condition;
     this.body = body;
+    this.loc = loc;
+  }
+}
+
+export class IfExpression {
+  constructor(condition, consequent, alternates, elseBody, loc) {
+    this.type = 'IfExpression';
+    this.condition = condition;
+    this.consequent = consequent;     // BlockStatement
+    this.alternates = alternates;     // Array of { condition, body } for elif
+    this.elseBody = elseBody;         // BlockStatement (required)
     this.loc = loc;
   }
 }

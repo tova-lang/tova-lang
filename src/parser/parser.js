@@ -102,37 +102,52 @@ export class Parser {
   parseServerBlock() {
     const l = this.loc();
     this.expect(TokenType.SERVER);
+    // Optional block name: server "api" { }
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
     this.expect(TokenType.LBRACE, "Expected '{' after 'server'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       body.push(this.parseServerStatement());
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close server block");
-    return new AST.ServerBlock(body, l);
+    return new AST.ServerBlock(body, l, name);
   }
 
   parseClientBlock() {
     const l = this.loc();
     this.expect(TokenType.CLIENT);
+    // Optional block name: client "admin" { }
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
     this.expect(TokenType.LBRACE, "Expected '{' after 'client'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       body.push(this.parseClientStatement());
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close client block");
-    return new AST.ClientBlock(body, l);
+    return new AST.ClientBlock(body, l, name);
   }
 
   parseSharedBlock() {
     const l = this.loc();
     this.expect(TokenType.SHARED);
+    // Optional block name: shared "models" { }
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
     this.expect(TokenType.LBRACE, "Expected '{' after 'shared'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       body.push(this.parseStatement());
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close shared block");
-    return new AST.SharedBlock(body, l);
+    return new AST.SharedBlock(body, l, name);
   }
 
   // ─── Server-specific statements ───────────────────────────
@@ -790,6 +805,29 @@ export class Parser {
     return new AST.ExpressionStatement(expr, this.loc());
   }
 
+  parseIfExpression() {
+    const l = this.loc();
+    this.expect(TokenType.IF);
+    const condition = this.parseExpression();
+    const consequent = this.parseBlock();
+
+    const alternates = [];
+    while (this.check(TokenType.ELIF)) {
+      this.advance();
+      const elifCond = this.parseExpression();
+      const elifBody = this.parseBlock();
+      alternates.push({ condition: elifCond, body: elifBody });
+    }
+
+    if (!this.check(TokenType.ELSE)) {
+      this.error("if expression requires an else branch");
+    }
+    this.advance();
+    const elseBody = this.parseBlock();
+
+    return new AST.IfExpression(condition, consequent, alternates, elseBody, l);
+  }
+
   // ─── Expressions (precedence climbing) ────────────────────
 
   parseExpression() {
@@ -797,11 +835,21 @@ export class Parser {
   }
 
   parsePipe() {
-    let left = this.parseOr();
+    let left = this.parseNullCoalesce();
     while (this.match(TokenType.PIPE)) {
       const l = this.loc();
-      const right = this.parseOr();
+      const right = this.parseNullCoalesce();
       left = new AST.PipeExpression(left, right, l);
+    }
+    return left;
+  }
+
+  parseNullCoalesce() {
+    let left = this.parseOr();
+    while (this.match(TokenType.QUESTION_QUESTION)) {
+      const l = this.loc();
+      const right = this.parseOr();
+      left = new AST.BinaryExpression('??', left, right, l);
     }
     return left;
   }
@@ -981,13 +1029,24 @@ export class Parser {
     const l = this.loc();
     this.expect(TokenType.LBRACKET);
 
+    // Handle [::step] — DOUBLE_COLON is lexed as one token
+    if (this.check(TokenType.DOUBLE_COLON)) {
+      this.advance();
+      let step = null;
+      if (!this.check(TokenType.RBRACKET)) {
+        step = this.parseExpression();
+      }
+      this.expect(TokenType.RBRACKET, "Expected ']'");
+      return new AST.SliceExpression(object, null, null, step, l);
+    }
+
     // Check for slice: obj[start:end:step]
     if (this.check(TokenType.COLON)) {
-      // [:end] or [::step]
+      // [:end] or [:end:step]
       this.advance();
       let end = null;
       let step = null;
-      if (!this.check(TokenType.COLON) && !this.check(TokenType.RBRACKET)) {
+      if (!this.check(TokenType.COLON) && !this.check(TokenType.DOUBLE_COLON) && !this.check(TokenType.RBRACKET)) {
         end = this.parseExpression();
       }
       if (this.match(TokenType.COLON)) {
@@ -999,11 +1058,22 @@ export class Parser {
 
     const start = this.parseExpression();
 
+    // Handle [start::step] — DOUBLE_COLON after start expression
+    if (this.check(TokenType.DOUBLE_COLON)) {
+      this.advance();
+      let step = null;
+      if (!this.check(TokenType.RBRACKET)) {
+        step = this.parseExpression();
+      }
+      this.expect(TokenType.RBRACKET, "Expected ']'");
+      return new AST.SliceExpression(object, start, null, step, l);
+    }
+
     if (this.match(TokenType.COLON)) {
       // [start:end] or [start:end:step]
       let end = null;
       let step = null;
-      if (!this.check(TokenType.COLON) && !this.check(TokenType.RBRACKET)) {
+      if (!this.check(TokenType.COLON) && !this.check(TokenType.DOUBLE_COLON) && !this.check(TokenType.RBRACKET)) {
         end = this.parseExpression();
       }
       if (this.match(TokenType.COLON)) {
@@ -1075,6 +1145,11 @@ export class Parser {
       return this.parseMatchExpression();
     }
 
+    // If expression (in expression position): if cond { a } else { b }
+    if (this.check(TokenType.IF)) {
+      return this.parseIfExpression();
+    }
+
     // Lambda: fn(params) body  or  params => body
     if (this.check(TokenType.FN) && this.peek(1).type === TokenType.LPAREN) {
       return this.parseLambda();
@@ -1118,12 +1193,6 @@ export class Parser {
         );
       }
       return new AST.Identifier(name, l);
-    }
-
-    // Wildcard _
-    if (this.checkValue(TokenType.IDENTIFIER, '_')) {
-      this.advance();
-      return new AST.Identifier('_', l);
     }
 
     this.error(`Unexpected token: ${this.current().type}`);

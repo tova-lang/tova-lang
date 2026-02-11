@@ -1,4 +1,6 @@
 // Main code generator — orchestrates shared/server/client codegen
+// Supports named multi-blocks: server "api" { }, server "ws" { }
+// Blocks with the same name are merged; different names produce separate output files.
 
 import { SharedCodegen } from './shared-codegen.js';
 import { ServerCodegen } from './server-codegen.js';
@@ -10,46 +12,79 @@ export class CodeGenerator {
     this.filename = filename;
   }
 
+  // Group blocks by name (null name = "default")
+  _groupByName(blocks) {
+    const groups = new Map();
+    for (const block of blocks) {
+      const key = block.name || null;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(block);
+    }
+    return groups;
+  }
+
   generate() {
-    const shared = [];
-    const server = [];
-    const client = [];
+    const sharedBlocks = [];
+    const serverBlocks = [];
+    const clientBlocks = [];
     const topLevel = [];
 
     for (const node of this.ast.body) {
       switch (node.type) {
-        case 'SharedBlock':
-          shared.push(node);
-          break;
-        case 'ServerBlock':
-          server.push(node);
-          break;
-        case 'ClientBlock':
-          client.push(node);
-          break;
-        default:
-          topLevel.push(node);
-          break;
+        case 'SharedBlock': sharedBlocks.push(node); break;
+        case 'ServerBlock': serverBlocks.push(node); break;
+        case 'ClientBlock': clientBlocks.push(node); break;
+        default: topLevel.push(node); break;
       }
     }
 
     const sharedGen = new SharedCodegen();
-    const serverGen = new ServerCodegen();
-    const clientGen = new ClientCodegen();
 
-    const sharedCode = shared.map(b => sharedGen.generate(b)).join('\n');
+    // All shared blocks (regardless of name) are merged into one shared output
+    const sharedCode = sharedBlocks.map(b => sharedGen.generate(b)).join('\n');
     const topLevelCode = topLevel.map(s => sharedGen.generateStatement(s)).join('\n');
-    const serverCode = server.length > 0
-      ? serverGen.generate(server, sharedCode)
-      : '';
-    const clientCode = client.length > 0
-      ? clientGen.generate(client, sharedCode)
-      : '';
+    const helpers = sharedGen.generateHelpers();
+    const combinedShared = [helpers, sharedCode, topLevelCode].filter(s => s.trim()).join('\n').trim();
 
+    // Group server and client blocks by name
+    const serverGroups = this._groupByName(serverBlocks);
+    const clientGroups = this._groupByName(clientBlocks);
+
+    // Generate server outputs (one per named group)
+    const servers = {};
+    for (const [name, blocks] of serverGroups) {
+      const gen = new ServerCodegen();
+      const key = name || 'default';
+      servers[key] = gen.generate(blocks, combinedShared, name);
+    }
+
+    // Generate client outputs (one per named group)
+    const clients = {};
+    for (const [name, blocks] of clientGroups) {
+      const gen = new ClientCodegen();
+      const key = name || 'default';
+      clients[key] = gen.generate(blocks, combinedShared);
+    }
+
+    // Backward-compatible: if only unnamed blocks, return flat structure
+    const hasNamedBlocks = [...serverGroups.keys(), ...clientGroups.keys()].some(k => k !== null);
+
+    if (!hasNamedBlocks) {
+      return {
+        shared: combinedShared,
+        server: servers['default'] || '',
+        client: clients['default'] || '',
+      };
+    }
+
+    // Multi-block output: separate files per named block
     return {
-      shared: sharedCode + '\n' + topLevelCode,
-      server: serverCode,
-      client: clientCode,
+      shared: combinedShared,
+      server: servers['default'] || '',
+      client: clients['default'] || '',
+      servers,   // { "api": code, "ws": code, ... }
+      clients,   // { "admin": code, "dashboard": code, ... }
+      multiBlock: true,
     };
   }
 }

@@ -1,5 +1,6 @@
 // ── Shared ──
-function Todo(id, title, completed) { return { id, title, completed }; }
+function User(id, name, email) { return { id, name, email }; }
+function Event(kind, data, timestamp) { return { kind, data, timestamp }; }
 
 // ── Router ──
 const __routes = [];
@@ -14,64 +15,41 @@ const __corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-let todos = [];
-let next_id = 1;
+let connections = [];
+let event_log = [];
 // ── Server Functions ──
-function get_todos() {
-  return todos;
+function get_events() {
+  return event_log;
 }
 
-function add_todo(title) {
-  const todo = Todo(next_id, title, false);
-  next_id += 1;
-  const todos = [...todos, todo];
-  return todo;
-}
-
-function toggle_todo(id) {
-  for (const t of todos) {
-    if ((t.id == id)) {
-      return Todo(t.id, t.title, (!t.completed));
-    }
-  }
-  return null;
-}
-
-function delete_todo(id) {
-  const todos = todos.filter((t) => (t.id != id)).map((t) => t);
+function push_event(kind, data) {
+  const event = Event(kind, data, 0);
+  const event_log = [...event_log, event];
+  return event;
 }
 
 // ── RPC Endpoints ──
-__addRoute("POST", "/rpc/get_todos", async (req) => {
+__addRoute("POST", "/rpc/get_events", async (req) => {
   const body = await req.json();
-  const result = await get_todos();
+  const result = await get_events();
   return Response.json({ result });
 });
 
-__addRoute("POST", "/rpc/add_todo", async (req) => {
+__addRoute("POST", "/rpc/push_event", async (req) => {
   const body = await req.json();
-  const { title } = body;
-  const result = await add_todo(title);
-  return Response.json({ result });
-});
-
-__addRoute("POST", "/rpc/toggle_todo", async (req) => {
-  const body = await req.json();
-  const { id } = body;
-  const result = await toggle_todo(id);
-  return Response.json({ result });
-});
-
-__addRoute("POST", "/rpc/delete_todo", async (req) => {
-  const body = await req.json();
-  const { id } = body;
-  const result = await delete_todo(id);
+  const { kind, data } = body;
+  const result = await push_event(kind, data);
   return Response.json({ result });
 });
 
 // ── Routes ──
-__addRoute("GET", "/api/todos", async (req, params) => {
-  const result = await get_todos(req, params);
+__addRoute("GET", "/events", async (req, params) => {
+  const result = await get_events(req, params);
+  return Response.json(result);
+});
+
+__addRoute("POST", "/events", async (req, params) => {
+  const result = await push_event(req, params);
   return Response.json(result);
 });
 
@@ -101,9 +79,9 @@ async function __handleRequest(req) {
 }
 
 // ── Start Server ──
-const __port = process.env.PORT || process.env.PORT || 3000;
+const __port = process.env.PORT_EVENTS || process.env.PORT || 3000;
 const __server = Bun.serve({
   port: __port,
   fetch: __handleRequest,
 });
-console.log(`Lux server running on ${__server.url}`);
+console.log(`Lux server [events] running on ${__server.url}`);

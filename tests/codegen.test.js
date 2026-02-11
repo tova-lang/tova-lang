@@ -27,10 +27,9 @@ describe('Codegen — Variables', () => {
     expect(code).toContain('let x = 42;');
   });
 
-  test('multiple assignment', () => {
+  test('multiple assignment → atomic destructuring', () => {
     const code = compileShared('a, b = 1, 2');
-    expect(code).toContain('const a = 1;');
-    expect(code).toContain('const b = 2;');
+    expect(code).toContain('const [a, b] = [1, 2];');
   });
 
   test('let destructuring', () => {
@@ -80,12 +79,12 @@ describe('Codegen — Expressions', () => {
 
   test('membership: in', () => {
     const code = compileShared('x = a in list');
-    expect(code).toContain('list.includes(a)');
+    expect(code).toContain('__contains(list, a)');
   });
 
   test('membership: not in', () => {
     const code = compileShared('x = a not in list');
-    expect(code).toContain('(!list.includes(a))');
+    expect(code).toContain('(!__contains(list, a))');
   });
 
   test('range expression', () => {
@@ -214,20 +213,163 @@ describe('Codegen — Imports', () => {
 });
 
 describe('Codegen — Server', () => {
-  test('generates Hono app', () => {
+  test('generates Bun.serve()', () => {
     const result = compile('server { fn hello() { "world" } }');
-    expect(result.server).toContain("import { Hono } from 'hono'");
-    expect(result.server).toContain('const app = new Hono()');
+    expect(result.server).toContain('Bun.serve(');
+    expect(result.server).toContain('__handleRequest');
+    expect(result.server).not.toContain('Hono');
   });
 
   test('generates RPC endpoint for server function', () => {
     const result = compile('server { fn get_users() { [] } }');
-    expect(result.server).toContain('app.post("/rpc/get_users"');
+    expect(result.server).toContain('__addRoute("POST", "/rpc/get_users"');
   });
 
   test('generates explicit route', () => {
     const result = compile('server { fn handler() { [] } route GET "/api/test" => handler }');
-    expect(result.server).toContain('app.get("/api/test"');
+    expect(result.server).toContain('__addRoute("GET", "/api/test"');
+  });
+
+  test('generates CORS headers', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('__corsHeaders');
+    expect(result.server).toContain('Access-Control-Allow-Origin');
+  });
+});
+
+describe('Codegen — Named Multi-Blocks', () => {
+  test('named server blocks produce separate outputs', () => {
+    const result = compile('server "api" { fn get_data() { [] } } server "ws" { fn connect() { true } }');
+    expect(result.multiBlock).toBe(true);
+    expect(result.servers['api']).toContain('function get_data()');
+    expect(result.servers['api']).toContain('/rpc/get_data');
+    expect(result.servers['ws']).toContain('function connect()');
+    expect(result.servers['ws']).toContain('/rpc/connect');
+  });
+
+  test('named blocks use port env vars', () => {
+    const result = compile('server "api" { fn ping() { true } }');
+    expect(result.servers['api']).toContain('PORT_API');
+    expect(result.servers['api']).toContain('[api]');
+  });
+
+  test('unnamed blocks remain backward-compatible', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.multiBlock).toBeUndefined();
+    expect(result.server).toContain('function hello()');
+  });
+});
+
+describe('Codegen — Bug Fixes', () => {
+  test('mutable var reassignment emits bare assignment, not const', () => {
+    const code = compileShared('var x = 0\nx = 5');
+    expect(code).toContain('let x = 0;');
+    expect(code).toContain('x = 5;');
+    expect(code).not.toContain('const x = 5;');
+  });
+
+  test('mutable var in function: reassignment works', () => {
+    const code = compileShared('var items = []\nfn add(item) { items = [...items, item] }');
+    expect(code).toContain('let items = [];');
+    expect(code).toContain('items = [...items, item];');
+    expect(code).not.toContain('const items = [...items');
+  });
+
+  test('function-local const does not leak to sibling function', () => {
+    const code = compileShared('fn foo() { x = 1 }\nfn bar() { x = 2 }');
+    // Both should be const (independent scopes)
+    const matches = code.match(/const x = /g);
+    expect(matches).toHaveLength(2);
+  });
+
+  test('multiple assignment swap is atomic', () => {
+    const code = compileShared('var a = 1\nvar b = 2\na, b = b, a');
+    expect(code).toContain('[a, b] = [b, a];');
+    expect(code).not.toContain('const a = b;');
+  });
+
+  test('multiple assignment new vars uses destructuring', () => {
+    const code = compileShared('a, b = 1, 2');
+    expect(code).toContain('const [a, b] = [1, 2];');
+  });
+
+  test('slice with negative step reverses', () => {
+    const code = compileShared('x = list[::-1]');
+    expect(code).toContain('st > 0');
+    expect(code).toContain('a.length - 1');
+    expect(code).toContain('-1');
+  });
+
+  test('slice with positive step', () => {
+    const code = compileShared('x = list[::2]');
+    expect(code).toContain('st > 0');
+  });
+
+  test('for-else uses deterministic temp var names', () => {
+    const code1 = compileShared('for x in items { print(x) } else { print("empty") }');
+    const code2 = compileShared('for x in items { print(x) } else { print("empty") }');
+    expect(code1).toContain('__iter_0');
+    expect(code2).toContain('__iter_0');
+  });
+
+  test('membership: in uses __contains helper', () => {
+    const code = compileShared('x = "key" in obj');
+    expect(code).toContain('__contains(obj, "key")');
+    expect(code).toContain('function __contains');
+  });
+
+  test('named arguments compile to object', () => {
+    const code = compileShared('greet(name: "Alice", age: 25)');
+    expect(code).toContain('greet({ name: "Alice", age: 25 })');
+  });
+});
+
+describe('Codegen — Null Coalescing', () => {
+  test('?? operator', () => {
+    const code = compileShared('x = a ?? "default"');
+    expect(code).toContain('(a ?? "default")');
+  });
+
+  test('?? chains', () => {
+    const code = compileShared('x = a ?? b ?? "fallback"');
+    expect(code).toContain('??');
+  });
+});
+
+describe('Codegen — If Expression', () => {
+  test('simple if-else expression compiles to ternary', () => {
+    const code = compileShared('x = if true { 1 } else { 0 }');
+    expect(code).toContain('?');
+    expect(code).toContain(':');
+  });
+
+  test('multi-statement if expression compiles to IIFE', () => {
+    const code = compileShared('x = if cond { y = 1\ny + 2 } else { 0 }');
+    expect(code).toContain('(() => {');
+    expect(code).toContain('if (cond)');
+    expect(code).toContain('return');
+  });
+
+  test('if-elif-else expression', () => {
+    const code = compileShared('x = if a { 1 } elif b { 2 } else { 3 }');
+    expect(code).toContain('(() => {');
+    expect(code).toContain('else if');
+  });
+});
+
+describe('Codegen — Server Bug Fixes', () => {
+  test('server var reassignment works correctly', () => {
+    const result = compile('server { var items = []\nfn add(item) { items = [...items, item]\nitem } }');
+    expect(result.server).toContain('let items = [];');
+    expect(result.server).toContain('items = [...items, item];');
+    expect(result.server).not.toContain('const items = [...items');
+  });
+
+  test('RPC supports positional args (__args)', () => {
+    const result = compile('server { fn add_todo(title) { title } }');
+    expect(result.server).toContain('body.__args');
+    expect(result.server).toContain('body.__args[0]');
+    expect(result.server).toContain('body.title');
   });
 });
 
