@@ -78,6 +78,31 @@ export class Parser {
     return this.check(TokenType.EOF);
   }
 
+  // Detect if current < starts a JSX tag (vs comparison operator)
+  _looksLikeJSX() {
+    if (!this.check(TokenType.LESS)) return false;
+    const next = this.peek(1);
+    if (next.type !== TokenType.IDENTIFIER) return false;
+    // Uppercase tag is always a component reference, never a comparison variable
+    if (/^[A-Z]/.test(next.value)) return true;
+    const afterIdent = this.peek(2);
+    // JSX patterns: <div>, <div/>, <div attr=...>, <div on:click=...>
+    // After the tag name, we can see >, /, an attribute name (identifier or keyword), or :
+    return afterIdent.type === TokenType.GREATER ||
+           afterIdent.type === TokenType.SLASH ||
+           afterIdent.type === TokenType.IDENTIFIER ||
+           afterIdent.type === TokenType.COLON ||
+           afterIdent.type === TokenType.STATE ||
+           afterIdent.type === TokenType.TYPE ||
+           afterIdent.type === TokenType.FOR ||
+           afterIdent.type === TokenType.IN ||
+           afterIdent.type === TokenType.IF ||
+           afterIdent.type === TokenType.ELSE ||
+           afterIdent.type === TokenType.MATCH ||
+           afterIdent.type === TokenType.RETURN ||
+           afterIdent.type === TokenType.NUMBER;
+  }
+
   // ─── Program ───────────────────────────────────────────────
 
   parse() {
@@ -94,7 +119,30 @@ export class Parser {
     if (this.check(TokenType.CLIENT)) return this.parseClientBlock();
     if (this.check(TokenType.SHARED)) return this.parseSharedBlock();
     if (this.check(TokenType.IMPORT)) return this.parseImport();
+    // test block: test "name" { ... } or test { ... }
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'test') {
+      const next = this.peek(1);
+      if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
+        return this.parseTestBlock();
+      }
+    }
     return this.parseStatement();
+  }
+
+  parseTestBlock() {
+    const l = this.loc();
+    this.advance(); // consume 'test'
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
+    this.expect(TokenType.LBRACE, "Expected '{' after test block name");
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      body.push(this.parseStatement());
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close test block");
+    return new AST.TestBlock(name, body, l);
   }
 
   // ─── Full-stack blocks ────────────────────────────────────
@@ -154,25 +202,498 @@ export class Parser {
 
   parseServerStatement() {
     if (this.check(TokenType.ROUTE)) return this.parseRoute();
+
+    // Contextual keywords in server blocks
+    if (this.check(TokenType.IDENTIFIER)) {
+      const val = this.current().value;
+      if (val === 'middleware' && this.peek(1).type === TokenType.FN) {
+        return this.parseMiddleware();
+      }
+      if (val === 'health') {
+        return this.parseHealthCheck();
+      }
+      if (val === 'cors' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseCorsConfig();
+      }
+      if (val === 'on_error' && this.peek(1).type === TokenType.FN) {
+        return this.parseErrorHandler();
+      }
+      if (val === 'ws' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseWebSocket();
+      }
+      if (val === 'static' && this.peek(1).type === TokenType.STRING) {
+        return this.parseStaticDeclaration();
+      }
+      if (val === 'discover' && this.peek(1).type === TokenType.STRING) {
+        return this.parseDiscover();
+      }
+      if (val === 'auth' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseAuthConfig();
+      }
+      if (val === 'max_body') {
+        return this.parseMaxBody();
+      }
+      if (val === 'routes' && this.peek(1).type === TokenType.STRING) {
+        return this.parseRouteGroup();
+      }
+      if (val === 'rate_limit' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseRateLimitConfig();
+      }
+      if (val === 'on_start' && this.peek(1).type === TokenType.FN) {
+        return this.parseLifecycleHook('start');
+      }
+      if (val === 'on_stop' && this.peek(1).type === TokenType.FN) {
+        return this.parseLifecycleHook('stop');
+      }
+      if (val === 'subscribe' && this.peek(1).type === TokenType.STRING) {
+        return this.parseSubscribe();
+      }
+      if (val === 'env' && this.peek(1).type === TokenType.IDENTIFIER) {
+        return this.parseEnvDeclaration();
+      }
+      if (val === 'schedule' && this.peek(1).type === TokenType.STRING) {
+        return this.parseSchedule();
+      }
+      if (val === 'upload' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseUploadConfig();
+      }
+      if (val === 'session' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSessionConfig();
+      }
+      if (val === 'db' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseDbConfig();
+      }
+      if (val === 'tls' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseTlsConfig();
+      }
+      if (val === 'compression' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseCompressionConfig();
+      }
+      if (val === 'background' && this.peek(1).type === TokenType.FN) {
+        return this.parseBackgroundJob();
+      }
+      if (val === 'cache' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseCacheConfig();
+      }
+      if (val === 'sse' && this.peek(1).type === TokenType.STRING) {
+        return this.parseSseDeclaration();
+      }
+      if (val === 'model' && this.peek(1).type === TokenType.IDENTIFIER) {
+        return this.parseModelDeclaration();
+      }
+    }
+
     return this.parseStatement();
+  }
+
+  parseMiddleware() {
+    const l = this.loc();
+    this.advance(); // consume 'middleware'
+    this.expect(TokenType.FN);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected middleware name").value;
+    this.expect(TokenType.LPAREN, "Expected '(' after middleware name");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after middleware parameters");
+    const body = this.parseBlock();
+    return new AST.MiddlewareDeclaration(name, params, body, l);
+  }
+
+  parseHealthCheck() {
+    const l = this.loc();
+    this.advance(); // consume 'health'
+    const path = this.expect(TokenType.STRING, "Expected health check path string");
+    return new AST.HealthCheckDeclaration(path.value, l);
+  }
+
+  parseCorsConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'cors'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'cors'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected cors config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after cors key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close cors config");
+    return new AST.CorsDeclaration(config, l);
+  }
+
+  parseErrorHandler() {
+    const l = this.loc();
+    this.advance(); // consume 'on_error'
+    this.expect(TokenType.FN);
+    this.expect(TokenType.LPAREN, "Expected '(' after 'fn'");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after error handler parameters");
+    const body = this.parseBlock();
+    return new AST.ErrorHandlerDeclaration(params, body, l);
+  }
+
+  parseWebSocket() {
+    const l = this.loc();
+    this.advance(); // consume 'ws'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'ws'");
+
+    const handlers = {};
+    const config = {};
+    const validEvents = ['on_open', 'on_message', 'on_close', 'on_error'];
+    const validConfigKeys = ['auth'];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const name = this.expect(TokenType.IDENTIFIER, "Expected WebSocket event handler name or config key").value;
+      if (validConfigKeys.includes(name)) {
+        // Config key: auth: <expr>
+        this.expect(TokenType.COLON, `Expected ':' after '${name}'`);
+        config[name] = this.parseExpression();
+        this.match(TokenType.COMMA);
+      } else if (validEvents.includes(name)) {
+        this.expect(TokenType.FN, "Expected 'fn' after event name");
+        this.expect(TokenType.LPAREN);
+        const params = this.parseParameterList();
+        this.expect(TokenType.RPAREN);
+        const body = this.parseBlock();
+        handlers[name] = { params, body };
+      } else {
+        this.error(`Invalid WebSocket key '${name}'. Expected one of: ${[...validConfigKeys, ...validEvents].join(', ')}`);
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close ws block");
+    const wsConfig = Object.keys(config).length > 0 ? config : null;
+    return new AST.WebSocketDeclaration(handlers, l, wsConfig);
+  }
+
+  parseStaticDeclaration() {
+    const l = this.loc();
+    this.advance(); // consume 'static'
+    const urlPath = this.expect(TokenType.STRING, "Expected URL path for static files").value;
+    this.expect(TokenType.ARROW, "Expected '=>' after static path");
+    const dir = this.expect(TokenType.STRING, "Expected directory path for static files").value;
+    let fallback = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'fallback') {
+      this.advance(); // consume 'fallback'
+      fallback = this.expect(TokenType.STRING, "Expected fallback file path").value;
+    }
+    return new AST.StaticDeclaration(urlPath, dir, l, fallback);
+  }
+
+  parseDiscover() {
+    const l = this.loc();
+    this.advance(); // consume 'discover'
+    const peerName = this.expect(TokenType.STRING, "Expected peer name string after 'discover'").value;
+    // Expect 'at' as contextual keyword
+    const atTok = this.expect(TokenType.IDENTIFIER, "Expected 'at' after peer name");
+    if (atTok.value !== 'at') {
+      this.error("Expected 'at' after peer name in discover declaration");
+    }
+    const urlExpression = this.parseExpression();
+    let config = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'with') {
+      this.advance(); // consume 'with'
+      this.expect(TokenType.LBRACE, "Expected '{' after 'with'");
+      config = {};
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        const key = this.expect(TokenType.IDENTIFIER, "Expected config key").value;
+        this.expect(TokenType.COLON, "Expected ':' after config key");
+        const value = this.parseExpression();
+        config[key] = value;
+        this.match(TokenType.COMMA);
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close discover config");
+    }
+    return new AST.DiscoverDeclaration(peerName, urlExpression, l, config);
+  }
+
+  parseAuthConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'auth'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'auth'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      // Accept keywords (like 'type') and identifiers as config keys
+      let key;
+      if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.TYPE)) {
+        key = this.advance().value;
+      } else {
+        this.error("Expected auth config key");
+      }
+      this.expect(TokenType.COLON, "Expected ':' after auth key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close auth config");
+    return new AST.AuthDeclaration(config, l);
+  }
+
+  parseMaxBody() {
+    const l = this.loc();
+    this.advance(); // consume 'max_body'
+    const limit = this.parseExpression();
+    return new AST.MaxBodyDeclaration(limit, l);
+  }
+
+  parseRouteGroup() {
+    const l = this.loc();
+    this.advance(); // consume 'routes'
+    const prefix = this.expect(TokenType.STRING, "Expected route group prefix string").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after route group prefix");
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      body.push(this.parseServerStatement());
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close route group");
+    return new AST.RouteGroupDeclaration(prefix, body, l);
+  }
+
+  parseRateLimitConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'rate_limit'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'rate_limit'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected rate_limit config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after rate_limit key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close rate_limit config");
+    return new AST.RateLimitDeclaration(config, l);
+  }
+
+  parseLifecycleHook(hookName) {
+    const l = this.loc();
+    this.advance(); // consume 'on_start' or 'on_stop'
+    this.expect(TokenType.FN);
+    this.expect(TokenType.LPAREN, "Expected '(' after 'fn'");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after lifecycle hook parameters");
+    const body = this.parseBlock();
+    return new AST.LifecycleHookDeclaration(hookName, params, body, l);
+  }
+
+  parseSubscribe() {
+    const l = this.loc();
+    this.advance(); // consume 'subscribe'
+    const event = this.expect(TokenType.STRING, "Expected event name string").value;
+    this.expect(TokenType.FN, "Expected 'fn' after event name");
+    this.expect(TokenType.LPAREN, "Expected '(' after 'fn'");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after subscribe parameters");
+    const body = this.parseBlock();
+    return new AST.SubscribeDeclaration(event, params, body, l);
+  }
+
+  parseEnvDeclaration() {
+    const l = this.loc();
+    this.advance(); // consume 'env'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected env variable name").value;
+    this.expect(TokenType.COLON, "Expected ':' after env variable name");
+    const typeAnnotation = this.parseTypeAnnotation();
+    let defaultValue = null;
+    if (this.match(TokenType.ASSIGN)) {
+      defaultValue = this.parseExpression();
+    }
+    return new AST.EnvDeclaration(name, typeAnnotation, defaultValue, l);
+  }
+
+  parseSchedule() {
+    const l = this.loc();
+    this.advance(); // consume 'schedule'
+    const pattern = this.expect(TokenType.STRING, "Expected schedule pattern string").value;
+    this.expect(TokenType.FN, "Expected 'fn' after schedule pattern");
+    let name = null;
+    if (this.check(TokenType.IDENTIFIER)) {
+      name = this.advance().value;
+    }
+    this.expect(TokenType.LPAREN, "Expected '(' after schedule fn");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after schedule parameters");
+    const body = this.parseBlock();
+    return new AST.ScheduleDeclaration(pattern, name, params, body, l);
+  }
+
+  parseUploadConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'upload'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'upload'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected upload config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after upload key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close upload config");
+    return new AST.UploadDeclaration(config, l);
+  }
+
+  parseSessionConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'session'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'session'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected session config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after session key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close session config");
+    return new AST.SessionDeclaration(config, l);
+  }
+
+  parseDbConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'db'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'db'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected db config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after db key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close db config");
+    return new AST.DbDeclaration(config, l);
+  }
+
+  parseTlsConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'tls'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'tls'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected tls config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after tls key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close tls config");
+    return new AST.TlsDeclaration(config, l);
+  }
+
+  parseCompressionConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'compression'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'compression'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected compression config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after compression key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close compression config");
+    return new AST.CompressionDeclaration(config, l);
+  }
+
+  parseBackgroundJob() {
+    const l = this.loc();
+    this.advance(); // consume 'background'
+    this.expect(TokenType.FN, "Expected 'fn' after 'background'");
+    const name = this.expect(TokenType.IDENTIFIER, "Expected background job name").value;
+    this.expect(TokenType.LPAREN, "Expected '(' after background job name");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after background job parameters");
+    const body = this.parseBlock();
+    return new AST.BackgroundJobDeclaration(name, params, body, l);
+  }
+
+  parseCacheConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'cache'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'cache'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected cache config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after cache key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close cache config");
+    return new AST.CacheDeclaration(config, l);
+  }
+
+  parseSseDeclaration() {
+    const l = this.loc();
+    this.advance(); // consume 'sse'
+    const path = this.expect(TokenType.STRING, "Expected SSE endpoint path").value;
+    this.expect(TokenType.FN, "Expected 'fn' after SSE path");
+    this.expect(TokenType.LPAREN, "Expected '(' after 'fn'");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after SSE parameters");
+    const body = this.parseBlock();
+    return new AST.SseDeclaration(path, params, body, l);
+  }
+
+  parseModelDeclaration() {
+    const l = this.loc();
+    this.advance(); // consume 'model'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected model/type name after 'model'").value;
+    let config = null;
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume '{'
+      config = {};
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        const key = this.expect(TokenType.IDENTIFIER, "Expected model config key").value;
+        this.expect(TokenType.COLON, "Expected ':' after model config key");
+        const value = this.parseExpression();
+        config[key] = value;
+        this.match(TokenType.COMMA);
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close model config");
+    }
+    return new AST.ModelDeclaration(name, config, l);
   }
 
   parseRoute() {
     const l = this.loc();
     this.expect(TokenType.ROUTE);
 
-    // HTTP method: GET, POST, PUT, DELETE, PATCH (as identifiers)
-    const methodTok = this.expect(TokenType.IDENTIFIER, "Expected HTTP method (GET, POST, PUT, DELETE, PATCH)");
+    // HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS (as identifiers)
+    const methodTok = this.expect(TokenType.IDENTIFIER, "Expected HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)");
     const method = methodTok.value.toUpperCase();
-    if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'].includes(method)) {
       this.error(`Invalid HTTP method: ${method}`);
     }
 
     const path = this.expect(TokenType.STRING, "Expected route path string");
+
+    // Optional decorators: route GET "/path" with auth, role("admin") => handler
+    let decorators = [];
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'with') {
+      this.advance(); // consume 'with'
+      // Parse comma-separated decorator list
+      do {
+        const decName = this.expect(TokenType.IDENTIFIER, "Expected decorator name").value;
+        let decArgs = [];
+        if (this.check(TokenType.LPAREN)) {
+          this.advance(); // (
+          while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
+            decArgs.push(this.parseExpression());
+            if (!this.match(TokenType.COMMA)) break;
+          }
+          this.expect(TokenType.RPAREN, "Expected ')' after decorator arguments");
+        }
+        decorators.push({ name: decName, args: decArgs });
+      } while (this.match(TokenType.COMMA));
+    }
+
     this.expect(TokenType.ARROW, "Expected '=>' after route path");
     const handler = this.parseExpression();
 
-    return new AST.RouteDeclaration(method, path.value, handler, l);
+    return new AST.RouteDeclaration(method, path.value, handler, l, decorators);
   }
 
   // ─── Client-specific statements ───────────────────────────
@@ -182,7 +703,31 @@ export class Parser {
     if (this.check(TokenType.COMPUTED)) return this.parseComputed();
     if (this.check(TokenType.EFFECT)) return this.parseEffect();
     if (this.check(TokenType.COMPONENT)) return this.parseComponent();
+    if (this.check(TokenType.STORE)) return this.parseStore();
     return this.parseStatement();
+  }
+
+  parseStore() {
+    const l = this.loc();
+    this.expect(TokenType.STORE);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected store name").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after store name");
+
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      if (this.check(TokenType.STATE)) {
+        body.push(this.parseState());
+      } else if (this.check(TokenType.COMPUTED)) {
+        body.push(this.parseComputed());
+      } else if (this.check(TokenType.FN) && this.peek(1).type === TokenType.IDENTIFIER) {
+        body.push(this.parseFunctionDeclaration());
+      } else {
+        this.error("Expected 'state', 'computed', or 'fn' inside store block");
+      }
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close store block");
+
+    return new AST.StoreDeclaration(name, body, l);
   }
 
   parseState() {
@@ -232,8 +777,21 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' to open component body");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      if (this.check(TokenType.LESS)) {
+      if (this.check(TokenType.STYLE_BLOCK)) {
+        const sl = this.loc();
+        const css = this.current().value;
+        this.advance();
+        body.push(new AST.ComponentStyleBlock(css, sl));
+      } else if (this.check(TokenType.LESS) && this._looksLikeJSX()) {
         body.push(this.parseJSXElement());
+      } else if (this.check(TokenType.STATE)) {
+        body.push(this.parseState());
+      } else if (this.check(TokenType.COMPUTED)) {
+        body.push(this.parseComputed());
+      } else if (this.check(TokenType.EFFECT)) {
+        body.push(this.parseEffect());
+      } else if (this.check(TokenType.COMPONENT)) {
+        body.push(this.parseComponent());
       } else {
         body.push(this.parseStatement());
       }
@@ -245,16 +803,32 @@ export class Parser {
 
   // ─── JSX-like parsing ─────────────────────────────────────
 
+  _collapseJSXWhitespace(text) {
+    let result = text.replace(/\s+/g, ' ');
+    if (result.trim() === '') return '';
+    return result.trim();
+  }
+
   parseJSXElement() {
     const l = this.loc();
     this.expect(TokenType.LESS, "Expected '<'");
 
     const tag = this.expect(TokenType.IDENTIFIER, "Expected tag name").value;
 
-    // Parse attributes
+    // Parse attributes (including spread: {...expr})
     const attributes = [];
     while (!this.check(TokenType.GREATER) && !this.check(TokenType.SLASH) && !this.isAtEnd()) {
-      attributes.push(this.parseJSXAttribute());
+      // Check for spread attribute: {...expr}
+      if (this.check(TokenType.LBRACE) && this.peek(1).type === TokenType.SPREAD) {
+        const sl = this.loc();
+        this.advance(); // {
+        this.advance(); // ...
+        const expr = this.parseExpression();
+        this.expect(TokenType.RBRACE, "Expected '}' after spread expression");
+        attributes.push(new AST.JSXSpreadAttribute(expr, sl));
+      } else {
+        attributes.push(this.parseJSXAttribute());
+      }
     }
 
     // Self-closing tag: />
@@ -283,15 +857,15 @@ export class Parser {
       this.error("Expected attribute name");
     }
 
-    // Handle event attributes like on:click
+    // Handle namespaced attributes: on:click, bind:value, class:active
     if (this.match(TokenType.COLON)) {
       let suffix;
       if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.IN)) {
         suffix = this.advance().value;
       } else {
-        suffix = this.expect(TokenType.IDENTIFIER, "Expected event name after ':'").value;
+        suffix = this.expect(TokenType.IDENTIFIER, "Expected name after ':'").value;
       }
-      name = `on:${suffix}`;
+      name = `${name}:${suffix}`;
     }
 
     if (!this.match(TokenType.ASSIGN)) {
@@ -343,6 +917,16 @@ export class Parser {
         continue;
       }
 
+      // Unquoted JSX text
+      if (this.check(TokenType.JSX_TEXT)) {
+        const tok = this.advance();
+        const text = this._collapseJSXWhitespace(tok.value);
+        if (text.length > 0) {
+          children.push(new AST.JSXText(new AST.StringLiteral(text, this.loc()), this.loc()));
+        }
+        continue;
+      }
+
       // Expression in braces: {expr}
       if (this.check(TokenType.LBRACE)) {
         this.advance();
@@ -373,9 +957,46 @@ export class Parser {
   parseJSXFor() {
     const l = this.loc();
     this.expect(TokenType.FOR);
-    const variable = this.expect(TokenType.IDENTIFIER, "Expected loop variable").value;
+
+    // Support destructuring: for [i, item] in ..., for {name, age} in ...
+    let variable;
+    if (this.check(TokenType.LBRACKET)) {
+      // Array destructuring: [a, b]
+      this.advance(); // consume [
+      const elements = [];
+      while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+        elements.push(this.expect(TokenType.IDENTIFIER, "Expected variable name in array pattern").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.RBRACKET, "Expected ']' in destructuring pattern");
+      variable = `[${elements.join(', ')}]`;
+    } else if (this.check(TokenType.LBRACE)) {
+      // Object destructuring: {name, age}
+      this.advance(); // consume {
+      const props = [];
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        props.push(this.expect(TokenType.IDENTIFIER, "Expected property name in object pattern").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' in destructuring pattern");
+      variable = `{${props.join(', ')}}`;
+    } else {
+      variable = this.expect(TokenType.IDENTIFIER, "Expected loop variable").value;
+    }
+
     this.expect(TokenType.IN, "Expected 'in' in for loop");
     const iterable = this.parseExpression();
+
+    // Optional key expression: for item in items key={item.id} { ... }
+    let keyExpr = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'key') {
+      this.advance(); // consume 'key'
+      this.expect(TokenType.ASSIGN, "Expected '=' after 'key'");
+      this.expect(TokenType.LBRACE, "Expected '{' after 'key='");
+      keyExpr = this.parseExpression();
+      this.expect(TokenType.RBRACE, "Expected '}' after key expression");
+    }
+
     this.expect(TokenType.LBRACE, "Expected '{' in JSX for body");
 
     const body = [];
@@ -384,6 +1005,12 @@ export class Parser {
         body.push(this.parseJSXElement());
       } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
         body.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
+      } else if (this.check(TokenType.JSX_TEXT)) {
+        const tok = this.advance();
+        const text = this._collapseJSXWhitespace(tok.value);
+        if (text.length > 0) {
+          body.push(new AST.JSXText(new AST.StringLiteral(text, this.loc()), this.loc()));
+        }
       } else if (this.check(TokenType.LBRACE)) {
         this.advance();
         body.push(new AST.JSXExpression(this.parseExpression(), this.loc()));
@@ -394,7 +1021,31 @@ export class Parser {
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close JSX for body");
 
-    return new AST.JSXFor(variable, iterable, body, l);
+    return new AST.JSXFor(variable, iterable, body, l, keyExpr);
+  }
+
+  _parseJSXIfBody() {
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      if (this.check(TokenType.LESS)) {
+        body.push(this.parseJSXElement());
+      } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
+        body.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
+      } else if (this.check(TokenType.JSX_TEXT)) {
+        const tok = this.advance();
+        const text = this._collapseJSXWhitespace(tok.value);
+        if (text.length > 0) {
+          body.push(new AST.JSXText(new AST.StringLiteral(text, this.loc()), this.loc()));
+        }
+      } else if (this.check(TokenType.LBRACE)) {
+        this.advance();
+        body.push(new AST.JSXExpression(this.parseExpression(), this.loc()));
+        this.expect(TokenType.RBRACE);
+      } else {
+        break;
+      }
+    }
+    return body;
   }
 
   parseJSXIf() {
@@ -402,37 +1053,30 @@ export class Parser {
     this.expect(TokenType.IF);
     const condition = this.parseExpression();
     this.expect(TokenType.LBRACE, "Expected '{' in JSX if body");
-
-    const consequent = [];
-    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      if (this.check(TokenType.LESS)) {
-        consequent.push(this.parseJSXElement());
-      } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
-        consequent.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
-      } else {
-        break;
-      }
-    }
+    const consequent = this._parseJSXIfBody();
     this.expect(TokenType.RBRACE, "Expected '}' to close JSX if body");
 
+    // Parse elif chains
+    const alternates = [];
+    while (this.check(TokenType.ELIF)) {
+      this.advance(); // consume 'elif'
+      const elifCond = this.parseExpression();
+      this.expect(TokenType.LBRACE, "Expected '{' in JSX elif body");
+      const elifBody = this._parseJSXIfBody();
+      this.expect(TokenType.RBRACE, "Expected '}' to close JSX elif body");
+      alternates.push({ condition: elifCond, body: elifBody });
+    }
+
+    // Parse optional else
     let alternate = null;
     if (this.check(TokenType.ELSE)) {
       this.advance();
       this.expect(TokenType.LBRACE);
-      alternate = [];
-      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-        if (this.check(TokenType.LESS)) {
-          alternate.push(this.parseJSXElement());
-        } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
-          alternate.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
-        } else {
-          break;
-        }
-      }
+      alternate = this._parseJSXIfBody();
       this.expect(TokenType.RBRACE);
     }
 
-    return new AST.JSXIf(condition, consequent, alternate, l);
+    return new AST.JSXIf(condition, consequent, alternate, l, alternates);
   }
 
   // ─── Statements ───────────────────────────────────────────
@@ -448,6 +1092,7 @@ export class Parser {
     if (this.check(TokenType.RETURN)) return this.parseReturnStatement();
     if (this.check(TokenType.IMPORT)) return this.parseImport();
     if (this.check(TokenType.MATCH)) return this.parseMatchAsStatement();
+    if (this.check(TokenType.TRY)) return this.parseTryCatch();
 
     return this.parseExpressionOrAssignment();
   }
@@ -706,6 +1351,19 @@ export class Parser {
     return new AST.WhileStatement(condition, body, l);
   }
 
+  parseTryCatch() {
+    const l = this.loc();
+    this.expect(TokenType.TRY);
+    const tryBlock = this.parseBlock();
+    this.expect(TokenType.CATCH, "Expected 'catch' after try block");
+    let catchParam = null;
+    if (this.check(TokenType.IDENTIFIER)) {
+      catchParam = this.advance().value;
+    }
+    const catchBlock = this.parseBlock();
+    return new AST.TryCatchStatement(tryBlock.body, catchParam, catchBlock.body, l);
+  }
+
   parseReturnStatement() {
     const l = this.loc();
     this.expect(TokenType.RETURN);
@@ -890,6 +1548,10 @@ export class Parser {
     const compOps = [TokenType.LESS, TokenType.LESS_EQUAL, TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.EQUAL, TokenType.NOT_EQUAL];
 
     if (compOps.some(op => this.check(op))) {
+      // Don't parse < as comparison if it looks like JSX
+      if (this.check(TokenType.LESS) && this._looksLikeJSX()) {
+        return left;
+      }
       const operands = [left];
       const operators = [];
 
@@ -1010,6 +1672,10 @@ export class Parser {
       }
 
       if (this.check(TokenType.LBRACKET)) {
+        // Don't treat [ as subscript if it's on a new line (avoids ambiguity with array patterns in match)
+        const prevLine = this.pos > 0 ? this.tokens[this.pos - 1].line : 0;
+        const curLine = this.current().line;
+        if (curLine > prevLine) break;
         expr = this.parseSubscript(expr);
         continue;
       }
@@ -1017,6 +1683,16 @@ export class Parser {
       if (this.check(TokenType.LPAREN)) {
         expr = this.parseCallExpression(expr);
         continue;
+      }
+
+      if (this.check(TokenType.QUESTION)) {
+        const prevLine = this.pos > 0 ? this.tokens[this.pos - 1].line : 0;
+        const curLine = this.current().line;
+        if (curLine === prevLine) {
+          this.advance();
+          expr = new AST.PropagateExpression(expr, this.loc());
+          continue;
+        }
       }
 
       break;
@@ -1335,6 +2011,18 @@ export class Parser {
     if (this.check(TokenType.NIL)) {
       this.advance();
       return new AST.LiteralPattern(null, l);
+    }
+
+    // Array pattern: [a, b, c] or [0, _]
+    if (this.check(TokenType.LBRACKET)) {
+      this.advance();
+      const elements = [];
+      while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+        elements.push(this.parsePattern());
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.RBRACKET);
+      return new AST.ArrayPattern(elements, l);
     }
 
     // Identifier: could be variant pattern or binding pattern

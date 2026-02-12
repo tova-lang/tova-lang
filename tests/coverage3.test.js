@@ -472,8 +472,10 @@ describe('Router — with window mock', () => {
       '/files/*': () => 'files',
     });
 
-    // getCurrentRoute uses window.location.pathname (line 24)
-    expect(router.getCurrentRoute()).toBe('/');
+    // getCurrentRoute returns a signal getter (route object)
+    const routeGetter = router.getCurrentRoute();
+    expect(typeof routeGetter).toBe('function');
+    expect(routeGetter().path).toBe('/');
 
     // onRouteChange registers callback
     let lastRoute = undefined;
@@ -498,10 +500,10 @@ describe('Router — with window mock', () => {
     router.navigate('/files/docs/readme.md');
     expect(lastRoute.path).toBe('/files/*');
 
-    // Navigate to non-matching route → null
+    // Navigate to non-matching route → null match (component is null)
     globalThis.window.location.pathname = '/nonexistent';
     router.navigate('/nonexistent');
-    expect(lastRoute).toBeNull();
+    expect(lastRoute).toBeNull();  // callback receives null for no match
 
     // Test popstate listener was registered
     expect(windowListeners['popstate']).toBeDefined();

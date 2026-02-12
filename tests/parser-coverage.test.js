@@ -1,6 +1,8 @@
 import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
+import { TokenType } from '../src/lexer/tokens.js';
 import { Parser } from '../src/parser/parser.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
 
 function parse(source) {
   const lexer = new Lexer(source, '<test>');
@@ -776,5 +778,430 @@ describe('Parser Coverage -- Type field with colon (simple struct field)', () =>
     expect(td.variants[0].typeAnnotation.name).toBe('Float');
     expect(td.variants[1].type).toBe('TypeField');
     expect(td.variants[1].name).toBe('y');
+  });
+});
+
+// ============================================================
+// Unquoted JSX Text (React-style DX)
+// ============================================================
+
+function tokenize(source) {
+  return new Lexer(source, '<test>').tokenize();
+}
+
+function compile(source) {
+  const ast = parse(source);
+  return new CodeGenerator(ast, '<test>').generate();
+}
+
+// ── Lexer: JSX_TEXT token emission ──────────────────────────
+
+describe('Unquoted JSX text — Lexer', () => {
+  test('emits JSX_TEXT for plain text between tags', () => {
+    const tokens = tokenize('client { component App { <h1>Hello World</h1> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(1);
+    expect(jsxTextTokens[0].value).toContain('Hello World');
+  });
+
+  test('emits JSX_TEXT for text with special characters', () => {
+    const tokens = tokenize('client { component App { <p>Tom & Jerry</p> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(1);
+    expect(jsxTextTokens[0].value).toContain('Tom & Jerry');
+  });
+
+  test('emits JSX_TEXT before an expression child', () => {
+    const tokens = tokenize('client { component App { <p>Count: {x}</p> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(1);
+    expect(jsxTextTokens[0].value).toContain('Count:');
+  });
+
+  test('emits JSX_TEXT between nested element and closing tag', () => {
+    const tokens = tokenize('client { component App { <div><span>A</span> tail</div> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    // "A" inside span, "tail" after span
+    expect(jsxTextTokens.length).toBe(2);
+  });
+
+  test('does not emit JSX_TEXT for whitespace-only between tags', () => {
+    const tokens = tokenize('client { component App { <div> <span>Hi</span> </div> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    // Only "Hi" inside span
+    expect(jsxTextTokens.length).toBe(1);
+    expect(jsxTextTokens[0].value).toContain('Hi');
+  });
+
+  test('does not emit JSX_TEXT for quoted strings (backward compat)', () => {
+    const tokens = tokenize('client { component App { <p>"hello"</p> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(0);
+    const stringTokens = tokens.filter(t => t.type === TokenType.STRING && t.value === 'hello');
+    expect(stringTokens.length).toBe(1);
+  });
+
+  test('does not interfere with non-JSX code', () => {
+    const tokens = tokenize('x = 1 + 2');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(0);
+  });
+
+  test('does not interfere with generic type params (< not JSX)', () => {
+    const tokens = tokenize('fn foo(x: Map<String, Int>) { x }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(0);
+  });
+
+  test('does not interfere with comparison operators', () => {
+    const tokens = tokenize('x = a < b');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(0);
+  });
+
+  test('handles text with numbers and punctuation', () => {
+    const tokens = tokenize('client { component App { <p>Price: $9.99!</p> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBe(1);
+    expect(jsxTextTokens[0].value).toContain('$9.99!');
+  });
+
+  test('handles text on multiple lines', () => {
+    const tokens = tokenize('client { component App { <p>Hello\n  World</p> } }');
+    const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
+    expect(jsxTextTokens.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── Parser: JSXText AST node construction ──────────────────
+
+describe('Unquoted JSX text — Parser', () => {
+  test('simple unquoted text creates JSXText node', () => {
+    const comp = parseComponent('<h1>Hello World</h1>');
+    const h1 = comp.body[0];
+    expect(h1.children.length).toBe(1);
+    expect(h1.children[0].type).toBe('JSXText');
+    expect(h1.children[0].value.type).toBe('StringLiteral');
+    expect(h1.children[0].value.value).toBe('Hello World');
+  });
+
+  test('text with special characters', () => {
+    const comp = parseComponent('<p>Tom & Jerry</p>');
+    const p = comp.body[0];
+    expect(p.children[0].type).toBe('JSXText');
+    expect(p.children[0].value.value).toBe('Tom & Jerry');
+  });
+
+  test('text followed by expression child', () => {
+    const comp = parseComponent('<p>Count: {count}</p>');
+    const p = comp.body[0];
+    expect(p.children.length).toBe(2);
+    expect(p.children[0].type).toBe('JSXText');
+    expect(p.children[0].value.value).toBe('Count:');
+    expect(p.children[1].type).toBe('JSXExpression');
+  });
+
+  test('expression followed by text', () => {
+    const comp = parseComponent('<p>{count} items</p>');
+    const p = comp.body[0];
+    expect(p.children.length).toBe(2);
+    expect(p.children[0].type).toBe('JSXExpression');
+    expect(p.children[1].type).toBe('JSXText');
+    expect(p.children[1].value.value).toBe('items');
+  });
+
+  test('text before nested element', () => {
+    const comp = parseComponent('<div>Hello <span>World</span></div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(2);
+    expect(div.children[0].type).toBe('JSXText');
+    expect(div.children[0].value.value).toBe('Hello');
+    expect(div.children[1].type).toBe('JSXElement');
+    expect(div.children[1].tag).toBe('span');
+  });
+
+  test('text after nested element', () => {
+    const comp = parseComponent('<div><span>Hi</span> there</div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(2);
+    expect(div.children[0].type).toBe('JSXElement');
+    expect(div.children[1].type).toBe('JSXText');
+    expect(div.children[1].value.value).toBe('there');
+  });
+
+  test('text between two nested elements', () => {
+    const comp = parseComponent('<div><b>Hello</b> and <i>World</i></div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(3);
+    expect(div.children[0].type).toBe('JSXElement');
+    expect(div.children[0].tag).toBe('b');
+    expect(div.children[1].type).toBe('JSXText');
+    expect(div.children[1].value.value).toBe('and');
+    expect(div.children[2].type).toBe('JSXElement');
+    expect(div.children[2].tag).toBe('i');
+  });
+
+  test('text with self-closing sibling', () => {
+    const comp = parseComponent('<div>Text<br/>More</div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(3);
+    expect(div.children[0].type).toBe('JSXText');
+    expect(div.children[0].value.value).toBe('Text');
+    expect(div.children[1].type).toBe('JSXElement');
+    expect(div.children[1].tag).toBe('br');
+    expect(div.children[1].selfClosing).toBe(true);
+    expect(div.children[2].type).toBe('JSXText');
+    expect(div.children[2].value.value).toBe('More');
+  });
+
+  test('whitespace-only text is discarded', () => {
+    const comp = parseComponent('<div>   </div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(0);
+  });
+
+  test('whitespace between elements is discarded', () => {
+    const comp = parseComponent('<div> <span>A</span> <span>B</span> </div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(2);
+    expect(div.children[0].type).toBe('JSXElement');
+    expect(div.children[1].type).toBe('JSXElement');
+  });
+
+  test('quoted text still works (backward compat)', () => {
+    const comp = parseComponent('<h1>"Hello"</h1>');
+    const h1 = comp.body[0];
+    expect(h1.children.length).toBe(1);
+    expect(h1.children[0].type).toBe('JSXText');
+    expect(h1.children[0].value.value).toBe('Hello');
+  });
+
+  test('mixed quoted and unquoted text', () => {
+    const comp = parseComponent('<div>"Quoted" Unquoted</div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(2);
+    expect(div.children[0].type).toBe('JSXText');
+    expect(div.children[0].value.value).toBe('Quoted');
+    expect(div.children[1].type).toBe('JSXText');
+    expect(div.children[1].value.value).toBe('Unquoted');
+  });
+
+  test('unquoted text collapses internal whitespace', () => {
+    const comp = parseComponent('<p>Hello     World</p>');
+    const p = comp.body[0];
+    expect(p.children[0].value.value).toBe('Hello World');
+  });
+
+  test('no children for self-closing tags', () => {
+    const comp = parseComponent('<br/>');
+    const br = comp.body[0];
+    expect(br.children.length).toBe(0);
+    expect(br.selfClosing).toBe(true);
+  });
+});
+
+// ── Parser: Unquoted text inside JSX control flow ──────────
+
+describe('Unquoted JSX text — control flow', () => {
+  test('text inside JSX if consequent', () => {
+    const comp = parseComponent('<div> if show { <span>Yes</span> } </div>');
+    const jsxIf = comp.body[0].children[0];
+    expect(jsxIf.type).toBe('JSXIf');
+    expect(jsxIf.consequent[0].type).toBe('JSXElement');
+    expect(jsxIf.consequent[0].tag).toBe('span');
+    // The span has unquoted "Yes" child
+    expect(jsxIf.consequent[0].children[0].type).toBe('JSXText');
+    expect(jsxIf.consequent[0].children[0].value.value).toBe('Yes');
+  });
+
+  test('unquoted text directly in JSX if body', () => {
+    const comp = parseComponent('<div> if show { "shown" } </div>');
+    const jsxIf = comp.body[0].children[0];
+    expect(jsxIf.type).toBe('JSXIf');
+    expect(jsxIf.consequent[0].type).toBe('JSXText');
+  });
+
+  test('text inside JSX if/else', () => {
+    const comp = parseComponent('<div> if show { <b>Yes</b> } else { <i>No</i> } </div>');
+    const jsxIf = comp.body[0].children[0];
+    expect(jsxIf.type).toBe('JSXIf');
+    expect(jsxIf.consequent[0].children[0].value.value).toBe('Yes');
+    expect(jsxIf.alternate[0].children[0].value.value).toBe('No');
+  });
+
+  test('text inside JSX if/elif/else', () => {
+    const comp = parseComponent('<div> if a { <span>A</span> } elif b { <span>B</span> } else { <span>C</span> } </div>');
+    const jsxIf = comp.body[0].children[0];
+    expect(jsxIf.consequent[0].children[0].value.value).toBe('A');
+    expect(jsxIf.alternates[0].body[0].children[0].value.value).toBe('B');
+    expect(jsxIf.alternate[0].children[0].value.value).toBe('C');
+  });
+
+  test('text inside JSX for body', () => {
+    const comp = parseComponent('<ul> for item in items { <li>Item</li> } </ul>');
+    const jsxFor = comp.body[0].children[0];
+    expect(jsxFor.type).toBe('JSXFor');
+    expect(jsxFor.variable).toBe('item');
+    expect(jsxFor.body[0].type).toBe('JSXElement');
+    expect(jsxFor.body[0].children[0].value.value).toBe('Item');
+  });
+
+  test('JSX for with object destructuring still works', () => {
+    const comp = parseComponent('<ul> for {name, age} in users { <li>{name}</li> } </ul>');
+    const jsxFor = comp.body[0].children[0];
+    expect(jsxFor.type).toBe('JSXFor');
+    expect(jsxFor.variable).toBe('{name, age}');
+  });
+
+  test('JSX for with array destructuring still works', () => {
+    const comp = parseComponent('<ul> for [i, item] in entries { <li>{item}</li> } </ul>');
+    const jsxFor = comp.body[0].children[0];
+    expect(jsxFor.type).toBe('JSXFor');
+    expect(jsxFor.variable).toBe('[i, item]');
+  });
+
+  test('JSX for with key expression still works', () => {
+    const comp = parseComponent('<ul> for item in items key={item.id} { <li>{item.name}</li> } </ul>');
+    const jsxFor = comp.body[0].children[0];
+    expect(jsxFor.type).toBe('JSXFor');
+    expect(jsxFor.keyExpr).not.toBeNull();
+  });
+
+  test('if and for siblings in JSX children', () => {
+    const comp = parseComponent('<div> if x { <span>A</span> } for i in list { <p>B</p> } </div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(2);
+    expect(div.children[0].type).toBe('JSXIf');
+    expect(div.children[1].type).toBe('JSXFor');
+  });
+
+  test('text sibling before control flow', () => {
+    const comp = parseComponent('<div>Hello if show { <span>Yes</span> } </div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(2);
+    expect(div.children[0].type).toBe('JSXText');
+    expect(div.children[0].value.value).toBe('Hello');
+    expect(div.children[1].type).toBe('JSXIf');
+  });
+});
+
+// ── Parser: Edge cases and nesting ─────────────────────────
+
+describe('Unquoted JSX text — edge cases', () => {
+  test('deeply nested elements with text', () => {
+    const comp = parseComponent('<div><p><span>Deep text</span></p></div>');
+    const span = comp.body[0].children[0].children[0];
+    expect(span.tag).toBe('span');
+    expect(span.children[0].value.value).toBe('Deep text');
+  });
+
+  test('multiple text+element children', () => {
+    const comp = parseComponent('<p>Hello {name}, welcome to {place}!</p>');
+    const p = comp.body[0];
+    expect(p.children.length).toBe(5);
+    expect(p.children[0].type).toBe('JSXText');
+    expect(p.children[0].value.value).toBe('Hello');
+    expect(p.children[1].type).toBe('JSXExpression');
+    expect(p.children[2].type).toBe('JSXText');
+    expect(p.children[2].value.value).toBe(', welcome to');
+    expect(p.children[3].type).toBe('JSXExpression');
+    expect(p.children[4].type).toBe('JSXText');
+    expect(p.children[4].value.value).toBe('!');
+  });
+
+  test('text with hyphens and colons', () => {
+    const comp = parseComponent('<p>Date: 2024-01-15</p>');
+    const p = comp.body[0];
+    expect(p.children[0].type).toBe('JSXText');
+    // The text may be split at colons since : is a valid operator
+    // but should not crash
+    expect(p.children.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('empty element has no children', () => {
+    const comp = parseComponent('<div></div>');
+    const div = comp.body[0];
+    expect(div.children.length).toBe(0);
+  });
+
+  test('single-quoted string in JSX still works', () => {
+    const comp = parseComponent("<p>'hello'</p>");
+    const p = comp.body[0];
+    expect(p.children.length).toBe(1);
+    expect(p.children[0].type).toBe('JSXText');
+    expect(p.children[0].value.value).toBe('hello');
+  });
+
+  test('template string in JSX still works', () => {
+    const ast = parse('client { component App { state name = "World"\n <p>"{name}"</p> } }');
+    const comp = ast.body[0].body[0];
+    const p = comp.body[1];
+    expect(p.children[0].type).toBe('JSXText');
+  });
+
+  test('attributes are not affected by unquoted text', () => {
+    const comp = parseComponent('<input type="text" placeholder="Enter name"/>');
+    const input = comp.body[0];
+    expect(input.selfClosing).toBe(true);
+    expect(input.attributes.length).toBe(2);
+    expect(input.attributes[0].name).toBe('type');
+    expect(input.attributes[1].name).toBe('placeholder');
+  });
+
+  test('element with attributes and unquoted text child', () => {
+    const comp = parseComponent('<p class="bold">Hello</p>');
+    const p = comp.body[0];
+    expect(p.attributes.length).toBe(1);
+    expect(p.attributes[0].name).toBe('class');
+    expect(p.children.length).toBe(1);
+    expect(p.children[0].value.value).toBe('Hello');
+  });
+
+  test('non-JSX code after component is unaffected', () => {
+    const ast = parse('client { component App { <p>Hi</p> } }\nfn foo(x: Map<String, Int>) { x }');
+    const comp = ast.body[0].body[0];
+    expect(comp.body[0].children[0].value.value).toBe('Hi');
+    const fn = ast.body[1];
+    expect(fn.type).toBe('FunctionDeclaration');
+    expect(fn.name).toBe('foo');
+  });
+});
+
+// ── Codegen: unquoted text output ──────────────────────────
+
+describe('Unquoted JSX text — Codegen', () => {
+  test('unquoted text produces string child in lux_el', () => {
+    const r = compile('client { component App { <h1>Hello World</h1> } }');
+    expect(r.client).toContain('"Hello World"');
+  });
+
+  test('quoted text still produces string child', () => {
+    const r = compile('client { component App { <h1>"Hello"</h1> } }');
+    expect(r.client).toContain('"Hello"');
+  });
+
+  test('text with expression sibling compiles correctly', () => {
+    const r = compile('client { component App { state n = 0\n <p>Count: {n}</p> } }');
+    expect(r.client).toContain('"Count:"');
+  });
+
+  test('text with special chars compiles to string', () => {
+    const r = compile('client { component App { <p>Tom & Jerry</p> } }');
+    expect(r.client).toContain('"Tom & Jerry"');
+  });
+
+  test('nested elements with unquoted text', () => {
+    const r = compile('client { component App { <div><span>Inner</span></div> } }');
+    expect(r.client).toContain('"Inner"');
+  });
+
+  test('JSX if with unquoted text in children elements', () => {
+    const r = compile('client { component App { state show = true\n <div> if show { <span>Visible</span> } </div> } }');
+    expect(r.client).toContain('"Visible"');
+  });
+
+  test('JSX for with unquoted text in body elements', () => {
+    const r = compile('client { component App { <ul> for item in [1, 2] { <li>Item</li> } </ul> } }');
+    expect(r.client).toContain('"Item"');
   });
 });

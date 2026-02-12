@@ -10,8 +10,12 @@ export class SharedCodegen extends BaseCodegen {
   generateHelpers() {
     const helpers = [];
     helpers.push(this.getStringProtoHelper());
+    helpers.push(this.getResultOptionHelper());
     if (this._needsContainsHelper) {
       helpers.push(this.getContainsHelper());
+    }
+    if (this._needsPropagateHelper) {
+      helpers.push(this.getPropagateHelper());
     }
     return helpers.join('\n');
   }

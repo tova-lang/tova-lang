@@ -232,7 +232,7 @@ describe('Codegen — Server', () => {
 
   test('generates CORS headers', () => {
     const result = compile('server { fn hello() { "world" } }');
-    expect(result.server).toContain('__corsHeaders');
+    expect(result.server).toContain('__getCorsHeaders');
     expect(result.server).toContain('Access-Control-Allow-Origin');
   });
 });
@@ -325,14 +325,16 @@ describe('Codegen — Bug Fixes', () => {
 });
 
 describe('Codegen — Null Coalescing', () => {
-  test('?? operator', () => {
+  test('?? operator (NaN-safe)', () => {
     const code = compileShared('x = a ?? "default"');
-    expect(code).toContain('(a ?? "default")');
+    expect(code).toContain('__lux_v != null && __lux_v === __lux_v');
+    expect(code).toContain('"default"');
   });
 
   test('?? chains', () => {
     const code = compileShared('x = a ?? b ?? "fallback"');
-    expect(code).toContain('??');
+    expect(code).toContain('__lux_v');
+    expect(code).toContain('"fallback"');
   });
 });
 
@@ -403,6 +405,115 @@ describe('Codegen — Client', () => {
   });
 });
 
+// ─── New Feature Tests ──────────────────────────────────
+
+describe('Codegen — Runtime Imports', () => {
+  test('imports batch, onMount, onCleanup, createRef', () => {
+    const result = compile('client { state x = 0 }');
+    expect(result.client).toContain('batch');
+    expect(result.client).toContain('onMount');
+    expect(result.client).toContain('onCleanup');
+    expect(result.client).toContain('createRef');
+  });
+
+  test('imports context and error boundary utilities', () => {
+    const result = compile('client { state x = 0 }');
+    expect(result.client).toContain('createContext');
+    expect(result.client).toContain('provide');
+    expect(result.client).toContain('inject');
+    expect(result.client).toContain('createErrorBoundary');
+    expect(result.client).toContain('ErrorBoundary');
+  });
+});
+
+describe('Codegen — Component-Scoped State (Item 6)', () => {
+  test('state inside component generates local createSignal', () => {
+    const result = compile('client { component Counter { state count = 0\n<div>"hello"</div> } }');
+    expect(result.client).toContain('function Counter(');
+    expect(result.client).toContain('const [count, setCount] = createSignal(0)');
+  });
+
+  test('computed inside component generates local createComputed', () => {
+    const result = compile('client { component Counter { state count = 0\ncomputed doubled = count * 2\n<div>"hello"</div> } }');
+    expect(result.client).toContain('const doubled = createComputed(');
+  });
+
+  test('effect inside component generates local createEffect', () => {
+    const result = compile('client { component Timer { state t = 0\neffect { print(t) }\n<div>"hello"</div> } }');
+    expect(result.client).toContain('function Timer(');
+    expect(result.client).toContain('createEffect(');
+  });
+
+  test('component-scoped state does not leak to module level', () => {
+    const result = compile(`client {
+      component A { state x = 1\n<div>"a"</div> }
+      component B { state y = 2\n<div>"b"</div> }
+    }`);
+    // Both A and B should have their own createSignal
+    const code = result.client;
+    const aFn = code.indexOf('function A(');
+    const bFn = code.indexOf('function B(');
+    const aSignal = code.indexOf('createSignal(1)');
+    const bSignal = code.indexOf('createSignal(2)');
+    expect(aSignal).toBeGreaterThan(aFn);
+    expect(bSignal).toBeGreaterThan(bFn);
+  });
+
+  test('state setter transform works inside component', () => {
+    const result = compile(`client {
+      component Counter {
+        state count = 0
+        <button on:click={fn() count += 1}>"+"</button>
+      }
+    }`);
+    expect(result.client).toContain('setCount(__lux_p => __lux_p + 1)');
+  });
+});
+
+describe('Codegen — Two-Way Binding (Item 10)', () => {
+  test('bind:value generates reactive value prop and onInput handler', () => {
+    const result = compile('client { state name = ""\ncomponent App { <input bind:value={name} /> } }');
+    expect(result.client).toContain('value: () => name()');
+    expect(result.client).toContain('onInput: (e) => { setName(e.target.value); }');
+  });
+
+  test('bind:checked generates reactive checked prop and onChange handler', () => {
+    const result = compile('client { state active = false\ncomponent App { <input bind:checked={active} /> } }');
+    expect(result.client).toContain('checked: () => active()');
+    expect(result.client).toContain('onChange: (e) => { setActive(e.target.checked); }');
+  });
+});
+
+describe('Codegen — Conditional Classes (Item 11)', () => {
+  test('class:name generates conditional className', () => {
+    const result = compile('client { state active = true\ncomponent App { <div class:active={active} /> } }');
+    expect(result.client).toContain('active()');
+    expect(result.client).toContain('"active"');
+    expect(result.client).toContain('filter(Boolean)');
+    expect(result.client).toContain('join(" ")');
+  });
+
+  test('class:name merges with base class', () => {
+    const result = compile('client { state bold = true\ncomponent App { <div class="base" class:bold={bold} /> } }');
+    expect(result.client).toContain('"base"');
+    expect(result.client).toContain('"bold"');
+    expect(result.client).toContain('filter(Boolean)');
+  });
+});
+
+describe('Codegen — Children/Slots (Item 12)', () => {
+  test('component with children passes them as children prop', () => {
+    const result = compile('client { component Card { <div>"card"</div> }\ncomponent App { <Card><p>"hi"</p></Card> } }');
+    expect(result.client).toContain('children:');
+    expect(result.client).toContain('lux_el("p"');
+  });
+
+  test('self-closing component has no children prop', () => {
+    const result = compile('client { component Icon { <span>"icon"</span> }\ncomponent App { <Icon /> } }');
+    expect(result.client).not.toContain('children:');
+  });
+});
+
 describe('Codegen — Inter-Server RPC', () => {
   test('generates peer RPC proxy for named server blocks', () => {
     const result = compile(`
@@ -457,5 +568,440 @@ describe('Codegen — Inter-Server RPC', () => {
     expect(result.servers['auth']).toContain('const api = {');
     expect(result.servers['auth']).toContain('const events = {');
     expect(result.servers['auth']).not.toContain('const auth = {');
+  });
+});
+
+// ─── Scoped CSS ───────────────────────────────────────────
+
+describe('Codegen — Scoped CSS', () => {
+  test('style block in component emits lux_inject_css', () => {
+    const result = compile(`client {
+      component Card {
+        style {
+          .card { border: 1px solid #ccc; }
+        }
+        <div class="card">"hello"</div>
+      }
+    }`);
+    expect(result.client).toContain('lux_inject_css(');
+    expect(result.client).toContain('.card[data-lux-');
+  });
+
+  test('scoped CSS adds data attribute to JSX elements', () => {
+    const result = compile(`client {
+      component Card {
+        style {
+          .card { color: red; }
+        }
+        <div class="card">"hello"</div>
+      }
+    }`);
+    expect(result.client).toContain('data-lux-');
+    expect(result.client).toContain(': ""');
+  });
+
+  test('scoped CSS does not add attribute to child components', () => {
+    const result = compile(`client {
+      component Inner { <span>"inner"</span> }
+      component App {
+        style {
+          .wrapper { padding: 10px; }
+        }
+        <div class="wrapper"><Inner /></div>
+      }
+    }`);
+    // Inner() call should NOT have data-lux attribute
+    expect(result.client).toMatch(/Inner\(\{/);
+    // The div should have the scope attribute
+    expect(result.client).toMatch(/lux_el\("div", \{.*data-lux/);
+  });
+
+  test('component without style block has no scope attributes', () => {
+    const result = compile(`client {
+      component Plain {
+        <div>"no style"</div>
+      }
+    }`);
+    // lux_inject_css appears in import but should NOT be called
+    expect(result.client).not.toContain('lux_inject_css(');
+    expect(result.client).not.toContain('data-lux-');
+  });
+
+  test('imports lux_inject_css from runtime', () => {
+    const result = compile('client { state x = 0 }');
+    expect(result.client).toContain('lux_inject_css');
+  });
+});
+
+// ─── Store Keyword ──────────────────────────────────────
+
+describe('Codegen — Store', () => {
+  test('store with state generates IIFE with createSignal and getter/setter', () => {
+    const result = compile(`client {
+      store CounterStore {
+        state count = 0
+      }
+    }`);
+    expect(result.client).toContain('const CounterStore = (() => {');
+    expect(result.client).toContain('createSignal(0)');
+    expect(result.client).toContain('get count()');
+    expect(result.client).toContain('set count(v)');
+    expect(result.client).toContain('setCount(v)');
+    expect(result.client).toContain('})();');
+  });
+
+  test('store with computed generates getter (no setter)', () => {
+    const result = compile(`client {
+      store MathStore {
+        state x = 5
+        computed doubled = x * 2
+      }
+    }`);
+    expect(result.client).toContain('createComputed(');
+    expect(result.client).toContain('get doubled()');
+    // Computed should NOT have a setter
+    expect(result.client).not.toContain('set doubled');
+  });
+
+  test('store with fn generates action function', () => {
+    const result = compile(`client {
+      store TodoStore {
+        state items = []
+        fn add(text) {
+          items = [...items, text]
+        }
+      }
+    }`);
+    expect(result.client).toContain('function add(text)');
+    expect(result.client).toContain('setItems(');
+    // Function should be exported in return object
+    expect(result.client).toContain('add,');
+  });
+
+  test('store state names do not leak to component scope', () => {
+    const result = compile(`client {
+      store MyStore {
+        state x = 0
+      }
+      component App {
+        state y = 1
+        <div>"hello"</div>
+      }
+    }`);
+    const code = result.client;
+    // Inside App, 'x' should NOT be treated as a signal getter
+    // 'y' should still be a signal inside App
+    const appFn = code.indexOf('function App(');
+    const appBody = code.slice(appFn);
+    expect(appBody).toContain('createSignal(1)');
+    // The store IIFE should contain its own createSignal
+    expect(code).toContain('const MyStore = (() => {');
+  });
+
+  test('store imports createRoot from runtime', () => {
+    const result = compile(`client { store S { state x = 0 } }`);
+    expect(result.client).toContain('createRoot');
+  });
+});
+
+// ─── Bug Fix Tests ──────────────────────────────────────
+
+describe('Bug Fix — JSXIf generates reactive closure', () => {
+  test('JSXIf wraps ternary in () =>', () => {
+    const result = compile(`client {
+      state show = true
+      component App {
+        <div>
+          if show {
+            <span>"visible"</span>
+          } else {
+            <span>"hidden"</span>
+          }
+        </div>
+      }
+    }`);
+    // Should be a reactive closure, not a bare ternary
+    expect(result.client).toContain('() => (show())');
+    expect(result.client).toContain('? lux_el("span"');
+    expect(result.client).toContain(': lux_el("span"');
+  });
+
+  test('JSXIf with elif generates reactive closure', () => {
+    const result = compile(`client {
+      state mode = "a"
+      component App {
+        <div>
+          if mode == "a" {
+            <span>"A"</span>
+          } elif mode == "b" {
+            <span>"B"</span>
+          } else {
+            <span>"C"</span>
+          }
+        </div>
+      }
+    }`);
+    expect(result.client).toContain('() => ');
+  });
+});
+
+describe('Bug Fix — JSXFor generates reactive closure', () => {
+  test('JSXFor wraps in () => without spread', () => {
+    const result = compile(`client {
+      state items = []
+      component App {
+        <ul>
+          for item in items {
+            <li>"item"</li>
+          }
+        </ul>
+      }
+    }`);
+    // Should be () => items().map(...), NOT ...items().map(...)
+    expect(result.client).toContain('() => items().map(');
+    expect(result.client).not.toContain('...items().map(');
+  });
+
+  test('JSXFor with key generates reactive closure', () => {
+    const result = compile(`client {
+      state items = []
+      component App {
+        <ul>
+          for item in items key={item} {
+            <li>"item"</li>
+          }
+        </ul>
+      }
+    }`);
+    expect(result.client).toContain('() => items().map(');
+    expect(result.client).toContain('lux_keyed(');
+    expect(result.client).not.toContain('...items()');
+  });
+});
+
+describe('Bug Fix — __lux_p variable name', () => {
+  test('compound assignment uses __lux_p (no collision with user vars)', () => {
+    const result = compile(`client {
+      state count = 0
+      component App {
+        <button on:click={fn() count += 1}>"+"</button>
+      }
+    }`);
+    expect(result.client).toContain('__lux_p');
+    expect(result.client).not.toContain('__prev');
+  });
+
+  test('top-level compound assignment uses __lux_p', () => {
+    const result = compile(`client {
+      state score = 0
+      effect { score += 10 }
+    }`);
+    expect(result.client).toContain('setScore(__lux_p => __lux_p + 10)');
+  });
+});
+
+describe('Bug Fix — CSS scope hash includes content', () => {
+  test('same component name with different CSS produces different scope IDs', () => {
+    const result1 = compile(`client {
+      component Card {
+        style { .card { color: red; } }
+        <div class="card">"a"</div>
+      }
+    }`);
+    const result2 = compile(`client {
+      component Card {
+        style { .card { color: blue; border: 1px solid; } }
+        <div class="card">"b"</div>
+      }
+    }`);
+    // Extract scope IDs from lux_inject_css calls
+    const match1 = result1.client.match(/lux_inject_css\("([^"]+)"/);
+    const match2 = result2.client.match(/lux_inject_css\("([^"]+)"/);
+    expect(match1).not.toBeNull();
+    expect(match2).not.toBeNull();
+    // Different CSS → different scope IDs
+    expect(match1[1]).not.toBe(match2[1]);
+  });
+});
+
+describe('Bug Fix — select bind uses change event', () => {
+  test('bind:value on select generates onChange', () => {
+    const result = compile(`client {
+      state choice = "a"
+      component App {
+        <select bind:value={choice}>
+          <option>"a"</option>
+          <option>"b"</option>
+        </select>
+      }
+    }`);
+    expect(result.client).toContain('onChange: (e) => { setChoice(e.target.value); }');
+    expect(result.client).not.toContain('onInput: (e) => { setChoice(e.target.value); }');
+  });
+
+  test('bind:value on input still generates onInput', () => {
+    const result = compile(`client {
+      state name = ""
+      component App { <input bind:value={name} /> }
+    }`);
+    expect(result.client).toContain('onInput: (e) => { setName(e.target.value); }');
+  });
+});
+
+describe('Bug Fix — store member access detected as reactive', () => {
+  test('store.prop in JSX is wrapped in reactive closure', () => {
+    const result = compile(`client {
+      store Counter {
+        state count = 0
+      }
+      component App {
+        <div>{Counter.count}</div>
+      }
+    }`);
+    // Counter.count accesses a store → should be reactive closure
+    expect(result.client).toContain('() => Counter.count');
+  });
+
+  test('non-store member access is not falsely reactive', () => {
+    const result = compile(`client {
+      component App {
+        <div>{Math.PI}</div>
+      }
+    }`);
+    // Math is not a store, so Math.PI should NOT be wrapped
+    expect(result.client).not.toContain('() => Math.PI');
+  });
+});
+
+// ─── New Feature Tests: Missing Features ────────────────
+
+describe('Feature — Runtime imports include new primitives', () => {
+  test('imports watch, untrack, Dynamic, Portal, lazy', () => {
+    const result = compile('client { state x = 0 }');
+    expect(result.client).toContain('watch');
+    expect(result.client).toContain('untrack');
+    expect(result.client).toContain('Dynamic');
+    expect(result.client).toContain('Portal');
+    expect(result.client).toContain('lazy');
+  });
+});
+
+describe('Feature — bind:group radio', () => {
+  test('generates checked and onChange for radio button', () => {
+    const result = compile(`client {
+      state selected = "a"
+      component App {
+        <input type="radio" value="a" bind:group={selected} />
+        <input type="radio" value="b" bind:group={selected} />
+      }
+    }`);
+    // Radio group should produce checked: () => selected() === "a"
+    expect(result.client).toContain('selected()');
+    expect(result.client).toContain('setSelected');
+  });
+
+  test('radio bind:group uses single value comparison', () => {
+    const result = compile(`client {
+      state color = "red"
+      component App {
+        <input type="radio" value="red" bind:group={color} />
+      }
+    }`);
+    expect(result.client).toContain('color() === "red"');
+    expect(result.client).toContain('setColor("red")');
+  });
+});
+
+describe('Feature — bind:group checkbox', () => {
+  test('generates array-based checked and toggle for checkbox', () => {
+    const result = compile(`client {
+      state items = []
+      component App {
+        <input type="checkbox" value="a" bind:group={items} />
+        <input type="checkbox" value="b" bind:group={items} />
+      }
+    }`);
+    // Checkbox group should include/exclude from array
+    expect(result.client).toContain('items().includes');
+    expect(result.client).toContain('setItems');
+    expect(result.client).toContain('filter');
+  });
+});
+
+describe('Feature — Named slots', () => {
+  test('children with slot attribute become named props', () => {
+    const result = compile(`client {
+      component Layout(header, children) {
+        <div>{header}</div>
+        <div>{children}</div>
+      }
+      component App {
+        <Layout>
+          <div slot="header">"Title"</div>
+          <p>"Content"</p>
+        </Layout>
+      }
+    }`);
+    // The <div slot="header"> should become header: [...] prop
+    expect(result.client).toContain('header:');
+    expect(result.client).toContain('children:');
+  });
+});
+
+describe('Feature — JSX for-loop destructuring', () => {
+  test('array destructuring in JSX for', () => {
+    const result = compile(`client {
+      state items = [[1, "a"], [2, "b"]]
+      component App {
+        <ul>
+          for [i, name] in items() {
+            <li>{name}</li>
+          }
+        </ul>
+      }
+    }`);
+    expect(result.client).toContain('[i, name]');
+    expect(result.client).toContain('.map(');
+  });
+
+  test('object destructuring in JSX for', () => {
+    const result = compile(`client {
+      state users = [{ "name": "Alice", "age": 30 }]
+      component App {
+        <ul>
+          for {name, age} in users() {
+            <li>{name}</li>
+          }
+        </ul>
+      }
+    }`);
+    expect(result.client).toContain('{name, age}');
+    expect(result.client).toContain('.map(');
+  });
+
+  test('regular for loop still works', () => {
+    const result = compile(`client {
+      state items = [1, 2, 3]
+      component App {
+        <ul>
+          for item in items() {
+            <li>{item}</li>
+          }
+        </ul>
+      }
+    }`);
+    expect(result.client).toContain('(item)');
+    expect(result.client).toContain('.map(');
+  });
+});
+
+describe('Feature — dangerouslySetInnerHTML codegen', () => {
+  test('innerHTML attribute passes through', () => {
+    const result = compile(`client {
+      component App {
+        <div innerHTML={"<b>bold</b>"} />
+      }
+    }`);
+    expect(result.client).toContain('innerHTML');
   });
 });

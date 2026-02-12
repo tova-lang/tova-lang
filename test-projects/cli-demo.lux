@@ -1,0 +1,224 @@
+// ═══════════════════════════════════════════════════════════
+// Lux CLI Demo — comprehensive language feature showcase
+// ═══════════════════════════════════════════════════════════
+
+// ─── 1. Variables & String Interpolation ─────────────────
+name = "Lux"
+print("=== {name} Language Demo ===")
+print("")
+
+// ─── 2. Mutable variables + compound assignment ─────────
+var x = 10
+x += 5
+x *= 2
+print("[vars] x = {x}")  // 30
+
+// ─── 3. Functions with defaults and implicit return ─────
+fn add(a, b = 0) {
+  a + b
+}
+
+fn greet(who = "World") {
+  "Hello, {who}!"
+}
+
+print("[fn] add(3, 4) = {add(3, 4)}")
+print("[fn] add(7) = {add(7)}")
+print("[fn] greet() = {greet()}")
+
+// ─── 4. Recursion ───────────────────────────────────────
+fn factorial(n) {
+  if n <= 1 { 1 }
+  else { n * factorial(n - 1) }
+}
+
+fn fib(n) {
+  if n <= 0 { 0 }
+  elif n == 1 { 1 }
+  else { fib(n - 1) + fib(n - 2) }
+}
+
+print("[rec] 6! = {factorial(6)}")
+print("[rec] fib(8) = {fib(8)}")
+
+// ─── 5. Type declarations (ADT) ────────────────────────
+type Color {
+  Red,
+  Green,
+  Blue,
+  Custom(r: Int, g: Int, b: Int)
+}
+
+fn color_name(c) {
+  match c {
+    Red => "red"
+    Green => "green"
+    Blue => "blue"
+    Custom(r, g, b) => "rgb({r},{g},{b})"
+  }
+}
+
+colors = [Red, Green, Blue, Custom(255, 128, 0)]
+for c in colors {
+  print("[type] {color_name(c)}")
+}
+
+// ─── 6. Pattern matching ───────────────────────────────
+fn classify(n) {
+  match n {
+    0 => "zero"
+    1..5 => "low"
+    n if n < 0 => "negative"
+    n if n >= 100 => "huge"
+    _ => "mid"
+  }
+}
+
+test_nums = [0, 3, -7, 150, 42]
+for n in test_nums {
+  print("[match] {n} -> {classify(n)}")
+}
+
+// ─── 7. Array pattern matching ─────────────────────────
+fn head_tail(arr) {
+  match arr {
+    [] => "empty"
+    [x] => "single: {x}"
+    [a, b] => "pair: {a}, {b}"
+    _ => "many: {len(arr)} items"
+  }
+}
+
+print("[arr-match] {head_tail([])}")
+print("[arr-match] {head_tail([1])}")
+print("[arr-match] {head_tail([1, 2])}")
+print("[arr-match] {head_tail([1, 2, 3, 4])}")
+
+// ─── 8. List comprehensions ────────────────────────────
+nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+squares = [n * n for n in nums]
+evens = [n for n in nums if n % 2 == 0]
+print("[comp] squares = {squares}")
+print("[comp] evens = {evens}")
+
+// ─── 9. Pipe operator ──────────────────────────────────
+result = nums
+  |> filter(fn(n) n > 3)
+  |> map(fn(n) n * 10)
+  |> sum()
+print("[pipe] sum of (n>3)*10 = {result}")
+
+// ─── 10. Lambdas ────────────────────────────────────────
+doubler = fn(x) x * 2
+print("[lambda] doubler(21) = {doubler(21)}")
+
+adder = fn(a, b) { a + b }
+print("[lambda] adder(15, 27) = {adder(15, 27)}")
+
+// ─── 11. Swap & multiple assignment ────────────────────
+var a = "first"
+var b = "second"
+a, b = b, a
+print("[swap] a={a}, b={b}")
+
+// ─── 12. Chained comparisons ───────────────────────────
+val = 5
+if 1 < val < 10 {
+  print("[chain] {val} is between 1 and 10")
+}
+
+// ─── 13. Membership test ───────────────────────────────
+fruits = ["apple", "banana", "cherry"]
+if "banana" in fruits {
+  print("[in] banana found!")
+}
+if "mango" not in fruits {
+  print("[not in] mango not found")
+}
+
+// ─── 14. While loop ────────────────────────────────────
+var count = 0
+var total = 0
+while count < 5 {
+  count += 1
+  total += count
+}
+print("[while] sum 1..5 = {total}")
+
+// ─── 15. For with key-value pairs ──────────────────────
+pairs = [[1, "one"], [2, "two"], [3, "three"]]
+for i, pair in enumerate(pairs) {
+  print("[for] {i} = {pair}")
+}
+
+// ─── 16. Stdlib functions ──────────────────────────────
+data = [5, 2, 8, 1, 9, 3]
+print("[stdlib] len={len(data)}")
+print("[stdlib] sum={sum(data)}")
+print("[stdlib] min={min(data)}")
+print("[stdlib] max={max(data)}")
+print("[stdlib] sorted={sorted(data)}")
+print("[stdlib] reversed={reversed(data)}")
+print("[stdlib] range(4)={range(4)}")
+
+// ─── 17. Enumerate & Zip ───────────────────────────────
+letters = ["a", "b", "c"]
+print("[stdlib] enumerate={enumerate(letters)}")
+print("[stdlib] zip={zip([1,2,3], letters)}")
+
+// ─── 18. Conditional expressions ───────────────────────
+fn safe_divide(a, b) {
+  if b == 0 { "error: division by zero" }
+  else { a / b }
+}
+
+print("[safe] 10/2 = {safe_divide(10, 2)}")
+print("[safe] 10/0 = {safe_divide(10, 0)}")
+
+// ─── 19. Null coalescing ───────────────────────────────
+maybe_val = nil
+fallback = maybe_val ?? "default"
+print("[??] {fallback}")
+
+// ─── 20. FizzBuzz via match ────────────────────────────
+fn fizzbuzz(n) {
+  match [n % 3, n % 5] {
+    [0, 0] => "FizzBuzz"
+    [0, _] => "Fizz"
+    [_, 0] => "Buzz"
+    _ => "{n}"
+  }
+}
+
+fb = [fizzbuzz(i) for i in range(1, 21)]
+print("[fizz] {fb}")
+
+// ─── 21. Higher-order functions ────────────────────────
+fn apply_twice(f, x) {
+  f(f(x))
+}
+
+print("[hof] apply_twice(double, 3) = {apply_twice(fn(n) n * 2, 3)}")
+
+fn compose(f, g) {
+  fn(x) f(g(x))
+}
+
+inc_then_double = compose(fn(x) x * 2, fn(x) x + 1)
+print("[hof] compose(double, inc)(4) = {inc_then_double(4)}")
+
+// ─── 22. Closures ──────────────────────────────────────
+fn make_counter(start) {
+  var n = start
+  fn() {
+    n += 1
+    n
+  }
+}
+
+counter = make_counter(0)
+print("[closure] {counter()}, {counter()}, {counter()}")
+
+// ─── Done ──────────────────────────────────────────────
+print("")
+print("=== All {22} tests completed! ===")

@@ -1,0 +1,126 @@
+// Lux Browser Test App — Pomodoro Timer + Task Manager
+
+client {
+  // Timer state
+  state seconds = 0
+  state running = false
+  state timer_id = nil
+
+  // Task state
+  state tasks = []
+  state next_id = 1
+  state new_task = ""
+  state active_task = nil
+
+  // Computed values
+  computed minutes_display = "{Math.floor(seconds / 60)}".padStart(2, "0")
+  computed seconds_display = "{seconds % 60}".padStart(2, "0")
+  computed time_display = "{minutes_display}:{seconds_display}"
+  computed total_tasks = len(tasks)
+  computed done_count = len([t for t in tasks if t.done])
+  computed progress = if total_tasks > 0 { Math.round(done_count * 100 / total_tasks) } else { 0 }
+
+  fn start_timer() {
+    if not running {
+      running = true
+      timer_id = setInterval(fn() {
+        seconds += 1
+      }, 1000)
+    }
+  }
+
+  fn pause_timer() {
+    if running {
+      running = false
+      clearInterval(timer_id)
+      timer_id = nil
+    }
+  }
+
+  fn reset_timer() {
+    pause_timer()
+    seconds = 0
+  }
+
+  fn add_task() {
+    if new_task != "" {
+      tasks = [...tasks, { id: next_id, text: new_task, done: false }]
+      next_id += 1
+      new_task = ""
+    }
+  }
+
+  fn toggle_task(id) {
+    tasks = [
+      if t.id == id { { id: t.id, text: t.text, done: not t.done } }
+      else { t }
+      for t in tasks
+    ]
+  }
+
+  fn delete_task(id) {
+    tasks = [t for t in tasks if t.id != id]
+  }
+
+  fn set_active(id) {
+    active_task = if active_task == id { nil } else { id }
+  }
+
+  component TaskItem(task) {
+    <li class={"task-item{if task.id == active_task { " active" } else { "" }}"}>
+      <div class="task-content">
+        <button class="check-btn" on:click={fn() toggle_task(task.id)}>
+          "{if task.done { "✅" } else { "⬜" }}"
+        </button>
+        <span class={"task-title{if task.done { " done" } else { "" }}"} on:click={fn() set_active(task.id)}>
+          "{task.text}"
+        </span>
+      </div>
+      <button class="delete-btn" on:click={fn() delete_task(task.id)}>"×"</button>
+    </li>
+  }
+
+  component App {
+    <div class="app">
+      <header>
+        <h1>"Lux Pomodoro"</h1>
+        <p class="subtitle">"Focus Timer & Tasks"</p>
+      </header>
+
+      <div class="timer-section">
+        <div class="timer-label">"Timer"</div>
+        <div class="timer-display">"{time_display}"</div>
+        <div class="timer-controls">
+          if not running {
+            <button class="btn-start" on:click={start_timer}>"Start"</button>
+          } else {
+            <button class="btn-pause" on:click={pause_timer}>"Pause"</button>
+          }
+          <button on:click={reset_timer}>"Reset"</button>
+        </div>
+      </div>
+
+      <div class="task-section">
+        <h2>"Tasks ({done_count}/{total_tasks})"</h2>
+        <div class="input-row">
+          <input
+            type="text"
+            placeholder="Add a task..."
+            value={new_task}
+            on:input={fn(e) new_task = e.target.value}
+            on:keydown={fn(e) { if e.key == "Enter" { add_task() } }}
+          />
+          <button class="btn-add" on:click={add_task}>"Add"</button>
+        </div>
+        <ul class="task-list">
+          for task in tasks {
+            <TaskItem task={task} />
+          }
+        </ul>
+        if total_tasks > 0 {
+          <div class="stats">"{progress}% complete"</div>
+        }
+      </div>
+    </div>
+  }
+}

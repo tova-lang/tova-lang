@@ -6,6 +6,54 @@ export class ClientCodegen extends BaseCodegen {
     this.stateNames = new Set(); // Track state variable names for setter transforms
     this.computedNames = new Set(); // Track computed variable names for getter transforms
     this.componentNames = new Set(); // Track component names for JSX
+    this.storeNames = new Set(); // Track store names
+    this._asyncContext = false; // When true, server.xxx() calls emit `await`
+  }
+
+  // AST-walk to check if a subtree contains server.xxx() RPC calls
+  _containsRPC(node) {
+    if (!node) return false;
+    if (node.type === 'CallExpression' && this._isRPCCall(node)) return true;
+    if (node.type === 'BlockStatement') return node.body.some(s => this._containsRPC(s));
+    if (node.type === 'ExpressionStatement') return this._containsRPC(node.expression);
+    if (node.type === 'Assignment') return node.values.some(v => this._containsRPC(v));
+    if (node.type === 'VarDeclaration') return node.values.some(v => this._containsRPC(v));
+    if (node.type === 'ReturnStatement') return this._containsRPC(node.value);
+    if (node.type === 'IfStatement') {
+      return this._containsRPC(node.condition) || this._containsRPC(node.consequent) ||
+        node.alternates.some(a => this._containsRPC(a.body)) ||
+        this._containsRPC(node.elseBody);
+    }
+    if (node.type === 'ForStatement') return this._containsRPC(node.iterable) || this._containsRPC(node.body);
+    if (node.type === 'WhileStatement') return this._containsRPC(node.condition) || this._containsRPC(node.body);
+    if (node.type === 'CallExpression') {
+      return this._containsRPC(node.callee) || node.arguments.some(a => this._containsRPC(a));
+    }
+    if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
+      return this._containsRPC(node.left) || this._containsRPC(node.right);
+    }
+    if (node.type === 'MemberExpression') return this._containsRPC(node.object);
+    if (node.type === 'CompoundAssignment') return this._containsRPC(node.value);
+    if (node.type === 'LambdaExpression') return this._containsRPC(node.body);
+    if (node.type === 'NamedArgument') return this._containsRPC(node.value);
+    return false;
+  }
+
+  _isRPCCall(node) {
+    return node.type === 'CallExpression' &&
+      node.callee.type === 'MemberExpression' &&
+      node.callee.object.type === 'Identifier' &&
+      node.callee.object.name === 'server';
+  }
+
+  // Override genCallExpression to add await for server.xxx() in async context
+  genCallExpression(node) {
+    const isRPC = this._isRPCCall(node);
+    const base = super.genCallExpression(node);
+    if (isRPC && this._asyncContext) {
+      return `await ${base}`;
+    }
+    return base;
   }
 
   // Override to add () for signal/computed reads
@@ -27,7 +75,7 @@ export class ClientCodegen extends BaseCodegen {
       const setter = `set${capitalize(name)}`;
       const op = node.operator[0]; // += → +, -= → -, etc.
       const val = this.genExpression(node.value);
-      return `${this.i()}${setter}(__prev => __prev ${op} ${val});`;
+      return `${this.i()}${setter}(__lux_p => __lux_p ${op} ${val});`;
     }
 
     // Intercept assignments to state variables: count = 0 → setCount(0)
@@ -59,7 +107,7 @@ export class ClientCodegen extends BaseCodegen {
       const setter = `set${capitalize(name)}`;
       const op = node.body.operator[0];
       const val = this.genExpression(node.body.value);
-      return `(${params}) => { ${setter}(__prev => __prev ${op} ${val}); }`;
+      return `(${params}) => { ${setter}(__lux_p => __lux_p ${op} ${val}); }`;
     }
 
     // Assignment in lambda body: fn() count = 0
@@ -85,7 +133,7 @@ export class ClientCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, lux_el, lux_fragment } from './runtime/reactivity.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, lux_el, lux_fragment, lux_keyed, lux_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
     lines.push(`import { rpc } from './runtime/rpc.js';`);
     lines.push('');
 
@@ -114,6 +162,7 @@ export class ClientCodegen extends BaseCodegen {
     const computeds = [];
     const effects = [];
     const components = [];
+    const stores = [];
     const other = [];
 
     for (const block of clientBlocks) {
@@ -123,6 +172,7 @@ export class ClientCodegen extends BaseCodegen {
           case 'ComputedDeclaration': computeds.push(stmt); break;
           case 'EffectDeclaration': effects.push(stmt); break;
           case 'ComponentDeclaration': components.push(stmt); break;
+          case 'StoreDeclaration': stores.push(stmt); break;
           default: other.push(stmt); break;
         }
       }
@@ -141,6 +191,11 @@ export class ClientCodegen extends BaseCodegen {
     // Register component names
     for (const comp of components) {
       this.componentNames.add(comp.name);
+    }
+
+    // Register store names
+    for (const store of stores) {
+      this.storeNames.add(store.name);
     }
 
     // Generate state signals
@@ -163,6 +218,15 @@ export class ClientCodegen extends BaseCodegen {
       lines.push('');
     }
 
+    // Generate stores
+    if (stores.length > 0) {
+      lines.push('// ── Stores ──');
+      for (const store of stores) {
+        lines.push(this.generateStore(store));
+        lines.push('');
+      }
+    }
+
     // Generate other statements
     for (const stmt of other) {
       lines.push(this.generateStatement(stmt));
@@ -181,31 +245,7 @@ export class ClientCodegen extends BaseCodegen {
     if (effects.length > 0) {
       lines.push('// ── Effects ──');
       for (const e of effects) {
-        // Check if effect body contains server.* calls (async RPC)
-        const bodyCode = (() => {
-          this.indent++;
-          const code = this.genBlockStatements(e.body);
-          this.indent--;
-          return code;
-        })();
-        const hasRPC = bodyCode.includes('server.') || bodyCode.includes('rpc(');
-        if (hasRPC) {
-          lines.push(`createEffect(() => {`);
-          lines.push(`  (async () => {`);
-          // Re-generate with await on server calls
-          this.indent += 2;
-          const asyncBody = this.genBlockStatements(e.body).replace(/\b(server\.\w+\([^)]*\))/g, 'await $1');
-          this.indent -= 2;
-          lines.push(asyncBody);
-          lines.push(`  })();`);
-          lines.push(`});`);
-        } else {
-          lines.push(`createEffect(() => {`);
-          this.indent++;
-          lines.push(this.genBlockStatements(e.body));
-          this.indent--;
-          lines.push(`});`);
-        }
+        lines.push(this._generateEffect(e.body));
         lines.push('');
       }
     }
@@ -229,29 +269,131 @@ export class ClientCodegen extends BaseCodegen {
     return lines.join('\n');
   }
 
-  generateComponent(comp) {
-    const params = comp.params.length > 0
-      ? `{ ${comp.params.map(p => p.name).join(', ')} }`
-      : '';
+  _generateEffect(body) {
+    const hasRPC = this._containsRPC(body);
+    let code;
+    if (hasRPC) {
+      code = `createEffect(() => {\n`;
+      code += `${this.i()}  (async () => {\n`;
+      this.indent += 2;
+      const prevAsync = this._asyncContext;
+      this._asyncContext = true;
+      code += this.genBlockStatements(body);
+      this._asyncContext = prevAsync;
+      this.indent -= 2;
+      code += `\n${this.i()}  })();\n`;
+      code += `${this.i()}});`;
+    } else {
+      code = `createEffect(() => {\n`;
+      this.indent++;
+      code += this.genBlockStatements(body);
+      this.indent--;
+      code += `\n${this.i()}});`;
+    }
+    return code;
+  }
 
-    let code = `function ${comp.name}(${params}) {\n`;
+  // Generate a short hash from component name + CSS content (for CSS scoping)
+  _genScopeId(name, css) {
+    const str = name + ':' + (css || '');
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h).toString(36).slice(0, 6);
+  }
+
+  // Scope CSS selectors by appending [data-lux-HASH] to each selector
+  _scopeCSS(css, scopeAttr) {
+    return css.replace(/([^{}@/]+)\{/g, (match, selectorGroup) => {
+      const selectors = selectorGroup.split(',').map(s => {
+        s = s.trim();
+        if (!s || s.startsWith('@') || s === 'from' || s === 'to' || /^\d+%$/.test(s)) return s;
+        // Handle pseudo-elements (::before, ::after)
+        const pseudoElMatch = s.match(/(::[\w-]+)$/);
+        if (pseudoElMatch) {
+          return s.slice(0, -pseudoElMatch[0].length) + scopeAttr + pseudoElMatch[0];
+        }
+        // Handle pseudo-classes (:hover, :focus, etc.)
+        const pseudoClsMatch = s.match(/(:[\w-]+(?:\([^)]*\))?)$/);
+        if (pseudoClsMatch) {
+          return s.slice(0, -pseudoClsMatch[0].length) + scopeAttr + pseudoClsMatch[0];
+        }
+        return s + scopeAttr;
+      }).join(', ');
+      return selectors + ' {';
+    });
+  }
+
+  generateComponent(comp) {
+    const hasParams = comp.params.length > 0;
+    const paramStr = hasParams ? '__props' : '';
+
+    // Save state/computed names so component-local names don't leak
+    const savedState = new Set(this.stateNames);
+    const savedComputed = new Set(this.computedNames);
+
+    let code = `function ${comp.name}(${paramStr}) {\n`;
     this.indent++;
 
-    // Process body — find JSX elements and statements
+    // Generate reactive prop accessors — each prop is accessed through __props getter
+    // This ensures parent signal changes propagate reactively to the child
+    if (hasParams) {
+      for (const p of comp.params) {
+        this.computedNames.add(p.name);
+        const def = p.default || p.defaultValue;
+        if (def) {
+          const defaultExpr = this.genExpression(def);
+          code += `${this.i()}const ${p.name} = () => __props.${p.name} !== undefined ? __props.${p.name} : ${defaultExpr};\n`;
+        } else {
+          code += `${this.i()}const ${p.name} = () => __props.${p.name};\n`;
+        }
+      }
+    }
+
+    // Separate JSX elements, style blocks, and statements
     const jsxElements = [];
-    const statements = [];
+    const styleBlocks = [];
+    const bodyItems = [];
 
     for (const node of comp.body) {
       if (node.type === 'JSXElement' || node.type === 'JSXFor' || node.type === 'JSXIf') {
         jsxElements.push(node);
+      } else if (node.type === 'ComponentStyleBlock') {
+        styleBlocks.push(node);
       } else {
-        statements.push(node);
+        bodyItems.push(node);
       }
     }
 
-    // Generate statements first
-    for (const stmt of statements) {
-      code += this.generateStatement(stmt) + '\n';
+    // Set up scoped CSS if style blocks exist
+    const savedScopeId = this._currentScopeId;
+    if (styleBlocks.length > 0) {
+      const rawCSS = styleBlocks.map(s => s.css).join('\n');
+      const scopeId = this._genScopeId(comp.name, rawCSS);
+      this._currentScopeId = scopeId;
+      const scopedCSS = this._scopeCSS(rawCSS, `[data-lux-${scopeId}]`);
+      code += `${this.i()}lux_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`;
+    }
+
+    // Generate body items in order (state, computed, effect, other statements)
+    for (const node of bodyItems) {
+      if (node.type === 'StateDeclaration') {
+        this.stateNames.add(node.name);
+        const init = this.genExpression(node.initialValue);
+        code += `${this.i()}const [${node.name}, set${capitalize(node.name)}] = createSignal(${init});\n`;
+      } else if (node.type === 'ComputedDeclaration') {
+        this.computedNames.add(node.name);
+        const expr = this.genExpression(node.expression);
+        code += `${this.i()}const ${node.name} = createComputed(() => ${expr});\n`;
+      } else if (node.type === 'EffectDeclaration') {
+        this.indent++;
+        const effectCode = this._generateEffect(node.body);
+        this.indent--;
+        code += `${this.i()}${effectCode}\n`;
+      } else {
+        code += this.generateStatement(node) + '\n';
+      }
     }
 
     // Generate JSX return
@@ -264,7 +406,116 @@ export class ClientCodegen extends BaseCodegen {
 
     this.indent--;
     code += `}`;
+
+    // Restore scoped names and scope id
+    this.stateNames = savedState;
+    this.computedNames = savedComputed;
+    this._currentScopeId = savedScopeId;
+
     return code;
+  }
+
+  generateStore(store) {
+    // Save/restore state and computed names so store-internal names don't leak
+    const savedState = new Set(this.stateNames);
+    const savedComputed = new Set(this.computedNames);
+
+    // Collect store-local state and computed names
+    const storeStates = [];
+    const storeComputeds = [];
+    const storeFunctions = [];
+
+    for (const node of store.body) {
+      if (node.type === 'StateDeclaration') {
+        storeStates.push(node);
+        this.stateNames.add(node.name);
+      } else if (node.type === 'ComputedDeclaration') {
+        storeComputeds.push(node);
+        this.computedNames.add(node.name);
+      } else if (node.type === 'FunctionDeclaration') {
+        storeFunctions.push(node);
+      }
+    }
+
+    let code = `const ${store.name} = (() => {\n`;
+    this.indent++;
+
+    // Generate state signals
+    for (const s of storeStates) {
+      const init = this.genExpression(s.initialValue);
+      code += `${this.i()}const [${s.name}, set${capitalize(s.name)}] = createSignal(${init});\n`;
+    }
+
+    // Generate computed values
+    for (const c of storeComputeds) {
+      const expr = this.genExpression(c.expression);
+      code += `${this.i()}const ${c.name} = createComputed(() => ${expr});\n`;
+    }
+
+    // Generate functions
+    for (const fn of storeFunctions) {
+      code += this.genFunctionDeclaration(fn) + '\n';
+    }
+
+    // Build return object with getters/setters
+    code += `${this.i()}return {\n`;
+    this.indent++;
+
+    for (const s of storeStates) {
+      code += `${this.i()}get ${s.name}() { return ${s.name}(); },\n`;
+      code += `${this.i()}set ${s.name}(v) { set${capitalize(s.name)}(v); },\n`;
+    }
+
+    for (const c of storeComputeds) {
+      code += `${this.i()}get ${c.name}() { return ${c.name}(); },\n`;
+    }
+
+    for (const fn of storeFunctions) {
+      code += `${this.i()}${fn.name},\n`;
+    }
+
+    this.indent--;
+    code += `${this.i()}};\n`;
+
+    this.indent--;
+    code += `${this.i()}})();`;
+
+    // Restore state/computed names
+    this.stateNames = savedState;
+    this.computedNames = savedComputed;
+
+    return code;
+  }
+
+  // Check if an AST expression references any signal/computed name
+  _exprReadsSignal(node) {
+    if (!node) return false;
+    if (node.type === 'Identifier') return this.stateNames.has(node.name) || this.computedNames.has(node.name);
+    if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
+      return this._exprReadsSignal(node.left) || this._exprReadsSignal(node.right);
+    }
+    if (node.type === 'UnaryExpression') return this._exprReadsSignal(node.operand);
+    if (node.type === 'CallExpression') {
+      return this._exprReadsSignal(node.callee) || node.arguments.some(a => this._exprReadsSignal(a));
+    }
+    if (node.type === 'MemberExpression') {
+      if (node.object.type === 'Identifier' && this.storeNames.has(node.object.name)) {
+        return true; // Store property access is reactive (getters call signals)
+      }
+      return this._exprReadsSignal(node.object);
+    }
+    if (node.type === 'TemplateLiteral') {
+      return node.parts.some(p => p.type === 'expr' && this._exprReadsSignal(p.value));
+    }
+    if (node.type === 'ChainedComparison') return node.operands.some(o => this._exprReadsSignal(o));
+    if (node.type === 'PipeExpression') return this._exprReadsSignal(node.left) || this._exprReadsSignal(node.right);
+    if (node.type === 'ArrayLiteral') return node.elements.some(e => this._exprReadsSignal(e));
+    if (node.type === 'ObjectLiteral') return node.properties.some(p => this._exprReadsSignal(p.value));
+    if (node.type === 'IfExpression') {
+      return this._exprReadsSignal(node.condition) || this._exprReadsSignal(node.consequent) ||
+        this._exprReadsSignal(node.elseBody);
+    }
+    return false;
   }
 
   genJSX(node) {
@@ -273,7 +524,14 @@ export class ClientCodegen extends BaseCodegen {
     switch (node.type) {
       case 'JSXElement': return this.genJSXElement(node);
       case 'JSXText': return this.genJSXText(node);
-      case 'JSXExpression': return this.genExpression(node.expression);
+      case 'JSXExpression': {
+        // If expression reads a signal, wrap as () => expr for fine-grained reactivity
+        const expr = this.genExpression(node.expression);
+        if (this._exprReadsSignal(node.expression)) {
+          return `() => ${expr}`;
+        }
+        return expr;
+      }
       case 'JSXFor': return this.genJSXFor(node);
       case 'JSXIf': return this.genJSXIf(node);
       default: return this.genExpression(node);
@@ -286,30 +544,159 @@ export class ClientCodegen extends BaseCodegen {
     // Attributes
     const attrs = {};
     const events = {};
+    const classDirectives = [];
+    const spreads = []; // collected spread expressions
 
     for (const attr of node.attributes) {
-      if (attr.name.startsWith('on:')) {
+      if (attr.type === 'JSXSpreadAttribute') {
+        spreads.push(this.genExpression(attr.expression));
+        continue;
+      }
+      if (attr.name === 'bind:value') {
+        // Two-way binding: bind:value={name} → reactive value + event handler
+        const expr = this.genExpression(attr.value);
+        const reactive = this._exprReadsSignal(attr.value);
+        attrs.value = reactive ? `() => ${expr}` : expr;
+        const exprName = attr.value.name;
+        if (this.stateNames.has(exprName)) {
+          // <select> fires 'change', all other inputs fire 'input'
+          const eventName = node.tag === 'select' ? 'change' : 'input';
+          events[eventName] = `(e) => { set${capitalize(exprName)}(e.target.value); }`;
+        }
+      } else if (attr.name === 'bind:checked') {
+        // Two-way binding: bind:checked={flag} → reactive checked + onChange
+        const expr = this.genExpression(attr.value);
+        const reactive = this._exprReadsSignal(attr.value);
+        attrs.checked = reactive ? `() => ${expr}` : expr;
+        const exprName = attr.value.name;
+        if (this.stateNames.has(exprName)) {
+          events.change = `(e) => { set${capitalize(exprName)}(e.target.checked); }`;
+        }
+      } else if (attr.name === 'bind:group') {
+        // Radio/checkbox group binding
+        // For radio: bind:group={selected} → checked = selected === value, onChange sets selected = value
+        // For checkbox: bind:group={items} → checked = items.includes(value), onChange toggles value in array
+        const expr = this.genExpression(attr.value);
+        const exprName = attr.value.name;
+        const reactive = this._exprReadsSignal(attr.value);
+        // Determine type from other attributes
+        const typeAttr = node.attributes.find(a => a.name === 'type');
+        const typeStr = typeAttr ? (typeAttr.value.value || '') : '';
+        const valueAttr = node.attributes.find(a => a.name === 'value');
+        const valueExpr = valueAttr ? this.genExpression(valueAttr.value) : '""';
+
+        if (typeStr === 'checkbox') {
+          // Array-based: checked when array includes value
+          attrs.checked = reactive
+            ? `() => ${expr}.includes(${valueExpr})`
+            : `${expr}.includes(${valueExpr})`;
+          if (this.stateNames.has(exprName)) {
+            events.change = `(e) => { const v = ${valueExpr}; if (e.target.checked) { set${capitalize(exprName)}(__lux_p => [...__lux_p, v]); } else { set${capitalize(exprName)}(__lux_p => __lux_p.filter(x => x !== v)); } }`;
+          }
+        } else {
+          // Radio: single value
+          attrs.checked = reactive
+            ? `() => ${expr} === ${valueExpr}`
+            : `${expr} === ${valueExpr}`;
+          if (this.stateNames.has(exprName)) {
+            events.change = `(e) => { set${capitalize(exprName)}(${valueExpr}); }`;
+          }
+        }
+      } else if (attr.name.startsWith('class:')) {
+        // Conditional class: class:active={cond}
+        const className = attr.name.slice(6);
+        classDirectives.push({ className, condition: this.genExpression(attr.value), node: attr.value });
+      } else if (attr.name.startsWith('on:')) {
         const eventName = attr.name.slice(3);
         events[eventName] = this.genExpression(attr.value);
       } else {
         const attrName = attr.name === 'class' ? 'className' : attr.name;
-        attrs[attrName] = this.genExpression(attr.value);
+        const expr = this.genExpression(attr.value);
+        const reactive = this._exprReadsSignal(attr.value);
+        attrs[attrName] = reactive ? `() => ${expr}` : expr;
       }
     }
 
-    let propsStr = '{';
+    // Merge class directives with className
+    if (classDirectives.length > 0) {
+      const parts = [];
+      if (attrs.className) {
+        parts.push(attrs.className);
+      }
+      for (const { className, condition } of classDirectives) {
+        parts.push(`${condition} && "${className}"`);
+      }
+      const isReactive = classDirectives.some(d => this._exprReadsSignal(d.node));
+      const classExpr = `[${parts.join(', ')}].filter(Boolean).join(" ")`;
+      attrs.className = isReactive ? `() => ${classExpr}` : classExpr;
+    }
+
+    // Add scoped CSS attribute to HTML elements (not components)
+    if (this._currentScopeId && !isComponent) {
+      attrs[`"data-lux-${this._currentScopeId}"`] = '""';
+    }
+
     const propParts = [];
     for (const [key, val] of Object.entries(attrs)) {
-      propParts.push(`${key}: ${val}`);
+      // For component props, convert reactive () => wrappers to JS getter syntax
+      // so the prop stays reactive through the __props access pattern
+      if (isComponent && spreads.length === 0 && typeof val === 'string' && val.startsWith('() => ')) {
+        const rawExpr = val.slice(6);
+        propParts.push(`get ${key}() { return ${rawExpr}; }`);
+      } else {
+        propParts.push(`${key}: ${val}`);
+      }
     }
     for (const [event, handler] of Object.entries(events)) {
       propParts.push(`on${capitalize(event)}: ${handler}`);
     }
-    propsStr += propParts.join(', ');
-    propsStr += '}';
 
-    // Components: call as function, passing props
+    // Build props object, merging spreads if present
+    let propsStr;
+    if (spreads.length > 0) {
+      const ownProps = `{${propParts.join(', ')}}`;
+      propsStr = `Object.assign({}, ${spreads.join(', ')}, ${ownProps})`;
+    } else {
+      propsStr = `{${propParts.join(', ')}}`;
+    }
+
+    // Components: call as function, passing props (with children if any)
     if (isComponent) {
+      if (!node.selfClosing && node.children.length > 0) {
+        // Named slots: children with slot="name" become named props
+        const defaultChildren = [];
+        const namedSlots = {};
+
+        for (const child of node.children) {
+          if (child.type === 'JSXElement') {
+            const slotAttr = child.attributes.find(a => a.name === 'slot');
+            if (slotAttr && slotAttr.value.type === 'StringLiteral') {
+              const slotName = slotAttr.value.value;
+              if (!namedSlots[slotName]) namedSlots[slotName] = [];
+              namedSlots[slotName].push(child);
+              continue;
+            }
+          }
+          defaultChildren.push(child);
+        }
+
+        // Add named slot props
+        for (const [slotName, slotChildren] of Object.entries(namedSlots)) {
+          const slotContent = slotChildren.map(c => this.genJSX(c)).join(', ');
+          propParts.push(`${slotName}: [${slotContent}]`);
+        }
+
+        if (defaultChildren.length > 0) {
+          const children = defaultChildren.map(c => this.genJSX(c)).join(', ');
+          propParts.push(`children: [${children}]`);
+        }
+
+        if (spreads.length > 0) {
+          propsStr = `Object.assign({}, ${spreads.join(', ')}, {${propParts.join(', ')}})`;
+        } else {
+          propsStr = `{${propParts.join(', ')}}`;
+        }
+      }
       return `${node.tag}(${propsStr})`;
     }
 
@@ -328,7 +715,12 @@ export class ClientCodegen extends BaseCodegen {
       return JSON.stringify(node.value.value);
     }
     if (node.value.type === 'TemplateLiteral') {
-      return this.genTemplateLiteral(node.value);
+      const code = this.genTemplateLiteral(node.value);
+      // Wrap in reactive closure if the template reads signals
+      if (this._exprReadsSignal(node.value)) {
+        return `() => ${code}`;
+      }
+      return code;
     }
     return this.genExpression(node.value);
   }
@@ -338,10 +730,20 @@ export class ClientCodegen extends BaseCodegen {
     const iterable = this.genExpression(node.iterable);
     const children = node.body.map(c => this.genJSX(c));
 
-    if (children.length === 1) {
-      return `...${iterable}.map((${varName}) => ${children[0]})`;
+    // Wrap in reactive closure so the runtime creates a dynamic block that
+    // re-evaluates when the iterable signal changes
+    if (node.keyExpr) {
+      const keyExpr = this.genExpression(node.keyExpr);
+      if (children.length === 1) {
+        return `() => ${iterable}.map((${varName}) => lux_keyed(${keyExpr}, ${children[0]}))`;
+      }
+      return `() => ${iterable}.map((${varName}) => lux_keyed(${keyExpr}, lux_fragment([${children.join(', ')}])))`;
     }
-    return `...${iterable}.map((${varName}) => lux_fragment([${children.join(', ')}]))`;
+
+    if (children.length === 1) {
+      return `() => ${iterable}.map((${varName}) => ${children[0]})`;
+    }
+    return `() => ${iterable}.map((${varName}) => lux_fragment([${children.join(', ')}]))`;
   }
 
   genJSXIf(node) {
@@ -349,29 +751,48 @@ export class ClientCodegen extends BaseCodegen {
     const consequent = node.consequent.map(c => this.genJSX(c));
     const thenPart = consequent.length === 1 ? consequent[0] : `lux_fragment([${consequent.join(', ')}])`;
 
+    // Build chained ternary: cond1 ? a : cond2 ? b : cond3 ? c : else
+    let result = `(${cond}) ? ${thenPart}`;
+
+    // elif chains
+    if (node.alternates && node.alternates.length > 0) {
+      for (const alt of node.alternates) {
+        const elifCond = this.genExpression(alt.condition);
+        const elifBody = alt.body.map(c => this.genJSX(c));
+        const elifPart = elifBody.length === 1 ? elifBody[0] : `lux_fragment([${elifBody.join(', ')}])`;
+        result += ` : (${elifCond}) ? ${elifPart}`;
+      }
+    }
+
     if (node.alternate) {
       const alt = node.alternate.map(c => this.genJSX(c));
       const elsePart = alt.length === 1 ? alt[0] : `lux_fragment([${alt.join(', ')}])`;
-      return `(${cond}) ? ${thenPart} : ${elsePart}`;
+      result += ` : ${elsePart}`;
+    } else {
+      result += ` : null`;
     }
 
-    return `(${cond}) ? ${thenPart} : null`;
+    // Wrap in reactive closure so the runtime creates a dynamic block
+    return `() => ${result}`;
   }
 
   // Override function declaration to make async if it contains server.* calls
   genFunctionDeclaration(node) {
+    const hasRPC = this._containsRPC(node.body);
+    const hasPropagate = this._containsPropagate(node.body);
+    const asyncPrefix = hasRPC ? 'async ' : '';
     const params = this.genParams(node.params);
     this.pushScope();
     for (const p of node.params) this.declareVar(p.name);
+    const prevAsync = this._asyncContext;
+    if (hasRPC) this._asyncContext = true;
     const body = this.genBlockBody(node.body);
+    this._asyncContext = prevAsync;
     this.popScope();
-    const hasRPC = body.includes('server.') || body.includes('rpc(');
-    const asyncPrefix = hasRPC ? 'async ' : '';
-    let finalBody = body;
-    if (hasRPC) {
-      finalBody = body.replace(/\b(server\.\w+\([^)]*\))/g, 'await $1');
+    if (hasPropagate) {
+      return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
-    return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${finalBody}\n${this.i()}}`;
+    return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
 
   getStdlibCore() {
@@ -384,7 +805,9 @@ function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k
 function reversed(a) { return [...a].reverse(); }
 function zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
 function min(a) { return Math.min(...a); }
-function max(a) { return Math.max(...a); }`;
+function max(a) { return Math.max(...a); }
+${this.getResultOptionHelper()}
+${this.getPropagateHelper()}`;
   }
 }
 

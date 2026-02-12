@@ -1,0 +1,184 @@
+// Lux Browser Test App — Interactive Counter with Notes
+
+shared {
+  type Priority {
+    Low,
+    Medium,
+    High
+  }
+}
+
+server {
+  route GET "/" => fn(req) {
+    Response.new(__clientHTML, {
+      headers: { "Content-Type": "text/html" }
+    })
+  }
+}
+
+client {
+  // Counter state
+  state count = 0
+  state step = 1
+
+  // Note-taking state
+  state notes = []
+  state note_input = ""
+  state note_count_id = 0
+  state selected_priority = "Medium"
+
+  // Computed
+  computed doubled = count * 2
+  computed is_even = count % 2 == 0
+  computed parity_text = if is_even { "even" } else { "odd" }
+  computed total_notes = len(notes)
+  computed high_count = len([n for n in notes if n.priority == "High"])
+
+  fn increment() {
+    count += step
+  }
+
+  fn decrement() {
+    count -= step
+  }
+
+  fn reset() {
+    count = 0
+  }
+
+  fn add_note() {
+    if note_input != "" {
+      note_count_id += 1
+      notes = [...notes, {
+        id: note_count_id,
+        text: note_input,
+        priority: selected_priority,
+        created_at: count
+      }]
+      note_input = ""
+    }
+  }
+
+  fn remove_note(id) {
+    notes = [n for n in notes if n.id != id]
+  }
+
+  fn priority_color(p) {
+    if p == "High" { "#e74c3c" }
+    elif p == "Medium" { "#f39c12" }
+    else { "#27ae60" }
+  }
+
+  component Badge(text, color) {
+    <span style={"background: {color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;"}>
+      "{text}"
+    </span>
+  }
+
+  component NoteItem(note) {
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; margin-bottom: 0.5rem; background: #f8f9fa; border-radius: 8px; border-left: 3px solid {priority_color(note.priority)};">
+      <div style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <Badge text={note.priority} color={priority_color(note.priority)} />
+          <span>"{note.text}"</span>
+        </div>
+        <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">
+          "Added at count: {note.created_at}"
+        </div>
+      </div>
+      <button
+        style="background: none; border: none; color: #ccc; cursor: pointer; font-size: 1.2rem; padding: 0.25rem;"
+        on:click={fn() remove_note(note.id)}
+      >"x"</button>
+    </div>
+  }
+
+  component App {
+    <div style="max-width: 520px; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, -apple-system, sans-serif;">
+      <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.1);">
+
+        <header style="text-align: center; margin-bottom: 1.5rem;">
+          <h1 style="margin: 0; font-size: 1.8rem; color: #333;">"Lux Counter"</h1>
+          <p style="margin: 0.25rem 0 0; color: #888; font-size: 0.85rem;">"Reactivity Test App"</p>
+        </header>
+
+        <div id="counter-display" style="text-align: center; padding: 1.5rem; background: #f0f4ff; border-radius: 12px; margin-bottom: 1.5rem;">
+          <div style="font-size: 3.5rem; font-weight: 700; color: #333; font-variant-numeric: tabular-nums;">
+            "{count}"
+          </div>
+          <div style="font-size: 0.85rem; color: #667eea; margin-top: 0.25rem;">
+            "doubled: {doubled} | {parity_text}"
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+          <button id="btn-dec" style="padding: 0.5rem 1.25rem; border: 1px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-size: 1rem;" on:click={decrement}>"-"</button>
+          <button id="btn-reset" style="padding: 0.5rem 1.25rem; border: 1px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-size: 0.9rem;" on:click={reset}>"Reset"</button>
+          <button id="btn-inc" style="padding: 0.5rem 1.25rem; border: 1px solid #667eea; border-radius: 8px; background: #667eea; color: white; cursor: pointer; font-size: 1rem;" on:click={increment}>"+"</button>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+          <label style="font-size: 0.85rem; color: #666;">"Step:"</label>
+          <input
+            id="step-input"
+            type="text"
+            value={step}
+            on:input={fn(e) step = parseInt(e.target.value) ?? 1}
+            style="width: 50px; padding: 0.4rem; border: 2px solid #e0e0e0; border-radius: 6px; text-align: center; font-size: 0.9rem;"
+          />
+        </div>
+
+        <div style="border-top: 1px solid #eee; padding-top: 1.5rem;">
+          <h2 style="margin: 0 0 0.75rem; font-size: 1.1rem; color: #333;">
+            "Notes ({total_notes})"
+            if high_count > 0 {
+              <span style="color: #e74c3c; font-size: 0.8rem; margin-left: 0.5rem;">
+                "{high_count} high priority"
+              </span>
+            }
+          </h2>
+
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <input
+              id="note-input"
+              type="text"
+              placeholder="Add a note..."
+              value={note_input}
+              on:input={fn(e) note_input = e.target.value}
+              on:keydown={fn(e) { if e.key == "Enter" { add_note() } }}
+              style="flex: 1; padding: 0.6rem 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; outline: none;"
+            />
+            <select
+              id="priority-select"
+              value={selected_priority}
+              on:change={fn(e) selected_priority = e.target.value}
+              style="padding: 0.5rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.85rem;"
+            >
+              <option value="Low">"Low"</option>
+              <option value="Medium">"Medium"</option>
+              <option value="High">"High"</option>
+            </select>
+            <button
+              id="btn-add-note"
+              style="padding: 0.5rem 1rem; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;"
+              on:click={add_note}
+            >"Add"</button>
+          </div>
+
+          <div id="notes-list">
+            for note in notes {
+              <NoteItem note={note} />
+            }
+          </div>
+
+          if total_notes == 0 {
+            <div style="text-align: center; color: #ccc; padding: 1.5rem; font-size: 0.9rem;">
+              "No notes yet. Add one above!"
+            </div>
+          }
+        </div>
+
+      </div>
+    </div>
+  }
+}

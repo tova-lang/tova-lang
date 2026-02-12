@@ -26,6 +26,9 @@ Commands:
   build [dir]      Compile .lux files to JavaScript (default: current dir)
   dev              Start development server with hot reload
   new <name>       Create a new Lux project
+  migrate:create <name>   Create a new migration file
+  migrate:up [file.lux]   Run pending migrations
+  migrate:status [file.lux] Show migration status
 
 Options:
   --help, -h       Show this help message
@@ -34,7 +37,7 @@ Options:
   --debug          Show verbose error output
 `;
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
@@ -61,6 +64,15 @@ function main() {
       break;
     case 'new':
       newProject(args[1]);
+      break;
+    case 'migrate:create':
+      migrateCreate(args[1]);
+      break;
+    case 'migrate:up':
+      await migrateUp(args.slice(1));
+      break;
+    case 'migrate:status':
+      await migrateStatus(args.slice(1));
       break;
     default:
       if (command.endsWith('.lux')) {
@@ -533,6 +545,222 @@ bun run build
   console.log(`    bun run dev\n`);
 }
 
+// ─── Migrations ─────────────────────────────────────────────
+
+function findLuxFile(arg) {
+  if (arg && arg.endsWith('.lux')) {
+    const p = resolve(arg);
+    if (existsSync(p)) return p;
+    console.error(`Error: File not found: ${p}`);
+    process.exit(1);
+  }
+  for (const name of ['main.lux', 'app.lux']) {
+    const p = resolve(name);
+    if (existsSync(p)) return p;
+  }
+  const luxFiles = findFiles(resolve('.'), '.lux');
+  if (luxFiles.length === 1) return luxFiles[0];
+  if (luxFiles.length === 0) {
+    console.error('Error: No .lux files found');
+    process.exit(1);
+  }
+  console.error('Error: Multiple .lux files found. Specify one explicitly.');
+  process.exit(1);
+}
+
+function discoverDbConfig(luxFile) {
+  const source = readFileSync(luxFile, 'utf-8');
+  const lexer = new Lexer(source, luxFile);
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, luxFile);
+  const ast = parser.parse();
+
+  for (const node of ast.body) {
+    if (node.type === 'ServerBlock') {
+      for (const stmt of node.body) {
+        if (stmt.type === 'DbDeclaration') {
+          const cfg = {};
+          if (stmt.config) {
+            for (const [k, v] of Object.entries(stmt.config)) {
+              if (v.type === 'StringLiteral') cfg[k] = v.value;
+              else if (v.type === 'NumberLiteral') cfg[k] = Number(v.value);
+              else if (v.type === 'BooleanLiteral') cfg[k] = v.value;
+            }
+          }
+          return cfg;
+        }
+      }
+    }
+  }
+  return { driver: 'sqlite', path: 'app.db' };
+}
+
+async function connectDb(cfg) {
+  const driver = cfg.driver || 'sqlite';
+  if (driver === 'postgres') {
+    const postgres = (await import('postgres')).default;
+    const sql = postgres(cfg.url || 'postgres://localhost/app');
+    return {
+      driver: 'postgres',
+      exec: async (q) => { await sql.unsafe(q); },
+      query: async (q, ...p) => { return await sql.unsafe(q, p); },
+      close: async () => { await sql.end(); },
+    };
+  }
+  if (driver === 'mysql') {
+    const mysql = await import('mysql2/promise');
+    const conn = await mysql.createConnection(cfg.url || 'mysql://root@localhost/app');
+    return {
+      driver: 'mysql',
+      exec: async (q) => { await conn.execute(q); },
+      query: async (q, ...p) => { const [rows] = await conn.execute(q, p); return rows; },
+      close: async () => { await conn.end(); },
+    };
+  }
+  // SQLite default
+  const { Database } = await import('bun:sqlite');
+  const db = new Database(cfg.path || 'app.db');
+  return {
+    driver: 'sqlite',
+    exec: (q) => db.exec(q),
+    query: (q, ...p) => db.prepare(q).all(...p),
+    close: () => db.close(),
+  };
+}
+
+function migrateCreate(name) {
+  if (!name) {
+    console.error('Error: No migration name specified');
+    console.error('Usage: lux migrate:create <name>');
+    process.exit(1);
+  }
+
+  const dir = resolve('migrations');
+  mkdirSync(dir, { recursive: true });
+
+  const now = new Date();
+  const ts = now.getFullYear().toString()
+    + String(now.getMonth() + 1).padStart(2, '0')
+    + String(now.getDate()).padStart(2, '0')
+    + String(now.getHours()).padStart(2, '0')
+    + String(now.getMinutes()).padStart(2, '0')
+    + String(now.getSeconds()).padStart(2, '0');
+
+  const filename = `${ts}_${name.replace(/[^a-zA-Z0-9_]/g, '_')}.js`;
+  const filepath = join(dir, filename);
+
+  writeFileSync(filepath, `// Migration: ${name}
+// Created: ${now.toISOString()}
+
+export const up = \`
+  -- Add your migration SQL here
+\`;
+
+export const down = \`
+  -- Add your rollback SQL here
+\`;
+`);
+
+  console.log(`\n  Created migration: migrations/${filename}\n`);
+}
+
+async function migrateUp(args) {
+  const luxFile = findLuxFile(args[0]);
+  const cfg = discoverDbConfig(luxFile);
+  const db = await connectDb(cfg);
+
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS __migrations (
+      id INTEGER PRIMARY KEY ${db.driver === 'postgres' ? 'GENERATED ALWAYS AS IDENTITY' : 'AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT DEFAULT (${db.driver === 'postgres' ? "NOW()::TEXT" : "datetime('now')"})
+    )`);
+
+    const applied = await db.query('SELECT name FROM __migrations ORDER BY name');
+    const appliedSet = new Set(applied.map(r => r.name));
+
+    const migrDir = resolve('migrations');
+    if (!existsSync(migrDir)) {
+      console.log('\n  No migrations directory found. Run migrate:create first.\n');
+      return;
+    }
+
+    const files = readdirSync(migrDir)
+      .filter(f => f.endsWith('.js'))
+      .sort();
+
+    const pending = files.filter(f => !appliedSet.has(f));
+    if (pending.length === 0) {
+      console.log('\n  All migrations are up to date.\n');
+      return;
+    }
+
+    console.log(`\n  Running ${pending.length} pending migration(s)...\n`);
+
+    for (const file of pending) {
+      const mod = await import(join(migrDir, file));
+      if (!mod.up) {
+        console.error(`  Skipping ${file}: no 'up' export`);
+        continue;
+      }
+      const sql = mod.up.trim();
+      if (sql) {
+        await db.exec(sql);
+      }
+      const ph = db.driver === 'postgres' ? '$1' : '?';
+      await db.exec(`INSERT INTO __migrations (name) VALUES ('${file.replace(/'/g, "''")}')`);
+      console.log(`  ✓ ${file}`);
+    }
+
+    console.log(`\n  Done. ${pending.length} migration(s) applied.\n`);
+  } finally {
+    await db.close();
+  }
+}
+
+async function migrateStatus(args) {
+  const luxFile = findLuxFile(args[0]);
+  const cfg = discoverDbConfig(luxFile);
+  const db = await connectDb(cfg);
+
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS __migrations (
+      id INTEGER PRIMARY KEY ${db.driver === 'postgres' ? 'GENERATED ALWAYS AS IDENTITY' : 'AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT DEFAULT (${db.driver === 'postgres' ? "NOW()::TEXT" : "datetime('now')"})
+    )`);
+
+    const applied = await db.query('SELECT name, applied_at FROM __migrations ORDER BY name');
+    const appliedMap = new Map(applied.map(r => [r.name, r.applied_at]));
+
+    const migrDir = resolve('migrations');
+    const files = existsSync(migrDir)
+      ? readdirSync(migrDir).filter(f => f.endsWith('.js')).sort()
+      : [];
+
+    if (files.length === 0) {
+      console.log('\n  No migration files found.\n');
+      return;
+    }
+
+    console.log('\n  Migration Status:');
+    console.log('  ' + '-'.repeat(60));
+
+    for (const file of files) {
+      const appliedAt = appliedMap.get(file);
+      const status = appliedAt ? `applied (${appliedAt})` : 'pending';
+      const icon = appliedAt ? '✓' : '○';
+      console.log(`  ${icon} ${file}  ${status}`);
+    }
+
+    const pendingCount = files.filter(f => !appliedMap.has(f)).length;
+    console.log('  ' + '-'.repeat(60));
+    console.log(`  ${files.length} total, ${files.length - pendingCount} applied, ${pendingCount} pending\n`);
+  } finally {
+    await db.close();
+  }
+}
+
 // ─── Utilities ──────────────────────────────────────────────
 
 function getStdlibForRuntime() {
@@ -548,7 +776,12 @@ function min(a) { return Math.min(...a); }
 function max(a) { return Math.max(...a); }
 function type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }
 function filter(arr, fn) { return arr.filter(fn); }
-function map(arr, fn) { return arr.map(fn); }`;
+function map(arr, fn) { return arr.map(fn); }
+function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; } }); }
+function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + error); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; } }); }
+function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { return Some(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(value) ? this : None; } }); }
+const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });
+function __propagate(val) { if (val && val.__tag === "Err") throw { __lux_propagate: true, value: val }; if (val && val.__tag === "None") throw { __lux_propagate: true, value: val }; if (val && val.__tag === "Ok") return val.value; if (val && val.__tag === "Some") return val.value; return val; }`;
 }
 
 function findFiles(dir, ext) {

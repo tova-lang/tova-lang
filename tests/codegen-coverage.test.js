@@ -282,12 +282,12 @@ describe('Codegen Coverage — Range expression inclusive (line 736-737)', () =>
 describe('Codegen Coverage — Client compound assignment to state (lines 14-19)', () => {
   test('count += 1 in effect becomes setCount with prev', () => {
     const result = compile('client { state count = 0\neffect { count += 1 } }');
-    expect(result.client).toContain('setCount(__prev => __prev + 1);');
+    expect(result.client).toContain('setCount(__lux_p => __lux_p + 1);');
   });
 
   test('count -= 5 in effect becomes setCount with prev', () => {
     const result = compile('client { state count = 10\neffect { count -= 5 } }');
-    expect(result.client).toContain('setCount(__prev => __prev - 5);');
+    expect(result.client).toContain('setCount(__lux_p => __lux_p - 5);');
   });
 });
 
@@ -307,14 +307,14 @@ describe('Codegen Coverage — Client lambda with block body (lines 37-42)', () 
   test('lambda with block body in client component', () => {
     const result = compile('client { state count = 0\ncomponent App { <button on:click={fn() { count += 1\nprint(count) }}>"Click"</button> } }');
     expect(result.client).toContain('() => {');
-    expect(result.client).toContain('setCount(__prev => __prev + 1);');
+    expect(result.client).toContain('setCount(__lux_p => __lux_p + 1);');
   });
 });
 
 describe('Codegen Coverage — Client lambda compound assignment to state (lines 46-51)', () => {
   test('fn() count += 1 in lambda becomes setter with prev', () => {
     const result = compile('client { state count = 0\ncomponent App { <button on:click={fn() count += 1}>"+"</button> } }');
-    expect(result.client).toContain('() => { setCount(__prev => __prev + 1); }');
+    expect(result.client).toContain('() => { setCount(__lux_p => __lux_p + 1); }');
   });
 });
 
@@ -509,12 +509,13 @@ describe('Codegen Coverage — Additional edge cases', () => {
 
   test('client compound assignment with *= operator', () => {
     const result = compile('client { state count = 1\neffect { count *= 2 } }');
-    expect(result.client).toContain('setCount(__prev => __prev * 2);');
+    expect(result.client).toContain('setCount(__lux_p => __lux_p * 2);');
   });
 
   test('component with params', () => {
     const result = compile('client { component Button(label) { <button>"click"</button> } }');
-    expect(result.client).toContain('function Button({ label })');
+    expect(result.client).toContain('function Button(__props)');
+    expect(result.client).toContain('const label = () => __props.label;');
     expect(result.client).toContain('lux_el("button"');
   });
 

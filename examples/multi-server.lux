@@ -1,5 +1,6 @@
 // Multi-Server Example — demonstrates named blocks running as separate processes
 // Each named server block compiles to its own file and runs on its own port
+// Features: ORM, SSE, auth, rate limiting, middleware, CORS, WebSocket, OpenAPI
 
 shared {
   type User {
@@ -15,29 +16,97 @@ shared {
   }
 }
 
-// API server — handles REST endpoints
+// API server — handles REST endpoints with ORM and auto-docs
 server "api" {
-  var users = []
+  health "/health"
+
+  db { path: "./data.db" }
+  model User
+
+  cors {
+    origins: ["*"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    headers: ["Content-Type", "Authorization"]
+  }
+
+  auth {
+    type: "jwt"
+    secret: "my-secret-key"
+  }
+
+  rate_limit {
+    max: 100
+    window: 60
+  }
+
+  middleware fn logger(req, next) {
+    result = next(req)
+    result
+  }
+
+  on_error fn(err, req) {
+    respond(500, {error: "Internal server error"})
+  }
 
   fn get_users() -> [User] {
-    users
+    UserModel.all()
   }
 
   fn create_user(name: String, email: String) -> User {
-    user = User(len(users) + 1, name, email)
-    users = [...users, user]
-    events.push_event("user_created", name)   // cross-server RPC call
+    if name == "" {
+      return respond(400, {error: "name is required"})
+    }
+    user = UserModel.create({name: name, email: email})
+    events.push_event("user_created", name)
+    respond(201, user)
+  }
+
+  fn get_user(id: String) -> User {
+    user = UserModel.find(id)
+    if user == nil {
+      return respond(404, {error: "User not found"})
+    }
     user
+  }
+
+  fn update_user(id: String, name: String, email: String) -> User {
+    UserModel.update(id, {name: name, email: email})
+  }
+
+  fn delete_user(id: String) {
+    UserModel.delete(id)
+    respond(204, nil)
   }
 
   route GET "/api/users" => get_users
   route POST "/api/users" => create_user
+  route GET "/api/users/:id" => get_user
+  route PUT "/api/users/:id" with auth => update_user
+  route DELETE "/api/users/:id" with auth, role("admin") => delete_user
+
+  // SSE endpoint for real-time updates
+  sse "/api/stream" fn(send, close) {
+    send({kind: "connected"})
+  }
 }
 
-// WebSocket / events server — handles real-time events
+// WebSocket / events server — handles real-time events with WebSocket support
 server "events" {
-  var connections = []
+  health "/health"
+
   var event_log = []
+
+  ws {
+    on_open fn(ws) {
+      print("Client connected")
+    }
+    on_message fn(ws, msg) {
+      print("Received: " + msg)
+    }
+    on_close fn(ws, code, reason) {
+      print("Client disconnected")
+    }
+  }
 
   fn get_events() -> [Event] {
     event_log

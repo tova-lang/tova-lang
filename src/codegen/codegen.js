@@ -29,11 +29,14 @@ export class CodeGenerator {
     const clientBlocks = [];
     const topLevel = [];
 
+    const testBlocks = [];
+
     for (const node of this.ast.body) {
       switch (node.type) {
         case 'SharedBlock': sharedBlocks.push(node); break;
         case 'ServerBlock': serverBlocks.push(node); break;
         case 'ClientBlock': clientBlocks.push(node); break;
+        case 'TestBlock': testBlocks.push(node); break;
         default: topLevel.push(node); break;
       }
     }
@@ -52,15 +55,22 @@ export class CodeGenerator {
 
     // Collect function names per named server block for inter-server RPC
     const serverFunctionMap = new Map(); // blockName -> [fnName, ...]
+    const collectFns = (stmts) => {
+      const fns = [];
+      for (const stmt of stmts) {
+        if (stmt.type === 'FunctionDeclaration') {
+          fns.push(stmt.name);
+        } else if (stmt.type === 'RouteGroupDeclaration') {
+          fns.push(...collectFns(stmt.body));
+        }
+      }
+      return fns;
+    };
     for (const [name, blocks] of serverGroups) {
       if (name) {
         const fns = [];
         for (const block of blocks) {
-          for (const stmt of block.body) {
-            if (stmt.type === 'FunctionDeclaration') {
-              fns.push(stmt.name);
-            }
-          }
+          fns.push(...collectFns(block.body));
         }
         serverFunctionMap.set(name, fns);
       }
@@ -81,7 +91,7 @@ export class CodeGenerator {
           }
         }
       }
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks);
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks);
     }
 
     // Generate client outputs (one per named group)
@@ -92,19 +102,34 @@ export class CodeGenerator {
       clients[key] = gen.generate(blocks, combinedShared);
     }
 
+    // Generate tests if test blocks exist
+    let testCode = '';
+    if (testBlocks.length > 0) {
+      const testGen = new ServerCodegen();
+      testCode = testGen.generateTests(testBlocks);
+
+      // Add __handleRequest export to server code
+      const defaultServer = servers['default'] || '';
+      if (defaultServer) {
+        servers['default'] = defaultServer + '\nexport { __handleRequest };\n';
+      }
+    }
+
     // Backward-compatible: if only unnamed blocks, return flat structure
     const hasNamedBlocks = [...serverGroups.keys(), ...clientGroups.keys()].some(k => k !== null);
 
     if (!hasNamedBlocks) {
-      return {
+      const result = {
         shared: combinedShared,
         server: servers['default'] || '',
         client: clients['default'] || '',
       };
+      if (testCode) result.test = testCode;
+      return result;
     }
 
     // Multi-block output: separate files per named block
-    return {
+    const result = {
       shared: combinedShared,
       server: servers['default'] || '',
       client: clients['default'] || '',
@@ -112,5 +137,7 @@ export class CodeGenerator {
       clients,   // { "admin": code, "dashboard": code, ... }
       multiBlock: true,
     };
+    if (testCode) result.test = testCode;
+    return result;
   }
 }

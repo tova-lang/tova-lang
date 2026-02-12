@@ -6,6 +6,8 @@ export class BaseCodegen {
     this._counter = 0;
     this._scopes = [new Set()]; // scope stack for tracking declared variables
     this._needsContainsHelper = false; // track if __contains helper is needed
+    this._needsPropagateHelper = false; // track if __propagate helper is needed
+    this._variantFields = { 'Ok': ['value'], 'Err': ['error'], 'Some': ['value'] }; // map variant name -> [field names] for pattern destructuring
   }
 
   _uid() {
@@ -48,6 +50,47 @@ export class BaseCodegen {
       '}';
   }
 
+  genPropagateExpression(node) {
+    this._needsPropagateHelper = true;
+    return `__propagate(${this.genExpression(node.expression)})`;
+  }
+
+  _containsPropagate(node) {
+    if (!node) return false;
+    if (node.type === 'PropagateExpression') return true;
+    // Stop at nested function/lambda boundaries — they get their own wrapper
+    if (node.type === 'FunctionDeclaration' || node.type === 'LambdaExpression') return false;
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue;
+      const val = node[key];
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          if (item && typeof item === 'object' && this._containsPropagate(item)) return true;
+        }
+      } else if (val && typeof val === 'object' && val.type) {
+        if (this._containsPropagate(val)) return true;
+      }
+    }
+    return false;
+  }
+
+  getPropagateHelper() {
+    return `function __propagate(val) {
+  if (val && val.__tag === "Err") throw { __lux_propagate: true, value: val };
+  if (val && val.__tag === "None") throw { __lux_propagate: true, value: val };
+  if (val && val.__tag === "Ok") return val.value;
+  if (val && val.__tag === "Some") return val.value;
+  return val;
+}`;
+  }
+
+  getResultOptionHelper() {
+    return `function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; } }); }
+function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + error); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; } }); }
+function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { return Some(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(value) ? this : None; } }); }
+const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });`;
+  }
+
   getStringProtoHelper() {
     return '// Lux string methods\n' +
       '(function() {\n' +
@@ -85,6 +128,7 @@ export class BaseCodegen {
       case 'IfStatement': return this.genIfStatement(node);
       case 'ForStatement': return this.genForStatement(node);
       case 'WhileStatement': return this.genWhileStatement(node);
+      case 'TryCatchStatement': return this.genTryCatchStatement(node);
       case 'ReturnStatement': return this.genReturnStatement(node);
       case 'ExpressionStatement': return `${this.i()}${this.genExpression(node.expression)};`;
       case 'BlockStatement': return this.genBlock(node);
@@ -123,6 +167,7 @@ export class BaseCodegen {
       case 'RangeExpression': return this.genRangeExpression(node);
       case 'SliceExpression': return this.genSliceExpression(node);
       case 'SpreadExpression': return `...${this.genExpression(node.argument)}`;
+      case 'PropagateExpression': return this.genPropagateExpression(node);
       case 'NamedArgument': return this.genExpression(node.value);
       default:
         return `/* unknown: ${node.type} */`;
@@ -194,10 +239,14 @@ export class BaseCodegen {
 
   genFunctionDeclaration(node) {
     const params = this.genParams(node.params);
+    const hasPropagate = this._containsPropagate(node.body);
     this.pushScope();
     for (const p of node.params) this.declareVar(p.name);
     const body = this.genBlockBody(node.body);
     this.popScope();
+    if (hasPropagate) {
+      return `${this.i()}function ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+    }
     return `${this.i()}function ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
 
@@ -221,10 +270,12 @@ export class BaseCodegen {
       for (const variant of node.variants) {
         if (variant.type === 'TypeVariant') {
           this.declareVar(variant.name);
+          const fieldNames = variant.fields.map(f => f.name);
+          // Store field names for pattern destructuring
+          this._variantFields[variant.name] = fieldNames;
           if (variant.fields.length === 0) {
             lines.push(`${this.i()}const ${variant.name} = Object.freeze({ __tag: "${variant.name}" });`);
           } else {
-            const fieldNames = variant.fields.map(f => f.name);
             const params = fieldNames.join(', ');
             const obj = fieldNames.map(f => `${f}`).join(', ');
             lines.push(`${this.i()}function ${variant.name}(${params}) { return Object.freeze({ __tag: "${variant.name}", ${obj} }); }`);
@@ -353,6 +404,35 @@ export class BaseCodegen {
     return code;
   }
 
+  genTryCatchStatement(node) {
+    let code = `${this.i()}try {\n`;
+    this.indent++;
+    this.pushScope();
+    for (const stmt of node.tryBody) {
+      code += this.generateStatement(stmt) + '\n';
+    }
+    this.popScope();
+    this.indent--;
+    code += `${this.i()}} catch`;
+    if (node.catchParam) {
+      code += ` (${node.catchParam})`;
+      this.pushScope();
+      this.declareVar(node.catchParam);
+    } else {
+      code += ' (__err)';
+      this.pushScope();
+    }
+    code += ` {\n`;
+    this.indent++;
+    for (const stmt of node.catchBody) {
+      code += this.generateStatement(stmt) + '\n';
+    }
+    this.popScope();
+    this.indent--;
+    code += `${this.i()}}`;
+    return code;
+  }
+
   genReturnStatement(node) {
     if (node.value) {
       return `${this.i()}return ${this.genExpression(node.value)};`;
@@ -388,9 +468,56 @@ export class BaseCodegen {
     const lines = [];
     for (let idx = 0; idx < stmts.length; idx++) {
       const stmt = stmts[idx];
+      const isLast = idx === stmts.length - 1;
       // Implicit return: last expression in function body
-      if (idx === stmts.length - 1 && stmt.type === 'ExpressionStatement') {
+      if (isLast && stmt.type === 'ExpressionStatement') {
         lines.push(`${this.i()}return ${this.genExpression(stmt.expression)};`);
+      } else if (isLast && stmt.type === 'IfStatement' && stmt.elseBody) {
+        // If the last statement is an if/elif/else chain, add returns to each branch
+        lines.push(this._genIfStatementWithReturns(stmt));
+      } else if (isLast && stmt.type === 'MatchExpression') {
+        lines.push(`${this.i()}return ${this.genExpression(stmt)};`);
+      } else {
+        lines.push(this.generateStatement(stmt));
+      }
+    }
+    this.indent--;
+    return lines.join('\n');
+  }
+
+  _genIfStatementWithReturns(node) {
+    let code = `${this.i()}if (${this.genExpression(node.condition)}) {\n`;
+    code += this._genBlockBodyReturns(node.consequent);
+    code += `\n${this.i()}}`;
+
+    for (const alt of node.alternates) {
+      code += ` else if (${this.genExpression(alt.condition)}) {\n`;
+      code += this._genBlockBodyReturns(alt.body);
+      code += `\n${this.i()}}`;
+    }
+
+    if (node.elseBody) {
+      code += ` else {\n`;
+      code += this._genBlockBodyReturns(node.elseBody);
+      code += `\n${this.i()}}`;
+    }
+
+    return code;
+  }
+
+  _genBlockBodyReturns(block) {
+    // Like genBlockBody but always adds return to the last statement
+    if (!block) return '';
+    const stmts = block.type === 'BlockStatement' ? block.body : [block];
+    this.indent++;
+    const lines = [];
+    for (let idx = 0; idx < stmts.length; idx++) {
+      const stmt = stmts[idx];
+      const isLast = idx === stmts.length - 1;
+      if (isLast && stmt.type === 'ExpressionStatement') {
+        lines.push(`${this.i()}return ${this.genExpression(stmt.expression)};`);
+      } else if (isLast && stmt.type === 'IfStatement' && stmt.elseBody) {
+        lines.push(this._genIfStatementWithReturns(stmt));
       } else {
         lines.push(this.generateStatement(stmt));
       }
@@ -426,6 +553,11 @@ export class BaseCodegen {
     if (op === '*' &&
       (node.left.type === 'StringLiteral' || node.left.type === 'TemplateLiteral')) {
       return `${left}.repeat(${right})`;
+    }
+
+    // Lux ?? is NaN-safe: catches null, undefined, AND NaN
+    if (op === '??') {
+      return `((__lux_v) => __lux_v != null && __lux_v === __lux_v ? __lux_v : ${right})(${left})`;
     }
 
     return `(${left} ${op} ${right})`;
@@ -466,6 +598,13 @@ export class BaseCodegen {
   }
 
   genCallExpression(node) {
+    // Transform Foo.new(...) → new Foo(...)
+    if (node.callee.type === 'MemberExpression' && !node.callee.computed && node.callee.property === 'new') {
+      const obj = this.genExpression(node.callee.object);
+      const args = node.arguments.map(a => this.genExpression(a)).join(', ');
+      return `new ${obj}(${args})`;
+    }
+
     const callee = this.genExpression(node.callee);
     const hasNamedArgs = node.arguments.some(a => a.type === 'NamedArgument');
 
@@ -529,12 +668,16 @@ export class BaseCodegen {
 
   genLambdaExpression(node) {
     const params = this.genParams(node.params);
+    const hasPropagate = this._containsPropagate(node.body);
 
     if (node.body.type === 'BlockStatement') {
       this.pushScope();
       for (const p of node.params) this.declareVar(p.name);
       const body = this.genBlockBody(node.body);
       this.popScope();
+      if (hasPropagate) {
+        return `(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      }
       return `(${params}) => {\n${body}\n${this.i()}}`;
     }
 
@@ -549,6 +692,9 @@ export class BaseCodegen {
       return `(${params}) => { ${stmt.trim()} }`;
     }
 
+    if (hasPropagate) {
+      return `(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__lux_propagate) return __e.value; throw __e; } }`;
+    }
     return `(${params}) => ${this.genExpression(node.body)}`;
   }
 
@@ -652,6 +798,19 @@ export class BaseCodegen {
       case 'VariantPattern':
         cond = `${subject}?.__tag === "${pattern.name}"`;
         break;
+      case 'ArrayPattern': {
+        // Check it's an array with the right length, then check each element pattern
+        const checks = [`Array.isArray(${subject})`, `${subject}.length === ${pattern.elements.length}`];
+        for (let i = 0; i < pattern.elements.length; i++) {
+          const elPat = pattern.elements[i];
+          if (elPat.type !== 'WildcardPattern' && elPat.type !== 'BindingPattern') {
+            const elCond = this.genPatternCondition(elPat, `${subject}[${i}]`, null);
+            if (elCond !== 'true') checks.push(elCond);
+          }
+        }
+        cond = checks.join(' && ');
+        break;
+      }
       case 'WildcardPattern':
         cond = 'true';
         break;
@@ -678,10 +837,21 @@ export class BaseCodegen {
     switch (pattern.type) {
       case 'BindingPattern':
         return `${this.i()}const ${pattern.name} = ${subject};\n`;
-      case 'VariantPattern':
-        return pattern.fields.map(f =>
-          `${this.i()}const ${f} = ${subject}.${f};\n`
-        ).join('');
+      case 'VariantPattern': {
+        const declaredFields = this._variantFields[pattern.name] || [];
+        return pattern.fields.map((f, idx) => {
+          // Use the actual declared field name for property access
+          const propName = declaredFields[idx] || f;
+          return `${this.i()}const ${f} = ${subject}.${propName};\n`;
+        }).join('');
+      }
+      case 'ArrayPattern':
+        return pattern.elements.map((el, idx) => {
+          if (el.type === 'BindingPattern') {
+            return `${this.i()}const ${el.name} = ${subject}[${idx}];\n`;
+          }
+          return this.genPatternBindings(el, `${subject}[${idx}]`);
+        }).filter(s => s).join('');
       default:
         return '';
     }
@@ -709,6 +879,10 @@ export class BaseCodegen {
 
     if (node.condition) {
       const cond = this.genExpression(node.condition);
+      // Skip redundant .map() when expression is just the loop variable
+      if (expr === varName) {
+        return `${iter}.filter((${varName}) => ${cond})`;
+      }
       return `${iter}.filter((${varName}) => ${cond}).map((${varName}) => ${expr})`;
     }
     return `${iter}.map((${varName}) => ${expr})`;

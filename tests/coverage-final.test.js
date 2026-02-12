@@ -449,14 +449,18 @@ describe('Parser Final — JSX invalid attribute name (line 282)', () => {
 
 describe('Parser Final — JSX invalid event name after colon (line 291)', () => {
   test('on: followed by number throws', () => {
-    expect(() => parse('client { component App { <div on:123={handler}/> } }')).toThrow(/Expected event name/);
+    expect(() => parse('client { component App { <div on:123={handler}/> } }')).toThrow(/Expected name after/);
   });
 });
 
 describe('Parser Final — JSX children break on unexpected token (line 367)', () => {
-  test('bare identifier in JSX body hits break', () => {
-    // 'hello' is IDENTIFIER, not a valid JSX child type — hits break in parseJSXChildren
-    expect(() => parse('client { component App { <div>hello</div> } }')).toThrow();
+  test('bare identifier in JSX body is now valid unquoted text', () => {
+    // With unquoted JSX text support, 'hello' is lexed as JSX_TEXT
+    const ast = parse('client { component App { <div>hello</div> } }');
+    const comp = ast.body[0].body[0];
+    const div = comp.body[0];
+    expect(div.children.length).toBe(1);
+    expect(div.children[0].type).toBe('JSXText');
   });
 });
 
@@ -467,16 +471,18 @@ describe('Parser Final — JSXFor body break on unexpected token (line 391)', ()
   });
 });
 
-describe('Parser Final — JSXIf consequent break on unexpected token (line 412)', () => {
-  test('expression in JSXIf consequent body hits break', () => {
-    // {expr} in JSXIf body — { is LBRACE, not < or string — hits else break
-    expect(() => parse('client { component App { <div>if show { {x} }</div> } }')).toThrow();
+describe('Parser Final — JSXIf consequent with expression (line 412)', () => {
+  test('expression in JSXIf consequent body parses successfully', () => {
+    // {expr} in JSXIf body — now supported as JSXExpression
+    const ast = parse('client { component App { <div>if show { {x} }</div> } }');
+    expect(ast.body[0].body[0].body).toBeDefined();
   });
 });
 
-describe('Parser Final — JSXIf alternate break on unexpected token (line 428)', () => {
-  test('expression in JSXIf alternate body hits break', () => {
-    expect(() => parse('client { component App { <div>if show { "yes" } else { {x} }</div> } }')).toThrow();
+describe('Parser Final — JSXIf alternate with expression (line 428)', () => {
+  test('expression in JSXIf alternate body parses successfully', () => {
+    const ast = parse('client { component App { <div>if show { "yes" } else { {x} }</div> } }');
+    expect(ast.body[0].body[0].body).toBeDefined();
   });
 });
 

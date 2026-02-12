@@ -484,7 +484,7 @@ describe('Codegen — slice with step', () => {
   // Lines 571-572: slice with step
   test('slice with step generates IIFE', () => {
     const code = compileShared('x = list[0:10:2]');
-    expect(code).toContain('for(let i');
+    expect(code).toContain('for (let i');
     expect(code).toContain('i += st');
   });
 });

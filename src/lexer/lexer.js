@@ -9,6 +9,16 @@ export class Lexer {
     this.line = 1;
     this.column = 1;
     this.length = source.length;
+
+    // JSX context tracking for unquoted text support
+    this._jsxStack = [];          // stack of 'tag' or 'cfblock' entries
+    this._jsxTagOpening = false;  // true when < starts a JSX opening tag
+    this._jsxSelfClosing = false; // true when / seen inside JSX tag (before >)
+    this._jsxClosingTag = false;  // true when </ detected
+    this._jsxExprDepth = 0;       // brace depth for {expr} inside JSX
+    this._jsxControlFlowPending = false; // true after if/for/elif/else keyword in JSX
+    this._cfParenDepth = 0;       // () and [] nesting in control flow condition
+    this._cfBraceDepth = 0;       // {} nesting for expression braces (key={...})
   }
 
   error(message) {
@@ -60,6 +70,18 @@ export class Lexer {
     return ch === ' ' || ch === '\t' || ch === '\r';
   }
 
+  _isJSXStart() {
+    const nextCh = this.peek();
+    if (!this.isAlpha(nextCh)) return false;
+    // Check the token BEFORE < (LESS was already pushed, so it's at length-2)
+    const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
+    if (!prev) return true;
+    const valueTypes = [TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING,
+      TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET,
+      TokenType.TRUE, TokenType.FALSE, TokenType.NIL];
+    return !valueTypes.includes(prev.type);
+  }
+
   tokenize() {
     while (this.pos < this.length) {
       this.scanToken();
@@ -69,6 +91,13 @@ export class Lexer {
   }
 
   scanToken() {
+    // In JSX children mode, scan raw text instead of normal tokens
+    if (this._jsxStack.length > 0 && this._jsxExprDepth === 0 &&
+        !this._jsxTagOpening && !this._jsxClosingTag &&
+        !this._jsxControlFlowPending) {
+      return this._scanInJSXChildren();
+    }
+
     const ch = this.peek();
 
     // Skip whitespace (not newlines)
@@ -118,6 +147,102 @@ export class Lexer {
 
     // Operators and delimiters
     this.scanOperator();
+  }
+
+  _scanInJSXChildren() {
+    const ch = this.peek();
+
+    // Close control flow block: } when top of stack is 'cfblock'
+    if (ch === '}' && this._jsxStack.length > 0 && this._jsxStack[this._jsxStack.length - 1] === 'cfblock') {
+      this._jsxStack.pop();
+      this.scanOperator(); // emits RBRACE
+      return;
+    }
+
+    // Skip whitespace/newlines silently when followed by structural chars
+    if (this.isWhitespace(ch) || ch === '\n') {
+      let pp = this.pos;
+      while (pp < this.length && (this.source[pp] === ' ' || this.source[pp] === '\t' || this.source[pp] === '\r' || this.source[pp] === '\n')) {
+        pp++;
+      }
+      const nextNonWs = pp < this.length ? this.source[pp] : '\0';
+      // Skip whitespace if next meaningful char is structural
+      if (nextNonWs === '<' || nextNonWs === '{' || nextNonWs === '}' || nextNonWs === '"' || nextNonWs === "'" || pp >= this.length) {
+        while (this.pos < pp) this.advance();
+        return;
+      }
+      // Check if next non-ws starts a keyword (if/for/elif/else)
+      if (this.isAlpha(nextNonWs)) {
+        let word = '', wp = pp;
+        while (wp < this.length && this.isAlphaNumeric(this.source[wp])) {
+          word += this.source[wp]; wp++;
+        }
+        if (['if', 'for', 'elif', 'else'].includes(word)) {
+          while (this.pos < pp) this.advance();
+          return;
+        }
+      }
+      // Otherwise, fall through to collect as JSX text
+    }
+
+    if (ch === '{') {
+      this.scanOperator();
+      this._jsxExprDepth = 1;
+      return;
+    }
+    if (ch === '<') {
+      // In JSX children, set flags directly (heuristic may fail after STRING tokens)
+      const nextCh = this.peek(1);
+      if (nextCh === '/') {
+        this._jsxClosingTag = true;
+      } else if (this.isAlpha(nextCh)) {
+        this._jsxTagOpening = true;
+      }
+      this.scanOperator();
+      return;
+    }
+    if (ch === '"') { this.scanString(); return; }
+    if (ch === "'") { this.scanSimpleString(); return; }
+
+    // Check for JSX control flow keywords: if, for, elif, else
+    if (this.isAlpha(ch)) {
+      let word = '', peekPos = this.pos;
+      while (peekPos < this.length && this.isAlphaNumeric(this.source[peekPos])) {
+        word += this.source[peekPos]; peekPos++;
+      }
+      if (['if', 'for', 'elif', 'else'].includes(word)) {
+        this.scanIdentifier();
+        // After keyword, enter control flow pending mode for normal scanning
+        this._jsxControlFlowPending = true;
+        this._cfParenDepth = 0;
+        this._cfBraceDepth = 0;
+        return;
+      }
+    }
+
+    // Everything else: scan as raw JSX text
+    this._scanJSXText();
+  }
+
+  _scanJSXText() {
+    const startLine = this.line, startCol = this.column;
+    let text = '';
+    while (this.pos < this.length) {
+      const ch = this.peek();
+      if (ch === '<' || ch === '{' || ch === '"' || ch === "'") break;
+      // Stop at keywords if, for, elif, else preceded by whitespace
+      if (this.isAlpha(ch) && text.length > 0 && /\s$/.test(text)) {
+        let word = '', pp = this.pos;
+        while (pp < this.length && this.isAlphaNumeric(this.source[pp])) {
+          word += this.source[pp]; pp++;
+        }
+        if (['if', 'for', 'elif', 'else'].includes(word)) break;
+      }
+      text += this.advance();
+    }
+    if (text.length > 0) {
+      this.tokens.push(new Token(TokenType.JSX_TEXT, text, startLine, startCol));
+    }
   }
 
   scanComment() {
@@ -353,6 +478,37 @@ export class Lexer {
       value += this.advance();
     }
 
+    // Special case: "style {" → read raw CSS block
+    if (value === 'style') {
+      const savedPos = this.pos;
+      const savedLine = this.line;
+      const savedCol = this.column;
+      // Skip whitespace (including newlines) to check for {
+      while (this.pos < this.length && (this.isWhitespace(this.peek()) || this.peek() === '\n')) {
+        this.advance();
+      }
+      if (this.peek() === '{') {
+        this.advance(); // skip {
+        let depth = 1;
+        let css = '';
+        while (depth > 0 && this.pos < this.length) {
+          const ch = this.peek();
+          if (ch === '{') depth++;
+          else if (ch === '}') {
+            depth--;
+            if (depth === 0) { this.advance(); break; }
+          }
+          css += this.advance();
+        }
+        this.tokens.push(new Token(TokenType.STYLE_BLOCK, css.trim(), startLine, startCol));
+        return;
+      }
+      // Not a style block — restore position
+      this.pos = savedPos;
+      this.line = savedLine;
+      this.column = savedCol;
+    }
+
     // Check if it's a keyword
     const type = Keywords[value] || TokenType.IDENTIFIER;
     this.tokens.push(new Token(type, value, startLine, startCol));
@@ -366,21 +522,51 @@ export class Lexer {
     switch (ch) {
       case '(':
         this.tokens.push(new Token(TokenType.LPAREN, '(', startLine, startCol));
+        if (this._jsxControlFlowPending) this._cfParenDepth++;
         break;
       case ')':
         this.tokens.push(new Token(TokenType.RPAREN, ')', startLine, startCol));
+        if (this._jsxControlFlowPending && this._cfParenDepth > 0) this._cfParenDepth--;
         break;
       case '{':
         this.tokens.push(new Token(TokenType.LBRACE, '{', startLine, startCol));
+        if (this._jsxControlFlowPending) {
+          if (this._cfBraceDepth > 0) {
+            // Nested brace inside expression (e.g., key={obj.field})
+            this._cfBraceDepth++;
+          } else if (this._cfParenDepth > 0) {
+            // Inside parens, this is an expression brace
+            this._cfBraceDepth++;
+          } else {
+            // Check if prev token is ASSIGN (key={...}) or FOR (destructuring: for {a,b} in ...)
+            const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
+            if (prev && (prev.type === TokenType.ASSIGN || prev.type === TokenType.FOR)) {
+              this._cfBraceDepth++;
+            } else {
+              // This is the block opener for the control flow body
+              this._jsxControlFlowPending = false;
+              this._jsxStack.push('cfblock');
+            }
+          }
+        } else if (this._jsxExprDepth > 0) {
+          this._jsxExprDepth++;
+        }
         break;
       case '}':
         this.tokens.push(new Token(TokenType.RBRACE, '}', startLine, startCol));
+        if (this._jsxControlFlowPending && this._cfBraceDepth > 0) {
+          this._cfBraceDepth--;
+        } else if (this._jsxExprDepth > 0) {
+          this._jsxExprDepth--;
+        }
         break;
       case '[':
         this.tokens.push(new Token(TokenType.LBRACKET, '[', startLine, startCol));
+        if (this._jsxControlFlowPending) this._cfParenDepth++;
         break;
       case ']':
         this.tokens.push(new Token(TokenType.RBRACKET, ']', startLine, startCol));
+        if (this._jsxControlFlowPending && this._cfParenDepth > 0) this._cfParenDepth--;
         break;
       case ',':
         this.tokens.push(new Token(TokenType.COMMA, ',', startLine, startCol));
@@ -422,6 +608,7 @@ export class Lexer {
           this.tokens.push(new Token(TokenType.SLASH_ASSIGN, '/=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.SLASH, '/', startLine, startCol));
+          if (this._jsxTagOpening) this._jsxSelfClosing = true;
         }
         break;
 
@@ -452,6 +639,14 @@ export class Lexer {
           this.tokens.push(new Token(TokenType.LESS_EQUAL, '<=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.LESS, '<', startLine, startCol));
+          // Don't override flags already set by _scanInJSXChildren
+          if (!this._jsxClosingTag && !this._jsxTagOpening) {
+            if (this.peek() === '/') {
+              this._jsxClosingTag = true;
+            } else if (this._isJSXStart()) {
+              this._jsxTagOpening = true;
+            }
+          }
         }
         break;
 
@@ -460,12 +655,30 @@ export class Lexer {
           this.tokens.push(new Token(TokenType.GREATER_EQUAL, '>=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.GREATER, '>', startLine, startCol));
+          // JSX state transitions on >
+          if (this._jsxSelfClosing) {
+            // Self-closing tag: <br/> — don't push to stack
+            this._jsxTagOpening = false;
+            this._jsxSelfClosing = false;
+          } else if (this._jsxClosingTag) {
+            // Closing tag: </div> — pop 'tag' from stack
+            this._jsxClosingTag = false;
+            if (this._jsxStack.length > 0) this._jsxStack.pop();
+          } else if (this._jsxTagOpening) {
+            // Opening tag: <div> — push 'tag' to stack (entering children mode)
+            this._jsxTagOpening = false;
+            this._jsxStack.push('tag');
+          }
         }
         break;
 
       case '&':
         if (this.match('&')) {
           this.tokens.push(new Token(TokenType.AND_AND, '&&', startLine, startCol));
+        } else if (this._jsxStack.length > 0) {
+          // Inside JSX, & is valid text - should not reach here normally
+          // but handle gracefully by treating as text
+          this.tokens.push(new Token(TokenType.JSX_TEXT, '&', startLine, startCol));
         } else {
           this.error(`Unexpected character: '&'. Did you mean '&&'?`);
         }

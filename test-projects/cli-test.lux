@@ -1,0 +1,139 @@
+// CLI Test Program — exercises core Lux language features
+
+// ─── 1. Variables & String Interpolation ─────────────────
+name = "Lux"
+version = 1
+print("Welcome to {name} v{version}!")
+
+// ─── 2. Mutable variables ────────────────────────────────
+var counter = 0
+counter += 10
+counter -= 3
+print("Counter: {counter}")
+
+// ─── 3. Functions ────────────────────────────────────────
+fn factorial(n) {
+  if n <= 1 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+fn fibonacci(n) {
+  if n <= 0 { 0 }
+  elif n == 1 { 1 }
+  else { fibonacci(n - 1) + fibonacci(n - 2) }
+}
+
+fn greet(who = "World") {
+  "Hello, {who}!"
+}
+
+print("5! = {factorial(5)}")
+print("fib(10) = {fibonacci(10)}")
+print(greet())
+print(greet("Lux"))
+
+// ─── 4. Pattern Matching ─────────────────────────────────
+fn classify(n) {
+  match n {
+    0 => "zero"
+    1..10 => "small ({n})"
+    n if n < 0 => "negative ({n})"
+    n if n >= 100 => "big ({n})"
+    _ => "medium ({n})"
+  }
+}
+
+print(classify(0))
+print(classify(5))
+print(classify(-3))
+print(classify(150))
+print(classify(42))
+
+// ─── 5. Types (ADT / Enum) ──────────────────────────────
+type Shape {
+  Circle(radius: Float),
+  Rectangle(w: Float, h: Float),
+  Triangle(base: Float, height: Float)
+}
+
+fn area(shape) {
+  match shape {
+    Circle(r) => 3.14159 * r * r
+    Rectangle(w, h) => w * h
+    Triangle(b, h) => 0.5 * b * h
+  }
+}
+
+fn describe_shape(shape) {
+  match shape {
+    Circle(r) => "Circle with radius {r}"
+    Rectangle(w, h) => "Rectangle {w}x{h}"
+    Triangle(b, h) => "Triangle base={b} height={h}"
+  }
+}
+
+shapes = [Circle(5.0), Rectangle(4.0, 6.0), Triangle(3.0, 8.0)]
+for s in shapes {
+  print("{describe_shape(s)}: area = {area(s)}")
+}
+
+// ─── 6. List Comprehensions ──────────────────────────────
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+squares = [x * x for x in numbers]
+even_squares = [x * x for x in numbers if x % 2 == 0]
+print("Squares: {squares}")
+print("Even squares: {even_squares}")
+
+// ─── 7. Pipe Operator ────────────────────────────────────
+result = numbers
+  |> filter(fn(x) x > 3)
+  |> map(fn(x) x * x)
+  |> sum()
+print("Sum of squares > 3: {result}")
+
+// ─── 8. Multiple Assignment & Swap ───────────────────────
+var a = 10
+var b = 20
+a, b = b, a
+print("After swap: a={a}, b={b}")
+
+// ─── 9. Chained Comparisons ─────────────────────────────
+val = 7
+if 1 < val < 10 {
+  print("{val} is between 1 and 10")
+}
+
+// ─── 10. Membership Test ─────────────────────────────────
+langs = ["Lux", "Rust", "Python", "Go"]
+if "Lux" in langs {
+  print("Lux is in the list!")
+}
+
+// ─── 11. Stdlib Functions ────────────────────────────────
+print("len: {len(numbers)}")
+print("sum: {sum(numbers)}")
+print("min: {min(numbers)}")
+print("max: {max(numbers)}")
+print("range(5): {range(5)}")
+print("sorted desc: {sorted(numbers, fn(x) -x)}")
+print("reversed: {reversed(numbers)}")
+print("zip: {zip([1,2,3], ["a","b","c"])}")
+print("enumerate: {enumerate(langs)}")
+
+// ─── 12. Complex Expressions ────────────────────────────
+fn fizzbuzz(n) {
+  match [n % 3, n % 5] {
+    [0, 0] => "FizzBuzz"
+    [0, _] => "Fizz"
+    [_, 0] => "Buzz"
+    _ => "{n}"
+  }
+}
+
+fb = [fizzbuzz(i) for i in range(1, 16)]
+print("FizzBuzz: {fb}")
+
+print("\nAll CLI tests passed!")

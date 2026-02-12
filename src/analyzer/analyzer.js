@@ -19,6 +19,7 @@ export class Analyzer {
       'print', 'range', 'len', 'type_of', 'enumerate', 'zip',
       'map', 'filter', 'reduce', 'sum', 'sorted', 'reversed',
       'fetch', 'db',
+      'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
     ];
     for (const name of builtins) {
       this.globalScope.define(name, new Symbol(name, 'builtin', null, false, { line: 0, column: 0, file: '<builtin>' }));
@@ -48,16 +49,21 @@ export class Analyzer {
   analyze() {
     // Pre-pass: collect named server block functions for inter-server RPC validation
     this.serverBlockFunctions = new Map(); // blockName -> [functionName, ...]
+    const collectFns = (stmts) => {
+      const fns = [];
+      for (const stmt of stmts) {
+        if (stmt.type === 'FunctionDeclaration') {
+          fns.push(stmt.name);
+        } else if (stmt.type === 'RouteGroupDeclaration') {
+          fns.push(...collectFns(stmt.body));
+        }
+      }
+      return fns;
+    };
     for (const node of this.ast.body) {
       if (node.type === 'ServerBlock' && node.name) {
-        const fns = [];
-        for (const stmt of node.body) {
-          if (stmt.type === 'FunctionDeclaration') {
-            fns.push(stmt.name);
-          }
-        }
+        const fns = collectFns(node.body);
         if (this.serverBlockFunctions.has(node.name)) {
-          // Merge functions from blocks with the same name
           this.serverBlockFunctions.get(node.name).push(...fns);
         } else {
           this.serverBlockFunctions.set(node.name, fns);
@@ -100,6 +106,7 @@ export class Analyzer {
       case 'IfStatement': return this.visitIfStatement(node);
       case 'ForStatement': return this.visitForStatement(node);
       case 'WhileStatement': return this.visitWhileStatement(node);
+      case 'TryCatchStatement': return this.visitTryCatchStatement(node);
       case 'ReturnStatement': return this.visitReturnStatement(node);
       case 'ExpressionStatement': return this.visitExpression(node.expression);
       case 'BlockStatement': return this.visitBlock(node);
@@ -108,7 +115,34 @@ export class Analyzer {
       case 'ComputedDeclaration': return this.visitComputedDeclaration(node);
       case 'EffectDeclaration': return this.visitEffectDeclaration(node);
       case 'ComponentDeclaration': return this.visitComponentDeclaration(node);
+      case 'StoreDeclaration': return this.visitStoreDeclaration(node);
       case 'RouteDeclaration': return this.visitRouteDeclaration(node);
+      case 'MiddlewareDeclaration': return this.visitMiddlewareDeclaration(node);
+      case 'HealthCheckDeclaration': return this.visitHealthCheckDeclaration(node);
+      case 'CorsDeclaration': return this.visitCorsDeclaration(node);
+      case 'ErrorHandlerDeclaration': return this.visitErrorHandlerDeclaration(node);
+      case 'WebSocketDeclaration': return this.visitWebSocketDeclaration(node);
+      case 'StaticDeclaration': return this.visitStaticDeclaration(node);
+      case 'DiscoverDeclaration': return this.visitDiscoverDeclaration(node);
+      case 'AuthDeclaration': return this.visitAuthDeclaration(node);
+      case 'MaxBodyDeclaration': return this.visitMaxBodyDeclaration(node);
+      case 'RouteGroupDeclaration': return this.visitRouteGroupDeclaration(node);
+      case 'RateLimitDeclaration': return this.visitRateLimitDeclaration(node);
+      case 'LifecycleHookDeclaration': return this.visitLifecycleHookDeclaration(node);
+      case 'SubscribeDeclaration': return this.visitSubscribeDeclaration(node);
+      case 'EnvDeclaration': return this.visitEnvDeclaration(node);
+      case 'ScheduleDeclaration': return this.visitScheduleDeclaration(node);
+      case 'UploadDeclaration': return this.visitUploadDeclaration(node);
+      case 'SessionDeclaration': return this.visitSessionDeclaration(node);
+      case 'DbDeclaration': return this.visitDbDeclaration(node);
+      case 'TlsDeclaration': return this.visitTlsDeclaration(node);
+      case 'CompressionDeclaration': return this.visitCompressionDeclaration(node);
+      case 'BackgroundJobDeclaration': return this.visitBackgroundJobDeclaration(node);
+      case 'CacheDeclaration': return this.visitCacheDeclaration(node);
+      case 'SseDeclaration': return this.visitSseDeclaration(node);
+      case 'ModelDeclaration': return this.visitModelDeclaration(node);
+      case 'TestBlock': return this.visitTestBlock(node);
+      case 'ComponentStyleBlock': return; // raw CSS — no analysis needed
       default:
         // Expression nodes
         this.visitExpression(node);
@@ -211,6 +245,9 @@ export class Analyzer {
         return;
       case 'SpreadExpression':
         this.visitExpression(node.argument);
+        return;
+      case 'PropagateExpression':
+        this.visitExpression(node.expression);
         return;
       case 'IfExpression':
         this.visitExpression(node.condition);
@@ -341,8 +378,9 @@ export class Analyzer {
 
   visitFunctionDeclaration(node) {
     try {
-      this.currentScope.define(node.name,
-        new Symbol(node.name, 'function', node.returnType, false, node.loc));
+      const sym = new Symbol(node.name, 'function', node.returnType, false, node.loc);
+      sym._params = node.params.map(p => p.name);
+      this.currentScope.define(node.name, sym);
     } catch (e) {
       this.error(e.message);
     }
@@ -460,6 +498,21 @@ export class Analyzer {
     this.visitNode(node.body);
   }
 
+  visitTryCatchStatement(node) {
+    const tryScope = this.currentScope.child('block');
+    this.currentScope = tryScope;
+    for (const stmt of node.tryBody) this.visitNode(stmt);
+    this.currentScope = tryScope.parent;
+
+    const catchScope = this.currentScope.child('block');
+    this.currentScope = catchScope;
+    if (node.catchParam) {
+      catchScope.define(node.catchParam, { kind: 'variable', mutable: false });
+    }
+    for (const stmt of node.catchBody) this.visitNode(stmt);
+    this.currentScope = catchScope.parent;
+  }
+
   visitReturnStatement(node) {
     if (node.value) {
       this.visitExpression(node.value);
@@ -544,12 +597,393 @@ export class Analyzer {
     this.currentScope = prevScope;
   }
 
+  visitStoreDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'client') {
+      this.error(`'store' can only be used inside a client block`, node.loc);
+    }
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'variable', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('block');
+    for (const child of node.body) {
+      this.visitNode(child);
+    }
+    this.currentScope = prevScope;
+  }
+
   visitRouteDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
       this.error(`'route' can only be used inside a server block`, node.loc);
     }
     this.visitExpression(node.handler);
+
+    // Route param ↔ handler signature type safety
+    if (node.handler.type === 'Identifier') {
+      const handlerName = node.handler.name;
+      // Find the function declaration in the current server block scope
+      const fnSym = this.currentScope.lookup(handlerName);
+      if (fnSym && fnSym.kind === 'function' && fnSym._params) {
+        const pathParams = new Set();
+        const pathStr = node.path || '';
+        const paramMatches = pathStr.match(/:([a-zA-Z_][a-zA-Z0-9_]*)/g);
+        if (paramMatches) {
+          for (const m of paramMatches) pathParams.add(m.slice(1));
+        }
+        const handlerParams = fnSym._params.filter(p => p !== 'req');
+        for (const hp of handlerParams) {
+          if (pathParams.size > 0 && !pathParams.has(hp) && node.method.toUpperCase() === 'GET') {
+            // For GET routes, params not in path come from query — this is fine, just a warning
+            this.warn(`Handler '${handlerName}' param '${hp}' not in route path '${pathStr}' — will be extracted from query string`, node.loc);
+          }
+        }
+      }
+    }
+  }
+
+  visitMiddlewareDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'middleware' can only be used inside a server block`, node.loc);
+    }
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'function', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('function');
+    for (const param of node.params) {
+      try {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    this.visitNode(node.body);
+    this.currentScope = prevScope;
+  }
+
+  visitHealthCheckDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'health' can only be used inside a server block`, node.loc);
+    }
+  }
+
+  visitCorsDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'cors' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitErrorHandlerDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'on_error' can only be used inside a server block`, node.loc);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('function');
+    for (const param of node.params) {
+      try {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    this.visitNode(node.body);
+    this.currentScope = prevScope;
+  }
+
+  visitWebSocketDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'ws' can only be used inside a server block`, node.loc);
+    }
+    for (const [, handler] of Object.entries(node.handlers)) {
+      if (!handler) continue;
+      const prevScope = this.currentScope;
+      this.currentScope = this.currentScope.child('function');
+      for (const param of handler.params) {
+        try {
+          this.currentScope.define(param.name,
+            new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+        } catch (e) {
+          this.error(e.message);
+        }
+      }
+      this.visitNode(handler.body);
+      this.currentScope = prevScope;
+    }
+  }
+
+  visitStaticDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'static' can only be used inside a server block`, node.loc);
+    }
+  }
+
+  visitDiscoverDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'discover' can only be used inside a server block`, node.loc);
+    }
+    this.visitExpression(node.urlExpression);
+  }
+
+  visitAuthDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'auth' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitMaxBodyDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'max_body' can only be used inside a server block`, node.loc);
+    }
+    this.visitExpression(node.limit);
+  }
+
+  visitRouteGroupDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'routes' can only be used inside a server block`, node.loc);
+    }
+    for (const stmt of node.body) {
+      this.visitNode(stmt);
+    }
+  }
+
+  visitRateLimitDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'rate_limit' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitLifecycleHookDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'on_${node.hook}' can only be used inside a server block`, node.loc);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('function');
+    for (const param of node.params) {
+      try {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    this.visitNode(node.body);
+    this.currentScope = prevScope;
+  }
+
+  visitSubscribeDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'subscribe' can only be used inside a server block`, node.loc);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('function');
+    for (const param of node.params) {
+      try {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    this.visitNode(node.body);
+    this.currentScope = prevScope;
+  }
+
+  visitEnvDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'env' can only be used inside a server block`, node.loc);
+    }
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'variable', node.typeAnnotation, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    if (node.defaultValue) {
+      this.visitExpression(node.defaultValue);
+    }
+  }
+
+  visitScheduleDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'schedule' can only be used inside a server block`, node.loc);
+    }
+    if (node.name) {
+      try {
+        this.currentScope.define(node.name,
+          new Symbol(node.name, 'function', null, false, node.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('function');
+    for (const param of node.params) {
+      try {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    this.visitNode(node.body);
+    this.currentScope = prevScope;
+  }
+
+  visitUploadDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'upload' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitSessionDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'session' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitDbDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'db' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitTlsDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'tls' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitCompressionDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'compression' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitBackgroundJobDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'background' can only be used inside a server block`, node.loc);
+    }
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'function', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('function');
+    for (const param of node.params) {
+      try {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    this.visitNode(node.body);
+    this.currentScope = prevScope;
+  }
+
+  visitCacheDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'cache' can only be used inside a server block`, node.loc);
+    }
+    for (const value of Object.values(node.config)) {
+      this.visitExpression(value);
+    }
+  }
+
+  visitSseDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'sse' can only be used inside a server block`, node.loc);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('block');
+    for (const p of node.params) {
+      this.currentScope.define(p.name, { kind: 'param' });
+    }
+    for (const stmt of node.body.body || []) {
+      this.visitNode(stmt);
+    }
+    this.currentScope = prevScope;
+  }
+
+  visitModelDeclaration(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'server') {
+      this.error(`'model' can only be used inside a server block`, node.loc);
+    }
+    if (node.config) {
+      for (const value of Object.values(node.config)) {
+        this.visitExpression(value);
+      }
+    }
+  }
+
+  visitTestBlock(node) {
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('block');
+    for (const stmt of node.body) {
+      this.visitNode(stmt);
+    }
+    this.currentScope = prevScope;
   }
 
   // ─── Expression visitors ──────────────────────────────────
@@ -672,7 +1106,11 @@ export class Analyzer {
 
   visitJSXElement(node) {
     for (const attr of node.attributes) {
-      this.visitExpression(attr.value);
+      if (attr.type === 'JSXSpreadAttribute') {
+        this.visitExpression(attr.expression);
+      } else {
+        this.visitExpression(attr.value);
+      }
     }
     for (const child of node.children) {
       if (child.type === 'JSXElement') {
@@ -707,6 +1145,14 @@ export class Analyzer {
     this.visitExpression(node.condition);
     for (const child of node.consequent) {
       this.visitNode(child);
+    }
+    if (node.alternates) {
+      for (const alt of node.alternates) {
+        this.visitExpression(alt.condition);
+        for (const child of alt.body) {
+          this.visitNode(child);
+        }
+      }
     }
     if (node.alternate) {
       for (const child of node.alternate) {

@@ -34,6 +34,10 @@ export const TokenType = {
   TRUE: 'TRUE',
   FALSE: 'FALSE',
 
+  // Error handling
+  TRY: 'TRY',
+  CATCH: 'CATCH',
+
   // Full-stack keywords
   SERVER: 'SERVER',
   CLIENT: 'CLIENT',
@@ -43,6 +47,8 @@ export const TokenType = {
   COMPUTED: 'COMPUTED',
   EFFECT: 'EFFECT',
   COMPONENT: 'COMPONENT',
+  STORE: 'STORE',
+  STYLE_BLOCK: 'STYLE_BLOCK',
 
   // HTTP methods (used in route declarations)
   GET: 'GET',
@@ -131,6 +137,8 @@ export const Keywords = {
   'true': TokenType.TRUE,
   'false': TokenType.FALSE,
   'nil': TokenType.NIL,
+  'try': TokenType.TRY,
+  'catch': TokenType.CATCH,
   'server': TokenType.SERVER,
   'client': TokenType.CLIENT,
   'shared': TokenType.SHARED,
@@ -139,6 +147,7 @@ export const Keywords = {
   'computed': TokenType.COMPUTED,
   'effect': TokenType.EFFECT,
   'component': TokenType.COMPONENT,
+  'store': TokenType.STORE,
 };
 
 // Token class
