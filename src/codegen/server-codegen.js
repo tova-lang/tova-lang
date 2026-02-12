@@ -1,7 +1,7 @@
 import { BaseCodegen } from './base-codegen.js';
 
 export class ServerCodegen extends BaseCodegen {
-  generate(serverBlocks, sharedCode, blockName = null) {
+  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null) {
     const lines = [];
 
     // Shared code
@@ -9,6 +9,28 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('// ── Shared ──');
       lines.push(sharedCode);
       lines.push('');
+    }
+
+    // Generate RPC proxy objects for peer server blocks
+    if (peerBlocks && peerBlocks.size > 0) {
+      lines.push('// ── Peer Server RPC Proxies ──');
+      for (const [peerName, peerFunctions] of peerBlocks) {
+        const portVar = `PORT_${peerName.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+        lines.push(`const ${peerName} = {`);
+        for (const fnName of peerFunctions) {
+          lines.push(`  async ${fnName}(...args) {`);
+          lines.push(`    const __port = process.env.${portVar} || 3000;`);
+          lines.push(`    const __res = await fetch(\`http://localhost:\${__port}/rpc/${fnName}\`, {`);
+          lines.push(`      method: 'POST',`);
+          lines.push(`      headers: { 'Content-Type': 'application/json' },`);
+          lines.push(`      body: JSON.stringify({ __args: args }),`);
+          lines.push(`    });`);
+          lines.push(`    return (await __res.json()).result;`);
+          lines.push(`  },`);
+        }
+        lines.push(`};`);
+        lines.push('');
+      }
     }
 
     // Lightweight router

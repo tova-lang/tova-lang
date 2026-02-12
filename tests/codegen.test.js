@@ -402,3 +402,60 @@ describe('Codegen — Client', () => {
     expect(result.client).toContain('rpc(name, args)');
   });
 });
+
+describe('Codegen — Inter-Server RPC', () => {
+  test('generates peer RPC proxy for named server blocks', () => {
+    const result = compile(`
+      server "api" { fn create_user(name) { name } }
+      server "events" { fn push_event(kind, data) { kind } }
+    `);
+    expect(result.multiBlock).toBe(true);
+    // "api" server should have an "events" proxy
+    expect(result.servers['api']).toContain('const events = {');
+    expect(result.servers['api']).toContain('async push_event(...args)');
+    expect(result.servers['api']).toContain('/rpc/push_event');
+    expect(result.servers['api']).toContain('PORT_EVENTS');
+    // "events" server should have an "api" proxy
+    expect(result.servers['events']).toContain('const api = {');
+    expect(result.servers['events']).toContain('async create_user(...args)');
+    expect(result.servers['events']).toContain('/rpc/create_user');
+    expect(result.servers['events']).toContain('PORT_API');
+  });
+
+  test('peer proxy uses fetch with JSON body', () => {
+    const result = compile(`
+      server "api" { fn get_data() { [] } }
+      server "ws" { fn connect() { true } }
+    `);
+    expect(result.servers['api']).toContain("method: 'POST'");
+    expect(result.servers['api']).toContain("'Content-Type': 'application/json'");
+    expect(result.servers['api']).toContain('JSON.stringify({ __args: args })');
+    expect(result.servers['api']).toContain('.json()).result');
+  });
+
+  test('no peer proxy for single named server block', () => {
+    const result = compile('server "api" { fn get_data() { [] } }');
+    expect(result.servers['api']).not.toContain('Peer Server RPC Proxies');
+  });
+
+  test('no peer proxy for unnamed server blocks', () => {
+    const result = compile('server { fn get_data() { [] } }');
+    expect(result.server).not.toContain('Peer Server RPC Proxies');
+  });
+
+  test('three named blocks get correct peer proxies', () => {
+    const result = compile(`
+      server "api" { fn get_users() { [] } }
+      server "auth" { fn login(user) { user } }
+      server "events" { fn push(kind) { kind } }
+    `);
+    // "api" should have proxies for "auth" and "events"
+    expect(result.servers['api']).toContain('const auth = {');
+    expect(result.servers['api']).toContain('const events = {');
+    expect(result.servers['api']).not.toContain('const api = {');
+    // "auth" should have proxies for "api" and "events"
+    expect(result.servers['auth']).toContain('const api = {');
+    expect(result.servers['auth']).toContain('const events = {');
+    expect(result.servers['auth']).not.toContain('const auth = {');
+  });
+});

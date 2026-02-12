@@ -475,3 +475,38 @@ describe('Analyzer — Named Blocks', () => {
     expect(() => analyze('server "api" { fn a() { 1 } } server "ws" { fn b() { 2 } }')).not.toThrow();
   });
 });
+
+describe('Analyzer — Inter-Server RPC', () => {
+  test('valid inter-server call does not error', () => {
+    expect(() => analyze(`
+      server "api" { fn create_user(name) { events.push_event("user_created", name) } }
+      server "events" { fn push_event(kind, data) { kind } }
+    `)).not.toThrow();
+  });
+
+  test('unknown function on peer server block errors', () => {
+    expect(analyzeThrows(`
+      server "api" { fn create_user(name) { events.nonexistent("test") } }
+      server "events" { fn push_event(kind, data) { kind } }
+    `)).toThrow(/No function 'nonexistent' in server block "events"/);
+  });
+
+  test('self-referencing server call warns', () => {
+    const source = 'server "api" { fn foo() { api.foo() } }';
+    const lexer = new Lexer(source, '<test>');
+    const tokens = lexer.tokenize();
+    const parser = new Parser(tokens, '<test>');
+    const ast = parser.parse();
+    const analyzer = new Analyzer(ast, '<test>');
+    const result = analyzer.analyze();
+    expect(result.warnings.some(w => w.message.includes('calling itself'))).toBe(true);
+  });
+
+  test('peer block names registered as valid identifiers', () => {
+    // Should not produce any identifier errors
+    expect(() => analyze(`
+      server "api" { fn get() { events.push("test") } }
+      server "events" { fn push(data) { data } }
+    `)).not.toThrow();
+  });
+});

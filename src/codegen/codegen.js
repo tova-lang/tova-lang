@@ -50,12 +50,38 @@ export class CodeGenerator {
     const serverGroups = this._groupByName(serverBlocks);
     const clientGroups = this._groupByName(clientBlocks);
 
+    // Collect function names per named server block for inter-server RPC
+    const serverFunctionMap = new Map(); // blockName -> [fnName, ...]
+    for (const [name, blocks] of serverGroups) {
+      if (name) {
+        const fns = [];
+        for (const block of blocks) {
+          for (const stmt of block.body) {
+            if (stmt.type === 'FunctionDeclaration') {
+              fns.push(stmt.name);
+            }
+          }
+        }
+        serverFunctionMap.set(name, fns);
+      }
+    }
+
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
       const gen = new ServerCodegen();
       const key = name || 'default';
-      servers[key] = gen.generate(blocks, combinedShared, name);
+      // Build peer blocks map (all named blocks except self)
+      let peerBlocks = null;
+      if (name && serverFunctionMap.size > 1) {
+        peerBlocks = new Map();
+        for (const [peerName, peerFns] of serverFunctionMap) {
+          if (peerName !== name) {
+            peerBlocks.set(peerName, peerFns);
+          }
+        }
+      }
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks);
     }
 
     // Generate client outputs (one per named group)

@@ -46,6 +46,25 @@ export class Analyzer {
   }
 
   analyze() {
+    // Pre-pass: collect named server block functions for inter-server RPC validation
+    this.serverBlockFunctions = new Map(); // blockName -> [functionName, ...]
+    for (const node of this.ast.body) {
+      if (node.type === 'ServerBlock' && node.name) {
+        const fns = [];
+        for (const stmt of node.body) {
+          if (stmt.type === 'FunctionDeclaration') {
+            fns.push(stmt.name);
+          }
+        }
+        if (this.serverBlockFunctions.has(node.name)) {
+          // Merge functions from blocks with the same name
+          this.serverBlockFunctions.get(node.name).push(...fns);
+        } else {
+          this.serverBlockFunctions.set(node.name, fns);
+        }
+      }
+    }
+
     this.visitProgram(this.ast);
 
     if (this.errors.length > 0) {
@@ -131,6 +150,20 @@ export class Analyzer {
         this.visitExpression(node.collection);
         return;
       case 'CallExpression':
+        // Validate inter-server RPC calls: peerName.functionName()
+        if (this._currentServerBlockName && node.callee.type === 'MemberExpression' &&
+            node.callee.object.type === 'Identifier' && !node.callee.computed) {
+          const targetName = node.callee.object.name;
+          const fnName = node.callee.property;
+          if (targetName === this._currentServerBlockName) {
+            this.warn(`Server block "${targetName}" is calling itself via RPC — consider calling the function directly`, node.loc);
+          } else if (this.serverBlockFunctions.has(targetName)) {
+            const peerFns = this.serverBlockFunctions.get(targetName);
+            if (!peerFns.includes(fnName)) {
+              this.error(`No function '${fnName}' in server block "${targetName}"`, node.loc);
+            }
+          }
+        }
         this.visitExpression(node.callee);
         for (const arg of node.arguments) {
           if (arg.type === 'NamedArgument') {
@@ -197,11 +230,29 @@ export class Analyzer {
 
   visitServerBlock(node) {
     const prevScope = this.currentScope;
+    const prevServerBlockName = this._currentServerBlockName;
+    this._currentServerBlockName = node.name || null;
     this.currentScope = this.currentScope.child('server');
+
+    // Register peer server block names as valid identifiers in this scope
+    if (node.name && this.serverBlockFunctions.size > 0) {
+      for (const [peerName] of this.serverBlockFunctions) {
+        if (peerName !== node.name) {
+          try {
+            this.currentScope.define(peerName,
+              new Symbol(peerName, 'builtin', null, false, { line: 0, column: 0, file: '<peer-server>' }));
+          } catch (e) {
+            // Ignore if already defined
+          }
+        }
+      }
+    }
+
     for (const stmt of node.body) {
       this.visitNode(stmt);
     }
     this.currentScope = prevScope;
+    this._currentServerBlockName = prevServerBlockName;
   }
 
   visitClientBlock(node) {

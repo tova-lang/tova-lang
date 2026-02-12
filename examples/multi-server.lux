@@ -26,6 +26,7 @@ server "api" {
   fn create_user(name: String, email: String) -> User {
     user = User(len(users) + 1, name, email)
     users = [...users, user]
+    events.push_event("user_created", name)   // cross-server RPC call
     user
   }
 
