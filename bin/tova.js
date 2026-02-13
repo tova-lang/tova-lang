@@ -740,7 +740,7 @@ function newProject(name) {
       build: 'tova build src',
     },
     dependencies: {
-      'tova-lang': '^0.1.0',
+      'tova': '^0.1.0',
     },
   }, null, 2) + '\n');
 

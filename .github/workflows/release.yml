@@ -16,7 +16,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
       - run: bun test
 
   build:
@@ -47,8 +46,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - run: bun install --frozen-lockfile
 
       - name: Embed runtime
         run: bun scripts/embed-runtime.js
@@ -88,8 +85,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - run: bun install --frozen-lockfile
 
       - name: Embed runtime
         run: bun scripts/embed-runtime.js

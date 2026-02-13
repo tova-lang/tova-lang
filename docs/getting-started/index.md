@@ -22,7 +22,7 @@ This downloads a prebuilt binary for your platform and adds it to your PATH. No 
 ### Option 2: npm (requires Bun)
 
 ```bash
-bun install -g tova-lang
+bun install -g tova
 ```
 
 ### Option 3: Download Binary

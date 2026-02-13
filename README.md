@@ -21,7 +21,7 @@ A modern programming language that transpiles to JavaScript, unifying frontend a
 curl -fsSL https://raw.githubusercontent.com/tova-lang/tova/main/install.sh | sh
 
 # Or install via npm (requires Bun)
-bun install -g tova-lang
+bun install -g tova
 
 # Create a new project
 tova new my-app
