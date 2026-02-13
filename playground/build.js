@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Lux Playground Build Script — Enhanced Edition
+// Tova Playground Build Script — Enhanced Edition
 // Reads compiler sources, strips ES module syntax, generates self-contained HTML
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -98,25 +98,25 @@ function all(arr, fn) { return arr.every(fn); }`;
 
 // ─── Example programs (categorized) ─────────────────────
 function getExamples() {
-  const counter = readFileSync(resolve(ROOT, 'examples/counter.lux'), 'utf-8');
-  const todo = readFileSync(resolve(ROOT, 'examples/todo-app.lux'), 'utf-8');
+  const counter = readFileSync(resolve(ROOT, 'examples/counter.tova'), 'utf-8');
+  const todo = readFileSync(resolve(ROOT, 'examples/todo-app.tova'), 'utf-8');
 
   return [
     // ── Getting Started ──
-    { category: 'Getting Started', name: 'Hello World', code: `// Welcome to Lux! A modern language that transpiles to JavaScript.
+    { category: 'Getting Started', name: 'Hello World', code: `// Welcome to Tova! A modern language that transpiles to JavaScript.
 // Click "Run" or press Cmd/Ctrl+Enter to execute.
 
 name = "World"
 greeting = "Hello, {name}!"
 print(greeting)
 
-// Lux uses string interpolation with {expressions}
+// Tova uses string interpolation with {expressions}
 x = 42
 pi = 3.14159
 print("x is {x} and pi is {pi}")
 
 // Variables: immutable by default, use 'var' for mutable
-language = "Lux"         // immutable
+language = "Tova"         // immutable
 var version = 1          // mutable
 version += 1
 print("{language} v{version}")
@@ -170,11 +170,11 @@ print("camelCase: {"hello_world".camel_case()}")
 // String multiply (repeat)
 border = "-" * 30
 print(border)
-print("  Lux Language")
+print("  Tova Language")
 print(border)
 
 // Characters and lines
-text = "Lux"
+text = "Tova"
 print("Chars: {text.chars()}")
 ` },
 
@@ -404,7 +404,7 @@ for i in range(1, 21) {
   print(fizzbuzz(i))
 }
 ` },
-    { category: 'Control Flow', name: 'Pattern Matching', code: `// Pattern matching — Lux's most powerful feature!
+    { category: 'Control Flow', name: 'Pattern Matching', code: `// Pattern matching — Tova's most powerful feature!
 
 // Simple value matching
 fn describe(value) {
@@ -552,7 +552,7 @@ for u in by_age {
 ` },
 
     // ── Stdlib ──
-    { category: 'Standard Library', name: 'Built-in Functions', code: `// Lux comes with useful built-in functions
+    { category: 'Standard Library', name: 'Built-in Functions', code: `// Tova comes with useful built-in functions
 
 // range(start?, end, step?)
 print("range(5): {range(5)}")
@@ -953,10 +953,10 @@ function getReference() {
 function getTutorial() {
   return [
     {
-      title: 'Welcome to Lux',
-      description: 'Lux is a modern language that compiles to JavaScript. It combines Python\'s readability with ML-style pattern matching and built-in reactivity.',
+      title: 'Welcome to Tova',
+      description: 'Tova is a modern language that compiles to JavaScript. It combines Python\'s readability with ML-style pattern matching and built-in reactivity.',
       code: `// Try running this! Press Cmd/Ctrl+Enter or click Run.
-print("Welcome to Lux!")
+print("Welcome to Tova!")
 
 // Variables are immutable by default
 name = "Developer"
@@ -982,7 +982,7 @@ fn greet(name = "World") {
 
 print(add(3, 4))
 print(greet())
-print(greet("Lux"))
+print(greet("Tova"))
 
 // Lambdas for short functions
 double = fn(x) x * 2
@@ -990,7 +990,7 @@ print(double(21))`,
     },
     {
       title: 'Collections',
-      description: 'Lux has powerful collection features: list comprehensions, slicing, and the pipe operator.',
+      description: 'Tova has powerful collection features: list comprehensions, slicing, and the pipe operator.',
       code: `// List comprehension
 squares = [x * x for x in range(1, 11)]
 print("Squares: {squares}")
@@ -1077,7 +1077,7 @@ for age in [25, -5, 200, 42] {
     },
     {
       title: 'Reactive UI',
-      description: 'Lux has built-in reactivity for building UIs. State changes automatically update the DOM!',
+      description: 'Tova has built-in reactivity for building UIs. State changes automatically update the DOM!',
       code: `// Switch to the "Preview" tab to see this in action!
 client {
   state count = 0
@@ -1091,7 +1091,7 @@ client {
 
   component App {
     <div style="text-align: center; padding: 20px;">
-      <h1>"Lux Reactive Demo"</h1>
+      <h1>"Tova Reactive Demo"</h1>
       <p style="font-size: 48px;">"{count}"</p>
       <p>"Doubled: {doubled}"</p>
       <p>"{emoji}"</p>
@@ -1104,7 +1104,7 @@ client {
     },
     {
       title: 'Strings & Interpolation',
-      description: 'Lux strings support interpolation with {expressions}, plus Python-style methods like .upper(), .contains(), and even string repetition.',
+      description: 'Tova strings support interpolation with {expressions}, plus Python-style methods like .upper(), .contains(), and even string repetition.',
       code: `// String interpolation with any expression
 name = "World"
 print("Hello, {name}!")
@@ -1126,7 +1126,7 @@ print("starts with 'hello': {greeting.starts_with("hello")}")
 // String repetition
 border = "=" * 30
 print(border)
-print("  Lux is great!")
+print("  Tova is great!")
 print(border)`,
     },
     {
@@ -1157,7 +1157,7 @@ print("Long names sorted: {sorted_long}")
     },
     {
       title: 'Full-Stack App',
-      description: 'Lux has built-in full-stack blocks: server, client, and shared. In the playground, server features are simulated.',
+      description: 'Tova has built-in full-stack blocks: server, client, and shared. In the playground, server features are simulated.',
       code: `// A full-stack app has server + client blocks.
 // In playground mode, server calls are stubbed.
 
@@ -1236,7 +1236,7 @@ function generateHTML(compilerBundle, runtimeBundle, stringProto, stdlib, exampl
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lux Playground</title>
+<title>Tova Playground</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -1676,7 +1676,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 
 <!-- ─── Header ────────────────────────────────────── -->
 <div class="header">
-  <div class="logo">&#9670; Lux <span>Playground</span></div>
+  <div class="logo">&#9670; Tova <span>Playground</span></div>
   <div class="sep"></div>
   <select class="examples-select" id="examples-select">
     <option value="" disabled selected>Load Example...</option>
@@ -1689,7 +1689,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
   <button class="btn btn-icon hide-mobile" id="btn-shortcuts" title="Keyboard shortcuts">&#9000;</button>
   <button class="btn btn-icon hide-mobile" id="btn-settings" title="Settings">&#9881;</button>
   <button class="btn" id="btn-export" title="Export as standalone HTML">Export</button>
-  <button class="btn" id="btn-download" title="Download .lux file">&#8615;</button>
+  <button class="btn" id="btn-download" title="Download .tova file">&#8615;</button>
   <button class="btn" id="btn-share" title="Copy shareable URL">Share</button>
   <button class="btn btn-primary" id="btn-run" title="Cmd/Ctrl+Enter">Run &#9654;</button>
 </div>
@@ -1788,7 +1788,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
     <div class="shortcut-row"><span class="shortcut-desc">Toggle reference</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">Shift</span><span class="shortcut-key">R</span></div></div>
     <div class="shortcut-row"><span class="shortcut-desc">Toggle layout</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">J</span></div></div>
     <div class="shortcut-row"><span class="shortcut-desc">Show shortcuts</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">?</span></div></div>
-    <div class="shortcut-row"><span class="shortcut-desc">Download .lux file</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">Shift</span><span class="shortcut-key">S</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Download .tova file</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">Shift</span><span class="shortcut-key">S</span></div></div>
     <p style="margin-top:12px;font-size:11px;color:var(--text-dim)">On Windows/Linux, use Ctrl instead of Cmd</p>
   </div>
 </div>
@@ -1804,13 +1804,13 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 <!-- ─── LZString for sharing ─────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js">${"</"}script>
 
-<!-- ─── Inlined Lux Compiler & Runtime ───────────── -->
+<!-- ─── Inlined Tova Compiler & Runtime ───────────── -->
 <script>
 var RUNTIME_CODE = ${JSON.stringify(runtimeBundle)};
 var STRING_PROTO_CODE = ${JSON.stringify(stringProto)};
 var STDLIB_CODE = ${JSON.stringify(stdlib)};
 
-// ─── Lux Compiler Bundle ────────────────────────────
+// ─── Tova Compiler Bundle ────────────────────────────
 ${compilerBundle}
 ${"</"}script>
 
@@ -1844,8 +1844,8 @@ import {StreamLanguage} from 'https://esm.sh/*@codemirror/language@6.10.1';
 import {oneDark} from 'https://esm.sh/*@codemirror/theme-one-dark@6.1.2';
 import {autocompletion} from 'https://esm.sh/*@codemirror/autocomplete@6.12.0';
 
-// ─── Lux Syntax Highlighting ────────────────────────
-const luxLanguage = StreamLanguage.define({
+// ─── Tova Syntax Highlighting ────────────────────────
+const tovaLanguage = StreamLanguage.define({
   startState() { return { inComment: false, commentDepth: 0 }; },
   token(stream, state) {
     // Block comment (nestable)
@@ -1921,14 +1921,14 @@ const luxLanguage = StreamLanguage.define({
 });
 
 // ─── Autocompletion ─────────────────────────────────
-const luxKeywords = [
+const tovaKeywords = [
   'fn', 'let', 'var', 'if', 'elif', 'else', 'for', 'while', 'match',
   'type', 'state', 'computed', 'effect', 'component', 'server', 'client',
   'shared', 'route', 'return', 'import', 'from', 'in', 'and', 'or', 'not',
   'true', 'false', 'nil', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'as', 'export'
 ];
 
-const luxStdlib = [
+const tovaStdlib = [
   { label: 'print', detail: '(...args)', info: 'Print values to console' },
   { label: 'len', detail: '(v)', info: 'Length of string, array, or object' },
   { label: 'range', detail: '(start?, end, step?)', info: 'Generate number array' },
@@ -1947,7 +1947,7 @@ const luxStdlib = [
   { label: 'all', detail: '(arr, fn)', info: 'True if all elements match' },
 ];
 
-const luxSnippets = [
+const tovaSnippets = [
   { label: 'fn', detail: 'function', apply: 'fn name() {\\n  \\n}', boost: -1 },
   { label: 'for', detail: 'for-in loop', apply: 'for item in items {\\n  \\n}', boost: -1 },
   { label: 'match', detail: 'match expression', apply: 'match value {\\n  _ => \\n}', boost: -1 },
@@ -1961,7 +1961,7 @@ const luxSnippets = [
   { label: 'route', detail: 'HTTP route', apply: 'route GET "/path" => fn(req) {\\n  \\n}', boost: -1 },
 ];
 
-function luxCompletions(context) {
+function tovaCompletions(context) {
   const word = context.matchBefore(/[a-zA-Z_]\\w*/);
   if (!word && !context.explicit) return null;
   const from = word ? word.from : context.pos;
@@ -1970,10 +1970,10 @@ function luxCompletions(context) {
   const options = [];
 
   // Keywords
-  for (const kw of luxKeywords) {
+  for (const kw of tovaKeywords) {
     if (!text || kw.startsWith(text)) {
       // Check if there's a matching snippet
-      const snippet = luxSnippets.find(s => s.label === kw);
+      const snippet = tovaSnippets.find(s => s.label === kw);
       if (snippet) {
         options.push({ label: kw, type: 'keyword', detail: snippet.detail, apply: snippet.apply, boost: 1 });
       } else {
@@ -1983,7 +1983,7 @@ function luxCompletions(context) {
   }
 
   // Stdlib functions
-  for (const fn of luxStdlib) {
+  for (const fn of tovaStdlib) {
     if (!text || fn.label.startsWith(text)) {
       options.push({ label: fn.label, type: 'function', detail: fn.detail, info: fn.info, boost: 2 });
     }
@@ -2034,7 +2034,7 @@ let compileTimer = null;
 
 // ─── Restore settings from localStorage ─────────────
 try {
-  const saved = JSON.parse(localStorage.getItem('lux-playground-settings') || '{}');
+  const saved = JSON.parse(localStorage.getItem('tova-playground-settings') || '{}');
   if (saved.fontSize) document.documentElement.style.setProperty('--editor-font-size', saved.fontSize + 'px');
   if (saved.fontSize) document.getElementById('setting-fontsize').value = saved.fontSize;
   if (saved.autoCompile === false) { autoCompile = false; document.getElementById('setting-autocompile').classList.remove('on'); }
@@ -2043,7 +2043,7 @@ try {
 
 function saveSettings() {
   try {
-    localStorage.setItem('lux-playground-settings', JSON.stringify({
+    localStorage.setItem('tova-playground-settings', JSON.stringify({
       fontSize: parseInt(document.getElementById('setting-fontsize').value),
       autoCompile,
       autoRun
@@ -2057,7 +2057,7 @@ const statusCursor = document.getElementById('status-cursor');
 // Restore last code or use first example
 let initialCode = EXAMPLES[0].code;
 try {
-  const lastCode = localStorage.getItem('lux-playground-code');
+  const lastCode = localStorage.getItem('tova-playground-code');
   if (lastCode && lastCode.trim()) initialCode = lastCode;
 } catch(e) {}
 
@@ -2067,16 +2067,16 @@ const editor = new EditorView({
     extensions: [
       basicSetup,
       oneDark,
-      luxLanguage,
+      tovaLanguage,
       errorField,
       autocompletion({
-        override: [luxCompletions],
+        override: [tovaCompletions],
         icons: true,
         activateOnTyping: true,
       }),
       EditorView.updateListener.of(update => {
         if (update.docChanged) {
-          try { localStorage.setItem('lux-playground-code', update.state.doc.toString()); } catch(e) {}
+          try { localStorage.setItem('tova-playground-code', update.state.doc.toString()); } catch(e) {}
           if (autoCompile) scheduleCompile();
         }
         if (update.selectionSet) {
@@ -2091,7 +2091,7 @@ const editor = new EditorView({
         { key: 'Mod-Enter', run: () => { compile(); return true; } },
         { key: 'Mod-k', run: () => { toggleCommandPalette(); return true; } },
         { key: 'Mod-s', run: () => {
-          try { localStorage.setItem('lux-playground-code', editor.state.doc.toString()); } catch(e) {}
+          try { localStorage.setItem('tova-playground-code', editor.state.doc.toString()); } catch(e) {}
           const s = document.getElementById('status-compile');
           s.className = 'success'; s.textContent = 'Saved to browser';
           setTimeout(() => compile(), 1000);
@@ -2187,7 +2187,7 @@ function downloadCode() {
   const blob = new Blob([code], { type: 'text/plain' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'playground.lux';
+  a.download = 'playground.tova';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -2243,16 +2243,16 @@ function compile() {
   const start = performance.now();
 
   try {
-    const lexer = new Lexer(source, 'playground.lux');
+    const lexer = new Lexer(source, 'playground.tova');
     const tokens = lexer.tokenize();
 
-    const parser = new Parser(tokens, 'playground.lux');
+    const parser = new Parser(tokens, 'playground.tova');
     const ast = parser.parse();
 
-    const analyzer = new Analyzer(ast, 'playground.lux');
+    const analyzer = new Analyzer(ast, 'playground.tova');
     const { warnings } = analyzer.analyze();
 
-    const codegen = new CodeGenerator(ast, 'playground.lux');
+    const codegen = new CodeGenerator(ast, 'playground.tova');
     const result = codegen.generate();
 
     const elapsed = (performance.now() - start).toFixed(1);
@@ -2542,11 +2542,11 @@ function toggleSidebar(mode) {
   document.getElementById('btn-tutorial').classList.toggle('active', mode === 'tutorial');
 
   if (mode === 'reference') {
-    sidebarTitle.textContent = 'Lux Reference';
+    sidebarTitle.textContent = 'Tova Reference';
     tutorialNav.style.display = 'none';
     renderReference();
   } else if (mode === 'tutorial') {
-    sidebarTitle.textContent = 'Learn Lux';
+    sidebarTitle.textContent = 'Learn Tova';
     tutorialNav.style.display = 'flex';
     renderTutorialStep();
   }
@@ -2693,7 +2693,7 @@ function getCommandItems(query) {
   const actions = [
     { icon: '\\u25B6', label: 'Run Code', category: 'Action', shortcut: '\\u2318Enter', action: () => compile() },
     { icon: '\\u2197', label: 'Share URL', category: 'Action', action: () => document.getElementById('btn-share').click() },
-    { icon: '\\u2913', label: 'Download .lux', category: 'Action', shortcut: '\\u2318\\u21E7S', action: () => downloadCode() },
+    { icon: '\\u2913', label: 'Download .tova', category: 'Action', shortcut: '\\u2318\\u21E7S', action: () => downloadCode() },
     { icon: '\\uD83D\\uDCE4', label: 'Export as HTML', category: 'Action', action: () => exportAsHTML() },
     { icon: '\\uD83D\\uDCD6', label: 'Toggle Reference', category: 'Action', shortcut: '\\u2318\\u21E7R', action: () => toggleSidebar('reference') },
     { icon: '\\uD83C\\uDF93', label: 'Start Tutorial', category: 'Action', action: () => toggleSidebar('tutorial') },
@@ -2826,13 +2826,13 @@ document.addEventListener('keydown', (e) => {
 // ─── Layout Toggle ──────────────────────────────────
 let layoutVertical = false;
 try {
-  layoutVertical = localStorage.getItem('lux-playground-layout') === 'vertical';
+  layoutVertical = localStorage.getItem('tova-playground-layout') === 'vertical';
 } catch(e) {}
 
 function toggleLayout() {
   layoutVertical = !layoutVertical;
   document.querySelector('.main').classList.toggle('vertical', layoutVertical);
-  try { localStorage.setItem('lux-playground-layout', layoutVertical ? 'vertical' : 'horizontal'); } catch(e) {}
+  try { localStorage.setItem('tova-playground-layout', layoutVertical ? 'vertical' : 'horizontal'); } catch(e) {}
 }
 
 // Apply saved layout
@@ -2842,7 +2842,7 @@ document.getElementById('btn-layout').addEventListener('click', toggleLayout);
 
 // ─── Theme Toggle ───────────────────────────────────
 let lightTheme = false;
-try { lightTheme = localStorage.getItem('lux-playground-theme') === 'light'; } catch(e) {}
+try { lightTheme = localStorage.getItem('tova-playground-theme') === 'light'; } catch(e) {}
 
 function applyTheme() {
   document.body.classList.toggle('light-theme', lightTheme);
@@ -2852,7 +2852,7 @@ function applyTheme() {
 document.getElementById('setting-theme').addEventListener('click', function() {
   lightTheme = !lightTheme;
   applyTheme();
-  try { localStorage.setItem('lux-playground-theme', lightTheme ? 'light' : 'dark'); } catch(e) {}
+  try { localStorage.setItem('tova-playground-theme', lightTheme ? 'light' : 'dark'); } catch(e) {}
   saveSettings();
 });
 
@@ -2871,16 +2871,16 @@ function exportAsHTML() {
   if (hasClient) {
     // Export client app as standalone HTML
     try {
-      const lexer = new Lexer(source, 'export.lux');
+      const lexer = new Lexer(source, 'export.tova');
       const tokens = lexer.tokenize();
-      const parser = new Parser(tokens, 'export.lux');
+      const parser = new Parser(tokens, 'export.tova');
       const ast = parser.parse();
-      const analyzer = new Analyzer(ast, 'export.lux');
+      const analyzer = new Analyzer(ast, 'export.tova');
       analyzer.analyze();
-      const codegen = new CodeGenerator(ast, 'export.lux');
+      const codegen = new CodeGenerator(ast, 'export.tova');
       const result = codegen.generate();
       const clientCode = (result.client || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '');
-      exportHTML = '<!DOCTYPE html>\\n<html><head><meta charset="UTF-8"><title>Lux App</title>\\n'
+      exportHTML = '<!DOCTYPE html>\\n<html><head><meta charset="UTF-8"><title>Tova App</title>\\n'
         + '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}'
         + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px;color:#333}'
         + 'button{cursor:pointer;padding:8px 16px;margin:4px;border-radius:6px;border:1px solid #ddd;background:#f5f5f5;font-size:14px}'
@@ -2896,13 +2896,13 @@ function exportAsHTML() {
     }
   } else {
     // Export as Node/Bun script
-    exportHTML = '// Generated by Lux Playground\\n' + STDLIB_CODE + '\\n' + lastJsText;
+    exportHTML = '// Generated by Tova Playground\\n' + STDLIB_CODE + '\\n' + lastJsText;
   }
 
   const blob = new Blob([exportHTML], { type: hasClient ? 'text/html' : 'text/javascript' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = hasClient ? 'lux-app.html' : 'lux-output.js';
+  a.download = hasClient ? 'tova-app.html' : 'tova-output.js';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -2982,14 +2982,14 @@ function renderRefSections(query) {
 }
 
 // ─── Welcome Toast ──────────────────────────────────
-if (!localStorage.getItem('lux-playground-welcomed')) {
+if (!localStorage.getItem('tova-playground-welcomed')) {
   const toast = document.createElement('div');
   toast.className = 'welcome-toast';
   toast.innerHTML = 'Welcome! Try the <strong style="color:var(--accent);margin:0 2px">Learn</strong> button, or press <span class="kbd-hint">Cmd+Enter</span> to run code. <button class="close-toast" aria-label="Close">\\u2715</button>';
   document.querySelector('.pane-editor').appendChild(toast);
-  toast.querySelector('.close-toast').addEventListener('click', () => { toast.remove(); localStorage.setItem('lux-playground-welcomed', '1'); });
+  toast.querySelector('.close-toast').addEventListener('click', () => { toast.remove(); localStorage.setItem('tova-playground-welcomed', '1'); });
   setTimeout(() => { if (toast.parentNode) toast.remove(); }, 15000);
-  localStorage.setItem('lux-playground-welcomed', '1');
+  localStorage.setItem('tova-playground-welcomed', '1');
 }
 
 // ─── Utility ────────────────────────────────────────
@@ -3003,7 +3003,7 @@ ${"</"}script>
 }
 
 // ─── Main ───────────────────────────────────────────
-console.log('Building Lux Playground...');
+console.log('Building Tova Playground...');
 
 const compilerBundle = buildCompilerBundle();
 console.log('  Compiler bundle: ' + (compilerBundle.length / 1024).toFixed(1) + ' KB');

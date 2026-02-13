@@ -19,7 +19,7 @@
 }
 
 /* Code block styling */
-.vp-doc div[class*='language-lux'] {
+.vp-doc div[class*='language-tova'] {
   border-left: 3px solid var(--vp-c-brand-1);
 }
 

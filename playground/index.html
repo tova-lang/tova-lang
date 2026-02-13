@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lux Playground</title>
+<title>Tova Playground</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -443,7 +443,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 
 <!-- ─── Header ────────────────────────────────────── -->
 <div class="header">
-  <div class="logo">&#9670; Lux <span>Playground</span></div>
+  <div class="logo">&#9670; Tova <span>Playground</span></div>
   <div class="sep"></div>
   <select class="examples-select" id="examples-select">
     <option value="" disabled selected>Load Example...</option>
@@ -456,7 +456,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
   <button class="btn btn-icon hide-mobile" id="btn-shortcuts" title="Keyboard shortcuts">&#9000;</button>
   <button class="btn btn-icon hide-mobile" id="btn-settings" title="Settings">&#9881;</button>
   <button class="btn" id="btn-export" title="Export as standalone HTML">Export</button>
-  <button class="btn" id="btn-download" title="Download .lux file">&#8615;</button>
+  <button class="btn" id="btn-download" title="Download .tova file">&#8615;</button>
   <button class="btn" id="btn-share" title="Copy shareable URL">Share</button>
   <button class="btn btn-primary" id="btn-run" title="Cmd/Ctrl+Enter">Run &#9654;</button>
 </div>
@@ -555,7 +555,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
     <div class="shortcut-row"><span class="shortcut-desc">Toggle reference</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">Shift</span><span class="shortcut-key">R</span></div></div>
     <div class="shortcut-row"><span class="shortcut-desc">Toggle layout</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">J</span></div></div>
     <div class="shortcut-row"><span class="shortcut-desc">Show shortcuts</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">?</span></div></div>
-    <div class="shortcut-row"><span class="shortcut-desc">Download .lux file</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">Shift</span><span class="shortcut-key">S</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Download .tova file</span><div class="shortcut-keys"><span class="shortcut-key">Cmd</span><span class="shortcut-key">Shift</span><span class="shortcut-key">S</span></div></div>
     <p style="margin-top:12px;font-size:11px;color:var(--text-dim)">On Windows/Linux, use Ctrl instead of Cmd</p>
   </div>
 </div>
@@ -571,18 +571,18 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 <!-- ─── LZString for sharing ─────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 
-<!-- ─── Inlined Lux Compiler & Runtime ───────────── -->
+<!-- ─── Inlined Tova Compiler & Runtime ───────────── -->
 <script>
-var RUNTIME_CODE = "// Fine-grained reactivity system for Lux (signals-based)\n\nlet currentEffect = null;\nconst effectStack = [];\nfunction createSignal(initialValue) {\n  let value = initialValue;\n  const subscribers = new Set();\n\n  function getter() {\n    if (currentEffect) {\n      subscribers.add(currentEffect);\n    }\n    return value;\n  }\n\n  function setter(newValue) {\n    if (typeof newValue === 'function') {\n      newValue = newValue(value);\n    }\n    if (value !== newValue) {\n      value = newValue;\n      // Batch updates\n      const toRun = [...subscribers];\n      for (const effect of toRun) {\n        effect();\n      }\n    }\n  }\n\n  return [getter, setter];\n}\nfunction createEffect(fn) {\n  function effect() {\n    effectStack.push(effect);\n    currentEffect = effect;\n    try {\n      fn();\n    } finally {\n      effectStack.pop();\n      currentEffect = effectStack[effectStack.length - 1] || null;\n    }\n  }\n  effect();\n  return effect;\n}\nfunction createComputed(fn) {\n  const [value, setValue] = createSignal(undefined);\n  createEffect(() => {\n    setValue(fn());\n  });\n  return value;\n}\n\n// ─── DOM Rendering ────────────────────────────────────────\nfunction lux_el(tag, props = {}, children = []) {\n  return { __lux: true, tag, props, children };\n}\nfunction lux_fragment(children) {\n  return { __lux: true, tag: '__fragment', props: {}, children };\n}\n\n// Flatten nested arrays and vnodes into a flat list of vnodes\nfunction flattenVNodes(children) {\n  const result = [];\n  for (const child of children) {\n    if (child === null || child === undefined) {\n      continue;\n    } else if (Array.isArray(child)) {\n      result.push(...flattenVNodes(child));\n    } else {\n      result.push(child);\n    }\n  }\n  return result;\n}\n\n// Create a real DOM node from a vnode\nfunction render(vnode) {\n  if (vnode === null || vnode === undefined) {\n    return document.createTextNode('');\n  }\n\n  if (typeof vnode === 'string' || typeof vnode === 'number' || typeof vnode === 'boolean') {\n    return document.createTextNode(String(vnode));\n  }\n\n  if (Array.isArray(vnode)) {\n    const fragment = document.createDocumentFragment();\n    for (const child of vnode) {\n      fragment.appendChild(render(child));\n    }\n    return fragment;\n  }\n\n  if (!vnode.__lux) {\n    return document.createTextNode(String(vnode));\n  }\n\n  // Fragment\n  if (vnode.tag === '__fragment') {\n    const fragment = document.createDocumentFragment();\n    for (const child of flattenVNodes(vnode.children)) {\n      fragment.appendChild(render(child));\n    }\n    return fragment;\n  }\n\n  // Element\n  const el = document.createElement(vnode.tag);\n  applyProps(el, vnode.props, {});\n\n  // Render children\n  for (const child of flattenVNodes(vnode.children)) {\n    el.appendChild(render(child));\n  }\n\n  // Store vnode reference for patching\n  el.__vnode = vnode;\n\n  return el;\n}\n\n// Apply/update props on a DOM element\nfunction applyProps(el, newProps, oldProps) {\n  // Remove old props that are no longer present\n  for (const key of Object.keys(oldProps)) {\n    if (!(key in newProps)) {\n      if (key.startsWith('on')) {\n        // Can't easily remove anonymous listeners, skip\n      } else if (key === 'className') {\n        el.className = '';\n      } else if (key === 'style') {\n        el.removeAttribute('style');\n      } else {\n        el.removeAttribute(key);\n      }\n    }\n  }\n\n  // Apply new props\n  for (const [key, value] of Object.entries(newProps)) {\n    if (key === 'className') {\n      const val = typeof value === 'function' ? value() : value;\n      if (el.className !== val) el.className = val;\n    } else if (key.startsWith('on')) {\n      // Re-attach event listeners (store reference to remove old one)\n      const eventName = key.slice(2).toLowerCase();\n      const oldHandler = el.__handlers && el.__handlers[eventName];\n      if (oldHandler !== value) {\n        if (oldHandler) el.removeEventListener(eventName, oldHandler);\n        el.addEventListener(eventName, value);\n        if (!el.__handlers) el.__handlers = {};\n        el.__handlers[eventName] = value;\n      }\n    } else if (key === 'style' && typeof value === 'object') {\n      Object.assign(el.style, value);\n    } else if (key === 'key') {\n      // Skip\n    } else if (key === 'value') {\n      // For input elements, set .value property directly (not attribute)\n      // and skip if element is focused (user is typing)\n      const val = typeof value === 'function' ? value() : value;\n      if (el !== document.activeElement && el.value !== val) {\n        el.value = val;\n      }\n    } else if (key === 'checked') {\n      el.checked = !!value;\n    } else {\n      const val = typeof value === 'function' ? value() : value;\n      if (el.getAttribute(key) !== String(val)) {\n        el.setAttribute(key, val);\n      }\n    }\n  }\n}\n\n// Patch existing DOM to match new vnode (in-place updates, preserves focus)\nfunction patch(parent, oldNode, newVNode, index = 0) {\n  const existing = parent.childNodes[index];\n\n  // No existing node — append new one\n  if (!existing) {\n    parent.appendChild(render(newVNode));\n    return;\n  }\n\n  // New vnode is null/undefined — remove existing\n  if (newVNode === null || newVNode === undefined) {\n    parent.removeChild(existing);\n    return;\n  }\n\n  // Text node\n  if (typeof newVNode === 'string' || typeof newVNode === 'number' || typeof newVNode === 'boolean') {\n    const text = String(newVNode);\n    if (existing.nodeType === 3) {\n      // Existing is text node — just update content\n      if (existing.textContent !== text) {\n        existing.textContent = text;\n      }\n    } else {\n      // Replace non-text with text\n      parent.replaceChild(document.createTextNode(text), existing);\n    }\n    return;\n  }\n\n  // Non-lux vnode — render as text\n  if (!newVNode.__lux) {\n    const text = String(newVNode);\n    if (existing.nodeType === 3) {\n      if (existing.textContent !== text) existing.textContent = text;\n    } else {\n      parent.replaceChild(document.createTextNode(text), existing);\n    }\n    return;\n  }\n\n  // Fragment — patch children directly into parent starting at index\n  if (newVNode.tag === '__fragment') {\n    const children = flattenVNodes(newVNode.children);\n    for (let i = 0; i < children.length; i++) {\n      patch(parent, null, children[i], index + i);\n    }\n    return;\n  }\n\n  // Element — check if we can patch in-place\n  if (existing.nodeType === 1 && existing.tagName.toLowerCase() === newVNode.tag.toLowerCase()) {\n    // Same tag — patch props and children in place\n    const oldVNode = existing.__vnode || { props: {}, children: [] };\n    applyProps(existing, newVNode.props, oldVNode.props);\n\n    // Patch children\n    const newChildren = flattenVNodes(newVNode.children);\n    const oldChildCount = existing.childNodes.length;\n    const newChildCount = newChildren.length;\n\n    // Patch existing children\n    for (let i = 0; i < Math.min(oldChildCount, newChildCount); i++) {\n      patch(existing, existing.childNodes[i], newChildren[i], i);\n    }\n\n    // Add new children\n    for (let i = oldChildCount; i < newChildCount; i++) {\n      existing.appendChild(render(newChildren[i]));\n    }\n\n    // Remove extra old children\n    while (existing.childNodes.length > newChildCount) {\n      existing.removeChild(existing.lastChild);\n    }\n\n    existing.__vnode = newVNode;\n    return;\n  }\n\n  // Different tag or node type — full replace\n  parent.replaceChild(render(newVNode), existing);\n}\n\nfunction flattenChildren(children) {\n  return flattenVNodes(children);\n}\nfunction mount(component, container) {\n  if (!container) {\n    console.error('Lux: Mount target not found');\n    return;\n  }\n\n  let firstRender = true;\n\n  createEffect(() => {\n    const vnode = typeof component === 'function' ? component() : component;\n\n    if (firstRender) {\n      container.innerHTML = '';\n      container.appendChild(render(vnode));\n      firstRender = false;\n    } else {\n      // Patch existing DOM in-place (preserves focus, input state)\n      patch(container, container.firstChild, vnode, 0);\n    }\n  });\n}";
-var STRING_PROTO_CODE = "// Lux string method extensions — bridges Lux method syntax to JavaScript\n// Allows: \"hello\".upper() instead of requiring upper(\"hello\")\n\nconst methods = {\n  upper()       { return this.toUpperCase(); },\n  lower()       { return this.toLowerCase(); },\n  contains(s)   { return this.includes(s); },\n  starts_with(s){ return this.startsWith(s); },\n  ends_with(s)  { return this.endsWith(s); },\n  chars()       { return [...this]; },\n  words()       { return this.split(/\\s+/).filter(Boolean); },\n  lines()       { return this.split('\\n'); },\n  capitalize()  { return this.length ? this.charAt(0).toUpperCase() + this.slice(1) : this; },\n  title_case()  { return this.replace(/\\b\\w/g, c => c.toUpperCase()); },\n  snake_case()  { return this.replace(/[-\\s]+/g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/^_/, ''); },\n  camel_case()  { return this.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '').replace(/^[A-Z]/, c => c.toLowerCase()); },\n};\n\nfor (const [name, fn] of Object.entries(methods)) {\n  if (!String.prototype[name]) {\n    Object.defineProperty(String.prototype, name, {\n      value: fn,\n      writable: true,\n      configurable: true,\n    });\n  }\n}";
+var RUNTIME_CODE = "// Fine-grained reactivity system for Tova (signals-based)\n\nlet currentEffect = null;\nconst effectStack = [];\nfunction createSignal(initialValue) {\n  let value = initialValue;\n  const subscribers = new Set();\n\n  function getter() {\n    if (currentEffect) {\n      subscribers.add(currentEffect);\n    }\n    return value;\n  }\n\n  function setter(newValue) {\n    if (typeof newValue === 'function') {\n      newValue = newValue(value);\n    }\n    if (value !== newValue) {\n      value = newValue;\n      // Batch updates\n      const toRun = [...subscribers];\n      for (const effect of toRun) {\n        effect();\n      }\n    }\n  }\n\n  return [getter, setter];\n}\nfunction createEffect(fn) {\n  function effect() {\n    effectStack.push(effect);\n    currentEffect = effect;\n    try {\n      fn();\n    } finally {\n      effectStack.pop();\n      currentEffect = effectStack[effectStack.length - 1] || null;\n    }\n  }\n  effect();\n  return effect;\n}\nfunction createComputed(fn) {\n  const [value, setValue] = createSignal(undefined);\n  createEffect(() => {\n    setValue(fn());\n  });\n  return value;\n}\n\n// ─── DOM Rendering ────────────────────────────────────────\nfunction tova_el(tag, props = {}, children = []) {\n  return { __tova: true, tag, props, children };\n}\nfunction tova_fragment(children) {\n  return { __tova: true, tag: '__fragment', props: {}, children };\n}\n\n// Flatten nested arrays and vnodes into a flat list of vnodes\nfunction flattenVNodes(children) {\n  const result = [];\n  for (const child of children) {\n    if (child === null || child === undefined) {\n      continue;\n    } else if (Array.isArray(child)) {\n      result.push(...flattenVNodes(child));\n    } else {\n      result.push(child);\n    }\n  }\n  return result;\n}\n\n// Create a real DOM node from a vnode\nfunction render(vnode) {\n  if (vnode === null || vnode === undefined) {\n    return document.createTextNode('');\n  }\n\n  if (typeof vnode === 'string' || typeof vnode === 'number' || typeof vnode === 'boolean') {\n    return document.createTextNode(String(vnode));\n  }\n\n  if (Array.isArray(vnode)) {\n    const fragment = document.createDocumentFragment();\n    for (const child of vnode) {\n      fragment.appendChild(render(child));\n    }\n    return fragment;\n  }\n\n  if (!vnode.__tova) {\n    return document.createTextNode(String(vnode));\n  }\n\n  // Fragment\n  if (vnode.tag === '__fragment') {\n    const fragment = document.createDocumentFragment();\n    for (const child of flattenVNodes(vnode.children)) {\n      fragment.appendChild(render(child));\n    }\n    return fragment;\n  }\n\n  // Element\n  const el = document.createElement(vnode.tag);\n  applyProps(el, vnode.props, {});\n\n  // Render children\n  for (const child of flattenVNodes(vnode.children)) {\n    el.appendChild(render(child));\n  }\n\n  // Store vnode reference for patching\n  el.__vnode = vnode;\n\n  return el;\n}\n\n// Apply/update props on a DOM element\nfunction applyProps(el, newProps, oldProps) {\n  // Remove old props that are no longer present\n  for (const key of Object.keys(oldProps)) {\n    if (!(key in newProps)) {\n      if (key.startsWith('on')) {\n        // Can't easily remove anonymous listeners, skip\n      } else if (key === 'className') {\n        el.className = '';\n      } else if (key === 'style') {\n        el.removeAttribute('style');\n      } else {\n        el.removeAttribute(key);\n      }\n    }\n  }\n\n  // Apply new props\n  for (const [key, value] of Object.entries(newProps)) {\n    if (key === 'className') {\n      const val = typeof value === 'function' ? value() : value;\n      if (el.className !== val) el.className = val;\n    } else if (key.startsWith('on')) {\n      // Re-attach event listeners (store reference to remove old one)\n      const eventName = key.slice(2).toLowerCase();\n      const oldHandler = el.__handlers && el.__handlers[eventName];\n      if (oldHandler !== value) {\n        if (oldHandler) el.removeEventListener(eventName, oldHandler);\n        el.addEventListener(eventName, value);\n        if (!el.__handlers) el.__handlers = {};\n        el.__handlers[eventName] = value;\n      }\n    } else if (key === 'style' && typeof value === 'object') {\n      Object.assign(el.style, value);\n    } else if (key === 'key') {\n      // Skip\n    } else if (key === 'value') {\n      // For input elements, set .value property directly (not attribute)\n      // and skip if element is focused (user is typing)\n      const val = typeof value === 'function' ? value() : value;\n      if (el !== document.activeElement && el.value !== val) {\n        el.value = val;\n      }\n    } else if (key === 'checked') {\n      el.checked = !!value;\n    } else {\n      const val = typeof value === 'function' ? value() : value;\n      if (el.getAttribute(key) !== String(val)) {\n        el.setAttribute(key, val);\n      }\n    }\n  }\n}\n\n// Patch existing DOM to match new vnode (in-place updates, preserves focus)\nfunction patch(parent, oldNode, newVNode, index = 0) {\n  const existing = parent.childNodes[index];\n\n  // No existing node — append new one\n  if (!existing) {\n    parent.appendChild(render(newVNode));\n    return;\n  }\n\n  // New vnode is null/undefined — remove existing\n  if (newVNode === null || newVNode === undefined) {\n    parent.removeChild(existing);\n    return;\n  }\n\n  // Text node\n  if (typeof newVNode === 'string' || typeof newVNode === 'number' || typeof newVNode === 'boolean') {\n    const text = String(newVNode);\n    if (existing.nodeType === 3) {\n      // Existing is text node — just update content\n      if (existing.textContent !== text) {\n        existing.textContent = text;\n      }\n    } else {\n      // Replace non-text with text\n      parent.replaceChild(document.createTextNode(text), existing);\n    }\n    return;\n  }\n\n  // Non-tova vnode — render as text\n  if (!newVNode.__tova) {\n    const text = String(newVNode);\n    if (existing.nodeType === 3) {\n      if (existing.textContent !== text) existing.textContent = text;\n    } else {\n      parent.replaceChild(document.createTextNode(text), existing);\n    }\n    return;\n  }\n\n  // Fragment — patch children directly into parent starting at index\n  if (newVNode.tag === '__fragment') {\n    const children = flattenVNodes(newVNode.children);\n    for (let i = 0; i < children.length; i++) {\n      patch(parent, null, children[i], index + i);\n    }\n    return;\n  }\n\n  // Element — check if we can patch in-place\n  if (existing.nodeType === 1 && existing.tagName.toLowerCase() === newVNode.tag.toLowerCase()) {\n    // Same tag — patch props and children in place\n    const oldVNode = existing.__vnode || { props: {}, children: [] };\n    applyProps(existing, newVNode.props, oldVNode.props);\n\n    // Patch children\n    const newChildren = flattenVNodes(newVNode.children);\n    const oldChildCount = existing.childNodes.length;\n    const newChildCount = newChildren.length;\n\n    // Patch existing children\n    for (let i = 0; i < Math.min(oldChildCount, newChildCount); i++) {\n      patch(existing, existing.childNodes[i], newChildren[i], i);\n    }\n\n    // Add new children\n    for (let i = oldChildCount; i < newChildCount; i++) {\n      existing.appendChild(render(newChildren[i]));\n    }\n\n    // Remove extra old children\n    while (existing.childNodes.length > newChildCount) {\n      existing.removeChild(existing.lastChild);\n    }\n\n    existing.__vnode = newVNode;\n    return;\n  }\n\n  // Different tag or node type — full replace\n  parent.replaceChild(render(newVNode), existing);\n}\n\nfunction flattenChildren(children) {\n  return flattenVNodes(children);\n}\nfunction mount(component, container) {\n  if (!container) {\n    console.error('Tova: Mount target not found');\n    return;\n  }\n\n  let firstRender = true;\n\n  createEffect(() => {\n    const vnode = typeof component === 'function' ? component() : component;\n\n    if (firstRender) {\n      container.innerHTML = '';\n      container.appendChild(render(vnode));\n      firstRender = false;\n    } else {\n      // Patch existing DOM in-place (preserves focus, input state)\n      patch(container, container.firstChild, vnode, 0);\n    }\n  });\n}";
+var STRING_PROTO_CODE = "// Tova string method extensions — bridges Tova method syntax to JavaScript\n// Allows: \"hello\".upper() instead of requiring upper(\"hello\")\n\nconst methods = {\n  upper()       { return this.toUpperCase(); },\n  lower()       { return this.toLowerCase(); },\n  contains(s)   { return this.includes(s); },\n  starts_with(s){ return this.startsWith(s); },\n  ends_with(s)  { return this.endsWith(s); },\n  chars()       { return [...this]; },\n  words()       { return this.split(/\\s+/).filter(Boolean); },\n  lines()       { return this.split('\\n'); },\n  capitalize()  { return this.length ? this.charAt(0).toUpperCase() + this.slice(1) : this; },\n  title_case()  { return this.replace(/\\b\\w/g, c => c.toUpperCase()); },\n  snake_case()  { return this.replace(/[-\\s]+/g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/^_/, ''); },\n  camel_case()  { return this.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '').replace(/^[A-Z]/, c => c.toLowerCase()); },\n};\n\nfor (const [name, fn] of Object.entries(methods)) {\n  if (!String.prototype[name]) {\n    Object.defineProperty(String.prototype, name, {\n      value: fn,\n      writable: true,\n      configurable: true,\n    });\n  }\n}";
 var STDLIB_CODE = "function print(...args) { console.log(...args); }\nfunction len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }\nfunction range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }\nfunction enumerate(a) { return a.map((v, i) => [i, v]); }\nfunction sum(a) { return a.reduce((x, y) => x + y, 0); }\nfunction sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }\nfunction reversed(a) { return [...a].reverse(); }\nfunction zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }\nfunction min(a) { return Math.min(...a); }\nfunction max(a) { return Math.max(...a); }\nfunction type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }\nfunction filter(arr, fn) { return arr.filter(fn); }\nfunction map(arr, fn) { return arr.map(fn); }\nfunction flat_map(arr, fn) { return arr.flatMap(fn); }\nfunction any(arr, fn) { return arr.some(fn); }\nfunction all(arr, fn) { return arr.every(fn); }";
 
-// ─── Lux Compiler Bundle ────────────────────────────
+// ─── Tova Compiler Bundle ────────────────────────────
 (function() {
 
 // ─── src/lexer/tokens.js ───────────────────────────────
 
-// Token type definitions for the Lux language
+// Token type definitions for the Tova language
 const TokenType = {
   // Literals
   NUMBER: 'NUMBER',
@@ -1261,7 +1261,7 @@ class Lexer {
 
 // ─── src/parser/ast.js ─────────────────────────────────
 
-// AST Node definitions for the Lux language
+// AST Node definitions for the Tova language
 
 // ============================================================
 // Program (root node)
@@ -3419,7 +3419,7 @@ class Parser {
 
 // ─── src/analyzer/scope.js ─────────────────────────────
 
-// Scope and symbol management for the Lux analyzer
+// Scope and symbol management for the Tova analyzer
 class Symbol {
   constructor(name, kind, type, mutable, loc) {
     this.name = name;
@@ -4194,7 +4194,7 @@ class BaseCodegen {
   }
 
   getStringProtoHelper() {
-    return '// Lux string methods\n' +
+    return '// Tova string methods\n' +
       '(function() {\n' +
       '  const m = {\n' +
       '    upper() { return this.toUpperCase(); },\n' +
@@ -5065,7 +5065,7 @@ class ServerCodegen extends BaseCodegen {
     lines.push(`  port: __port,`);
     lines.push(`  fetch: __handleRequest,`);
     lines.push(`});`);
-    lines.push(`console.log(\`Lux server${label} running on \${__server.url}\`);`);
+    lines.push(`console.log(\`Tova server${label} running on \${__server.url}\`);`);
 
     return lines.join('\n');
   }
@@ -5158,7 +5158,7 @@ class ClientCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, lux_el, lux_fragment } from './runtime/reactivity.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, tova_el, tova_fragment } from './runtime/reactivity.js';`);
     lines.push(`import { rpc } from './runtime/rpc.js';`);
     lines.push('');
 
@@ -5169,7 +5169,7 @@ class ClientCodegen extends BaseCodegen {
       lines.push('');
     }
 
-    // Stdlib core functions (available in all Lux code)
+    // Stdlib core functions (available in all Tova code)
     lines.push('// ── Stdlib ──');
     lines.push(this.getStdlibCore());
     lines.push('');
@@ -5332,7 +5332,7 @@ class ClientCodegen extends BaseCodegen {
       code += `${this.i()}return ${this.genJSX(jsxElements[0])};\n`;
     } else if (jsxElements.length > 1) {
       const children = jsxElements.map(el => this.genJSX(el)).join(', ');
-      code += `${this.i()}return lux_fragment([${children}]);\n`;
+      code += `${this.i()}return tova_fragment([${children}]);\n`;
     }
 
     this.indent--;
@@ -5389,11 +5389,11 @@ class ClientCodegen extends BaseCodegen {
     const tag = JSON.stringify(node.tag);
 
     if (node.selfClosing || node.children.length === 0) {
-      return `lux_el(${tag}, ${propsStr})`;
+      return `tova_el(${tag}, ${propsStr})`;
     }
 
     const children = node.children.map(c => this.genJSX(c)).join(', ');
-    return `lux_el(${tag}, ${propsStr}, [${children}])`;
+    return `tova_el(${tag}, ${propsStr}, [${children}])`;
   }
 
   genJSXText(node) {
@@ -5414,17 +5414,17 @@ class ClientCodegen extends BaseCodegen {
     if (children.length === 1) {
       return `...${iterable}.map((${varName}) => ${children[0]})`;
     }
-    return `...${iterable}.map((${varName}) => lux_fragment([${children.join(', ')}]))`;
+    return `...${iterable}.map((${varName}) => tova_fragment([${children.join(', ')}]))`;
   }
 
   genJSXIf(node) {
     const cond = this.genExpression(node.condition);
     const consequent = node.consequent.map(c => this.genJSX(c));
-    const thenPart = consequent.length === 1 ? consequent[0] : `lux_fragment([${consequent.join(', ')}])`;
+    const thenPart = consequent.length === 1 ? consequent[0] : `tova_fragment([${consequent.join(', ')}])`;
 
     if (node.alternate) {
       const alt = node.alternate.map(c => this.genJSX(c));
-      const elsePart = alt.length === 1 ? alt[0] : `lux_fragment([${alt.join(', ')}])`;
+      const elsePart = alt.length === 1 ? alt[0] : `tova_fragment([${alt.join(', ')}])`;
       return `(${cond}) ? ${thenPart} : ${elsePart}`;
     }
 
@@ -5594,8 +5594,8 @@ import {StreamLanguage} from 'https://esm.sh/*@codemirror/language@6.10.1';
 import {oneDark} from 'https://esm.sh/*@codemirror/theme-one-dark@6.1.2';
 import {autocompletion} from 'https://esm.sh/*@codemirror/autocomplete@6.12.0';
 
-// ─── Lux Syntax Highlighting ────────────────────────
-const luxLanguage = StreamLanguage.define({
+// ─── Tova Syntax Highlighting ────────────────────────
+const tovaLanguage = StreamLanguage.define({
   startState() { return { inComment: false, commentDepth: 0 }; },
   token(stream, state) {
     // Block comment (nestable)
@@ -5671,14 +5671,14 @@ const luxLanguage = StreamLanguage.define({
 });
 
 // ─── Autocompletion ─────────────────────────────────
-const luxKeywords = [
+const tovaKeywords = [
   'fn', 'let', 'var', 'if', 'elif', 'else', 'for', 'while', 'match',
   'type', 'state', 'computed', 'effect', 'component', 'server', 'client',
   'shared', 'route', 'return', 'import', 'from', 'in', 'and', 'or', 'not',
   'true', 'false', 'nil', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'as', 'export'
 ];
 
-const luxStdlib = [
+const tovaStdlib = [
   { label: 'print', detail: '(...args)', info: 'Print values to console' },
   { label: 'len', detail: '(v)', info: 'Length of string, array, or object' },
   { label: 'range', detail: '(start?, end, step?)', info: 'Generate number array' },
@@ -5697,7 +5697,7 @@ const luxStdlib = [
   { label: 'all', detail: '(arr, fn)', info: 'True if all elements match' },
 ];
 
-const luxSnippets = [
+const tovaSnippets = [
   { label: 'fn', detail: 'function', apply: 'fn name() {\n  \n}', boost: -1 },
   { label: 'for', detail: 'for-in loop', apply: 'for item in items {\n  \n}', boost: -1 },
   { label: 'match', detail: 'match expression', apply: 'match value {\n  _ => \n}', boost: -1 },
@@ -5711,7 +5711,7 @@ const luxSnippets = [
   { label: 'route', detail: 'HTTP route', apply: 'route GET "/path" => fn(req) {\n  \n}', boost: -1 },
 ];
 
-function luxCompletions(context) {
+function tovaCompletions(context) {
   const word = context.matchBefore(/[a-zA-Z_]\w*/);
   if (!word && !context.explicit) return null;
   const from = word ? word.from : context.pos;
@@ -5720,10 +5720,10 @@ function luxCompletions(context) {
   const options = [];
 
   // Keywords
-  for (const kw of luxKeywords) {
+  for (const kw of tovaKeywords) {
     if (!text || kw.startsWith(text)) {
       // Check if there's a matching snippet
-      const snippet = luxSnippets.find(s => s.label === kw);
+      const snippet = tovaSnippets.find(s => s.label === kw);
       if (snippet) {
         options.push({ label: kw, type: 'keyword', detail: snippet.detail, apply: snippet.apply, boost: 1 });
       } else {
@@ -5733,7 +5733,7 @@ function luxCompletions(context) {
   }
 
   // Stdlib functions
-  for (const fn of luxStdlib) {
+  for (const fn of tovaStdlib) {
     if (!text || fn.label.startsWith(text)) {
       options.push({ label: fn.label, type: 'function', detail: fn.detail, info: fn.info, boost: 2 });
     }
@@ -5775,7 +5775,7 @@ const EXAMPLES = [
   {
     "category": "Getting Started",
     "name": "Hello World",
-    "code": "// Welcome to Lux! A modern language that transpiles to JavaScript.\n// Click \"Run\" or press Cmd/Ctrl+Enter to execute.\n\nname = \"World\"\ngreeting = \"Hello, {name}!\"\nprint(greeting)\n\n// Lux uses string interpolation with {expressions}\nx = 42\npi = 3.14159\nprint(\"x is {x} and pi is {pi}\")\n\n// Variables: immutable by default, use 'var' for mutable\nlanguage = \"Lux\"         // immutable\nvar version = 1          // mutable\nversion += 1\nprint(\"{language} v{version}\")\n"
+    "code": "// Welcome to Tova! A modern language that transpiles to JavaScript.\n// Click \"Run\" or press Cmd/Ctrl+Enter to execute.\n\nname = \"World\"\ngreeting = \"Hello, {name}!\"\nprint(greeting)\n\n// Tova uses string interpolation with {expressions}\nx = 42\npi = 3.14159\nprint(\"x is {x} and pi is {pi}\")\n\n// Variables: immutable by default, use 'var' for mutable\nlanguage = \"Tova\"         // immutable\nvar version = 1          // mutable\nversion += 1\nprint(\"{language} v{version}\")\n"
   },
   {
     "category": "Getting Started",
@@ -5785,7 +5785,7 @@ const EXAMPLES = [
   {
     "category": "Getting Started",
     "name": "String Operations",
-    "code": "// String interpolation with expressions\nname = \"hello world\"\nprint(\"Upper: {name.upper()}\")\nprint(\"Capitalized: {name.capitalize()}\")\nprint(\"Title: {name.title_case()}\")\n\n// String methods\nsentence = \"the quick brown fox jumps\"\nprint(\"Words: {sentence.words()}\")\nprint(\"Starts with 'the': {sentence.starts_with(\"the\")}\")\nprint(\"Contains 'brown': {sentence.contains(\"brown\")}\")\n\n// Useful conversions\nprint(\"snake_case: {\"helloWorld\".snake_case()}\")\nprint(\"camelCase: {\"hello_world\".camel_case()}\")\n\n// String multiply (repeat)\nborder = \"-\" * 30\nprint(border)\nprint(\"  Lux Language\")\nprint(border)\n\n// Characters and lines\ntext = \"Lux\"\nprint(\"Chars: {text.chars()}\")\n"
+    "code": "// String interpolation with expressions\nname = \"hello world\"\nprint(\"Upper: {name.upper()}\")\nprint(\"Capitalized: {name.capitalize()}\")\nprint(\"Title: {name.title_case()}\")\n\n// String methods\nsentence = \"the quick brown fox jumps\"\nprint(\"Words: {sentence.words()}\")\nprint(\"Starts with 'the': {sentence.starts_with(\"the\")}\")\nprint(\"Contains 'brown': {sentence.contains(\"brown\")}\")\n\n// Useful conversions\nprint(\"snake_case: {\"helloWorld\".snake_case()}\")\nprint(\"camelCase: {\"hello_world\".camel_case()}\")\n\n// String multiply (repeat)\nborder = \"-\" * 30\nprint(border)\nprint(\"  Tova Language\")\nprint(border)\n\n// Characters and lines\ntext = \"Tova\"\nprint(\"Chars: {text.chars()}\")\n"
   },
   {
     "category": "Functions",
@@ -5825,7 +5825,7 @@ const EXAMPLES = [
   {
     "category": "Control Flow",
     "name": "Pattern Matching",
-    "code": "// Pattern matching — Lux's most powerful feature!\n\n// Simple value matching\nfn describe(value) {\n  match value {\n    0 => \"zero\"\n    1..10 => \"small (1-9)\"\n    n if n > 100 => \"big: {n}\"\n    _ => \"other: {value}\"\n  }\n}\n\nprint(describe(0))\nprint(describe(5))\nprint(describe(200))\nprint(describe(50))\n\n// Pattern matching on algebraic types\ntype Shape {\n  Circle(radius: Float),\n  Rect(w: Float, h: Float),\n  Triangle(base: Float, height: Float),\n  Point\n}\n\nfn area(s) {\n  match s {\n    Circle(r) => 3.14159 * r ** 2\n    Rect(w, h) => w * h\n    Triangle(b, h) => 0.5 * b * h\n    Point => 0.0\n  }\n}\n\nfn describe_shape(s) {\n  match s {\n    Circle(r) => \"Circle with radius {r}\"\n    Rect(w, h) => \"Rectangle {w}x{h}\"\n    Triangle(b, h) => \"Triangle base={b} height={h}\"\n    Point => \"Just a point\"\n  }\n}\n\nshapes = [Circle(5.0), Rect(3.0, 4.0), Triangle(6.0, 3.0), Point]\nfor shape in shapes {\n  print(\"{describe_shape(shape)} => area = {area(shape)}\")\n}\n"
+    "code": "// Pattern matching — Tova's most powerful feature!\n\n// Simple value matching\nfn describe(value) {\n  match value {\n    0 => \"zero\"\n    1..10 => \"small (1-9)\"\n    n if n > 100 => \"big: {n}\"\n    _ => \"other: {value}\"\n  }\n}\n\nprint(describe(0))\nprint(describe(5))\nprint(describe(200))\nprint(describe(50))\n\n// Pattern matching on algebraic types\ntype Shape {\n  Circle(radius: Float),\n  Rect(w: Float, h: Float),\n  Triangle(base: Float, height: Float),\n  Point\n}\n\nfn area(s) {\n  match s {\n    Circle(r) => 3.14159 * r ** 2\n    Rect(w, h) => w * h\n    Triangle(b, h) => 0.5 * b * h\n    Point => 0.0\n  }\n}\n\nfn describe_shape(s) {\n  match s {\n    Circle(r) => \"Circle with radius {r}\"\n    Rect(w, h) => \"Rectangle {w}x{h}\"\n    Triangle(b, h) => \"Triangle base={b} height={h}\"\n    Point => \"Just a point\"\n  }\n}\n\nshapes = [Circle(5.0), Rect(3.0, 4.0), Triangle(6.0, 3.0), Point]\nfor shape in shapes {\n  print(\"{describe_shape(shape)} => area = {area(shape)}\")\n}\n"
   },
   {
     "category": "Types",
@@ -5840,17 +5840,17 @@ const EXAMPLES = [
   {
     "category": "Standard Library",
     "name": "Built-in Functions",
-    "code": "// Lux comes with useful built-in functions\n\n// range(start?, end, step?)\nprint(\"range(5): {range(5)}\")\nprint(\"range(2,8): {range(2, 8)}\")\nprint(\"range(0,20,3): {range(0, 20, 3)}\")\n\n// len — works on strings, arrays, objects\nprint(\"len('hello'): {len(\"hello\")}\")\nprint(\"len([1,2,3]): {len([1, 2, 3])}\")\n\n// sum, min, max\nnums = [4, 2, 7, 1, 9, 3]\nprint(\"sum: {sum(nums)}\")\nprint(\"min: {min(nums)}\")\nprint(\"max: {max(nums)}\")\n\n// sorted, reversed\nprint(\"sorted: {sorted(nums)}\")\nprint(\"reversed: {reversed(nums)}\")\n\n// enumerate — get index,value pairs\nfruits = [\"apple\", \"banana\", \"cherry\"]\nfor pair in enumerate(fruits) {\n  print(\"  [{pair[0]}] {pair[1]}\")\n}\n\n// zip — combine arrays\nkeys = [\"name\", \"age\", \"city\"]\nvals = [\"Alice\", 30, \"NYC\"]\nprint(\"zipped: {zip(keys, vals)}\")\n\n// type_of — runtime type checking\nprint(\"type_of(42): {type_of(42)}\")\nprint(\"type_of(3.14): {type_of(3.14)}\")\nprint(\"type_of('hi'): {type_of(\"hi\")}\")\nprint(\"type_of(true): {type_of(true)}\")\nprint(\"type_of(nil): {type_of(nil)}\")\nprint(\"type_of([1]): {type_of([1, 2])}\")\n"
+    "code": "// Tova comes with useful built-in functions\n\n// range(start?, end, step?)\nprint(\"range(5): {range(5)}\")\nprint(\"range(2,8): {range(2, 8)}\")\nprint(\"range(0,20,3): {range(0, 20, 3)}\")\n\n// len — works on strings, arrays, objects\nprint(\"len('hello'): {len(\"hello\")}\")\nprint(\"len([1,2,3]): {len([1, 2, 3])}\")\n\n// sum, min, max\nnums = [4, 2, 7, 1, 9, 3]\nprint(\"sum: {sum(nums)}\")\nprint(\"min: {min(nums)}\")\nprint(\"max: {max(nums)}\")\n\n// sorted, reversed\nprint(\"sorted: {sorted(nums)}\")\nprint(\"reversed: {reversed(nums)}\")\n\n// enumerate — get index,value pairs\nfruits = [\"apple\", \"banana\", \"cherry\"]\nfor pair in enumerate(fruits) {\n  print(\"  [{pair[0]}] {pair[1]}\")\n}\n\n// zip — combine arrays\nkeys = [\"name\", \"age\", \"city\"]\nvals = [\"Alice\", 30, \"NYC\"]\nprint(\"zipped: {zip(keys, vals)}\")\n\n// type_of — runtime type checking\nprint(\"type_of(42): {type_of(42)}\")\nprint(\"type_of(3.14): {type_of(3.14)}\")\nprint(\"type_of('hi'): {type_of(\"hi\")}\")\nprint(\"type_of(true): {type_of(true)}\")\nprint(\"type_of(nil): {type_of(nil)}\")\nprint(\"type_of([1]): {type_of([1, 2])}\")\n"
   },
   {
     "category": "Reactive UI",
     "name": "Counter App",
-    "code": "// Counter App in Lux — demonstrates reactive UI\n\nclient {\n  state count = 0\n\n  computed doubled = count * 2\n  computed message = match count {\n    0 => \"Click the button!\"\n    1..5 => \"Keep going...\"\n    n if n >= 10 => \"You're on fire! 🔥\"\n    _ => \"Nice!\"\n  }\n\n  component App {\n    <div class=\"counter-app\">\n      <h1>\"Lux Counter\"</h1>\n      <p class=\"count\">\"{count}\"</p>\n      <p class=\"doubled\">\"Doubled: {doubled}\"</p>\n      <p class=\"message\">\"{message}\"</p>\n      <div class=\"buttons\">\n        <button on:click={fn() count -= 1}>\"-\"</button>\n        <button on:click={fn() count += 1}>\"+\"</button>\n        <button on:click={fn() count = 0}>\"Reset\"</button>\n      </div>\n    </div>\n  }\n}"
+    "code": "// Counter App in Tova — demonstrates reactive UI\n\nclient {\n  state count = 0\n\n  computed doubled = count * 2\n  computed message = match count {\n    0 => \"Click the button!\"\n    1..5 => \"Keep going...\"\n    n if n >= 10 => \"You're on fire! 🔥\"\n    _ => \"Nice!\"\n  }\n\n  component App {\n    <div class=\"counter-app\">\n      <h1>\"Tova Counter\"</h1>\n      <p class=\"count\">\"{count}\"</p>\n      <p class=\"doubled\">\"Doubled: {doubled}\"</p>\n      <p class=\"message\">\"{message}\"</p>\n      <div class=\"buttons\">\n        <button on:click={fn() count -= 1}>\"-\"</button>\n        <button on:click={fn() count += 1}>\"+\"</button>\n        <button on:click={fn() count = 0}>\"Reset\"</button>\n      </div>\n    </div>\n  }\n}"
   },
   {
     "category": "Reactive UI",
     "name": "Todo App (Full-Stack)",
-    "code": "// Full-Stack Todo App in Lux — demonstrates server/client/shared blocks\n\nshared {\n  type Todo {\n    id: Int\n    title: String\n    completed: Bool\n  }\n}\n\nserver {\n  // In-memory store for demo (use db.query for real apps)\n  var todos = []\n  var next_id = 1\n\n  fn get_todos() -> [Todo] {\n    todos\n  }\n\n  fn add_todo(title: String) -> Todo {\n    todo = Todo(next_id, title, false)\n    next_id += 1\n    todos = [...todos, todo]\n    todo\n  }\n\n  fn toggle_todo(id: Int) -> Todo {\n    for t in todos {\n      if t.id == id {\n        return Todo(t.id, t.title, not t.completed)\n      }\n    }\n    nil\n  }\n\n  fn delete_todo(id: Int) {\n    todos = [t for t in todos if t.id != id]\n  }\n\n  route GET \"/api/todos\" => get_todos\n}\n\nclient {\n  state todos: [Todo] = []\n  state new_title = \"\"\n\n  computed remaining = len([t for t in todos if not t.completed])\n  computed total = len(todos)\n\n  effect {\n    todos = server.get_todos()\n  }\n\n  fn handle_add() {\n    if new_title != \"\" {\n      server.add_todo(new_title)\n      new_title = \"\"\n      todos = server.get_todos()\n    }\n  }\n\n  fn handle_toggle(id) {\n    server.toggle_todo(id)\n    todos = server.get_todos()\n  }\n\n  fn handle_delete(id) {\n    server.delete_todo(id)\n    todos = server.get_todos()\n  }\n\n  component TodoItem(todo) {\n    <li class=\"todo-item\">\n      <input type=\"checkbox\" checked={todo.completed} on:change={fn() handle_toggle(todo.id)} />\n      <span class=\"todo-text\">\"{todo.title}\"</span>\n      <button on:click={fn() handle_delete(todo.id)}>\"×\"</button>\n    </li>\n  }\n\n  component App {\n    <div class=\"todo-app\">\n      <h1>\"Lux Todo\"</h1>\n      <div class=\"input-row\">\n        <input\n          type=\"text\"\n          placeholder=\"What needs to be done?\"\n          value={new_title}\n          on:input={fn(e) new_title = e.target.value}\n        />\n        <button on:click={handle_add}>\"Add\"</button>\n      </div>\n      <ul class=\"todo-list\">\n        for todo in todos {\n          <TodoItem todo={todo} />\n        }\n      </ul>\n      <p class=\"status\">\"{remaining} of {total} remaining\"</p>\n    </div>\n  }\n}"
+    "code": "// Full-Stack Todo App in Tova — demonstrates server/client/shared blocks\n\nshared {\n  type Todo {\n    id: Int\n    title: String\n    completed: Bool\n  }\n}\n\nserver {\n  // In-memory store for demo (use db.query for real apps)\n  var todos = []\n  var next_id = 1\n\n  fn get_todos() -> [Todo] {\n    todos\n  }\n\n  fn add_todo(title: String) -> Todo {\n    todo = Todo(next_id, title, false)\n    next_id += 1\n    todos = [...todos, todo]\n    todo\n  }\n\n  fn toggle_todo(id: Int) -> Todo {\n    for t in todos {\n      if t.id == id {\n        return Todo(t.id, t.title, not t.completed)\n      }\n    }\n    nil\n  }\n\n  fn delete_todo(id: Int) {\n    todos = [t for t in todos if t.id != id]\n  }\n\n  route GET \"/api/todos\" => get_todos\n}\n\nclient {\n  state todos: [Todo] = []\n  state new_title = \"\"\n\n  computed remaining = len([t for t in todos if not t.completed])\n  computed total = len(todos)\n\n  effect {\n    todos = server.get_todos()\n  }\n\n  fn handle_add() {\n    if new_title != \"\" {\n      server.add_todo(new_title)\n      new_title = \"\"\n      todos = server.get_todos()\n    }\n  }\n\n  fn handle_toggle(id) {\n    server.toggle_todo(id)\n    todos = server.get_todos()\n  }\n\n  fn handle_delete(id) {\n    server.delete_todo(id)\n    todos = server.get_todos()\n  }\n\n  component TodoItem(todo) {\n    <li class=\"todo-item\">\n      <input type=\"checkbox\" checked={todo.completed} on:change={fn() handle_toggle(todo.id)} />\n      <span class=\"todo-text\">\"{todo.title}\"</span>\n      <button on:click={fn() handle_delete(todo.id)}>\"×\"</button>\n    </li>\n  }\n\n  component App {\n    <div class=\"todo-app\">\n      <h1>\"Tova Todo\"</h1>\n      <div class=\"input-row\">\n        <input\n          type=\"text\"\n          placeholder=\"What needs to be done?\"\n          value={new_title}\n          on:input={fn(e) new_title = e.target.value}\n        />\n        <button on:click={handle_add}>\"Add\"</button>\n      </div>\n      <ul class=\"todo-list\">\n        for todo in todos {\n          <TodoItem todo={todo} />\n        }\n      </ul>\n      <p class=\"status\">\"{remaining} of {total} remaining\"</p>\n    </div>\n  }\n}"
   },
   {
     "category": "Reactive UI",
@@ -6170,18 +6170,18 @@ const REFERENCE = [
 ];
 const TUTORIAL = [
   {
-    "title": "Welcome to Lux",
-    "description": "Lux is a modern language that compiles to JavaScript. It combines Python's readability with ML-style pattern matching and built-in reactivity.",
-    "code": "// Try running this! Press Cmd/Ctrl+Enter or click Run.\nprint(\"Welcome to Lux!\")\n\n// Variables are immutable by default\nname = \"Developer\"\nprint(\"Hello, {name}!\")\n\n// Use 'var' for mutable variables\nvar count = 0\ncount += 1\nprint(\"Count: {count}\")"
+    "title": "Welcome to Tova",
+    "description": "Tova is a modern language that compiles to JavaScript. It combines Python's readability with ML-style pattern matching and built-in reactivity.",
+    "code": "// Try running this! Press Cmd/Ctrl+Enter or click Run.\nprint(\"Welcome to Tova!\")\n\n// Variables are immutable by default\nname = \"Developer\"\nprint(\"Hello, {name}!\")\n\n// Use 'var' for mutable variables\nvar count = 0\ncount += 1\nprint(\"Count: {count}\")"
   },
   {
     "title": "Functions",
     "description": "Functions use the fn keyword and return their last expression. No \"return\" needed!",
-    "code": "// Implicit return — the last expression is returned\nfn add(a, b) {\n  a + b\n}\n\n// Default parameters\nfn greet(name = \"World\") {\n  \"Hello, {name}!\"\n}\n\nprint(add(3, 4))\nprint(greet())\nprint(greet(\"Lux\"))\n\n// Lambdas for short functions\ndouble = fn(x) x * 2\nprint(double(21))"
+    "code": "// Implicit return — the last expression is returned\nfn add(a, b) {\n  a + b\n}\n\n// Default parameters\nfn greet(name = \"World\") {\n  \"Hello, {name}!\"\n}\n\nprint(add(3, 4))\nprint(greet())\nprint(greet(\"Tova\"))\n\n// Lambdas for short functions\ndouble = fn(x) x * 2\nprint(double(21))"
   },
   {
     "title": "Collections",
-    "description": "Lux has powerful collection features: list comprehensions, slicing, and the pipe operator.",
+    "description": "Tova has powerful collection features: list comprehensions, slicing, and the pipe operator.",
     "code": "// List comprehension\nsquares = [x * x for x in range(1, 11)]\nprint(\"Squares: {squares}\")\n\n// Filter with comprehension\nevens = [x for x in range(1, 21) if x % 2 == 0]\nprint(\"Evens: {evens}\")\n\n// Pipe operator for readable chains\nresult = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n  |> filter(fn(x) x % 2 == 0)\n  |> map(fn(x) x * x)\n  |> sum()\nprint(\"Sum of squares of evens: {result}\")\n\n// Slicing\narr = [10, 20, 30, 40, 50]\nprint(\"First 3: {arr[:3]}\")\nprint(\"Last 2: {arr[3:]}\")"
   },
   {
@@ -6196,13 +6196,13 @@ const TUTORIAL = [
   },
   {
     "title": "Reactive UI",
-    "description": "Lux has built-in reactivity for building UIs. State changes automatically update the DOM!",
-    "code": "// Switch to the \"Preview\" tab to see this in action!\nclient {\n  state count = 0\n  computed doubled = count * 2\n  computed emoji = match count {\n    0 => \"Start clicking!\"\n    c if c < 5 => \"Getting started...\"\n    c if c < 10 => \"Nice!\"\n    _ => \"On fire!\"\n  }\n\n  component App {\n    <div style=\"text-align: center; padding: 20px;\">\n      <h1>\"Lux Reactive Demo\"</h1>\n      <p style=\"font-size: 48px;\">\"{count}\"</p>\n      <p>\"Doubled: {doubled}\"</p>\n      <p>\"{emoji}\"</p>\n      <button on:click={fn() count += 1}>\"+ Add\"</button>\n      <button on:click={fn() count -= 1}>\"- Sub\"</button>\n      <button on:click={fn() count = 0}>\"Reset\"</button>\n    </div>\n  }\n}"
+    "description": "Tova has built-in reactivity for building UIs. State changes automatically update the DOM!",
+    "code": "// Switch to the \"Preview\" tab to see this in action!\nclient {\n  state count = 0\n  computed doubled = count * 2\n  computed emoji = match count {\n    0 => \"Start clicking!\"\n    c if c < 5 => \"Getting started...\"\n    c if c < 10 => \"Nice!\"\n    _ => \"On fire!\"\n  }\n\n  component App {\n    <div style=\"text-align: center; padding: 20px;\">\n      <h1>\"Tova Reactive Demo\"</h1>\n      <p style=\"font-size: 48px;\">\"{count}\"</p>\n      <p>\"Doubled: {doubled}\"</p>\n      <p>\"{emoji}\"</p>\n      <button on:click={fn() count += 1}>\"+ Add\"</button>\n      <button on:click={fn() count -= 1}>\"- Sub\"</button>\n      <button on:click={fn() count = 0}>\"Reset\"</button>\n    </div>\n  }\n}"
   },
   {
     "title": "Strings & Interpolation",
-    "description": "Lux strings support interpolation with {expressions}, plus Python-style methods like .upper(), .contains(), and even string repetition.",
-    "code": "// String interpolation with any expression\nname = \"World\"\nprint(\"Hello, {name}!\")\n\n// Expressions inside interpolation\nx = 7\nprint(\"{x} squared is {x * x}\")\n\n// String methods\ngreeting = \"hello world\"\nprint(greeting.upper())\nprint(greeting.capitalize())\nprint(greeting.title_case())\n\n// Useful checks\nprint(\"contains 'world': {greeting.contains(\"world\")}\")\nprint(\"starts with 'hello': {greeting.starts_with(\"hello\")}\")\n\n// String repetition\nborder = \"=\" * 30\nprint(border)\nprint(\"  Lux is great!\")\nprint(border)"
+    "description": "Tova strings support interpolation with {expressions}, plus Python-style methods like .upper(), .contains(), and even string repetition.",
+    "code": "// String interpolation with any expression\nname = \"World\"\nprint(\"Hello, {name}!\")\n\n// Expressions inside interpolation\nx = 7\nprint(\"{x} squared is {x * x}\")\n\n// String methods\ngreeting = \"hello world\"\nprint(greeting.upper())\nprint(greeting.capitalize())\nprint(greeting.title_case())\n\n// Useful checks\nprint(\"contains 'world': {greeting.contains(\"world\")}\")\nprint(\"starts with 'hello': {greeting.starts_with(\"hello\")}\")\n\n// String repetition\nborder = \"=\" * 30\nprint(border)\nprint(\"  Tova is great!\")\nprint(border)"
   },
   {
     "title": "Pipe Operator",
@@ -6211,7 +6211,7 @@ const TUTORIAL = [
   },
   {
     "title": "Full-Stack App",
-    "description": "Lux has built-in full-stack blocks: server, client, and shared. In the playground, server features are simulated.",
+    "description": "Tova has built-in full-stack blocks: server, client, and shared. In the playground, server features are simulated.",
     "code": "// A full-stack app has server + client blocks.\n// In playground mode, server calls are stubbed.\n\nclient {\n  state name = \"World\"\n  computed greeting = \"Hello, {name}!\"\n\n  component App {\n    <div style=\"padding: 20px;\">\n      <h1>\"Full-Stack Demo\"</h1>\n      <div class=\"input-group\">\n        <label>\"Your name:\"</label>\n        <input type=\"text\" value={name}\n               on:input={fn(e) name = e.target.value} />\n      </div>\n      <p style=\"font-size: 24px; margin-top: 16px;\">\"{greeting}\"</p>\n      <p class=\"hint\">\"(Type to see reactive updates!)\"</p>\n    </div>\n  }\n}"
   },
   {
@@ -6230,7 +6230,7 @@ let compileTimer = null;
 
 // ─── Restore settings from localStorage ─────────────
 try {
-  const saved = JSON.parse(localStorage.getItem('lux-playground-settings') || '{}');
+  const saved = JSON.parse(localStorage.getItem('tova-playground-settings') || '{}');
   if (saved.fontSize) document.documentElement.style.setProperty('--editor-font-size', saved.fontSize + 'px');
   if (saved.fontSize) document.getElementById('setting-fontsize').value = saved.fontSize;
   if (saved.autoCompile === false) { autoCompile = false; document.getElementById('setting-autocompile').classList.remove('on'); }
@@ -6239,7 +6239,7 @@ try {
 
 function saveSettings() {
   try {
-    localStorage.setItem('lux-playground-settings', JSON.stringify({
+    localStorage.setItem('tova-playground-settings', JSON.stringify({
       fontSize: parseInt(document.getElementById('setting-fontsize').value),
       autoCompile,
       autoRun
@@ -6253,7 +6253,7 @@ const statusCursor = document.getElementById('status-cursor');
 // Restore last code or use first example
 let initialCode = EXAMPLES[0].code;
 try {
-  const lastCode = localStorage.getItem('lux-playground-code');
+  const lastCode = localStorage.getItem('tova-playground-code');
   if (lastCode && lastCode.trim()) initialCode = lastCode;
 } catch(e) {}
 
@@ -6263,16 +6263,16 @@ const editor = new EditorView({
     extensions: [
       basicSetup,
       oneDark,
-      luxLanguage,
+      tovaLanguage,
       errorField,
       autocompletion({
-        override: [luxCompletions],
+        override: [tovaCompletions],
         icons: true,
         activateOnTyping: true,
       }),
       EditorView.updateListener.of(update => {
         if (update.docChanged) {
-          try { localStorage.setItem('lux-playground-code', update.state.doc.toString()); } catch(e) {}
+          try { localStorage.setItem('tova-playground-code', update.state.doc.toString()); } catch(e) {}
           if (autoCompile) scheduleCompile();
         }
         if (update.selectionSet) {
@@ -6287,7 +6287,7 @@ const editor = new EditorView({
         { key: 'Mod-Enter', run: () => { compile(); return true; } },
         { key: 'Mod-k', run: () => { toggleCommandPalette(); return true; } },
         { key: 'Mod-s', run: () => {
-          try { localStorage.setItem('lux-playground-code', editor.state.doc.toString()); } catch(e) {}
+          try { localStorage.setItem('tova-playground-code', editor.state.doc.toString()); } catch(e) {}
           const s = document.getElementById('status-compile');
           s.className = 'success'; s.textContent = 'Saved to browser';
           setTimeout(() => compile(), 1000);
@@ -6383,7 +6383,7 @@ function downloadCode() {
   const blob = new Blob([code], { type: 'text/plain' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'playground.lux';
+  a.download = 'playground.tova';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -6439,16 +6439,16 @@ function compile() {
   const start = performance.now();
 
   try {
-    const lexer = new Lexer(source, 'playground.lux');
+    const lexer = new Lexer(source, 'playground.tova');
     const tokens = lexer.tokenize();
 
-    const parser = new Parser(tokens, 'playground.lux');
+    const parser = new Parser(tokens, 'playground.tova');
     const ast = parser.parse();
 
-    const analyzer = new Analyzer(ast, 'playground.lux');
+    const analyzer = new Analyzer(ast, 'playground.tova');
     const { warnings } = analyzer.analyze();
 
-    const codegen = new CodeGenerator(ast, 'playground.lux');
+    const codegen = new CodeGenerator(ast, 'playground.tova');
     const result = codegen.generate();
 
     const elapsed = (performance.now() - start).toFixed(1);
@@ -6738,11 +6738,11 @@ function toggleSidebar(mode) {
   document.getElementById('btn-tutorial').classList.toggle('active', mode === 'tutorial');
 
   if (mode === 'reference') {
-    sidebarTitle.textContent = 'Lux Reference';
+    sidebarTitle.textContent = 'Tova Reference';
     tutorialNav.style.display = 'none';
     renderReference();
   } else if (mode === 'tutorial') {
-    sidebarTitle.textContent = 'Learn Lux';
+    sidebarTitle.textContent = 'Learn Tova';
     tutorialNav.style.display = 'flex';
     renderTutorialStep();
   }
@@ -6889,7 +6889,7 @@ function getCommandItems(query) {
   const actions = [
     { icon: '\u25B6', label: 'Run Code', category: 'Action', shortcut: '\u2318Enter', action: () => compile() },
     { icon: '\u2197', label: 'Share URL', category: 'Action', action: () => document.getElementById('btn-share').click() },
-    { icon: '\u2913', label: 'Download .lux', category: 'Action', shortcut: '\u2318\u21E7S', action: () => downloadCode() },
+    { icon: '\u2913', label: 'Download .tova', category: 'Action', shortcut: '\u2318\u21E7S', action: () => downloadCode() },
     { icon: '\uD83D\uDCE4', label: 'Export as HTML', category: 'Action', action: () => exportAsHTML() },
     { icon: '\uD83D\uDCD6', label: 'Toggle Reference', category: 'Action', shortcut: '\u2318\u21E7R', action: () => toggleSidebar('reference') },
     { icon: '\uD83C\uDF93', label: 'Start Tutorial', category: 'Action', action: () => toggleSidebar('tutorial') },
@@ -7022,13 +7022,13 @@ document.addEventListener('keydown', (e) => {
 // ─── Layout Toggle ──────────────────────────────────
 let layoutVertical = false;
 try {
-  layoutVertical = localStorage.getItem('lux-playground-layout') === 'vertical';
+  layoutVertical = localStorage.getItem('tova-playground-layout') === 'vertical';
 } catch(e) {}
 
 function toggleLayout() {
   layoutVertical = !layoutVertical;
   document.querySelector('.main').classList.toggle('vertical', layoutVertical);
-  try { localStorage.setItem('lux-playground-layout', layoutVertical ? 'vertical' : 'horizontal'); } catch(e) {}
+  try { localStorage.setItem('tova-playground-layout', layoutVertical ? 'vertical' : 'horizontal'); } catch(e) {}
 }
 
 // Apply saved layout
@@ -7038,7 +7038,7 @@ document.getElementById('btn-layout').addEventListener('click', toggleLayout);
 
 // ─── Theme Toggle ───────────────────────────────────
 let lightTheme = false;
-try { lightTheme = localStorage.getItem('lux-playground-theme') === 'light'; } catch(e) {}
+try { lightTheme = localStorage.getItem('tova-playground-theme') === 'light'; } catch(e) {}
 
 function applyTheme() {
   document.body.classList.toggle('light-theme', lightTheme);
@@ -7048,7 +7048,7 @@ function applyTheme() {
 document.getElementById('setting-theme').addEventListener('click', function() {
   lightTheme = !lightTheme;
   applyTheme();
-  try { localStorage.setItem('lux-playground-theme', lightTheme ? 'light' : 'dark'); } catch(e) {}
+  try { localStorage.setItem('tova-playground-theme', lightTheme ? 'light' : 'dark'); } catch(e) {}
   saveSettings();
 });
 
@@ -7067,16 +7067,16 @@ function exportAsHTML() {
   if (hasClient) {
     // Export client app as standalone HTML
     try {
-      const lexer = new Lexer(source, 'export.lux');
+      const lexer = new Lexer(source, 'export.tova');
       const tokens = lexer.tokenize();
-      const parser = new Parser(tokens, 'export.lux');
+      const parser = new Parser(tokens, 'export.tova');
       const ast = parser.parse();
-      const analyzer = new Analyzer(ast, 'export.lux');
+      const analyzer = new Analyzer(ast, 'export.tova');
       analyzer.analyze();
-      const codegen = new CodeGenerator(ast, 'export.lux');
+      const codegen = new CodeGenerator(ast, 'export.tova');
       const result = codegen.generate();
       const clientCode = (result.client || '').replace(/import\s+.*from\s+['"].*['"];?/g, '');
-      exportHTML = '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"><title>Lux App</title>\n'
+      exportHTML = '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"><title>Tova App</title>\n'
         + '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}'
         + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px;color:#333}'
         + 'button{cursor:pointer;padding:8px 16px;margin:4px;border-radius:6px;border:1px solid #ddd;background:#f5f5f5;font-size:14px}'
@@ -7092,13 +7092,13 @@ function exportAsHTML() {
     }
   } else {
     // Export as Node/Bun script
-    exportHTML = '// Generated by Lux Playground\n' + STDLIB_CODE + '\n' + lastJsText;
+    exportHTML = '// Generated by Tova Playground\n' + STDLIB_CODE + '\n' + lastJsText;
   }
 
   const blob = new Blob([exportHTML], { type: hasClient ? 'text/html' : 'text/javascript' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = hasClient ? 'lux-app.html' : 'lux-output.js';
+  a.download = hasClient ? 'tova-app.html' : 'tova-output.js';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -7178,14 +7178,14 @@ function renderRefSections(query) {
 }
 
 // ─── Welcome Toast ──────────────────────────────────
-if (!localStorage.getItem('lux-playground-welcomed')) {
+if (!localStorage.getItem('tova-playground-welcomed')) {
   const toast = document.createElement('div');
   toast.className = 'welcome-toast';
   toast.innerHTML = 'Welcome! Try the <strong style="color:var(--accent);margin:0 2px">Learn</strong> button, or press <span class="kbd-hint">Cmd+Enter</span> to run code. <button class="close-toast" aria-label="Close">\u2715</button>';
   document.querySelector('.pane-editor').appendChild(toast);
-  toast.querySelector('.close-toast').addEventListener('click', () => { toast.remove(); localStorage.setItem('lux-playground-welcomed', '1'); });
+  toast.querySelector('.close-toast').addEventListener('click', () => { toast.remove(); localStorage.setItem('tova-playground-welcomed', '1'); });
   setTimeout(() => { if (toast.parentNode) toast.remove(); }, 15000);
-  localStorage.setItem('lux-playground-welcomed', '1');
+  localStorage.setItem('tova-playground-welcomed', '1');
 }
 
 // ─── Utility ────────────────────────────────────────

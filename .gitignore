@@ -1,1 +1,18 @@
 node_modules/
+.tova-out/
+*.tova.js
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
