@@ -31,26 +31,28 @@ export class ServerCodegen extends BaseCodegen {
       const name = p.name;
       const ta = p.typeAnnotation;
       if (!ta) continue;
-      if (!p.defaultValue) {
+      const hasRequiredCheck = !p.defaultValue;
+      if (hasRequiredCheck) {
         checks.push(`${indent}if (${name} === undefined || ${name} === null) __validationErrors.push("${name} is required");`);
       }
+      const typeCheckPrefix = hasRequiredCheck ? 'else if' : 'if';
       if (ta.type === 'TypeAnnotation') {
         switch (ta.name) {
           case 'String':
-            checks.push(`${indent}else if (typeof ${name} !== "string") __validationErrors.push("${name} must be a string");`);
+            checks.push(`${indent}${typeCheckPrefix} (typeof ${name} !== "string") __validationErrors.push("${name} must be a string");`);
             break;
           case 'Int':
-            checks.push(`${indent}else if (!Number.isInteger(${name})) __validationErrors.push("${name} must be an integer");`);
+            checks.push(`${indent}${typeCheckPrefix} (!Number.isInteger(${name})) __validationErrors.push("${name} must be an integer");`);
             break;
           case 'Float':
-            checks.push(`${indent}else if (typeof ${name} !== "number") __validationErrors.push("${name} must be a number");`);
+            checks.push(`${indent}${typeCheckPrefix} (typeof ${name} !== "number") __validationErrors.push("${name} must be a number");`);
             break;
           case 'Bool':
-            checks.push(`${indent}else if (typeof ${name} !== "boolean") __validationErrors.push("${name} must be a boolean");`);
+            checks.push(`${indent}${typeCheckPrefix} (typeof ${name} !== "boolean") __validationErrors.push("${name} must be a boolean");`);
             break;
         }
       } else if (ta.type === 'ArrayTypeAnnotation') {
-        checks.push(`${indent}else if (!Array.isArray(${name})) __validationErrors.push("${name} must be an array");`);
+        checks.push(`${indent}${typeCheckPrefix} (!Array.isArray(${name})) __validationErrors.push("${name} must be an array");`);
       }
     }
     return checks;
@@ -833,7 +835,12 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('    const __sig = await crypto.subtle.sign("HMAC", __authKey, new TextEncoder().encode(__sigData));');
         lines.push('    const __expectedSig = btoa(String.fromCharCode(...new Uint8Array(__sig)))');
         lines.push('      .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");');
-        lines.push('    if (__expectedSig !== parts[2]) return null;');
+        lines.push('    const __sigBuf = new TextEncoder().encode(__expectedSig);');
+        lines.push('    const __tokBuf = new TextEncoder().encode(parts[2]);');
+        lines.push('    if (__sigBuf.length !== __tokBuf.length) return null;');
+        lines.push('    let __mismatch = 0;');
+        lines.push('    for (let i = 0; i < __sigBuf.length; i++) __mismatch |= __sigBuf[i] ^ __tokBuf[i];');
+        lines.push('    if (__mismatch !== 0) return null;');
         lines.push('    const __payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));');
         lines.push('    if (__payload.exp && __payload.exp < Math.floor(Date.now() / 1000)) return null;');
         lines.push('    return __payload;');
@@ -956,7 +963,12 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  if (dot === -1) return null;');
       lines.push('  const id = signed.slice(0, dot);');
       lines.push('  const expected = await __signSessionId(id);');
-      lines.push('  return expected === signed ? id : null;');
+      lines.push('  const __eBuf = new TextEncoder().encode(expected);');
+      lines.push('  const __sBuf = new TextEncoder().encode(signed);');
+      lines.push('  if (__eBuf.length !== __sBuf.length) return null;');
+      lines.push('  let __m = 0;');
+      lines.push('  for (let i = 0; i < __eBuf.length; i++) __m |= __eBuf[i] ^ __sBuf[i];');
+      lines.push('  return __m === 0 ? id : null;');
       lines.push('}');
 
       // Use SQLite-backed sessions when db is available
@@ -2236,7 +2248,8 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('            return Response.json(errRes, { status: 500, headers: __cors });');
         lines.push('          } catch { /**/ }');
       }
-      lines.push('          return Response.json({ error: err.message }, { status: 500, headers: __cors });');
+      lines.push('          __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
+      lines.push('          return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
       lines.push('        }');
     } else {
       lines.push('        try {');
@@ -2258,7 +2271,8 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('            return Response.json(errRes, { status: 500, headers: __cors });');
         lines.push('          } catch { /**/ }');
       }
-      lines.push('          return Response.json({ error: err.message }, { status: 500, headers: __cors });');
+      lines.push('          __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
+      lines.push('          return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
       lines.push('        }');
     }
 
@@ -2277,7 +2291,7 @@ export class ServerCodegen extends BaseCodegen {
     if (sessionConfig) {
       lines.push('  } catch (__e) { throw __e; }');
       lines.push('  }).then(async (__res) => {');
-      lines.push('    if (req.__session && req.__session.__flush) req.__session.__flush();');
+      lines.push('    if (req.__session && req.__session.__flush) await req.__session.__flush();');
       lines.push('    if (__res && __sessionIsNew) {');
       lines.push('      const __signed = await __signSessionId(__sessionId);');
       lines.push('      const __h = new Headers(__res.headers);');
@@ -2285,6 +2299,9 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('      return new Response(__res.body, { status: __res.status, headers: __h });');
       lines.push('    }');
       lines.push('    return __res;');
+      lines.push('  }, async (__e) => {');
+      lines.push('    if (req.__session && req.__session.__flush) await req.__session.__flush();');
+      lines.push('    throw __e;');
       lines.push('  }).finally(() => { __activeRequests--; });');
     } else {
       lines.push('  } finally {');
@@ -2467,6 +2484,10 @@ export class ServerCodegen extends BaseCodegen {
           const fnName = stmt.name;
           const displayName = fnName.replace(/_/g, ' ');
           this.pushScope();
+          for (const p of (stmt.params || [])) {
+            const pName = typeof p === 'string' ? p : (p.name || p.identifier);
+            if (pName) this.declareVar(pName);
+          }
           const body = this.genBlockBody(stmt.body);
           this.popScope();
           lines.push(`  test(${JSON.stringify(displayName)}, async () => {`);

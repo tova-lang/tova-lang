@@ -280,7 +280,9 @@ describe('Parser — Match', () => {
     const expr = parseExpr('match shape { Circle(r) => r, Rect(w, h) => w }');
     expect(expr.arms[0].pattern.type).toBe('VariantPattern');
     expect(expr.arms[0].pattern.name).toBe('Circle');
-    expect(expr.arms[0].pattern.fields).toEqual(['r']);
+    expect(expr.arms[0].pattern.fields.length).toBe(1);
+    expect(expr.arms[0].pattern.fields[0].type).toBe('BindingPattern');
+    expect(expr.arms[0].pattern.fields[0].name).toBe('r');
   });
 });
 

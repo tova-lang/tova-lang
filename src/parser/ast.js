@@ -1,5 +1,8 @@
 // AST Node definitions for the Lux language
 
+// Sentinel value for pipe target placeholder (used in method pipe |> .method())
+export const PIPE_TARGET = '__pipe_target__';
+
 // ============================================================
 // Program (root node)
 // ============================================================

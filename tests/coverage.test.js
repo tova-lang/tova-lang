@@ -297,8 +297,8 @@ describe('Parser — Edge cases', () => {
 describe('Codegen — for-else', () => {
   test('for-else generates guarded loop', () => {
     const code = compileShared('for x in items { print(x) } else { print("empty") }');
-    expect(code).toContain('__entered');
-    expect(code).toContain('if (!__entered)');
+    expect(code).toMatch(/__entered_\d+/);
+    expect(code).toMatch(/if \(!__entered_\d+\)/);
   });
 });
 
@@ -757,16 +757,14 @@ describe('SharedCodegen', () => {
 // ═══════════════════════════════════════════════════════════
 
 describe('BaseCodegen — edge cases', () => {
-  test('unknown expression type returns comment', () => {
+  test('unknown expression type throws', () => {
     const gen = new BaseCodegen();
-    const result = gen.genExpression({ type: 'Unknown123' });
-    expect(result).toContain('unknown');
+    expect(() => gen.genExpression({ type: 'Unknown123' })).toThrow('unknown expression type');
   });
 
-  test('unknown statement returns comment', () => {
+  test('unknown statement type falls through to genExpression and throws', () => {
     const gen = new BaseCodegen();
-    const result = gen.generateStatement({ type: 'SomethingUnknown' });
-    expect(result).toContain('unknown');
+    expect(() => gen.generateStatement({ type: 'SomethingUnknown' })).toThrow('unknown expression type');
   });
 });
 

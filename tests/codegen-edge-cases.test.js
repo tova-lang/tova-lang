@@ -176,9 +176,9 @@ describe('Edge — Try/catch', () => {
 describe('Edge — For-else construct', () => {
   test('for-else generates entered flag and conditional', () => {
     const code = compileShared('for x in items { process(x) } else { default_action() }');
-    expect(code).toContain('__entered = false');
-    expect(code).toContain('__entered = true');
-    expect(code).toContain('if (!__entered)');
+    expect(code).toMatch(/__entered_\d+ = false/);
+    expect(code).toMatch(/__entered_\d+ = true/);
+    expect(code).toMatch(/if \(!__entered_\d+\)/);
     expect(code).toContain('default_action()');
   });
 });
@@ -224,16 +224,19 @@ describe('Edge — Spread in arrays', () => {
 });
 
 describe('Edge — Chained comparison', () => {
-  test('1 < x < 10 becomes && chain', () => {
+  test('1 < x < 10 becomes && chain with temp vars', () => {
     const code = compileShared('x = 1 < y < 10');
-    expect(code).toContain('((1 < y) && (y < 10))');
+    // Uses temp vars to avoid evaluating intermediate operands twice
+    expect(code).toMatch(/1 < \(__cmp_\d+ = y\)/);
+    expect(code).toMatch(/__cmp_\d+ < 10/);
+    expect(code).toContain('&&');
   });
 
   test('three-way chained comparison', () => {
     const code = compileShared('x = 0 <= y < z <= 100');
-    expect(code).toContain('(0 <= y)');
-    expect(code).toContain('(y < z)');
-    expect(code).toContain('(z <= 100)');
+    expect(code).toMatch(/0 <= \(__cmp_\d+ = y\)/);
+    expect(code).toMatch(/__cmp_\d+ < \(__cmp_\d+ = z\)/);
+    expect(code).toMatch(/__cmp_\d+ <= 100/);
     expect(code).toContain('&&');
   });
 });
@@ -259,13 +262,13 @@ describe('Edge — Range expressions', () => {
   test('exclusive range 1..10', () => {
     const code = compileShared('x = 1..10');
     expect(code).toContain('Array.from');
-    expect(code).toContain('length: 10 - 1');
+    expect(code).toContain('length: (10) - (1)');
   });
 
   test('inclusive range 1..=10', () => {
     const code = compileShared('x = 1..=10');
     expect(code).toContain('Array.from');
-    expect(code).toContain('10 - 1 + 1');
+    expect(code).toContain('(10) - (1) + 1');
   });
 });
 

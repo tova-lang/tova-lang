@@ -1,14 +1,17 @@
 import { TokenType, Keywords, Token } from './tokens.js';
 
 export class Lexer {
-  constructor(source, filename = '<stdin>') {
+  static MAX_INTERPOLATION_DEPTH = 64;
+
+  constructor(source, filename = '<stdin>', lineOffset = 0, columnOffset = 0, _depth = 0) {
     this.source = source;
     this.filename = filename;
     this.tokens = [];
     this.pos = 0;
-    this.line = 1;
-    this.column = 1;
+    this.line = 1 + lineOffset;
+    this.column = 1 + columnOffset;
     this.length = source.length;
+    this._depth = _depth;
 
     // JSX context tracking for unquoted text support
     this._jsxStack = [];          // stack of 'tag' or 'cfblock' entries
@@ -151,6 +154,11 @@ export class Lexer {
         TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
       ];
       if (prev && regexPreceders.includes(prev.type)) {
+        this.scanRegex();
+        return;
+      }
+      // At start of file (no prev token), treat / as regex if followed by a non-space, non-special char
+      if (!prev && this.pos + 1 < this.length && !/[\s\/*=]/.test(this.peek(1))) {
         this.scanRegex();
         return;
       }
@@ -338,6 +346,7 @@ export class Lexer {
           const ch = this.advance();
           if (ch !== '_') value += ch;
         }
+        if (!value) this.error('Expected hex digits after 0x');
         this.tokens.push(new Token(TokenType.NUMBER, parseInt(value, 16), startLine, startCol));
         return;
       }
@@ -348,6 +357,7 @@ export class Lexer {
           const ch = this.advance();
           if (ch !== '_') value += ch;
         }
+        if (!value) this.error('Expected binary digits after 0b');
         this.tokens.push(new Token(TokenType.NUMBER, parseInt(value, 2), startLine, startCol));
         return;
       }
@@ -358,6 +368,7 @@ export class Lexer {
           const ch = this.advance();
           if (ch !== '_') value += ch;
         }
+        if (!value) this.error('Expected octal digits after 0o');
         this.tokens.push(new Token(TokenType.NUMBER, parseInt(value, 8), startLine, startCol));
         return;
       }
@@ -380,12 +391,21 @@ export class Lexer {
 
     // Exponent
     if (this.peek() === 'e' || this.peek() === 'E') {
-      value += this.advance();
+      const savedPos = this.pos;
+      const savedCol = this.column;
+      let expPart = this.advance(); // consume 'e'/'E'
       if (this.peek() === '+' || this.peek() === '-') {
-        value += this.advance();
+        expPart += this.advance();
       }
-      while (this.pos < this.length && this.isDigit(this.peek())) {
-        value += this.advance();
+      if (this.pos < this.length && this.isDigit(this.peek())) {
+        value += expPart;
+        while (this.pos < this.length && this.isDigit(this.peek())) {
+          value += this.advance();
+        }
+      } else {
+        // No digits after exponent — backtrack, treat 'e' as separate token
+        this.pos = savedPos;
+        this.column = savedCol;
       }
     }
 
@@ -404,6 +424,9 @@ export class Lexer {
       // Escape sequences
       if (this.peek() === '\\') {
         this.advance();
+        if (this.pos >= this.length) {
+          this.error('Unterminated string');
+        }
         const esc = this.advance();
         switch (esc) {
           case 'n': current += '\n'; break;
@@ -425,12 +448,39 @@ export class Lexer {
           current = '';
         }
 
-        // Lex the interpolation expression
+        // Lex the interpolation expression, respecting nested strings
+        const exprStartLine = this.line - 1; // 0-based offset for sub-lexer
+        const exprStartCol = this.column - 1;
         let depth = 1;
         let exprSource = '';
         while (this.pos < this.length && depth > 0) {
-          if (this.peek() === '{') depth++;
-          if (this.peek() === '}') {
+          const ch = this.peek();
+          // Skip over string literals so braces inside them don't affect depth
+          if (ch === '"' || ch === "'" || ch === '`') {
+            const quote = ch;
+            exprSource += this.advance(); // opening quote
+            let strDepth = 0; // track interpolation depth inside nested strings
+            while (this.pos < this.length) {
+              if (this.peek() === '\\') {
+                exprSource += this.advance(); // backslash
+                if (this.pos < this.length) exprSource += this.advance(); // escaped char
+              } else if (quote === '"' && this.peek() === '{') {
+                strDepth++;
+                exprSource += this.advance();
+              } else if (quote === '"' && this.peek() === '}' && strDepth > 0) {
+                strDepth--;
+                exprSource += this.advance();
+              } else if (this.peek() === quote && strDepth === 0) {
+                break;
+              } else {
+                exprSource += this.advance();
+              }
+            }
+            if (this.pos < this.length) exprSource += this.advance(); // closing quote
+            continue;
+          }
+          if (ch === '{') depth++;
+          if (ch === '}') {
             depth--;
             if (depth === 0) break;
           }
@@ -442,8 +492,11 @@ export class Lexer {
         }
         this.advance(); // }
 
-        // Sub-lex the expression
-        const subLexer = new Lexer(exprSource, this.filename);
+        // Sub-lex the expression with correct file position offsets
+        if (this._depth + 1 > Lexer.MAX_INTERPOLATION_DEPTH) {
+          this.error('String interpolation nested too deeply (max ' + Lexer.MAX_INTERPOLATION_DEPTH + ' levels)');
+        }
+        const subLexer = new Lexer(exprSource, this.filename, exprStartLine, exprStartCol, this._depth + 1);
         const exprTokens = subLexer.tokenize();
         // Remove the EOF token
         exprTokens.pop();
@@ -480,6 +533,9 @@ export class Lexer {
     while (this.pos < this.length && this.peek() !== "'") {
       if (this.peek() === '\\') {
         this.advance();
+        if (this.pos >= this.length) {
+          this.error('Unterminated string');
+        }
         const esc = this.advance();
         switch (esc) {
           case 'n': value += '\n'; break;
@@ -541,7 +597,7 @@ export class Lexer {
 
     // Read flags
     let flags = '';
-    while (this.pos < this.length && /[gimsuy]/.test(this.peek())) {
+    while (this.pos < this.length && /[gimsuydv]/.test(this.peek())) {
       flags += this.advance();
     }
 
@@ -562,7 +618,6 @@ export class Lexer {
       this.advance(); // opening "
       let raw = '';
       while (this.pos < this.length && this.peek() !== '"') {
-        if (this.peek() === '\n') this.line++;
         raw += this.advance();
       }
       if (this.pos >= this.length) {
@@ -594,6 +649,9 @@ export class Lexer {
             if (depth === 0) { this.advance(); break; }
           }
           css += this.advance();
+        }
+        if (depth > 0) {
+          this.error('Unterminated style block');
         }
         this.tokens.push(new Token(TokenType.STYLE_BLOCK, css.trim(), startLine, startCol));
         return;

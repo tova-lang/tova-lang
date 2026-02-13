@@ -84,16 +84,19 @@ describe('Base — String multiply with TemplateLiteral', () => {
 });
 
 describe('Base — Chained comparison with 3+ operands', () => {
-  test('a < b < c generates two-part && chain', () => {
+  test('a < b < c generates two-part && chain with temp vars', () => {
     const code = genShared('x = 1 < y < 10');
-    expect(code).toContain('((1 < y) && (y < 10))');
+    // Uses temp vars to avoid evaluating intermediate operands twice
+    expect(code).toMatch(/1 < \(__cmp_\d+ = y\)/);
+    expect(code).toMatch(/__cmp_\d+ < 10/);
+    expect(code).toContain('&&');
   });
 
-  test('a <= b < c <= d generates three-part && chain', () => {
+  test('a <= b < c <= d generates three-part && chain with temp vars', () => {
     const code = genShared('x = 0 <= a < b <= 100');
-    expect(code).toContain('(0 <= a)');
-    expect(code).toContain('(a < b)');
-    expect(code).toContain('(b <= 100)');
+    expect(code).toMatch(/0 <= \(__cmp_\d+ = a\)/);
+    expect(code).toMatch(/__cmp_\d+ < \(__cmp_\d+ = b\)/);
+    expect(code).toMatch(/__cmp_\d+ <= 100/);
     // All three parts joined with &&
     const andCount = (code.match(/&&/g) || []).length;
     expect(andCount).toBeGreaterThanOrEqual(2);
@@ -116,19 +119,19 @@ describe('Base — List comprehension filter-only optimization', () => {
 });
 
 describe('Base — For-else codegen with __entered flag', () => {
-  test('for-else generates __entered tracking', () => {
+  test('for-else generates unique __entered tracking', () => {
     const code = genShared('for x in items { print(x) } else { print("empty") }');
-    expect(code).toContain('let __entered = false;');
-    expect(code).toContain('__entered = true;');
-    expect(code).toContain('if (!__entered)');
+    expect(code).toMatch(/let __entered_\d+ = false;/);
+    expect(code).toMatch(/__entered_\d+ = true;/);
+    expect(code).toMatch(/if \(!__entered_\d+\)/);
     expect(code).toContain('print("empty")');
   });
 
   test('for-else with two variables uses destructuring', () => {
     const code = genShared('for k, v in pairs { print(k) } else { print("empty") }');
-    expect(code).toContain('let __entered = false;');
+    expect(code).toMatch(/let __entered_\d+ = false;/);
     expect(code).toContain('[k, v]');
-    expect(code).toContain('if (!__entered)');
+    expect(code).toMatch(/if \(!__entered_\d+\)/);
   });
 });
 
@@ -404,7 +407,7 @@ describe('Client — _exprReadsSignal for UnaryExpression', () => {
 });
 
 describe('Client — _exprReadsSignal for MatchExpression', () => {
-  test('_exprReadsSignal returns false for MatchExpression (not covered)', () => {
+  test('_exprReadsSignal returns true for MatchExpression reading a signal', () => {
     const cg = new ClientCodegen();
     cg.stateNames.add('count');
     const matchNode = {
@@ -412,8 +415,8 @@ describe('Client — _exprReadsSignal for MatchExpression', () => {
       subject: { type: 'Identifier', name: 'count' },
       arms: []
     };
-    // MatchExpression is not handled in _exprReadsSignal, should return false
-    expect(cg._exprReadsSignal(matchNode)).toBe(false);
+    // MatchExpression subject reads signal 'count', should return true
+    expect(cg._exprReadsSignal(matchNode)).toBe(true);
   });
 });
 

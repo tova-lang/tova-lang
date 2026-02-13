@@ -9,11 +9,14 @@ import { TokenType } from '../lexer/tokens.js';
 import { Formatter } from '../formatter/formatter.js';
 
 class LuxLanguageServer {
+  static MAX_CACHE_SIZE = 100; // max cached diagnostics entries
+
   constructor() {
     this._buffer = '';
     this._documents = new Map(); // uri -> { text, version }
     this._diagnosticsCache = new Map(); // uri -> { ast, analyzer, errors }
     this._initialized = false;
+    this._shutdownReceived = false;
     this._capabilities = {};
   }
 
@@ -21,6 +24,22 @@ class LuxLanguageServer {
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', (chunk) => this._onData(chunk));
     process.stdin.on('end', () => process.exit(0));
+
+    // Crash recovery — prevent the LSP from dying on unexpected errors
+    process.on('uncaughtException', (err) => {
+      try {
+        this._logError(`Uncaught exception (recovered): ${err.message}`);
+      } catch {
+        process.stderr.write(`[lux-lsp] Uncaught exception: ${err.message}\n`);
+      }
+    });
+    process.on('unhandledRejection', (err) => {
+      try {
+        this._logError(`Unhandled rejection (recovered): ${err && err.message || err}`);
+      } catch {
+        process.stderr.write(`[lux-lsp] Unhandled rejection: ${err}\n`);
+      }
+    });
   }
 
   // ─── JSON-RPC Transport ────────────────────────────────────
@@ -89,7 +108,7 @@ class LuxLanguageServer {
       // Request
       switch (method) {
         case 'initialize': return this._onInitialize(msg);
-        case 'shutdown': return this._respond(msg.id, null);
+        case 'shutdown': this._shutdownReceived = true; return this._respond(msg.id, null);
         case 'textDocument/completion': return this._onCompletion(msg);
         case 'textDocument/definition': return this._onDefinition(msg);
         case 'textDocument/hover': return this._onHover(msg);
@@ -104,7 +123,7 @@ class LuxLanguageServer {
       // Notification
       switch (method) {
         case 'initialized': return this._onInitialized();
-        case 'exit': return process.exit(0);
+        case 'exit': return process.exit(this._shutdownReceived ? 0 : 1);
         case 'textDocument/didOpen': return this._onDidOpen(msg.params);
         case 'textDocument/didChange': return this._onDidChange(msg.params);
         case 'textDocument/didClose': return this._onDidClose(msg.params);
@@ -194,15 +213,27 @@ class LuxLanguageServer {
       const analyzer = new Analyzer(ast, filename);
       const { warnings } = analyzer.analyze();
 
-      // Cache for go-to-definition
+      // Cache for go-to-definition (with LRU eviction)
       this._diagnosticsCache.set(uri, { ast, analyzer, text });
+      if (this._diagnosticsCache.size > LuxLanguageServer.MAX_CACHE_SIZE) {
+        // Evict oldest entries (first inserted in Map iteration order)
+        const toEvict = this._diagnosticsCache.size - LuxLanguageServer.MAX_CACHE_SIZE;
+        let evicted = 0;
+        for (const key of this._diagnosticsCache.keys()) {
+          if (evicted >= toEvict) break;
+          if (!this._documents.has(key)) { // only evict closed documents
+            this._diagnosticsCache.delete(key);
+            evicted++;
+          }
+        }
+      }
 
       // Convert warnings to diagnostics
       for (const w of warnings) {
         diagnostics.push({
           range: {
             start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
-            end: { line: (w.line || 1) - 1, character: (w.column || 1) + 10 },
+            end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
           },
           severity: 2, // Warning
           source: 'lux',
@@ -231,7 +262,7 @@ class LuxLanguageServer {
           diagnostics.push({
             range: {
               start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
-              end: { line: (w.line || 1) - 1, character: (w.column || 1) + 10 },
+              end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
             },
             severity: 2, // Warning
             source: 'lux',
@@ -253,7 +284,7 @@ class LuxLanguageServer {
             diagnostics.push({
               range: {
                 start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
-                end: { line: (w.line || 1) - 1, character: (w.column || 1) + 10 },
+                end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
               },
               severity: 2, // Warning
               source: 'lux',

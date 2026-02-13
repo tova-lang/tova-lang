@@ -271,7 +271,7 @@ describe('Codegen Coverage — Range expression inclusive (line 736-737)', () =>
   test('inclusive range 1..=10 generates Array.from with + 1', () => {
     const code = compileShared('x = 1..=10');
     expect(code).toContain('Array.from');
-    expect(code).toContain('10 - 1 + 1');
+    expect(code).toContain('(10) - (1) + 1');
   });
 });
 

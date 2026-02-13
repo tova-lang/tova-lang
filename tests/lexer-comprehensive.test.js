@@ -29,58 +29,32 @@ function lexThrows(source) {
 // ─── Malformed Number Literals ──────────────────────────────────
 
 describe('Lexer — Malformed hex/binary/octal numbers', () => {
-  test('0x with no digits produces NaN token', () => {
-    // 0x alone: the lexer consumes 0 and x, then no hex digits => parseInt('', 16) = NaN
-    const tokens = lex('0x');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
+  test('0x with no digits throws error', () => {
+    expect(() => lex('0x')).toThrow('Expected hex digits after 0x');
   });
 
-  test('0x followed by non-hex letter stops at prefix', () => {
-    // 0xZZ: no valid hex digits, then ZZ is identifier
-    const tokens = lex('0xZZ');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
-    expect(tokens[1].type).toBe(TokenType.IDENTIFIER);
-    expect(tokens[1].value).toBe('ZZ');
+  test('0x followed by non-hex letter throws error', () => {
+    expect(() => lex('0xZZ')).toThrow('Expected hex digits after 0x');
   });
 
-  test('0b with no digits produces NaN token', () => {
-    const tokens = lex('0b');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
+  test('0b with no digits throws error', () => {
+    expect(() => lex('0b')).toThrow('Expected binary digits after 0b');
   });
 
-  test('0b with invalid digit 2 stops early', () => {
-    // 0b2: '2' is not in [01_], so no digits collected
-    const tokens = lex('0b2');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
-    expect(tokens[1].type).toBe(TokenType.NUMBER);
-    expect(tokens[1].value).toBe(2);
+  test('0b with invalid digit 2 throws error', () => {
+    expect(() => lex('0b2')).toThrow('Expected binary digits after 0b');
   });
 
-  test('0o with no digits produces NaN token', () => {
-    const tokens = lex('0o');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
+  test('0o with no digits throws error', () => {
+    expect(() => lex('0o')).toThrow('Expected octal digits after 0o');
   });
 
-  test('0o with invalid digit 9 stops early', () => {
-    // 0o9: '9' is not in [0-7_]
-    const tokens = lex('0o9');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
-    expect(tokens[1].type).toBe(TokenType.NUMBER);
-    expect(tokens[1].value).toBe(9);
+  test('0o with invalid digit 9 throws error', () => {
+    expect(() => lex('0o9')).toThrow('Expected octal digits after 0o');
   });
 
-  test('0o with digit 8 stops early', () => {
-    const tokens = lex('0o8');
-    expect(tokens[0].type).toBe(TokenType.NUMBER);
-    expect(tokens[0].value).toBeNaN();
-    expect(tokens[1].type).toBe(TokenType.NUMBER);
-    expect(tokens[1].value).toBe(8);
+  test('0o with digit 8 throws error', () => {
+    expect(() => lex('0o8')).toThrow('Expected octal digits after 0o');
   });
 
   test('0x with valid then invalid digits', () => {

@@ -249,7 +249,9 @@ describe('Parser Comprehensive -- Pattern matching edge cases', () => {
     const pattern = expr.arms[0].pattern;
     expect(pattern.elements[0].type).toBe('VariantPattern');
     expect(pattern.elements[0].name).toBe('Some');
-    expect(pattern.elements[0].fields).toEqual(['a']);
+    expect(pattern.elements[0].fields.length).toBe(1);
+    expect(pattern.elements[0].fields[0].type).toBe('BindingPattern');
+    expect(pattern.elements[0].fields[0].name).toBe('a');
     expect(pattern.elements[1].type).toBe('VariantPattern');
     expect(pattern.elements[1].name).toBe('None');
   });

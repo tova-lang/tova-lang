@@ -604,7 +604,11 @@ describe('Parser — Pattern matching edge cases', () => {
 
   test('variant pattern with multiple fields', () => {
     const expr = parseExpr('match shape { Rect(w, h) => w * h }');
-    expect(expr.arms[0].pattern.fields).toEqual(['w', 'h']);
+    expect(expr.arms[0].pattern.fields.length).toBe(2);
+    expect(expr.arms[0].pattern.fields[0].type).toBe('BindingPattern');
+    expect(expr.arms[0].pattern.fields[0].name).toBe('w');
+    expect(expr.arms[0].pattern.fields[1].type).toBe('BindingPattern');
+    expect(expr.arms[0].pattern.fields[1].name).toBe('h');
   });
 
   test('array pattern in match', () => {

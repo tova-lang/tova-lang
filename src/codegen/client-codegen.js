@@ -25,6 +25,10 @@ export class ClientCodegen extends BaseCodegen {
         node.alternates.some(a => this._containsRPC(a.body)) ||
         this._containsRPC(node.elseBody);
     }
+    if (node.type === 'IfExpression') {
+      return this._containsRPC(node.condition) || this._containsRPC(node.consequent) ||
+        this._containsRPC(node.elseBody);
+    }
     if (node.type === 'ForStatement') return this._containsRPC(node.iterable) || this._containsRPC(node.body);
     if (node.type === 'WhileStatement') return this._containsRPC(node.condition) || this._containsRPC(node.body);
     if (node.type === 'CallExpression') {
@@ -37,6 +41,33 @@ export class ClientCodegen extends BaseCodegen {
     if (node.type === 'CompoundAssignment') return this._containsRPC(node.value);
     if (node.type === 'LambdaExpression') return this._containsRPC(node.body);
     if (node.type === 'NamedArgument') return this._containsRPC(node.value);
+    if (node.type === 'MatchExpression') {
+      return this._containsRPC(node.subject) || node.arms.some(a => this._containsRPC(a.body));
+    }
+    if (node.type === 'TryCatchStatement') {
+      return this._containsRPC(node.tryBlock) || this._containsRPC(node.catchBlock) ||
+        this._containsRPC(node.finallyBlock);
+    }
+    if (node.type === 'PipeExpression') {
+      return this._containsRPC(node.left) || this._containsRPC(node.right);
+    }
+    if (node.type === 'GuardStatement') {
+      return this._containsRPC(node.condition) || this._containsRPC(node.elseBlock);
+    }
+    if (node.type === 'LetDestructure') return this._containsRPC(node.value);
+    if (node.type === 'ArrayLiteral') return node.elements.some(e => this._containsRPC(e));
+    if (node.type === 'ObjectLiteral') return node.properties.some(p => this._containsRPC(p.value));
+    if (node.type === 'SpreadExpression') return this._containsRPC(node.argument);
+    if (node.type === 'AwaitExpression') return this._containsRPC(node.argument);
+    if (node.type === 'PropagateExpression') return this._containsRPC(node.expression);
+    if (node.type === 'UnaryExpression') return this._containsRPC(node.operand);
+    if (node.type === 'TemplateLiteral') return node.parts.some(p => p.type === 'expr' && this._containsRPC(p.expression));
+    if (node.type === 'ChainedComparison') return node.operands.some(o => this._containsRPC(o));
+    if (node.type === 'RangeExpression') return this._containsRPC(node.start) || this._containsRPC(node.end);
+    if (node.type === 'SliceExpression') return this._containsRPC(node.object) || this._containsRPC(node.start) || this._containsRPC(node.end) || this._containsRPC(node.step);
+    if (node.type === 'ListComprehension') return this._containsRPC(node.iterable) || this._containsRPC(node.expression) || this._containsRPC(node.condition);
+    if (node.type === 'DictComprehension') return this._containsRPC(node.iterable) || this._containsRPC(node.key) || this._containsRPC(node.value) || this._containsRPC(node.condition);
+    if (node.type === 'DeferStatement') return this._containsRPC(node.body);
     return false;
   }
 
@@ -93,13 +124,18 @@ export class ClientCodegen extends BaseCodegen {
   // Override lambda expression to handle state mutations in lambda bodies
   genLambdaExpression(node) {
     const params = this.genParams(node.params);
+    const hasPropagate = this._containsPropagate(node.body);
+    const asyncPrefix = node.isAsync ? 'async ' : '';
 
     if (node.body.type === 'BlockStatement') {
       this.pushScope();
-      for (const p of node.params) this.declareVar(p.name);
+      for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       const body = this.genBlockBody(node.body);
       this.popScope();
-      return `(${params}) => {\n${body}\n${this.i()}}`;
+      if (hasPropagate) {
+        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      }
+      return `${asyncPrefix}(${params}) => {\n${body}\n${this.i()}}`;
     }
 
     // Compound assignment in lambda body: fn() count += 1
@@ -108,7 +144,7 @@ export class ClientCodegen extends BaseCodegen {
       const setter = `set${capitalize(name)}`;
       const op = node.body.operator[0];
       const val = this.genExpression(node.body.value);
-      return `(${params}) => { ${setter}(__lux_p => __lux_p ${op} ${val}); }`;
+      return `${asyncPrefix}(${params}) => { ${setter}(__lux_p => __lux_p ${op} ${val}); }`;
     }
 
     // Assignment in lambda body: fn() count = 0
@@ -116,18 +152,24 @@ export class ClientCodegen extends BaseCodegen {
       const name = node.body.targets[0];
       const setter = `set${capitalize(name)}`;
       const val = this.genExpression(node.body.values[0]);
-      return `(${params}) => { ${setter}(${val}); }`;
+      return `${asyncPrefix}(${params}) => { ${setter}(${val}); }`;
     }
 
     // Non-state statement bodies
     if (node.body.type === 'CompoundAssignment' || node.body.type === 'Assignment' || node.body.type === 'VarDeclaration') {
+      this.pushScope();
+      for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       this.indent++;
       const stmt = super.generateStatement(node.body);
       this.indent--;
-      return `(${params}) => { ${stmt.trim()} }`;
+      this.popScope();
+      return `${asyncPrefix}(${params}) => { ${stmt.trim()} }`;
     }
 
-    return `(${params}) => ${this.genExpression(node.body)}`;
+    if (hasPropagate) {
+      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__lux_propagate) return __e.value; throw __e; } }`;
+    }
+    return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
   generate(clientBlocks, sharedCode) {
@@ -516,6 +558,17 @@ export class ClientCodegen extends BaseCodegen {
       return this._exprReadsSignal(node.condition) || this._exprReadsSignal(node.consequent) ||
         this._exprReadsSignal(node.elseBody);
     }
+    if (node.type === 'MatchExpression') {
+      if (this._exprReadsSignal(node.subject)) return true;
+      return node.arms.some(arm => this._exprReadsSignal(arm.body));
+    }
+    if (node.type === 'SpreadExpression') return this._exprReadsSignal(node.argument);
+    if (node.type === 'AwaitExpression') return this._exprReadsSignal(node.argument);
+    if (node.type === 'RangeExpression') return this._exprReadsSignal(node.start) || this._exprReadsSignal(node.end);
+    if (node.type === 'SliceExpression') return this._exprReadsSignal(node.object) || this._exprReadsSignal(node.start) || this._exprReadsSignal(node.end);
+    if (node.type === 'ListComprehension') return this._exprReadsSignal(node.iterable) || this._exprReadsSignal(node.expression);
+    if (node.type === 'LambdaExpression') return this._exprReadsSignal(node.body);
+    if (node.type === 'PropagateExpression') return this._exprReadsSignal(node.expression);
     return false;
   }
 
@@ -781,19 +834,28 @@ export class ClientCodegen extends BaseCodegen {
   genFunctionDeclaration(node) {
     const hasRPC = this._containsRPC(node.body);
     const hasPropagate = this._containsPropagate(node.body);
-    const asyncPrefix = hasRPC ? 'async ' : '';
+    const isGenerator = this._containsYield(node.body);
+    const exportPrefix = node.isPublic ? 'export ' : '';
+    const asyncPrefix = (hasRPC || node.isAsync) ? 'async ' : '';
+    const genStar = isGenerator ? '*' : '';
     const params = this.genParams(node.params);
     this.pushScope();
-    for (const p of node.params) this.declareVar(p.name);
+    for (const p of node.params) {
+      if (p.destructure) {
+        this._declareDestructureVars(p.destructure);
+      } else {
+        this.declareVar(p.name);
+      }
+    }
     const prevAsync = this._asyncContext;
-    if (hasRPC) this._asyncContext = true;
+    if (hasRPC || node.isAsync) this._asyncContext = true;
     const body = this.genBlockBody(node.body);
     this._asyncContext = prevAsync;
     this.popScope();
     if (hasPropagate) {
-      return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
-    return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${body}\n${this.i()}}`;
+    return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
 
   getStdlibCore() {

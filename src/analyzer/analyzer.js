@@ -1,4 +1,5 @@
 import { Scope, Symbol } from './scope.js';
+import { PIPE_TARGET } from '../parser/ast.js';
 
 export class Analyzer {
   constructor(ast, filename = '<stdin>', options = {}) {
@@ -11,6 +12,7 @@ export class Analyzer {
     this.currentScope = this.globalScope;
     this._allScopes = []; // Track all scopes for unused variable checking
     this._functionReturnTypeStack = []; // Stack of expected return types for type checking
+    this._asyncDepth = 0; // Track nesting inside async functions for await validation
 
     // Register built-in types
     this.registerBuiltins();
@@ -493,6 +495,9 @@ export class Analyzer {
         this.visitExpression(node.expression);
         return;
       case 'AwaitExpression':
+        if (this._asyncDepth === 0) {
+          this.error("'await' can only be used inside an async function", node.loc);
+        }
         this.visitExpression(node.argument);
         return;
       case 'YieldExpression':
@@ -523,43 +528,52 @@ export class Analyzer {
     this._currentServerBlockName = node.name || null;
     this.currentScope = this.currentScope.child('server');
 
-    // Register peer server block names as valid identifiers in this scope
-    if (node.name && this.serverBlockFunctions.size > 0) {
-      for (const [peerName] of this.serverBlockFunctions) {
-        if (peerName !== node.name) {
-          try {
-            this.currentScope.define(peerName,
-              new Symbol(peerName, 'builtin', null, false, { line: 0, column: 0, file: '<peer-server>' }));
-          } catch (e) {
-            // Ignore if already defined
+    try {
+      // Register peer server block names as valid identifiers in this scope
+      if (node.name && this.serverBlockFunctions.size > 0) {
+        for (const [peerName] of this.serverBlockFunctions) {
+          if (peerName !== node.name) {
+            try {
+              this.currentScope.define(peerName,
+                new Symbol(peerName, 'builtin', null, false, { line: 0, column: 0, file: '<peer-server>' }));
+            } catch (e) {
+              // Ignore if already defined
+            }
           }
         }
       }
-    }
 
-    for (const stmt of node.body) {
-      this.visitNode(stmt);
+      for (const stmt of node.body) {
+        this.visitNode(stmt);
+      }
+    } finally {
+      this.currentScope = prevScope;
+      this._currentServerBlockName = prevServerBlockName;
     }
-    this.currentScope = prevScope;
-    this._currentServerBlockName = prevServerBlockName;
   }
 
   visitClientBlock(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('client');
-    for (const stmt of node.body) {
-      this.visitNode(stmt);
+    try {
+      for (const stmt of node.body) {
+        this.visitNode(stmt);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   visitSharedBlock(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('shared');
-    for (const stmt of node.body) {
-      this.visitNode(stmt);
+    try {
+      for (const stmt of node.body) {
+        this.visitNode(stmt);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   // ─── Declaration visitors ─────────────────────────────────
@@ -589,6 +603,10 @@ export class Analyzer {
       } else {
         // New binding — define in current scope with inferred type
         const inferredType = i < node.values.length ? this._inferType(node.values[i]) : null;
+        // Warn if this shadows a variable from an outer function scope
+        if (this._existsInOuterScope(target)) {
+          this.warn(`Variable '${target}' shadows a binding in an outer scope`, node.loc);
+        }
         try {
           const sym = new Symbol(target, 'variable', null, false, node.loc);
           sym.inferredType = inferredType;
@@ -630,7 +648,7 @@ export class Analyzer {
           this.error(e.message);
         }
       }
-    } else if (node.pattern.type === 'ArrayPattern') {
+    } else if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
       for (const el of node.pattern.elements) {
         if (el) {
           try {
@@ -662,35 +680,39 @@ export class Analyzer {
     // Push expected return type for return-statement checking
     const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
     this._functionReturnTypeStack.push(expectedReturn);
+    if (node.isAsync) this._asyncDepth++;
 
-    for (const param of node.params) {
-      if (param.destructure) {
-        this._defineDestructureParams(param.destructure, param.loc);
-      } else {
-        try {
-          const paramSym = new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc);
-          paramSym.inferredType = param.typeAnnotation ? this._typeAnnotationToString(param.typeAnnotation) : null;
-          this.currentScope.define(param.name, paramSym);
-        } catch (e) {
-          this.error(e.message);
+    try {
+      for (const param of node.params) {
+        if (param.destructure) {
+          this._defineDestructureParams(param.destructure, param.loc);
+        } else {
+          try {
+            const paramSym = new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc);
+            paramSym.inferredType = param.typeAnnotation ? this._typeAnnotationToString(param.typeAnnotation) : null;
+            this.currentScope.define(param.name, paramSym);
+          } catch (e) {
+            this.error(e.message);
+          }
+        }
+        if (param.defaultValue) {
+          this.visitExpression(param.defaultValue);
         }
       }
-      if (param.defaultValue) {
-        this.visitExpression(param.defaultValue);
+
+      this.visitNode(node.body);
+
+      // Return path analysis: check that all paths return a value
+      if (expectedReturn && node.body.type === 'BlockStatement') {
+        if (!this._definitelyReturns(node.body)) {
+          this.warn(`Function '${node.name}' declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+        }
       }
+    } finally {
+      if (node.isAsync) this._asyncDepth--;
+      this._functionReturnTypeStack.pop();
+      this.currentScope = prevScope;
     }
-
-    this.visitNode(node.body);
-
-    // Return path analysis: check that all paths return a value
-    if (expectedReturn && node.body.type === 'BlockStatement') {
-      if (!this._definitelyReturns(node.body)) {
-        this.warn(`Function '${node.name}' declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
-      }
-    }
-
-    this._functionReturnTypeStack.pop();
-    this.currentScope = prevScope;
   }
 
   visitExternDeclaration(node) {
@@ -724,7 +746,7 @@ export class Analyzer {
           this.error(e.message);
         }
       }
-    } else if (pattern.type === 'ArrayPattern') {
+    } else if (pattern.type === 'ArrayPattern' || pattern.type === 'TuplePattern') {
       for (const el of pattern.elements) {
         if (el) {
           try {
@@ -799,10 +821,13 @@ export class Analyzer {
   visitBlock(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
-    for (const stmt of node.body) {
-      this.visitNode(stmt);
+    try {
+      for (const stmt of node.body) {
+        this.visitNode(stmt);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   visitIfStatement(node) {
@@ -822,21 +847,24 @@ export class Analyzer {
     this.currentScope = this.currentScope.child('block');
     this.currentScope._isLoop = true;
 
-    this.visitExpression(node.iterable);
+    try {
+      this.visitExpression(node.iterable);
 
-    // Define loop variable(s)
-    const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
-    for (const v of vars) {
-      try {
-        this.currentScope.define(v,
-          new Symbol(v, 'variable', null, false, node.loc));
-      } catch (e) {
-        this.error(e.message);
+      // Define loop variable(s)
+      const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
+      for (const v of vars) {
+        try {
+          this.currentScope.define(v,
+            new Symbol(v, 'variable', null, false, node.loc));
+        } catch (e) {
+          this.error(e.message);
+        }
       }
-    }
 
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
 
     if (node.elseBody) {
       this.visitNode(node.elseBody);
@@ -848,37 +876,53 @@ export class Analyzer {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
     this.currentScope._isLoop = true;
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitTryCatchStatement(node) {
-    const tryScope = this.currentScope.child('block');
-    this.currentScope = tryScope;
-    for (const stmt of node.tryBody) this.visitNode(stmt);
-    this.currentScope = tryScope.parent;
+    const prevScope = this.currentScope;
+
+    this.currentScope = prevScope.child('block');
+    try {
+      for (const stmt of node.tryBody) this.visitNode(stmt);
+    } finally {
+      this.currentScope = prevScope;
+    }
 
     if (node.catchBody) {
-      const catchScope = this.currentScope.child('block');
-      this.currentScope = catchScope;
-      if (node.catchParam) {
-        catchScope.define(node.catchParam, { kind: 'variable', mutable: false });
+      this.currentScope = prevScope.child('block');
+      try {
+        if (node.catchParam) {
+          this.currentScope.define(node.catchParam, new Symbol(node.catchParam, 'variable', null, false, node.loc));
+        }
+        for (const stmt of node.catchBody) this.visitNode(stmt);
+      } finally {
+        this.currentScope = prevScope;
       }
-      for (const stmt of node.catchBody) this.visitNode(stmt);
-      this.currentScope = catchScope.parent;
     }
 
     if (node.finallyBody) {
-      const finallyScope = this.currentScope.child('block');
-      this.currentScope = finallyScope;
-      for (const stmt of node.finallyBody) this.visitNode(stmt);
-      this.currentScope = finallyScope.parent;
+      this.currentScope = prevScope.child('block');
+      try {
+        for (const stmt of node.finallyBody) this.visitNode(stmt);
+      } finally {
+        this.currentScope = prevScope;
+      }
     }
   }
 
   visitReturnStatement(node) {
     if (node.value) {
       this.visitExpression(node.value);
+    }
+    // Return must be inside a function
+    if (this._functionReturnTypeStack.length === 0) {
+      this.error("'return' can only be used inside a function", node.loc);
+      return;
     }
     // Check return type against declared function return type
     if (this._functionReturnTypeStack.length > 0) {
@@ -1390,7 +1434,7 @@ export class Analyzer {
 
   visitIdentifier(node) {
     if (node.name === '_') return; // wildcard is always valid
-    if (node.name === '') return; // empty identifier from method pipe
+    if (node.name === PIPE_TARGET) return; // pipe target placeholder from method pipe
 
     const sym = this.currentScope.lookup(node.name);
     if (!sym) {
@@ -1449,28 +1493,33 @@ export class Analyzer {
 
     const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
     this._functionReturnTypeStack.push(expectedReturn);
+    if (node.isAsync) this._asyncDepth++;
 
-    for (const param of node.params) {
-      try {
-        const paramSym = new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc);
-        paramSym.inferredType = param.typeAnnotation ? this._typeAnnotationToString(param.typeAnnotation) : null;
-        this.currentScope.define(param.name, paramSym);
-      } catch (e) {
-        this.error(e.message);
+    try {
+      for (const param of node.params) {
+        try {
+          const paramSym = new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc);
+          paramSym.inferredType = param.typeAnnotation ? this._typeAnnotationToString(param.typeAnnotation) : null;
+          this.currentScope.define(param.name, paramSym);
+        } catch (e) {
+          this.error(e.message);
+        }
       }
-    }
-    if (node.body.type === 'BlockStatement') {
-      this.visitNode(node.body);
-      // Return path analysis for lambdas with block bodies and declared return types
-      if (expectedReturn && !this._definitelyReturns(node.body)) {
-        this.warn(`Lambda declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+      if (node.body.type === 'BlockStatement') {
+        this.visitNode(node.body);
+        // Return path analysis for lambdas with block bodies and declared return types
+        if (expectedReturn && !this._definitelyReturns(node.body)) {
+          this.warn(`Lambda declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+        }
+      } else {
+        // Single-expression body — always returns implicitly
+        this.visitExpression(node.body);
       }
-    } else {
-      // Single-expression body — always returns implicitly
-      this.visitExpression(node.body);
+    } finally {
+      if (node.isAsync) this._asyncDepth--;
+      this._functionReturnTypeStack.pop();
+      this.currentScope = prevScope;
     }
-    this._functionReturnTypeStack.pop();
-    this.currentScope = prevScope;
   }
 
   visitMatchExpression(node) {
@@ -1479,15 +1528,18 @@ export class Analyzer {
       const prevScope = this.currentScope;
       this.currentScope = this.currentScope.child('block');
 
-      this.visitPattern(arm.pattern);
-      if (arm.guard) this.visitExpression(arm.guard);
+      try {
+        this.visitPattern(arm.pattern);
+        if (arm.guard) this.visitExpression(arm.guard);
 
-      if (arm.body.type === 'BlockStatement') {
-        this.visitNode(arm.body);
-      } else {
-        this.visitExpression(arm.body);
+        if (arm.body.type === 'BlockStatement') {
+          this.visitNode(arm.body);
+        } else {
+          this.visitExpression(arm.body);
+        }
+      } finally {
+        this.currentScope = prevScope;
       }
-      this.currentScope = prevScope;
     }
 
     // Exhaustive match checking (#12)
@@ -1536,12 +1588,12 @@ export class Analyzer {
       // Check user-defined types — look up in _variantFields from the global scope
       // Collect all known type variants by iterating type declarations
       for (const topNode of this.ast.body) {
-        this._collectTypeVariants(topNode, variantNames, coveredVariants);
+        this._collectTypeVariants(topNode, variantNames, coveredVariants, node.loc);
       }
     }
   }
 
-  _collectTypeVariants(node, allVariants, coveredVariants) {
+  _collectTypeVariants(node, allVariants, coveredVariants, matchLoc) {
     if (node.type === 'TypeDeclaration') {
       const typeVariants = node.variants.filter(v => v.type === 'TypeVariant').map(v => v.name);
       // If any of the match arms reference a variant from this type, check all
@@ -1549,7 +1601,7 @@ export class Analyzer {
       if (relevantVariants.length > 0) {
         for (const v of typeVariants) {
           if (!coveredVariants.has(v)) {
-            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${node.name}'`, null);
+            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${node.name}'`, matchLoc);
           }
         }
       }
@@ -1557,7 +1609,7 @@ export class Analyzer {
     // Recurse into blocks
     if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
       for (const child of node.body) {
-        this._collectTypeVariants(child, allVariants, coveredVariants);
+        this._collectTypeVariants(child, allVariants, coveredVariants, matchLoc);
       }
     }
   }
@@ -1580,12 +1632,31 @@ export class Analyzer {
         break;
       case 'VariantPattern':
         for (const field of pattern.fields) {
-          try {
-            this.currentScope.define(field,
-              new Symbol(field, 'variable', null, false, pattern.loc));
-          } catch (e) {
-            this.error(e.message);
+          if (typeof field === 'string') {
+            // Legacy: plain string field names
+            try {
+              this.currentScope.define(field,
+                new Symbol(field, 'variable', null, false, pattern.loc));
+            } catch (e) {
+              this.error(e.message);
+            }
+          } else {
+            // Nested pattern (e.g., Some(Ok(value)))
+            this.visitPattern(field);
           }
+        }
+        break;
+      case 'ArrayPattern':
+      case 'TuplePattern':
+        if (pattern.elements) {
+          for (const el of pattern.elements) {
+            this.visitPattern(el);
+          }
+        }
+        break;
+      case 'StringConcatPattern':
+        if (pattern.rest) {
+          this.visitPattern(pattern.rest);
         }
         break;
     }
@@ -1595,37 +1666,41 @@ export class Analyzer {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
 
-    this.visitExpression(node.iterable);
     try {
-      this.currentScope.define(node.variable,
-        new Symbol(node.variable, 'variable', null, false, node.loc));
-    } catch (e) {
-      this.error(e.message);
+      this.visitExpression(node.iterable);
+      try {
+        this.currentScope.define(node.variable,
+          new Symbol(node.variable, 'variable', null, false, node.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+      if (node.condition) this.visitExpression(node.condition);
+      this.visitExpression(node.expression);
+    } finally {
+      this.currentScope = prevScope;
     }
-    if (node.condition) this.visitExpression(node.condition);
-    this.visitExpression(node.expression);
-
-    this.currentScope = prevScope;
   }
 
   visitDictComprehension(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
 
-    this.visitExpression(node.iterable);
-    for (const v of node.variables) {
-      try {
-        this.currentScope.define(v,
-          new Symbol(v, 'variable', null, false, node.loc));
-      } catch (e) {
-        this.error(e.message);
+    try {
+      this.visitExpression(node.iterable);
+      for (const v of node.variables) {
+        try {
+          this.currentScope.define(v,
+            new Symbol(v, 'variable', null, false, node.loc));
+        } catch (e) {
+          this.error(e.message);
+        }
       }
+      if (node.condition) this.visitExpression(node.condition);
+      this.visitExpression(node.key);
+      this.visitExpression(node.value);
+    } finally {
+      this.currentScope = prevScope;
     }
-    if (node.condition) this.visitExpression(node.condition);
-    this.visitExpression(node.key);
-    this.visitExpression(node.value);
-
-    this.currentScope = prevScope;
   }
 
   visitJSXElement(node) {
@@ -1652,17 +1727,20 @@ export class Analyzer {
   visitJSXFor(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
-    this.visitExpression(node.iterable);
     try {
-      this.currentScope.define(node.variable,
-        new Symbol(node.variable, 'variable', null, false, node.loc));
-    } catch (e) {
-      this.error(e.message);
+      this.visitExpression(node.iterable);
+      try {
+        this.currentScope.define(node.variable,
+          new Symbol(node.variable, 'variable', null, false, node.loc));
+      } catch (e) {
+        this.error(e.message);
+      }
+      for (const child of node.body) {
+        this.visitNode(child);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    for (const child of node.body) {
-      this.visitNode(child);
-    }
-    this.currentScope = prevScope;
   }
 
   visitJSXIf(node) {
@@ -1713,6 +1791,9 @@ export class Analyzer {
         const elseReturns = this._definitelyReturns(node.elseBody);
         const allAlternatesReturn = (node.alternates || []).every(alt => this._definitelyReturns(alt.body));
         return consequentReturns && elseReturns && allAlternatesReturn;
+      case 'GuardStatement':
+        // Guard's else block always runs if condition fails — if it returns, the guard is a definite return path
+        return this._definitelyReturns(node.elseBody);
       case 'MatchExpression': {
         const hasWildcard = node.arms.some(arm =>
           arm.pattern.type === 'WildcardPattern' ||
@@ -1828,6 +1909,27 @@ export class Analyzer {
     return null;
   }
 
+  // Check if a name exists in any outer scope beyond the current function boundary.
+  // Used to warn about shadowing of outer variables.
+  _existsInOuterScope(name) {
+    let scope = this.currentScope;
+    let crossedBoundary = false;
+    while (scope) {
+      if (!crossedBoundary && (scope.context === 'function' || scope.context === 'module' ||
+          scope.context === 'server' || scope.context === 'client' || scope.context === 'shared')) {
+        crossedBoundary = true;
+        scope = scope.parent;
+        continue;
+      }
+      if (crossedBoundary) {
+        const sym = scope.symbols.get(name);
+        if (sym) return true;
+      }
+      scope = scope.parent;
+    }
+    return false;
+  }
+
   pushScope(context) {
     this.currentScope = this.currentScope.child(context);
   }
@@ -1838,9 +1940,11 @@ export class Analyzer {
 
   _isInsideLoop() {
     // Walk up the AST context — check if any parent is a for/while loop scope
+    // Stop at function boundaries so break/continue inside lambdas is rejected
     let scope = this.currentScope;
     while (scope) {
       if (scope._isLoop) return true;
+      if (scope.context === 'function') return false;
       scope = scope.parent;
     }
     return false;
@@ -1864,23 +1968,26 @@ export class Analyzer {
     // Validate that methods reference the type
     for (const method of node.methods) {
       this.pushScope('function');
-      // self is implicitly available
       try {
-        this.currentScope.define('self',
-          new Symbol('self', 'variable', null, true, method.loc));
-      } catch (e) { /* ignore */ }
-      for (const p of method.params) {
-        if (p.name && p.name !== 'self') {
-          try {
-            this.currentScope.define(p.name,
-              new Symbol(p.name, 'variable', null, false, p.loc));
-          } catch (e) { /* ignore */ }
+        // self is implicitly available
+        try {
+          this.currentScope.define('self',
+            new Symbol('self', 'variable', null, true, method.loc));
+        } catch (e) { /* ignore */ }
+        for (const p of method.params) {
+          if (p.name && p.name !== 'self') {
+            try {
+              this.currentScope.define(p.name,
+                new Symbol(p.name, 'variable', null, false, p.loc));
+            } catch (e) { /* ignore */ }
+          }
         }
+        if (method.body) {
+          this.visitBlock(method.body);
+        }
+      } finally {
+        this.popScope();
       }
-      if (method.body) {
-        this.visitBlock(method.body);
-      }
-      this.popScope();
     }
   }
 
@@ -1895,16 +2002,19 @@ export class Analyzer {
     for (const method of node.methods) {
       if (method.body) {
         this.pushScope('function');
-        for (const p of method.params) {
-          if (p.name) {
-            try {
-              this.currentScope.define(p.name,
-                new Symbol(p.name, 'variable', null, false, p.loc || node.loc));
-            } catch (e) { /* ignore */ }
+        try {
+          for (const p of method.params) {
+            if (p.name) {
+              try {
+                this.currentScope.define(p.name,
+                  new Symbol(p.name, 'variable', null, false, p.loc || node.loc));
+              } catch (e) { /* ignore */ }
+            }
           }
+          this.visitBlock(method.body);
+        } finally {
+          this.popScope();
         }
-        this.visitBlock(method.body);
-        this.popScope();
       }
     }
   }
@@ -1923,7 +2033,7 @@ export class Analyzer {
     let scope = this.currentScope;
     let insideFunction = false;
     while (scope) {
-      if (scope.scopeType === 'function') {
+      if (scope.context === 'function') {
         insideFunction = true;
         break;
       }

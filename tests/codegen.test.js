@@ -74,7 +74,10 @@ describe('Codegen — Expressions', () => {
 
   test('chained comparison', () => {
     const code = compileShared('x = 1 < y < 10');
-    expect(code).toContain('((1 < y) && (y < 10))');
+    // Uses temp vars to avoid evaluating intermediate operands twice
+    expect(code).toMatch(/1 < \(__cmp_\d+ = y\)/);
+    expect(code).toMatch(/__cmp_\d+ < 10/);
+    expect(code).toContain('&&');
   });
 
   test('membership: in', () => {
@@ -90,12 +93,12 @@ describe('Codegen — Expressions', () => {
   test('range expression', () => {
     const code = compileShared('x = 1..10');
     expect(code).toContain('Array.from');
-    expect(code).toContain('length: 10 - 1');
+    expect(code).toContain('length: (10) - (1)');
   });
 
   test('inclusive range', () => {
     const code = compileShared('x = 1..=10');
-    expect(code).toContain('10 - 1 + 1');
+    expect(code).toContain('(10) - (1) + 1');
   });
 
   test('list comprehension', () => {

@@ -391,7 +391,9 @@ describe('Parser Coverage -- Match pattern: uppercase variant without args', () 
     expect(expr.arms[0].pattern.fields).toEqual([]);
     expect(expr.arms[1].pattern.type).toBe('VariantPattern');
     expect(expr.arms[1].pattern.name).toBe('Some');
-    expect(expr.arms[1].pattern.fields).toEqual(['v']);
+    expect(expr.arms[1].pattern.fields.length).toBe(1);
+    expect(expr.arms[1].pattern.fields[0].type).toBe('BindingPattern');
+    expect(expr.arms[1].pattern.fields[0].name).toBe('v');
   });
 });
 

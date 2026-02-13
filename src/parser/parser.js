@@ -2,12 +2,15 @@ import { TokenType } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 
 export class Parser {
+  static MAX_EXPRESSION_DEPTH = 200;
+
   constructor(tokens, filename = '<stdin>') {
     this.tokens = tokens.filter(t => t.type !== TokenType.NEWLINE && t.type !== TokenType.DOCSTRING);
     this.rawTokens = tokens;
     this.filename = filename;
     this.pos = 0;
     this.errors = [];
+    this._expressionDepth = 0;
     this.docstrings = this.extractDocstrings(tokens);
   }
 
@@ -1208,6 +1211,9 @@ export class Parser {
   parsePubDeclaration() {
     const l = this.loc();
     this.advance(); // consume 'pub'
+    if (this.check(TokenType.PUB)) {
+      this.error("Duplicate 'pub' modifier");
+    }
     const stmt = this.parseStatement();
     if (stmt) stmt.isPublic = true;
     return stmt;
@@ -1237,6 +1243,7 @@ export class Parser {
         methods.push(this.parseAsyncFunctionDeclaration());
       } else {
         this.expect(TokenType.FN, "Expected 'fn' in impl block");
+        const methodLoc = this.loc();
         const name = this.expect(TokenType.IDENTIFIER, "Expected method name").value;
         this.expect(TokenType.LPAREN, "Expected '(' after method name");
         const params = this.parseParameterList();
@@ -1246,7 +1253,7 @@ export class Parser {
           returnType = this.parseTypeAnnotation();
         }
         const body = this.parseBlock();
-        methods.push(new AST.FunctionDeclaration(name, params, body, returnType, l));
+        methods.push(new AST.FunctionDeclaration(name, params, body, returnType, methodLoc));
       }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close impl block");
@@ -1461,7 +1468,7 @@ export class Parser {
       return new AST.ArrayTypeAnnotation(elementType, l);
     }
 
-    // (Type, Type) — tuple type
+    // (Type, Type) — tuple type or (Type, Type) -> ReturnType — function type
     if (this.check(TokenType.LPAREN)) {
       this.advance();
       const types = [];
@@ -1469,7 +1476,12 @@ export class Parser {
         types.push(this.parseTypeAnnotation());
         if (!this.match(TokenType.COMMA)) break;
       }
-      this.expect(TokenType.RPAREN, "Expected ')' in tuple type");
+      this.expect(TokenType.RPAREN, "Expected ')' in type annotation");
+      // Check for -> to distinguish function type from tuple type
+      if (this.match(TokenType.THIN_ARROW)) {
+        const returnType = this.parseTypeAnnotation();
+        return new AST.FunctionTypeAnnotation(types, returnType, l);
+      }
       return new AST.TupleTypeAnnotation(types, l);
     }
 
@@ -1651,7 +1663,7 @@ export class Parser {
       if (!this.match(TokenType.COMMA)) break;
     }
     this.expect(TokenType.RPAREN, "Expected ')' in tuple pattern");
-    return new AST.ArrayPattern(elements, l); // Tuples destructure like arrays (since they compile to arrays)
+    return new AST.TuplePattern(elements, l);
   }
 
   parseIfStatement() {
@@ -1680,14 +1692,36 @@ export class Parser {
     const l = this.loc();
     this.expect(TokenType.FOR);
 
-    // For variable(s)
+    // For variable(s) — supports simple, pair, array destructuring, and object destructuring
     let variable;
-    const firstName = this.expect(TokenType.IDENTIFIER, "Expected loop variable").value;
-    if (this.match(TokenType.COMMA)) {
-      const secondName = this.expect(TokenType.IDENTIFIER, "Expected second loop variable").value;
-      variable = [firstName, secondName];
+    if (this.check(TokenType.LBRACKET)) {
+      // Array destructuring: for [a, b] in ...
+      this.advance();
+      const elements = [];
+      while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+        elements.push(this.expect(TokenType.IDENTIFIER, "Expected variable name in array pattern").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.RBRACKET, "Expected ']' in destructuring pattern");
+      variable = `[${elements.join(', ')}]`;
+    } else if (this.check(TokenType.LBRACE)) {
+      // Object destructuring: for {name, age} in ...
+      this.advance();
+      const props = [];
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        props.push(this.expect(TokenType.IDENTIFIER, "Expected property name in object pattern").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' in destructuring pattern");
+      variable = `{${props.join(', ')}}`;
     } else {
-      variable = firstName;
+      const firstName = this.expect(TokenType.IDENTIFIER, "Expected loop variable").value;
+      if (this.match(TokenType.COMMA)) {
+        const secondName = this.expect(TokenType.IDENTIFIER, "Expected second loop variable").value;
+        variable = [firstName, secondName];
+      } else {
+        variable = firstName;
+      }
     }
 
     this.expect(TokenType.IN, "Expected 'in' after for variable");
@@ -1744,10 +1778,12 @@ export class Parser {
 
   parseReturnStatement() {
     const l = this.loc();
-    this.expect(TokenType.RETURN);
+    const returnToken = this.expect(TokenType.RETURN);
 
     let value = null;
-    if (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+    // Only parse return value if the next token is on the same line as `return`
+    // This prevents `return\nx = 5` from being parsed as `return x` then `= 5`
+    if (!this.check(TokenType.RBRACE) && !this.isAtEnd() && this.current().line === returnToken.line) {
       value = this.parseExpression();
     }
 
@@ -1830,11 +1866,15 @@ export class Parser {
       return new AST.Assignment(targets, values, l);
     }
 
-    // Simple assignment: x = expr (creates immutable binding)
+    // Simple assignment: x = expr (creates immutable binding), obj.x = expr, arr[i] = expr
     if (this.match(TokenType.ASSIGN)) {
       if (expr.type === 'Identifier') {
         const value = this.parseExpression();
         return new AST.Assignment([expr.name], [value], l);
+      }
+      if (expr.type === 'MemberExpression') {
+        const value = this.parseExpression();
+        return new AST.Assignment([expr], [value], l);
       }
       this.error("Invalid assignment target");
     }
@@ -1883,7 +1923,15 @@ export class Parser {
   // ─── Expressions (precedence climbing) ────────────────────
 
   parseExpression() {
-    return this.parsePipe();
+    if (++this._expressionDepth > Parser.MAX_EXPRESSION_DEPTH) {
+      this._expressionDepth--;
+      this.error('Expression nested too deeply (max ' + Parser.MAX_EXPRESSION_DEPTH + ' levels)');
+    }
+    try {
+      return this.parsePipe();
+    } finally {
+      this._expressionDepth--;
+    }
   }
 
   parsePipe() {
@@ -1894,7 +1942,7 @@ export class Parser {
       if (this.check(TokenType.DOT)) {
         this.advance(); // consume .
         const method = this.expect(TokenType.IDENTIFIER, "Expected method name after '.'").value;
-        const placeholder = new AST.Identifier('', l);
+        const placeholder = new AST.Identifier(AST.PIPE_TARGET, l);
         const memberExpr = new AST.MemberExpression(placeholder, method, false, l);
         if (this.check(TokenType.LPAREN)) {
           const call = this.parseCallExpression(memberExpr);
@@ -1960,6 +2008,7 @@ export class Parser {
       if (this.check(TokenType.LESS) && this._looksLikeJSX()) {
         return left;
       }
+      const l = this.loc(); // capture loc at the operator
       const operands = [left];
       const operators = [];
 
@@ -1971,9 +2020,9 @@ export class Parser {
       }
 
       if (operators.length === 1) {
-        return new AST.BinaryExpression(operators[0], operands[0], operands[1], this.loc());
+        return new AST.BinaryExpression(operators[0], operands[0], operands[1], l);
       }
-      return new AST.ChainedComparison(operands, operators, this.loc());
+      return new AST.ChainedComparison(operands, operators, l);
     }
 
     return left;
@@ -2004,13 +2053,17 @@ export class Parser {
   parseRange() {
     let left = this.parseAddition();
 
-    if (this.match(TokenType.DOT_DOT_EQUAL)) {
+    if (this.check(TokenType.DOT_DOT_EQUAL)) {
+      const l = this.loc();
+      this.advance();
       const right = this.parseAddition();
-      return new AST.RangeExpression(left, right, true, this.loc());
+      return new AST.RangeExpression(left, right, true, l);
     }
-    if (this.match(TokenType.DOT_DOT)) {
+    if (this.check(TokenType.DOT_DOT)) {
+      const l = this.loc();
+      this.advance();
       const right = this.parseAddition();
-      return new AST.RangeExpression(left, right, false, this.loc());
+      return new AST.RangeExpression(left, right, false, l);
     }
 
     return left;
@@ -2019,10 +2072,11 @@ export class Parser {
   parseAddition() {
     let left = this.parseMultiplication();
     while (true) {
+      const l = this.loc();
       const op = this.match(TokenType.PLUS, TokenType.MINUS);
       if (!op) break;
       const right = this.parseMultiplication();
-      left = new AST.BinaryExpression(op.value, left, right, this.loc());
+      left = new AST.BinaryExpression(op.value, left, right, l);
     }
     return left;
   }
@@ -2030,19 +2084,22 @@ export class Parser {
   parseMultiplication() {
     let left = this.parsePower();
     while (true) {
+      const l = this.loc();
       const op = this.match(TokenType.STAR, TokenType.SLASH, TokenType.PERCENT);
       if (!op) break;
       const right = this.parsePower();
-      left = new AST.BinaryExpression(op.value, left, right, this.loc());
+      left = new AST.BinaryExpression(op.value, left, right, l);
     }
     return left;
   }
 
   parsePower() {
     let base = this.parseUnary();
-    if (this.match(TokenType.POWER)) {
+    if (this.check(TokenType.POWER)) {
+      const l = this.loc();
+      this.advance();
       const exp = this.parsePower(); // Right-associative
-      return new AST.BinaryExpression('**', base, exp, this.loc());
+      return new AST.BinaryExpression('**', base, exp, l);
     }
     return base;
   }
@@ -2085,15 +2142,19 @@ export class Parser {
     let expr = this.parsePrimary();
 
     while (true) {
-      if (this.match(TokenType.DOT)) {
+      if (this.check(TokenType.DOT)) {
+        const l = this.loc();
+        this.advance();
         const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '.'").value;
-        expr = new AST.MemberExpression(expr, prop, false, this.loc());
+        expr = new AST.MemberExpression(expr, prop, false, l);
         continue;
       }
 
-      if (this.match(TokenType.QUESTION_DOT)) {
+      if (this.check(TokenType.QUESTION_DOT)) {
+        const l = this.loc();
+        this.advance();
         const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '?.'").value;
-        expr = new AST.OptionalChain(expr, prop, false, this.loc());
+        expr = new AST.OptionalChain(expr, prop, false, l);
         continue;
       }
 
@@ -2115,8 +2176,9 @@ export class Parser {
         const prevLine = this.pos > 0 ? this.tokens[this.pos - 1].line : 0;
         const curLine = this.current().line;
         if (curLine === prevLine) {
+          const l = this.loc();
           this.advance();
-          expr = new AST.PropagateExpression(expr, this.loc());
+          expr = new AST.PropagateExpression(expr, l);
           continue;
         }
       }
@@ -2432,6 +2494,24 @@ export class Parser {
       return new AST.WildcardPattern(l);
     }
 
+    // Negative number literal pattern: -1, -3.14
+    if (this.check(TokenType.MINUS) && this.peek(1).type === TokenType.NUMBER) {
+      this.advance(); // consume -
+      const val = -this.advance().value;
+      // Check for range pattern: -5..0
+      if (this.match(TokenType.DOT_DOT_EQUAL)) {
+        const endNeg = this.match(TokenType.MINUS);
+        const end = this.expect(TokenType.NUMBER, "Expected number in range pattern").value;
+        return new AST.RangePattern(val, endNeg ? -end : end, true, l);
+      }
+      if (this.match(TokenType.DOT_DOT)) {
+        const endNeg = this.match(TokenType.MINUS);
+        const end = this.expect(TokenType.NUMBER, "Expected number in range pattern").value;
+        return new AST.RangePattern(val, endNeg ? -end : end, false, l);
+      }
+      return new AST.LiteralPattern(val, l);
+    }
+
     // Number literal pattern
     if (this.check(TokenType.NUMBER)) {
       const val = this.advance().value;
@@ -2451,7 +2531,9 @@ export class Parser {
     if (this.check(TokenType.STRING)) {
       const strVal = this.advance().value;
       // Check for string concat pattern: "prefix" ++ rest
-      if (this.check(TokenType.PLUS) && this.peek(1).type === TokenType.PLUS) {
+      // Verify the two + tokens are adjacent (no space between them) to distinguish from arithmetic
+      if (this.check(TokenType.PLUS) && this.peek(1).type === TokenType.PLUS &&
+          this.current().column + 1 === this.peek(1).column && this.current().line === this.peek(1).line) {
         this.advance(); // first +
         this.advance(); // second +
         const rest = this.parsePattern();
@@ -2504,11 +2586,11 @@ export class Parser {
     if (this.check(TokenType.IDENTIFIER)) {
       const name = this.advance().value;
 
-      // Variant pattern: Circle(r)
+      // Variant pattern: Circle(r), Some(Ok(value))
       if (this.match(TokenType.LPAREN)) {
         const fields = [];
         while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
-          fields.push(this.expect(TokenType.IDENTIFIER, "Expected field name").value);
+          fields.push(this.parsePattern());
           if (!this.match(TokenType.COMMA)) break;
         }
         this.expect(TokenType.RPAREN);
@@ -2611,14 +2693,20 @@ export class Parser {
       return new AST.ObjectLiteral(properties, l);
     }
 
-    // Shorthand object: { x, y } — but this might conflict with blocks
-    // For now, treat as shorthand object if firstKey is an identifier
+    // Shorthand object: { x, y } or mixed { x, y: 10 }
     if (firstKey.type === 'Identifier') {
       const properties = [{ key: firstKey, value: firstKey, shorthand: true }];
       while (this.match(TokenType.COMMA)) {
         if (this.check(TokenType.RBRACE)) break;
         const key = this.parseExpression();
-        properties.push({ key, value: key, shorthand: true });
+        if (this.match(TokenType.COLON)) {
+          // Colon property: y: 10
+          const value = this.parseExpression();
+          properties.push({ key, value, shorthand: false });
+        } else {
+          // Shorthand property: y
+          properties.push({ key, value: key, shorthand: true });
+        }
       }
       this.expect(TokenType.RBRACE, "Expected '}'");
       return new AST.ObjectLiteral(properties, l);
@@ -2652,6 +2740,7 @@ export class Parser {
     const params = [];
     let isLambda = true;
 
+    const savedErrors = this.errors.length;
     try {
       const innerSaved = this.pos;
       while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
@@ -2691,6 +2780,8 @@ export class Parser {
     }
 
     // Backtrack and parse as parenthesized expression or tuple
+    // Also restore errors to discard any ghost errors from speculative parsing
+    this.errors.length = savedErrors;
     this.pos = savedPos;
     this.expect(TokenType.LPAREN);
     const expr = this.parseExpression();

@@ -60,8 +60,8 @@ describe('Codegen Final — For-else with 2 loop variables (line 306)', () => {
   test('for k, v in pairs with else generates destructured for-else', () => {
     const code = compileShared('for k, v in pairs { print(k) } else { print("empty") }');
     expect(code).toContain('const [k, v] of');
-    expect(code).toContain('__entered');
-    expect(code).toContain('if (!__entered)');
+    expect(code).toMatch(/__entered_\d+/);
+    expect(code).toMatch(/if \(!__entered_\d+\)/);
   });
 });
 
@@ -130,9 +130,9 @@ describe('Codegen Final — genBlockStatements helper (line 400-403)', () => {
 });
 
 describe('Codegen Final — unknown expression type (line 128)', () => {
-  test('unknown expression type produces comment', () => {
+  test('unknown expression type throws', () => {
     const gen = new BaseCodegen();
-    expect(gen.genExpression({ type: 'FutureExpr' })).toBe('/* unknown: FutureExpr */');
+    expect(() => gen.genExpression({ type: 'FutureExpr' })).toThrow('unknown expression type');
   });
 });
 
