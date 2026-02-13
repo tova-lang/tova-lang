@@ -53,7 +53,7 @@ jobs:
       - name: Build binary
         run: |
           mkdir -p dist
-          bun build --compile --target=${{ matrix.target }} bin/tova.js --outfile dist/${{ matrix.asset }}
+          bun build --compile --target=${{ matrix.target }} bin/tova.js --outfile dist/${{ matrix.asset }} --external postgres --external mysql2/promise --external bun:sqlite
 
       - uses: actions/upload-artifact@v4
         with:

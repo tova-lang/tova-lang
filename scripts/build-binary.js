@@ -16,6 +16,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const distDir = join(root, 'dist');
 
+// Optional deps that users install themselves — exclude from the compiled binary
+const EXTERNALS = ['postgres', 'mysql2/promise', 'bun:sqlite'].map(e => `--external ${e}`).join(' ');
+
 const TARGETS = [
   { target: 'bun-darwin-arm64', name: 'tova-darwin-arm64' },
   { target: 'bun-darwin-x64', name: 'tova-darwin-x64' },
@@ -38,7 +41,7 @@ function buildTarget(target, outName) {
   const outPath = join(distDir, outName);
   console.log(`Building ${outName} (${target})...`);
   execSync(
-    `bun build --compile --target=${target} bin/tova.js --outfile ${outPath}`,
+    `bun build --compile --target=${target} bin/tova.js --outfile ${outPath} ${EXTERNALS}`,
     { cwd: root, stdio: 'inherit' }
   );
   console.log(`  -> ${outPath}`);
@@ -48,7 +51,7 @@ function buildLocal() {
   const outPath = join(distDir, 'tova');
   console.log('Building for current platform...');
   execSync(
-    `bun build --compile bin/tova.js --outfile ${outPath}`,
+    `bun build --compile bin/tova.js --outfile ${outPath} ${EXTERNALS}`,
     { cwd: root, stdio: 'inherit' }
   );
   console.log(`  -> ${outPath}`);
