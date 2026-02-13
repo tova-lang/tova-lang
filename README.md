@@ -18,7 +18,7 @@ A modern programming language that transpiles to JavaScript, unifying frontend a
 
 ```bash
 # Install (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/tova-lang/tova/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh
 
 # Or install via npm (requires Bun)
 bun install -g tova

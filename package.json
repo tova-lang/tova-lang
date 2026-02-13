@@ -27,11 +27,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tova-lang/tova.git"
+    "url": "git+https://github.com/tova-lang/tova-lang.git"
   },
-  "homepage": "https://github.com/tova-lang/tova#readme",
+  "homepage": "https://github.com/tova-lang/tova-lang#readme",
   "bugs": {
-    "url": "https://github.com/tova-lang/tova/issues"
+    "url": "https://github.com/tova-lang/tova-lang/issues"
   },
   "keywords": ["language", "transpiler", "fullstack", "javascript"],
   "license": "MIT"

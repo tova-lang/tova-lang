@@ -12,7 +12,7 @@ Get up and running with Tova in under five minutes.
 ### Option 1: Install Script (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tova-lang/tova/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh
 ```
 
 This downloads a prebuilt binary for your platform and adds it to your PATH. No dependencies required.
@@ -27,7 +27,7 @@ bun install -g tova
 
 ### Option 3: Download Binary
 
-Download the latest binary for your platform from the [GitHub Releases](https://github.com/tova-lang/tova/releases) page. Place it somewhere on your PATH and make it executable:
+Download the latest binary for your platform from the [GitHub Releases](https://github.com/tova-lang/tova-lang/releases) page. Place it somewhere on your PATH and make it executable:
 
 ```bash
 chmod +x tova-<platform>

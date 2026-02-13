@@ -1,10 +1,10 @@
 #!/bin/sh
 # Tova installer — downloads a prebuilt binary from GitHub Releases.
-# Usage: curl -fsSL https://raw.githubusercontent.com/tova-lang/tova/main/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh
 
 set -e
 
-REPO="tova-lang/tova"
+REPO="tova-lang/tova-lang"
 INSTALL_DIR="$HOME/.tova/bin"
 BINARY_NAME="tova"
 

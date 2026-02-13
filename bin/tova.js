@@ -781,7 +781,7 @@ client {
   // README
   writeFileSync(join(projectDir, 'README.md'), `# ${name}
 
-Built with [Tova](https://github.com/tova-lang/tova) — a modern full-stack language.
+Built with [Tova](https://github.com/tova-lang/tova-lang) — a modern full-stack language.
 
 ## Development
 
