@@ -1,0 +1,34 @@
+:root {
+  --vp-c-brand-1: #e06c00;
+  --vp-c-brand-2: #f08c20;
+  --vp-c-brand-3: #ff9d3a;
+  --vp-c-brand-soft: rgba(224, 108, 0, 0.14);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #e06c00 0%, #ff9d3a 100%);
+
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(224, 108, 0, 0.2) 0%, rgba(255, 157, 58, 0.2) 100%);
+  --vp-home-hero-image-filter: blur(40px);
+}
+
+.dark {
+  --vp-c-brand-1: #ff9d3a;
+  --vp-c-brand-2: #f08c20;
+  --vp-c-brand-3: #e06c00;
+  --vp-c-brand-soft: rgba(255, 157, 58, 0.14);
+}
+
+/* Code block styling */
+.vp-doc div[class*='language-lux'] {
+  border-left: 3px solid var(--vp-c-brand-1);
+}
+
+/* Feature cards */
+.VPFeatures .VPFeature {
+  border: 1px solid var(--vp-c-divider);
+  transition: border-color 0.3s;
+}
+
+.VPFeatures .VPFeature:hover {
+  border-color: var(--vp-c-brand-1);
+}

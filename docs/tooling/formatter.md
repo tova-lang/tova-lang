@@ -1,0 +1,84 @@
+---
+title: Formatter
+---
+
+# Formatter
+
+The Lux formatter (`lux fmt`) automatically formats `.lux` source files for consistent code style across your project.
+
+## Usage
+
+Format one or more files:
+
+```bash
+lux fmt src/app.lux
+lux fmt src/app.lux src/utils.lux src/models.lux
+```
+
+## Check Mode
+
+Use `--check` to verify formatting without modifying files. This is useful in CI pipelines:
+
+```bash
+lux fmt src/app.lux --check
+```
+
+If the file is already formatted, you will see:
+
+```
+Already formatted: src/app.lux
+```
+
+If the file needs formatting, you will see:
+
+```
+Would reformat: src/app.lux
+```
+
+In check mode, the command exits with code 1 if any files need formatting, making it easy to integrate into CI:
+
+```bash
+# In CI pipeline
+lux fmt src/*.lux --check || (echo "Run 'lux fmt' to fix formatting" && exit 1)
+```
+
+## What It Formats
+
+The formatter parses the source file into an AST and re-prints it with consistent style. This normalizes:
+
+- **Indentation** -- Consistent indentation levels using spaces
+- **Spacing** -- Uniform spacing around operators, after commas, and around braces
+- **Line breaks** -- Consistent placement of opening and closing braces
+- **Trailing commas** -- Normalized comma placement in lists and parameters
+- **Block structure** -- Consistent formatting of `shared`, `server`, and `client` blocks
+
+## Example
+
+Before formatting:
+
+```lux
+server{
+fn get_users( )  {
+users=db.query("SELECT * FROM users")
+    users |>map( fn(u) u.name )
+}
+  route GET "/api/users"=> get_users
+}
+```
+
+After `lux fmt`:
+
+```lux
+server {
+  fn get_users() {
+    users = db.query("SELECT * FROM users")
+    users |> map(fn(u) u.name)
+  }
+
+  route GET "/api/users" => get_users
+}
+```
+
+## Editor Integration
+
+When using the [VS Code extension](../editor/vscode.md), the formatter is available through the LSP as document formatting. You can format on save or on demand with the standard VS Code formatting shortcut (`Shift+Alt+F` on Windows/Linux, `Shift+Option+F` on macOS).

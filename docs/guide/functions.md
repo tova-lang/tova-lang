@@ -1,0 +1,302 @@
+# Functions
+
+Functions are the primary building blocks in Lux. They are declared with the `fn` keyword and feature implicit returns, optional type annotations, and flexible parameter styles.
+
+## Basic Functions
+
+Declare a function with `fn`, a name, parameters in parentheses, and a body in curly braces:
+
+```lux
+fn greet(name) {
+  print("Hello, {name}!")
+}
+
+greet("Alice")   // Hello, Alice!
+```
+
+## Implicit Returns
+
+The last expression in a function body is automatically returned. No `return` keyword needed:
+
+```lux
+fn add(a, b) {
+  a + b
+}
+
+result = add(3, 4)   // 7
+```
+
+```lux
+fn full_name(first, last) {
+  "{first} {last}"
+}
+
+name = full_name("Alice", "Smith")   // "Alice Smith"
+```
+
+For single-expression functions, this keeps things concise:
+
+```lux
+fn double(x) {
+  x * 2
+}
+
+fn is_even(n) {
+  n % 2 == 0
+}
+```
+
+## Explicit Return
+
+Use `return` when you need to exit a function early:
+
+```lux
+fn find_first_negative(numbers) {
+  for n in numbers {
+    if n < 0 {
+      return n
+    }
+  }
+  nil
+}
+```
+
+```lux
+fn validate_age(age) {
+  if age < 0 {
+    return Err("Age cannot be negative")
+  }
+  if age > 150 {
+    return Err("Age seems unrealistic")
+  }
+  Ok(age)
+}
+```
+
+## Default Parameters
+
+Parameters can have default values. When a caller omits them, the defaults are used:
+
+```lux
+fn greet(name, greeting = "Hello") {
+  "{greeting}, {name}!"
+}
+
+greet("Alice")            // "Hello, Alice!"
+greet("Alice", "Hey")     // "Hey, Alice!"
+```
+
+```lux
+fn create_user(name, role = "member", active = true) {
+  { name: name, role: role, active: active }
+}
+
+create_user("Alice")                     // { name: "Alice", role: "member", active: true }
+create_user("Bob", "admin")              // { name: "Bob", role: "admin", active: true }
+create_user("Carol", "editor", false)    // { name: "Carol", role: "editor", active: false }
+```
+
+## Type Annotations
+
+Add type annotations to parameters and return types for documentation and type checking:
+
+```lux
+fn add(a: Int, b: Int) -> Int {
+  a + b
+}
+
+fn greet(name: String) -> String {
+  "Hello, {name}!"
+}
+
+fn is_adult(age: Int) -> Bool {
+  age >= 18
+}
+```
+
+The return type annotation uses `->` after the parameter list:
+
+```lux
+fn divide(a: Float, b: Float) -> Result<Float, String> {
+  if b == 0 {
+    Err("Division by zero")
+  } else {
+    Ok(a / b)
+  }
+}
+```
+
+## Lambdas (Anonymous Functions)
+
+Lux has two styles for anonymous functions.
+
+### `fn` Lambdas
+
+Use `fn(params) body` for inline anonymous functions:
+
+```lux
+double = fn(x) x * 2
+add = fn(a, b) a + b
+
+numbers = [1, 2, 3, 4, 5]
+doubled = numbers.map(fn(x) x * 2)              // [2, 4, 6, 8, 10]
+evens = numbers.filter(fn(x) x % 2 == 0)        // [2, 4]
+sum = numbers.reduce(fn(acc, x) acc + x, 0)     // 15
+```
+
+For multi-line lambda bodies, use curly braces:
+
+```lux
+process = fn(item) {
+  cleaned = item.trim()
+  validated = validate(cleaned)
+  validated
+}
+```
+
+### Arrow Syntax
+
+For very short lambdas, use the arrow syntax:
+
+```lux
+double = x => x * 2
+add = (a, b) => a + b
+
+names = ["alice", "bob", "carol"]
+upper_names = names.map(x => x.upper())
+```
+
+## Named Arguments
+
+When calling functions with many parameters, you can use named arguments for clarity:
+
+```lux
+fn create_server(host, port, debug) {
+  // ...
+}
+
+create_server(host: "localhost", port: 8080, debug: true)
+```
+
+## Destructuring Parameters
+
+Functions can destructure objects and arrays directly in the parameter list.
+
+### Object Destructuring
+
+```lux
+fn greet_user({ name, age }) {
+  "Hello, {name}! You are {age} years old."
+}
+
+user = { name: "Alice", age: 30, email: "alice@example.com" }
+greet_user(user)   // "Hello, Alice! You are 30 years old."
+```
+
+```lux
+fn format_address({ street, city, state, zip }) {
+  "{street}\n{city}, {state} {zip}"
+}
+```
+
+### Array Destructuring
+
+```lux
+fn distance([x1, y1], [x2, y2]) {
+  dx = x2 - x1
+  dy = y2 - y1
+  Math.sqrt(dx * dx + dy * dy)
+}
+
+distance([0, 0], [3, 4])   // 5.0
+```
+
+## Async Functions
+
+Prefix a function with `async` to make it asynchronous. Use `await` inside to wait for promises:
+
+```lux
+async fn fetch_user(id) {
+  response = await fetch("/api/users/{id}")
+  data = await response.json()
+  data
+}
+
+async fn fetch_all_users() {
+  users = await fetch_user(1)
+  print("Got {len(users)} users")
+}
+```
+
+See the [Async guide](async.md) for more details.
+
+## Functions as Values
+
+Functions are first-class values in Lux. You can assign them to variables, pass them as arguments, and return them from other functions:
+
+```lux
+fn apply_twice(f, x) {
+  f(f(x))
+}
+
+apply_twice(fn(x) x + 1, 5)    // 7
+apply_twice(fn(x) x * 2, 3)    // 12
+```
+
+```lux
+fn make_multiplier(factor) {
+  fn(x) x * factor
+}
+
+triple = make_multiplier(3)
+triple(5)    // 15
+triple(10)   // 30
+```
+
+## Recursive Functions
+
+Functions can call themselves. Lux supports standard recursion:
+
+```lux
+fn factorial(n) {
+  if n <= 1 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+factorial(5)   // 120
+```
+
+```lux
+fn fibonacci(n) {
+  match n {
+    0 => 0
+    1 => 1
+    n => fibonacci(n - 1) + fibonacci(n - 2)
+  }
+}
+```
+
+## Practical Tips
+
+**Keep functions short and focused.** A function that does one thing well is easier to test, reuse, and understand.
+
+**Lean on implicit returns.** Avoid writing `return` at the end of a function -- just let the last expression be the result. Reserve explicit `return` for early exits.
+
+**Use destructuring parameters** when a function operates on a specific shape of data. It makes the function signature self-documenting:
+
+```lux
+// Instead of:
+fn send_email(user) {
+  to = user.email
+  name = user.name
+  // ...
+}
+
+// Prefer:
+fn send_email({ email, name }) {
+  // email and name are available directly
+}
+```

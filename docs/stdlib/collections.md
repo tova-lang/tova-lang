@@ -1,0 +1,520 @@
+# Collections
+
+Collection functions operate on arrays, strings, and objects. They are the workhorses of Lux's standard library -- you will use them in nearly every program.
+
+All collection functions return **new values** rather than mutating the original data.
+
+## I/O
+
+### print
+
+```lux
+print(...args) -> Nil
+```
+
+Outputs to the console. Accepts multiple arguments, which are printed separated by spaces.
+
+```lux
+print("Hello, World!")
+// Hello, World!
+
+print("Name:", name, "Age:", age)
+// Name: Alice Age: 30
+
+print("Items: {len(items)}")
+// Items: 5
+```
+
+---
+
+## Length & Type
+
+### len
+
+```lux
+len(v) -> Int
+```
+
+Returns the length of a string, array, or the number of keys in an object. Returns `0` for `null`.
+
+```lux
+len([1, 2, 3])         // 3
+len("hello")            // 5
+len({ a: 1, b: 2 })   // 2
+len([])                 // 0
+len(null)               // 0
+```
+
+### type_of
+
+```lux
+type_of(v) -> String
+```
+
+Returns the Lux type name of a value. For custom type variants, returns the variant tag name.
+
+```lux
+type_of(42)             // "Int"
+type_of(3.14)           // "Float"
+type_of("hello")        // "String"
+type_of(true)           // "Bool"
+type_of([1, 2])         // "List"
+type_of(null)           // "Nil"
+type_of(print)          // "Function"
+type_of({ a: 1 })      // "Object"
+
+// Custom type variants return their tag name
+type_of(Ok(1))          // "Ok"
+type_of(None)           // "None"
+```
+
+---
+
+## Generating & Transforming
+
+### range
+
+```lux
+range(end) -> List[Int]
+range(start, end) -> List[Int]
+range(start, end, step) -> List[Int]
+```
+
+Generates an array of sequential integers. The `end` value is exclusive.
+
+```lux
+range(5)                // [0, 1, 2, 3, 4]
+range(2, 7)             // [2, 3, 4, 5, 6]
+range(0, 10, 2)         // [0, 2, 4, 6, 8]
+range(10, 0, -1)        // [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+```
+
+```lux
+// Common pattern: iterate n times
+for i in range(5) {
+  print("Iteration {i}")
+}
+```
+
+### enumerate
+
+```lux
+enumerate(arr) -> List[[Int, T]]
+```
+
+Returns `[index, value]` pairs. Useful for iterating with an index.
+
+```lux
+enumerate(["a", "b", "c"])
+// [[0, "a"], [1, "b"], [2, "c"]]
+
+for i, item in enumerate(items) {
+  print("{i}: {item}")
+}
+```
+
+### map
+
+```lux
+map(arr, fn) -> List
+```
+
+Applies a function to each element and returns a new array of results.
+
+```lux
+map([1, 2, 3], fn(x) x * 2)
+// [2, 4, 6]
+
+names = ["alice", "bob"]
+map(names, capitalize)
+// ["Alice", "Bob"]
+```
+
+### filter
+
+```lux
+filter(arr, fn) -> List
+```
+
+Returns a new array containing only elements where the function returns `true`.
+
+```lux
+filter([1, 2, 3, 4, 5], fn(x) x > 3)
+// [4, 5]
+
+evens = filter(range(10), fn(x) x % 2 == 0)
+// [0, 2, 4, 6, 8]
+```
+
+### flat_map
+
+```lux
+flat_map(arr, fn) -> List
+```
+
+Applies a function to each element (which should return an array), then flattens the result one level.
+
+```lux
+flat_map([1, 2, 3], fn(x) [x, x * 10])
+// [1, 10, 2, 20, 3, 30]
+
+flat_map(["hello world", "foo bar"], fn(s) split(s, " "))
+// ["hello", "world", "foo", "bar"]
+```
+
+### flatten
+
+```lux
+flatten(arr) -> List
+```
+
+Flattens a nested array by one level.
+
+```lux
+flatten([[1, 2], [3, 4], [5]])
+// [1, 2, 3, 4, 5]
+
+flatten([[1, [2]], [3]])
+// [1, [2], 3]   -- only one level
+```
+
+### unique
+
+```lux
+unique(arr) -> List
+```
+
+Returns a new array with duplicate elements removed. Uses `Set` internally for deduplication.
+
+```lux
+unique([1, 2, 2, 3, 3, 3])
+// [1, 2, 3]
+
+unique(["a", "b", "a", "c"])
+// ["a", "b", "c"]
+```
+
+### chunk
+
+```lux
+chunk(arr, n) -> List[List]
+```
+
+Splits an array into chunks of size `n`. The last chunk may be smaller.
+
+```lux
+chunk([1, 2, 3, 4, 5], 2)
+// [[1, 2], [3, 4], [5]]
+
+chunk(range(9), 3)
+// [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+```
+
+---
+
+## Reducing & Aggregating
+
+### reduce
+
+```lux
+reduce(arr, fn, init?) -> T
+```
+
+Folds an array into a single value using an accumulator function. If `init` is omitted, the first element is used as the initial value.
+
+```lux
+reduce([1, 2, 3, 4], fn(acc, x) acc + x, 0)
+// 10
+
+reduce(["a", "b", "c"], fn(acc, x) acc ++ x, "")
+// "abc"
+
+// Without initial value
+reduce([1, 2, 3], fn(acc, x) acc * x)
+// 6
+```
+
+### sum
+
+```lux
+sum(arr) -> Number
+```
+
+Returns the sum of all elements in the array. Equivalent to `reduce(arr, fn(a, b) a + b, 0)`.
+
+```lux
+sum([1, 2, 3, 4])      // 10
+sum([])                  // 0
+sum(range(101))          // 5050
+```
+
+### count
+
+```lux
+count(arr, fn) -> Int
+```
+
+Counts the number of elements that satisfy a predicate.
+
+```lux
+count([1, 2, 3, 4, 5], fn(x) x > 3)
+// 2
+
+count(["apple", "avocado", "banana"], fn(s) starts_with(s, "a"))
+// 2
+```
+
+### min
+
+```lux
+min(arr) -> T | Nil
+```
+
+Returns the minimum element in the array. Returns `null` for an empty array.
+
+```lux
+min([3, 1, 4, 1, 5])   // 1
+min(["c", "a", "b"])    // "a"
+min([])                  // null
+```
+
+### max
+
+```lux
+max(arr) -> T | Nil
+```
+
+Returns the maximum element in the array. Returns `null` for an empty array.
+
+```lux
+max([3, 1, 4, 1, 5])   // 5
+max(["c", "a", "b"])    // "c"
+max([])                  // null
+```
+
+---
+
+## Searching
+
+### find
+
+```lux
+find(arr, fn) -> T | Nil
+```
+
+Returns the first element where the function returns `true`. Returns `null` if no element matches.
+
+```lux
+find([1, 2, 3, 4], fn(x) x > 2)
+// 3
+
+find(users, fn(u) u.name == "Alice")
+// { name: "Alice", age: 30 }
+
+find([1, 2, 3], fn(x) x > 10)
+// null
+```
+
+### any
+
+```lux
+any(arr, fn) -> Bool
+```
+
+Returns `true` if any element satisfies the predicate.
+
+```lux
+any([1, 2, 3], fn(x) x > 2)       // true
+any([1, 2, 3], fn(x) x > 10)      // false
+any([], fn(x) true)                 // false
+```
+
+### all
+
+```lux
+all(arr, fn) -> Bool
+```
+
+Returns `true` if all elements satisfy the predicate. Returns `true` for an empty array.
+
+```lux
+all([2, 4, 6], fn(x) x % 2 == 0)  // true
+all([2, 3, 6], fn(x) x % 2 == 0)  // false
+all([], fn(x) false)                // true
+```
+
+---
+
+## Ordering & Slicing
+
+### sorted
+
+```lux
+sorted(arr, keyFn?) -> List
+```
+
+Returns a sorted copy of the array. An optional key function specifies what to sort by.
+
+```lux
+sorted([3, 1, 4, 1, 5])
+// [1, 1, 3, 4, 5]
+
+sorted(["banana", "apple", "cherry"])
+// ["apple", "banana", "cherry"]
+
+// Sort by key function
+sorted(users, fn(u) u.age)
+// sorts users by age ascending
+
+sorted(items, fn(x) -x.price)
+// sorts by price descending
+```
+
+### reversed
+
+```lux
+reversed(arr) -> List
+```
+
+Returns a reversed copy of the array.
+
+```lux
+reversed([1, 2, 3])    // [3, 2, 1]
+reversed("hello" |> chars())  // ["o", "l", "l", "e", "h"]
+```
+
+### take
+
+```lux
+take(arr, n) -> List
+```
+
+Returns the first `n` elements.
+
+```lux
+take([1, 2, 3, 4, 5], 3)    // [1, 2, 3]
+take([1, 2], 10)              // [1, 2]
+```
+
+### drop
+
+```lux
+drop(arr, n) -> List
+```
+
+Returns the array with the first `n` elements removed.
+
+```lux
+drop([1, 2, 3, 4, 5], 2)    // [3, 4, 5]
+drop([1, 2], 10)              // []
+```
+
+### first
+
+```lux
+first(arr) -> T | Nil
+```
+
+Returns the first element, or `null` if the array is empty.
+
+```lux
+first([10, 20, 30])    // 10
+first([])               // null
+```
+
+### last
+
+```lux
+last(arr) -> T | Nil
+```
+
+Returns the last element, or `null` if the array is empty.
+
+```lux
+last([10, 20, 30])     // 30
+last([])                // null
+```
+
+---
+
+## Combining & Splitting
+
+### zip
+
+```lux
+zip(...arrays) -> List[List]
+```
+
+Combines multiple arrays into an array of tuples. Truncates to the length of the shortest array.
+
+```lux
+zip([1, 2, 3], ["a", "b", "c"])
+// [[1, "a"], [2, "b"], [3, "c"]]
+
+zip([1, 2], ["a", "b"], [true, false])
+// [[1, "a", true], [2, "b", false]]
+
+// Truncates to shortest
+zip([1, 2, 3], ["a", "b"])
+// [[1, "a"], [2, "b"]]
+```
+
+### partition
+
+```lux
+partition(arr, fn) -> [List, List]
+```
+
+Splits an array into two arrays: elements that pass the predicate and elements that fail it.
+
+```lux
+partition([1, 2, 3, 4, 5], fn(x) x % 2 == 0)
+// [[2, 4], [1, 3, 5]]
+
+evens, odds = partition(range(10), fn(x) x % 2 == 0)
+```
+
+### group_by
+
+```lux
+group_by(arr, fn) -> Object
+```
+
+Groups elements into an object by the key returned from the function.
+
+```lux
+group_by(["apple", "avocado", "banana", "blueberry"], fn(s) chars(s) |> first())
+// { a: ["apple", "avocado"], b: ["banana", "blueberry"] }
+
+group_by(users, fn(u) u.role)
+// { admin: [...], user: [...] }
+```
+
+---
+
+## Pipeline Examples
+
+These functions compose beautifully with the pipe operator `|>`:
+
+```lux
+// Find the top 3 most expensive items
+items
+  |> sorted(fn(x) -x.price)
+  |> take(3)
+  |> map(fn(x) x.name)
+
+// Word frequency count
+text
+  |> lower()
+  |> words()
+  |> group_by(fn(w) w)
+  |> entries()
+  |> map(fn(pair) { word: pair[0], count: len(pair[1]) })
+  |> sorted(fn(x) -x.count)
+
+// Flatten, deduplicate, and sort
+nested_lists
+  |> flatten()
+  |> unique()
+  |> sorted()
+```

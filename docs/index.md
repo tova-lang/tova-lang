@@ -1,86 +1,81 @@
-# Lux Language Documentation
+---
+layout: home
 
-**Lux** is a full-stack programming language that transpiles to JavaScript. It combines Python-inspired syntax with reactive UI primitives, seamless client-server communication, and pattern matching — all in a single file.
+hero:
+  name: Lux
+  text: A Modern Full-Stack Language
+  tagline: Write frontend and backend in one file. Transpiles to JavaScript with zero runtime overhead.
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /getting-started/
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/luxlang/lux
 
-## Design Philosophy
+features:
+  - title: Full-Stack in One File
+    details: Write server routes, database queries, and reactive UI in a single .lux file. The compiler splits code automatically.
+  - title: Automatic RPC
+    details: Call server functions from the client as if they were local. Lux generates the HTTP bridge at compile time.
+  - title: Fine-Grained Reactivity
+    details: Signals-based UI with automatic dependency tracking. No virtual DOM — only the exact DOM nodes that need updating change.
+  - title: Pattern Matching
+    details: Exhaustive match expressions with destructuring, ranges, guards, and string patterns. The compiler warns on missing cases.
+  - title: Batteries Included
+    details: 60+ stdlib functions, Result/Option types, built-in test runner, formatter, REPL, LSP server, and VS Code extension.
+  - title: Clean Syntax
+    details: Python-like readability with Rust-like safety. No semicolons needed, implicit returns, and expressive type system.
+---
 
-- **Single-file full-stack**: Define shared types, server logic, and client UI in one `.lux` file
-- **Zero-config RPC**: Call server functions from the client with `server.functionName()` — no API boilerplate
-- **Reactive by default**: Signals, computed values, and effects power a fine-grained reactive UI system
-- **Python-inspired syntax**: Clean, readable code with implicit returns, `elif`, `for...in`, list comprehensions, and pattern matching
-- **Type-safe**: Optional type annotations with algebraic data types and generics
-- **Batteries included**: Built-in ORM, auth, CORS, rate limiting, SSE, WebSocket, and more
+<div style="max-width: 688px; margin: 2rem auto; padding: 0 24px;">
 
-## Hello World
+## Quick Taste
 
 ```lux
-name = "World"
-print("Hello, {name}!")
-```
+// A full-stack counter in one file
 
-## Full-Stack in One File
-
-```lux
 shared {
-  type Todo {
-    id: Int
-    title: String
-    completed: Bool
-  }
+  type Action = Increment | Decrement | Reset
 }
 
 server {
-  var todos = []
+  var count = 0
 
-  fn get_todos() -> [Todo] {
-    todos
+  route GET "/count" {
+    respond({ count: count })
   }
 
-  fn add_todo(title: String) -> Todo {
-    todo = Todo(len(todos) + 1, title, false)
-    todos = [...todos, todo]
-    todo
+  route POST "/update" {
+    match body.action {
+      Increment => count += 1
+      Decrement => count -= 1
+      Reset => count = 0
+    }
+    respond({ count: count })
   }
 }
 
 client {
-  state todos: [Todo] = []
+  state count = 0
 
-  effect {
-    todos = server.get_todos()
+  fn update(action) {
+    result = await fetch("/update", {
+      method: "POST",
+      body: { action: action }
+    })
+    count = result.count
   }
 
-  component App {
+  component App() {
     <div>
-      <h1>My Todos</h1>
-      <ul>
-        for todo in todos {
-          <li>{todo.title}</li>
-        }
-      </ul>
+      <h1>"Count: {count}"</h1>
+      <button onClick={fn() update(Increment)}>"+"</button>
+      <button onClick={fn() update(Decrement)}>"-"</button>
+      <button onClick={fn() update(Reset)}>"Reset"</button>
     </div>
   }
 }
 ```
 
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Getting Started](getting-started.md) | Installation, first project, tutorial |
-| [Language Reference](language-reference.md) | Complete syntax and semantics reference |
-| [Full-Stack Architecture](full-stack-architecture.md) | The three-block model, RPC, named blocks |
-| [Reactivity](reactivity.md) | Signals, effects, components, JSX, stores |
-| [Server Reference](server-reference.md) | Routes, database, auth, middleware, SSE, WebSocket |
-| [Standard Library](stdlib.md) | Built-in functions and methods |
-| [CLI Reference](cli-reference.md) | Command-line interface |
-| [Examples](examples.md) | Annotated real-world examples |
-| [Grammar](grammar.md) | Formal EBNF grammar specification |
-
-## Quick Links
-
-- **New to Lux?** Start with [Getting Started](getting-started.md)
-- **Need syntax help?** See the [Language Reference](language-reference.md)
-- **Building a full-stack app?** Read [Full-Stack Architecture](full-stack-architecture.md)
-- **Working with UI?** Check [Reactivity](reactivity.md)
-- **Setting up a server?** See the [Server Reference](server-reference.md)
+</div>
