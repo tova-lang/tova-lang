@@ -62,28 +62,23 @@ function entries(obj) { return Object.entries(obj); }
 function merge(...objs) { return Object.assign({}, ...objs); }
 function freeze(obj) { return Object.freeze(obj); }
 function clone(obj) { return structuredClone(obj); }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }`;
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function upper(s) { return s.toUpperCase(); }
+function lower(s) { return s.toLowerCase(); }
+function contains(s, sub) { return s.includes(sub); }
+function starts_with(s, prefix) { return s.startsWith(prefix); }
+function ends_with(s, suffix) { return s.endsWith(suffix); }
+function chars(s) { return [...s]; }
+function words(s) { return s.split(/\\s+/).filter(Boolean); }
+function lines(s) { return s.split('\\n'); }
+function capitalize(s) { return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+function title_case(s) { return s.replace(/\\b\\w/g, c => c.toUpperCase()); }
+function snake_case(s) { return s.replace(/[-\\s]+/g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/^_/, ''); }
+function camel_case(s) { return s.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '').replace(/^[A-Z]/, c => c.toLowerCase()); }
+function assert_eq(a, b, msg) { if (a !== b) throw new Error(msg || \`Assertion failed: \${JSON.stringify(a)} !== \${JSON.stringify(b)}\`); }
+function assert_ne(a, b, msg) { if (a === b) throw new Error(msg || \`Assertion failed: values should not be equal: \${JSON.stringify(a)}\`); }
+function assert(cond, msg) { if (!cond) throw new Error(msg || "Assertion failed"); }`;
 
-export const STRING_PROTO = `// Lux string methods
-(function() {
-  const m = {
-    upper() { return this.toUpperCase(); },
-    lower() { return this.toLowerCase(); },
-    contains(s) { return this.includes(s); },
-    starts_with(s) { return this.startsWith(s); },
-    ends_with(s) { return this.endsWith(s); },
-    chars() { return [...this]; },
-    words() { return this.split(/\\s+/).filter(Boolean); },
-    lines() { return this.split('\\n'); },
-    capitalize() { return this.length ? this.charAt(0).toUpperCase() + this.slice(1) : this; },
-    title_case() { return this.replace(/\\b\\w/g, c => c.toUpperCase()); },
-    snake_case() { return this.replace(/[-\\s]+/g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/^_/, ''); },
-    camel_case() { return this.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '').replace(/^[A-Z]/, c => c.toLowerCase()); },
-  };
-  for (const [n, fn] of Object.entries(m)) {
-    if (!String.prototype[n]) Object.defineProperty(String.prototype, n, { value: fn, enumerable: false, configurable: true });
-  }
-})();`;
 
 // Full stdlib for runtime (REPL, run command)
 export function getFullStdlib() {

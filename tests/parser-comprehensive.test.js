@@ -273,8 +273,8 @@ describe('Parser Comprehensive -- Pattern matching edge cases', () => {
 
 describe('Parser Comprehensive -- Destructuring errors', () => {
   test('let with non-pattern token throws', () => {
-    // let expects { or [ after it
-    expect(parseThrows('let x = 10')).toThrow(/Expected '\{' or '\['/);
+    // let expects {, [, or ( after it
+    expect(parseThrows('let x = 10')).toThrow(/Expected '\{', '\[', or '\(' after 'let'/);
   });
 
   test('let destructuring without = throws', () => {

@@ -59,11 +59,17 @@ export class Lexer {
   }
 
   isAlpha(ch) {
-    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_';
+    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_') return true;
+    // Unicode letter support
+    if (ch > '\x7f') return /\p{Letter}/u.test(ch);
+    return false;
   }
 
   isAlphaNumeric(ch) {
-    return this.isAlpha(ch) || this.isDigit(ch);
+    if (this.isAlpha(ch) || this.isDigit(ch)) return true;
+    // Unicode continue characters (combining marks, etc.)
+    if (ch > '\x7f') return /[\p{Letter}\p{Number}\p{Mark}]/u.test(ch);
+    return false;
   }
 
   isWhitespace(ch) {
@@ -121,6 +127,33 @@ export class Lexer {
     if (ch === '/' && this.peek(1) === '*') {
       this.scanBlockComment();
       return;
+    }
+
+    // Regex literals: /pattern/flags
+    // Must not be /=, //, /*, and must be in a context where regex makes sense
+    if (ch === '/' && this.peek(1) !== '/' && this.peek(1) !== '*' && this.peek(1) !== '='
+        && this._jsxStack.length === 0) {
+      let prev = null;
+      for (let i = this.tokens.length - 1; i >= 0; i--) {
+        if (this.tokens[i].type !== TokenType.NEWLINE) {
+          prev = this.tokens[i];
+          break;
+        }
+      }
+      // Only treat as regex after tokens that clearly start an expression context
+      const regexPreceders = [
+        TokenType.ASSIGN, TokenType.LPAREN, TokenType.LBRACKET, TokenType.LBRACE,
+        TokenType.COMMA, TokenType.COLON, TokenType.SEMICOLON,
+        TokenType.RETURN, TokenType.ARROW, TokenType.PIPE,
+        TokenType.EQUAL, TokenType.NOT_EQUAL,
+        TokenType.AND, TokenType.OR, TokenType.AND_AND, TokenType.OR_OR,
+        TokenType.NOT, TokenType.BANG,
+        TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
+      ];
+      if (prev && regexPreceders.includes(prev.type)) {
+        this.scanRegex();
+        return;
+      }
     }
 
     // Numbers
@@ -469,6 +502,52 @@ export class Lexer {
     this.tokens.push(new Token(TokenType.STRING, value, startLine, startCol));
   }
 
+  scanRegex() {
+    const startLine = this.line;
+    const startCol = this.column;
+    this.advance(); // opening /
+
+    let pattern = '';
+    let escaped = false;
+    let inCharClass = false;
+
+    while (this.pos < this.length) {
+      const ch = this.peek();
+      if (ch === '\n') {
+        this.error('Unterminated regex literal');
+      }
+      if (escaped) {
+        pattern += ch;
+        this.advance();
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        pattern += ch;
+        this.advance();
+        escaped = true;
+        continue;
+      }
+      if (ch === '[') inCharClass = true;
+      if (ch === ']') inCharClass = false;
+      if (ch === '/' && !inCharClass) break;
+      pattern += this.advance();
+    }
+
+    if (this.pos >= this.length || this.peek() !== '/') {
+      this.error('Unterminated regex literal');
+    }
+    this.advance(); // closing /
+
+    // Read flags
+    let flags = '';
+    while (this.pos < this.length && /[gimsuy]/.test(this.peek())) {
+      flags += this.advance();
+    }
+
+    this.tokens.push(new Token(TokenType.REGEX, { pattern, flags }, startLine, startCol));
+  }
+
   scanIdentifier() {
     const startLine = this.line;
     const startCol = this.column;
@@ -476,6 +555,22 @@ export class Lexer {
 
     while (this.pos < this.length && this.isAlphaNumeric(this.peek())) {
       value += this.advance();
+    }
+
+    // Raw string: r"no\escapes"
+    if (value === 'r' && this.pos < this.length && this.peek() === '"') {
+      this.advance(); // opening "
+      let raw = '';
+      while (this.pos < this.length && this.peek() !== '"') {
+        if (this.peek() === '\n') this.line++;
+        raw += this.advance();
+      }
+      if (this.pos >= this.length) {
+        this.error('Unterminated raw string');
+      }
+      this.advance(); // closing "
+      this.tokens.push(new Token(TokenType.STRING, raw, startLine, startCol));
+      return;
     }
 
     // Special case: "style {" → read raw CSS block

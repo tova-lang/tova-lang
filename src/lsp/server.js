@@ -6,6 +6,7 @@ import { Lexer } from '../lexer/lexer.js';
 import { Parser } from '../parser/parser.js';
 import { Analyzer } from '../analyzer/analyzer.js';
 import { TokenType } from '../lexer/tokens.js';
+import { Formatter } from '../formatter/formatter.js';
 
 class LuxLanguageServer {
   constructor() {
@@ -93,6 +94,10 @@ class LuxLanguageServer {
         case 'textDocument/definition': return this._onDefinition(msg);
         case 'textDocument/hover': return this._onHover(msg);
         case 'textDocument/signatureHelp': return this._onSignatureHelp(msg);
+        case 'textDocument/formatting': return this._onFormatting(msg);
+        case 'textDocument/rename': return this._onRename(msg);
+        case 'textDocument/references': return this._onReferences(msg);
+        case 'workspace/symbol': return this._onWorkspaceSymbol(msg);
         default: return this._respondError(msg.id, -32601, `Method not found: ${method}`);
       }
     } else if (method) {
@@ -128,6 +133,10 @@ class LuxLanguageServer {
         signatureHelpProvider: {
           triggerCharacters: ['(', ','],
         },
+        documentFormattingProvider: true,
+        renameProvider: { prepareProvider: false },
+        referencesProvider: true,
+        workspaceSymbolProvider: true,
       },
     });
   }
@@ -448,6 +457,130 @@ class LuxLanguageServer {
     }
 
     this._respond(msg.id, null);
+  }
+
+  // ─── Formatting ──────────────────────────────────────────
+
+  _onFormatting(msg) {
+    const { textDocument } = msg.params;
+    const doc = this._documents.get(textDocument.uri);
+    if (!doc) return this._respond(msg.id, []);
+
+    try {
+      const lexer = new Lexer(doc.text, this._uriToPath(textDocument.uri));
+      const tokens = lexer.tokenize();
+      const parser = new Parser(tokens, this._uriToPath(textDocument.uri));
+      const ast = parser.parse();
+      const formatter = new Formatter();
+      const formatted = formatter.format(ast);
+
+      if (formatted === doc.text) return this._respond(msg.id, []);
+
+      const lines = doc.text.split('\n');
+      this._respond(msg.id, [{
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: lines.length, character: 0 },
+        },
+        newText: formatted,
+      }]);
+    } catch (e) {
+      this._respond(msg.id, []);
+    }
+  }
+
+  // ─── Rename ─────────────────────────────────────────────
+
+  _onRename(msg) {
+    const { position, textDocument, newName } = msg.params;
+    const doc = this._documents.get(textDocument.uri);
+    if (!doc) return this._respond(msg.id, null);
+
+    const line = doc.text.split('\n')[position.line] || '';
+    const oldName = this._getWordAt(line, position.character);
+    if (!oldName) return this._respond(msg.id, null);
+
+    // Find all occurrences of the identifier in the document
+    const edits = [];
+    const docLines = doc.text.split('\n');
+    const wordRegex = new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+
+    for (let i = 0; i < docLines.length; i++) {
+      let match;
+      while ((match = wordRegex.exec(docLines[i])) !== null) {
+        edits.push({
+          range: {
+            start: { line: i, character: match.index },
+            end: { line: i, character: match.index + oldName.length },
+          },
+          newText: newName,
+        });
+      }
+    }
+
+    this._respond(msg.id, {
+      changes: { [textDocument.uri]: edits },
+    });
+  }
+
+  // ─── References ─────────────────────────────────────────
+
+  _onReferences(msg) {
+    const { position, textDocument } = msg.params;
+    const doc = this._documents.get(textDocument.uri);
+    if (!doc) return this._respond(msg.id, []);
+
+    const line = doc.text.split('\n')[position.line] || '';
+    const word = this._getWordAt(line, position.character);
+    if (!word) return this._respond(msg.id, []);
+
+    const locations = [];
+    const docLines = doc.text.split('\n');
+    const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+
+    for (let i = 0; i < docLines.length; i++) {
+      let match;
+      while ((match = wordRegex.exec(docLines[i])) !== null) {
+        locations.push({
+          uri: textDocument.uri,
+          range: {
+            start: { line: i, character: match.index },
+            end: { line: i, character: match.index + word.length },
+          },
+        });
+      }
+    }
+
+    this._respond(msg.id, locations);
+  }
+
+  // ─── Workspace Symbol ──────────────────────────────────
+
+  _onWorkspaceSymbol(msg) {
+    const query = (msg.params.query || '').toLowerCase();
+    const results = [];
+
+    for (const [uri, cached] of this._diagnosticsCache) {
+      if (!cached?.analyzer) continue;
+      const symbols = this._collectSymbols(cached.analyzer);
+      for (const sym of symbols) {
+        if (query && !sym.name.toLowerCase().includes(query)) continue;
+        const kindMap = { 'function': 12, 'type': 5, 'variable': 13 };
+        results.push({
+          name: sym.name,
+          kind: kindMap[sym.kind] || 13,
+          location: {
+            uri,
+            range: {
+              start: { line: (sym.loc?.line || 1) - 1, character: (sym.loc?.column || 1) - 1 },
+              end: { line: (sym.loc?.line || 1) - 1, character: (sym.loc?.column || 1) - 1 + sym.name.length },
+            },
+          },
+        });
+      }
+    }
+
+    this._respond(msg.id, results.slice(0, 100));
   }
 
   // ─── Utilities ────────────────────────────────────────────

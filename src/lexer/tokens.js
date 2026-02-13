@@ -54,6 +54,19 @@ export const TokenType = {
   INTERFACE: 'INTERFACE',
   DERIVE: 'DERIVE',
 
+  // Visibility
+  PUB: 'PUB',
+
+  // Impl blocks / traits
+  IMPL: 'IMPL',
+  TRAIT: 'TRAIT',
+
+  // Defer
+  DEFER: 'DEFER',
+
+  // Generators
+  YIELD: 'YIELD',
+
   // Full-stack keywords
   SERVER: 'SERVER',
   CLIENT: 'CLIENT',
@@ -124,6 +137,9 @@ export const TokenType = {
   JSX_SELF_CLOSE: 'JSX_SELF_CLOSE', // />
   JSX_TEXT: 'JSX_TEXT',
 
+  // Regex
+  REGEX: 'REGEX',             // /pattern/flags
+
   // Special
   EOF: 'EOF',
   DOCSTRING: 'DOCSTRING',     // /// comment
@@ -163,6 +179,11 @@ export const Keywords = {
   'guard': TokenType.GUARD,
   'interface': TokenType.INTERFACE,
   'derive': TokenType.DERIVE,
+  'pub': TokenType.PUB,
+  'impl': TokenType.IMPL,
+  'trait': TokenType.TRAIT,
+  'defer': TokenType.DEFER,
+  'yield': TokenType.YIELD,
   'server': TokenType.SERVER,
   'client': TokenType.CLIENT,
   'shared': TokenType.SHARED,

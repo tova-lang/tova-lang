@@ -9,6 +9,7 @@ import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { richError, formatDiagnostics, DiagnosticFormatter } from '../src/diagnostics/formatter.js';
 import { getFullStdlib, BUILTINS, PROPAGATE } from '../src/stdlib/inline.js';
+import { Formatter } from '../src/formatter/formatter.js';
 import '../src/runtime/string-proto.js';
 
 const VERSION = '0.1.0';
@@ -30,6 +31,8 @@ Commands:
   repl             Start interactive Lux REPL
   lsp              Start Language Server Protocol server
   new <name>       Create a new Lux project
+  fmt <file>      Format a .lux file (--check to verify only)
+  test [dir]      Run test blocks in .lux files (--filter, --watch)
   migrate:create <name>   Create a new migration file
   migrate:up [file.lux]   Run pending migrations
   migrate:status [file.lux] Show migration status
@@ -77,6 +80,12 @@ async function main() {
     case 'new':
       newProject(args[1]);
       break;
+    case 'fmt':
+      formatFile(args.slice(1));
+      break;
+    case 'test':
+      await runTests(args.slice(1));
+      break;
     case 'migrate:create':
       migrateCreate(args[1]);
       break;
@@ -118,6 +127,170 @@ function compileLux(source, filename) {
 
   const codegen = new CodeGenerator(ast, filename);
   return codegen.generate();
+}
+
+// ─── Format ─────────────────────────────────────────────────
+
+function formatFile(args) {
+  const checkOnly = args.includes('--check');
+  const files = args.filter(a => !a.startsWith('--'));
+
+  if (files.length === 0) {
+    console.error('Error: No file specified');
+    console.error('Usage: lux fmt <file.lux> [--check]');
+    process.exit(1);
+  }
+
+  let hasChanges = false;
+
+  for (const filePath of files) {
+    const resolved = resolve(filePath);
+    if (!existsSync(resolved)) {
+      console.error(`Error: File not found: ${filePath}`);
+      process.exit(1);
+    }
+
+    const source = readFileSync(resolved, 'utf-8');
+    const lexer = new Lexer(source);
+    const tokens = lexer.tokenize();
+    const parser = new Parser(tokens, source);
+    const ast = parser.parse();
+    const formatter = new Formatter();
+    const formatted = formatter.format(ast);
+
+    if (checkOnly) {
+      if (formatted !== source) {
+        console.log(`Would reformat: ${filePath}`);
+        hasChanges = true;
+      }
+    } else {
+      if (formatted !== source) {
+        writeFileSync(resolved, formatted);
+        console.log(`Formatted: ${filePath}`);
+      } else {
+        console.log(`Already formatted: ${filePath}`);
+      }
+    }
+  }
+
+  if (checkOnly && hasChanges) {
+    process.exit(1);
+  }
+}
+
+// ─── Test Runner ────────────────────────────────────────────
+
+async function runTests(args) {
+  const filterPattern = args.find((a, i) => args[i - 1] === '--filter') || null;
+  const watchMode = args.includes('--watch');
+  const targetDir = args.find(a => !a.startsWith('--') && a !== filterPattern) || '.';
+
+  // Find all .lux files with test blocks
+  const luxFiles = findLuxFiles(resolve(targetDir));
+  const testFiles = [];
+
+  for (const file of luxFiles) {
+    const source = readFileSync(file, 'utf-8');
+    // Quick check for test blocks
+    if (/\btest\s+["'{]/m.test(source) || /\btest\s*\{/m.test(source)) {
+      testFiles.push(file);
+    }
+  }
+
+  if (testFiles.length === 0) {
+    console.log('No test files found.');
+    return;
+  }
+
+  console.log(`Found ${testFiles.length} test file(s)\n`);
+
+  // Compile test files to temp directory
+  const tmpDir = resolve('.lux-test-out');
+  if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+
+  const compiledFiles = [];
+
+  for (const file of testFiles) {
+    try {
+      const source = readFileSync(file, 'utf-8');
+      const lexer = new Lexer(source, file);
+      const tokens = lexer.tokenize();
+      const parser = new Parser(tokens, file);
+      const ast = parser.parse();
+
+      const codegen = new CodeGenerator(ast, file);
+      const result = codegen.generate();
+
+      if (result.test) {
+        const relPath = relative(resolve(targetDir), file).replace(/\.lux$/, '.test.js');
+        const outPath = join(tmpDir, relPath);
+        const outDir = dirname(outPath);
+        if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+
+        // Include stdlib + shared code + test code
+        const stdlib = getFullStdlib();
+        const fullTest = result.test;
+        writeFileSync(outPath, fullTest);
+        compiledFiles.push(outPath);
+        console.log(`  Compiled: ${relative('.', file)}`);
+      }
+    } catch (err) {
+      console.error(`  Error compiling ${relative('.', file)}: ${err.message}`);
+    }
+  }
+
+  if (compiledFiles.length === 0) {
+    console.log('\nNo test blocks compiled.');
+    return;
+  }
+
+  console.log(`\nRunning ${compiledFiles.length} test file(s)...\n`);
+
+  // Run tests via bun test
+  const bunArgs = ['test', ...compiledFiles];
+  if (filterPattern) {
+    bunArgs.push('-t', filterPattern);
+  }
+
+  const runBunTest = () => {
+    return new Promise((res) => {
+      const proc = spawn('bun', bunArgs, { stdio: 'inherit' });
+      proc.on('close', (code) => res(code));
+    });
+  };
+
+  const exitCode = await runBunTest();
+
+  if (watchMode) {
+    console.log('\nWatching for changes... (Ctrl+C to stop)\n');
+    const watched = resolve(targetDir);
+    fsWatch(watched, { recursive: true }, async (event, filename) => {
+      if (filename && filename.endsWith('.lux')) {
+        console.log(`\nFile changed: ${filename}\n`);
+        // Recompile and re-run
+        await runTests(args.filter(a => a !== '--watch'));
+      }
+    });
+  } else {
+    // Clean up temp dir on exit (non-watch mode)
+    process.exitCode = exitCode;
+  }
+}
+
+function findLuxFiles(dir) {
+  const files = [];
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return files;
+  for (const entry of readdirSync(dir)) {
+    if (entry.startsWith('.') || entry === 'node_modules') continue;
+    const full = join(dir, entry);
+    const stat = statSync(full);
+    if (stat.isDirectory()) {
+      files.push(...findLuxFiles(full));
+    } else if (entry.endsWith('.lux')) {
+      files.push(full);
+    }
+  }
+  return files;
 }
 
 // ─── Run ────────────────────────────────────────────────────
@@ -1164,6 +1337,36 @@ async function productionBuild(srcDir, outDir) {
 const compilationCache = new Map();
 const compilationInProgress = new Set();
 
+// Track module exports for cross-file import validation
+const moduleExports = new Map();
+
+function collectExports(ast, filename) {
+  const exports = new Set();
+  for (const node of ast.body) {
+    if (node.type === 'FunctionDeclaration') exports.add(node.name);
+    if (node.type === 'Assignment' && node.targets) {
+      for (const t of node.targets) exports.add(t);
+    }
+    if (node.type === 'TypeDeclaration') {
+      exports.add(node.name);
+      if (node.variants) {
+        for (const v of node.variants) {
+          if (v.type === 'TypeVariant') exports.add(v.name);
+        }
+      }
+    }
+    if (node.type === 'VarDeclaration' && node.targets) {
+      for (const t of node.targets) exports.add(t);
+    }
+    if (node.type === 'InterfaceDeclaration') exports.add(node.name);
+    if (node.type === 'TraitDeclaration') exports.add(node.name);
+    if (node.type === 'TypeAlias') exports.add(node.name);
+    if (node.type === 'ImplDeclaration') { /* impl doesn't export a name */ }
+  }
+  moduleExports.set(filename, exports);
+  return exports;
+}
+
 function compileWithImports(source, filename, srcDir) {
   if (compilationCache.has(filename)) {
     return compilationCache.get(filename);
@@ -1177,6 +1380,9 @@ function compileWithImports(source, filename, srcDir) {
   const parser = new Parser(tokens, filename);
   const ast = parser.parse();
 
+  // Collect this module's exports for validation
+  collectExports(ast, filename);
+
   // Resolve .lux imports first
   for (const node of ast.body) {
     if (node.type === 'ImportDeclaration' && node.source.endsWith('.lux')) {
@@ -1186,6 +1392,15 @@ function compileWithImports(source, filename, srcDir) {
       } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
         const importSource = readFileSync(importPath, 'utf-8');
         compileWithImports(importSource, importPath, srcDir);
+      }
+      // Validate imported names exist in target module
+      if (moduleExports.has(importPath)) {
+        const targetExports = moduleExports.get(importPath);
+        for (const spec of node.specifiers) {
+          if (!targetExports.has(spec.imported)) {
+            console.warn(`Warning: Module '${node.source}' does not export '${spec.imported}' (imported in ${filename})`);
+          }
+        }
       }
       // Rewrite the import path to .js
       node.source = node.source.replace('.lux', '.shared.js');

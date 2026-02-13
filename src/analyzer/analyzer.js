@@ -33,6 +33,12 @@ export class Analyzer {
       'keys', 'values', 'entries', 'merge', 'freeze', 'clone',
       // Async
       'sleep',
+      // String functions
+      'upper', 'lower', 'contains', 'starts_with', 'ends_with',
+      'chars', 'words', 'lines', 'capitalize', 'title_case',
+      'snake_case', 'camel_case',
+      // Math extras
+      'min', 'max',
     ];
     for (const name of builtins) {
       this.globalScope.define(name, new Symbol(name, 'builtin', null, false, { line: 0, column: 0, file: '<builtin>' }));
@@ -133,6 +139,50 @@ export class Analyzer {
     return false;
   }
 
+  // ─── Type Inference ──────────────────────────────────────
+
+  _inferType(expr) {
+    if (!expr) return null;
+    switch (expr.type) {
+      case 'NumberLiteral':
+        return Number.isInteger(expr.value) ? 'Int' : 'Float';
+      case 'StringLiteral':
+      case 'TemplateLiteral':
+        return 'String';
+      case 'BooleanLiteral':
+        return 'Bool';
+      case 'NilLiteral':
+        return 'Nil';
+      case 'ArrayLiteral':
+        if (expr.elements.length > 0) {
+          const elType = this._inferType(expr.elements[0]);
+          return elType ? `[${elType}]` : '[Any]';
+        }
+        return '[Any]';
+      case 'CallExpression':
+        if (expr.callee.type === 'Identifier') {
+          const name = expr.callee.name;
+          if (name === 'Ok') return 'Result';
+          if (name === 'Err') return 'Result';
+          if (name === 'Some') return 'Option';
+          if (name === 'len' || name === 'count') return 'Int';
+          if (name === 'type_of') return 'String';
+          if (name === 'random') return 'Float';
+        }
+        return null;
+      case 'Identifier':
+        if (expr.name === 'None') return 'Option';
+        if (expr.name === 'true' || expr.name === 'false') return 'Bool';
+        // Look up stored type
+        const sym = this.currentScope.lookup(expr.name);
+        return sym ? sym.inferredType : null;
+      case 'TupleExpression':
+        return `(${expr.elements.map(e => this._inferType(e) || 'Any').join(', ')})`;
+      default:
+        return null;
+    }
+  }
+
   // ─── Visitors ─────────────────────────────────────────────
 
   visitProgram(node) {
@@ -199,6 +249,10 @@ export class Analyzer {
       case 'ModelDeclaration': return this.visitModelDeclaration(node);
       case 'TestBlock': return this.visitTestBlock(node);
       case 'ComponentStyleBlock': return; // raw CSS — no analysis needed
+      case 'ImplDeclaration': return this.visitImplDeclaration(node);
+      case 'TraitDeclaration': return this.visitTraitDeclaration(node);
+      case 'TypeAlias': return this.visitTypeAlias(node);
+      case 'DeferStatement': return this.visitDeferStatement(node);
       default:
         // Expression nodes
         this.visitExpression(node);
@@ -310,6 +364,12 @@ export class Analyzer {
       case 'AwaitExpression':
         this.visitExpression(node.argument);
         return;
+      case 'YieldExpression':
+        if (node.argument) this.visitExpression(node.argument);
+        return;
+      case 'TupleExpression':
+        for (const el of node.elements) this.visitExpression(el);
+        return;
       case 'IfExpression':
         this.visitExpression(node.condition);
         this.visitNode(node.consequent);
@@ -374,8 +434,14 @@ export class Analyzer {
   // ─── Declaration visitors ─────────────────────────────────
 
   visitAssignment(node) {
+    // Visit values first (for type inference)
+    for (const val of node.values) {
+      this.visitExpression(val);
+    }
+
     // Check if any target is already defined (immutable reassignment check)
-    for (const target of node.targets) {
+    for (let i = 0; i < node.targets.length; i++) {
+      const target = node.targets[i];
       const existing = this._lookupAssignTarget(target);
       if (existing) {
         if (!existing.mutable) {
@@ -383,18 +449,16 @@ export class Analyzer {
         }
         existing.used = true;
       } else {
-        // New binding — define in current scope
+        // New binding — define in current scope with inferred type
+        const inferredType = i < node.values.length ? this._inferType(node.values[i]) : null;
         try {
-          this.currentScope.define(target,
-            new Symbol(target, 'variable', null, false, node.loc));
+          const sym = new Symbol(target, 'variable', null, false, node.loc);
+          sym.inferredType = inferredType;
+          this.currentScope.define(target, sym);
         } catch (e) {
           this.error(e.message);
         }
       }
-    }
-
-    for (const val of node.values) {
-      this.visitExpression(val);
     }
   }
 
@@ -498,8 +562,9 @@ export class Analyzer {
 
   visitTypeDeclaration(node) {
     try {
-      this.currentScope.define(node.name,
-        new Symbol(node.name, 'type', null, false, node.loc));
+      const typeSym = new Symbol(node.name, 'type', null, false, node.loc);
+      typeSym._typeParams = node.typeParams || [];
+      this.currentScope.define(node.name, typeSym);
     } catch (e) {
       this.error(e.message);
     }
@@ -1455,6 +1520,87 @@ export class Analyzer {
         new Symbol(node.name, 'type', null, false, node.loc));
     } catch (e) {
       this.error(e.message);
+    }
+  }
+
+  visitImplDeclaration(node) {
+    // Validate that methods reference the type
+    for (const method of node.methods) {
+      this.pushScope('function');
+      // self is implicitly available
+      try {
+        this.currentScope.define('self',
+          new Symbol('self', 'variable', null, true, method.loc));
+      } catch (e) { /* ignore */ }
+      for (const p of method.params) {
+        if (p.name && p.name !== 'self') {
+          try {
+            this.currentScope.define(p.name,
+              new Symbol(p.name, 'variable', null, false, p.loc));
+          } catch (e) { /* ignore */ }
+        }
+      }
+      if (method.body) {
+        this.visitBlock(method.body);
+      }
+      this.popScope();
+    }
+  }
+
+  visitTraitDeclaration(node) {
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'type', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    // Visit default implementations
+    for (const method of node.methods) {
+      if (method.body) {
+        this.pushScope('function');
+        for (const p of method.params) {
+          if (p.name) {
+            try {
+              this.currentScope.define(p.name,
+                new Symbol(p.name, 'variable', null, false, p.loc || node.loc));
+            } catch (e) { /* ignore */ }
+          }
+        }
+        this.visitBlock(method.body);
+        this.popScope();
+      }
+    }
+  }
+
+  visitTypeAlias(node) {
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'type', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+  }
+
+  visitDeferStatement(node) {
+    // Validate defer is inside a function
+    let scope = this.currentScope;
+    let insideFunction = false;
+    while (scope) {
+      if (scope.scopeType === 'function') {
+        insideFunction = true;
+        break;
+      }
+      scope = scope.parent;
+    }
+    if (!insideFunction) {
+      this.warn("'defer' used outside of a function", node.loc);
+    }
+    if (node.body) {
+      if (node.body.type === 'BlockStatement') {
+        this.visitBlock(node.body);
+      } else {
+        this.visitExpression(node.body);
+      }
     }
   }
 }

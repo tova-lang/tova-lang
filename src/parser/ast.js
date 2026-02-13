@@ -309,6 +309,15 @@ export class NilLiteral {
   }
 }
 
+export class RegexLiteral {
+  constructor(pattern, flags, loc) {
+    this.type = 'RegexLiteral';
+    this.pattern = pattern;
+    this.flags = flags;
+    this.loc = loc;
+  }
+}
+
 export class ArrayLiteral {
   constructor(elements, loc) {
     this.type = 'ArrayLiteral';
@@ -1001,6 +1010,99 @@ export class FunctionTypeAnnotation {
     this.type = 'FunctionTypeAnnotation';
     this.paramTypes = paramTypes;
     this.returnType = returnType;
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Impl blocks
+// ============================================================
+
+export class ImplDeclaration {
+  constructor(typeName, methods, loc, traitName = null) {
+    this.type = 'ImplDeclaration';
+    this.typeName = typeName;
+    this.traitName = traitName; // null for plain impl, string for `impl Trait for Type`
+    this.methods = methods;     // Array of FunctionDeclaration (first param is self)
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Trait declarations
+// ============================================================
+
+export class TraitDeclaration {
+  constructor(name, methods, loc) {
+    this.type = 'TraitDeclaration';
+    this.name = name;
+    this.methods = methods; // Array of { name, params, returnType, body (optional for defaults) }
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Type aliases
+// ============================================================
+
+export class TypeAlias {
+  constructor(name, typeExpr, loc) {
+    this.type = 'TypeAlias';
+    this.name = name;
+    this.typeExpr = typeExpr; // TypeAnnotation
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Defer statement
+// ============================================================
+
+export class DeferStatement {
+  constructor(body, loc) {
+    this.type = 'DeferStatement';
+    this.body = body; // Expression or BlockStatement
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Yield expression (generators)
+// ============================================================
+
+export class YieldExpression {
+  constructor(argument, delegate, loc) {
+    this.type = 'YieldExpression';
+    this.argument = argument; // expression to yield
+    this.delegate = delegate; // true for `yield from`
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Tuple expression/pattern/type
+// ============================================================
+
+export class TupleExpression {
+  constructor(elements, loc) {
+    this.type = 'TupleExpression';
+    this.elements = elements; // Array of expressions
+    this.loc = loc;
+  }
+}
+
+export class TuplePattern {
+  constructor(elements, loc) {
+    this.type = 'TuplePattern';
+    this.elements = elements; // Array of patterns
+    this.loc = loc;
+  }
+}
+
+export class TupleTypeAnnotation {
+  constructor(elementTypes, loc) {
+    this.type = 'TupleTypeAnnotation';
+    this.elementTypes = elementTypes;
     this.loc = loc;
   }
 }

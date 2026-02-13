@@ -969,21 +969,9 @@ describe('Orchestrator — Test block generation', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('Shared — Helper inclusion based on flags', () => {
-  test('shared code always includes string proto helper', () => {
+  test('shared code includes string functions as standalone stdlib', () => {
     const code = genShared('x = 1');
-    expect(code).toContain('Lux string methods');
-    expect(code).toContain('upper()');
-    expect(code).toContain('lower()');
-    expect(code).toContain('contains(s)');
-    expect(code).toContain('starts_with(s)');
-    expect(code).toContain('ends_with(s)');
-    expect(code).toContain('chars()');
-    expect(code).toContain('words()');
-    expect(code).toContain('lines()');
-    expect(code).toContain('capitalize()');
-    expect(code).toContain('title_case()');
-    expect(code).toContain('snake_case()');
-    expect(code).toContain('camel_case()');
+    expect(code).toContain('String methods are now standalone stdlib functions');
   });
 
   test('shared code always includes Result/Option helper', () => {

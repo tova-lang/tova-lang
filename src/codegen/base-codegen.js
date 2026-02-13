@@ -1,5 +1,5 @@
 // Base code generation utilities shared across all codegen targets
-import { RESULT_OPTION, PROPAGATE, STRING_PROTO } from '../stdlib/inline.js';
+import { RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 
 export class BaseCodegen {
   constructor() {
@@ -104,7 +104,7 @@ export class BaseCodegen {
   }
 
   getStringProtoHelper() {
-    return STRING_PROTO;
+    return '// String methods are now standalone stdlib functions';
   }
 
   generateStatement(node) {
@@ -134,6 +134,10 @@ export class BaseCodegen {
       case 'ContinueStatement': result = `${this.i()}continue;`; break;
       case 'GuardStatement': result = this.genGuardStatement(node); break;
       case 'InterfaceDeclaration': result = this.genInterfaceDeclaration(node); break;
+      case 'ImplDeclaration': result = this.genImplDeclaration(node); break;
+      case 'TraitDeclaration': result = this.genTraitDeclaration(node); break;
+      case 'TypeAlias': result = this.genTypeAlias(node); break;
+      case 'DeferStatement': result = this.genDeferStatement(node); break;
       default:
         result = `${this.i()}${this.genExpression(node)};`;
     }
@@ -156,6 +160,7 @@ export class BaseCodegen {
       case 'StringLiteral': return JSON.stringify(node.value);
       case 'BooleanLiteral': return String(node.value);
       case 'NilLiteral': return 'null';
+      case 'RegexLiteral': return `/${node.pattern}/${node.flags}`;
       case 'TemplateLiteral': return this.genTemplateLiteral(node);
       case 'BinaryExpression': return this.genBinaryExpression(node);
       case 'UnaryExpression': return this.genUnaryExpression(node);
@@ -179,6 +184,8 @@ export class BaseCodegen {
       case 'PropagateExpression': return this.genPropagateExpression(node);
       case 'NamedArgument': return this.genExpression(node.value);
       case 'AwaitExpression': return `(await ${this.genExpression(node.argument)})`;
+      case 'YieldExpression': return node.delegate ? `(yield* ${this.genExpression(node.argument)})` : `(yield ${this.genExpression(node.argument)})`;
+      case 'TupleExpression': return `[${node.elements.map(e => this.genExpression(e)).join(', ')}]`;
       default:
         return `/* unknown: ${node.type} */`;
     }
@@ -250,7 +257,9 @@ export class BaseCodegen {
   genFunctionDeclaration(node) {
     const params = this.genParams(node.params);
     const hasPropagate = this._containsPropagate(node.body);
+    const isGenerator = this._containsYield(node.body);
     const asyncPrefix = node.isAsync ? 'async ' : '';
+    const genStar = isGenerator ? '*' : '';
     this.pushScope();
     for (const p of node.params) {
       if (p.destructure) {
@@ -262,9 +271,9 @@ export class BaseCodegen {
     const body = this.genBlockBody(node.body);
     this.popScope();
     if (hasPropagate) {
-      return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      return `${this.i()}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
-    return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${body}\n${this.i()}}`;
+    return `${this.i()}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
 
   genParams(params) {
@@ -411,17 +420,13 @@ export class BaseCodegen {
     this.indent--;
 
     if (node.catchBody) {
-      code += `${this.i()}} catch`;
-      if (node.catchParam) {
-        code += ` (${node.catchParam})`;
-        this.pushScope();
-        this.declareVar(node.catchParam);
-      } else {
-        code += ' (__err)';
-        this.pushScope();
-      }
-      code += ` {\n`;
+      const catchVar = node.catchParam || '__err';
+      code += `${this.i()}} catch (${catchVar}) {\n`;
+      this.pushScope();
+      this.declareVar(catchVar);
       this.indent++;
+      // Re-throw propagation sentinels so ? operator works through user try/catch
+      code += `${this.i()}if (${catchVar} && ${catchVar}.__lux_propagate) throw ${catchVar};\n`;
       for (const stmt of node.catchBody) {
         code += this.generateStatement(stmt) + '\n';
       }
@@ -481,15 +486,33 @@ export class BaseCodegen {
 
     this.indent++;
     const stmts = block.body;
+
+    // Collect defer statements and separate them from regular statements
+    const regularStmts = [];
+    const deferBodies = [];
+    for (const stmt of stmts) {
+      if (stmt.type === 'DeferStatement') {
+        deferBodies.push(stmt.body);
+      } else {
+        regularStmts.push(stmt);
+      }
+    }
+
     const lines = [];
-    for (let idx = 0; idx < stmts.length; idx++) {
-      const stmt = stmts[idx];
-      const isLast = idx === stmts.length - 1;
+
+    // If there are defers, wrap in try/finally
+    if (deferBodies.length > 0) {
+      lines.push(`${this.i()}try {`);
+      this.indent++;
+    }
+
+    for (let idx = 0; idx < regularStmts.length; idx++) {
+      const stmt = regularStmts[idx];
+      const isLast = idx === regularStmts.length - 1;
       // Implicit return: last expression in function body
       if (isLast && stmt.type === 'ExpressionStatement') {
         lines.push(`${this.i()}return ${this.genExpression(stmt.expression)};`);
       } else if (isLast && stmt.type === 'IfStatement' && stmt.elseBody) {
-        // If the last statement is an if/elif/else chain, add returns to each branch
         lines.push(this._genIfStatementWithReturns(stmt));
       } else if (isLast && stmt.type === 'MatchExpression') {
         lines.push(`${this.i()}return ${this.genExpression(stmt)};`);
@@ -497,6 +520,24 @@ export class BaseCodegen {
         lines.push(this.generateStatement(stmt));
       }
     }
+
+    if (deferBodies.length > 0) {
+      this.indent--;
+      lines.push(`${this.i()}} finally {`);
+      this.indent++;
+      // Execute defers in LIFO order
+      for (let i = deferBodies.length - 1; i >= 0; i--) {
+        const body = deferBodies[i];
+        if (body.type === 'BlockStatement') {
+          lines.push(this.genBlockStatements(body));
+        } else {
+          lines.push(`${this.i()}${this.genExpression(body)};`);
+        }
+      }
+      this.indent--;
+      lines.push(`${this.i()}}`);
+    }
+
     this.indent--;
     return lines.join('\n');
   }
@@ -851,6 +892,18 @@ export class BaseCodegen {
         cond = checks.join(' && ');
         break;
       }
+      case 'TuplePattern': {
+        const checks = [`Array.isArray(${subject})`, `${subject}.length === ${pattern.elements.length}`];
+        for (let i = 0; i < pattern.elements.length; i++) {
+          const elPat = pattern.elements[i];
+          if (elPat.type !== 'WildcardPattern' && elPat.type !== 'BindingPattern') {
+            const elCond = this.genPatternCondition(elPat, `${subject}[${i}]`, null);
+            if (elCond !== 'true') checks.push(elCond);
+          }
+        }
+        cond = checks.join(' && ');
+        break;
+      }
       case 'StringConcatPattern':
         cond = `typeof ${subject} === 'string' && ${subject}.startsWith(${JSON.stringify(pattern.prefix)})`;
         break;
@@ -889,6 +942,13 @@ export class BaseCodegen {
         }).join('');
       }
       case 'ArrayPattern':
+        return pattern.elements.map((el, idx) => {
+          if (el.type === 'BindingPattern') {
+            return `${this.i()}const ${el.name} = ${subject}[${idx}];\n`;
+          }
+          return this.genPatternBindings(el, `${subject}[${idx}]`);
+        }).filter(s => s).join('');
+      case 'TuplePattern':
         return pattern.elements.map((el, idx) => {
           if (el.type === 'BindingPattern') {
             return `${this.i()}const ${el.name} = ${subject}[${idx}];\n`;
@@ -1079,5 +1139,85 @@ export class BaseCodegen {
     }
 
     return lines.join('\n');
+  }
+
+  genImplDeclaration(node) {
+    const lines = [];
+    for (const method of node.methods) {
+      const params = method.params.filter(p => p.name !== 'self');
+      const paramStr = this.genParams(params);
+      const hasPropagate = this._containsPropagate(method.body);
+      const asyncPrefix = method.isAsync ? 'async ' : '';
+      this.pushScope();
+      for (const p of params) {
+        if (p.destructure) this._declareDestructureVars(p.destructure);
+        else this.declareVar(p.name);
+      }
+      const body = this.genBlockBody(method.body);
+      this.popScope();
+      if (hasPropagate) {
+        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+      } else {
+        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${body}\n${this.i()}};`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  genTraitDeclaration(node) {
+    // Traits are mostly compile-time, but generate default implementations as functions
+    const lines = [];
+    const defaultMethods = node.methods.filter(m => m.body);
+    if (defaultMethods.length > 0) {
+      lines.push(`${this.i()}/* trait ${node.name} */`);
+      for (const method of defaultMethods) {
+        const params = this.genParams(method.params);
+        this.pushScope();
+        for (const p of method.params) {
+          if (p.destructure) this._declareDestructureVars(p.destructure);
+          else if (p.name) this.declareVar(p.name);
+        }
+        const body = this.genBlockBody(method.body);
+        this.popScope();
+        lines.push(`${this.i()}function __trait_${node.name}_${method.name}(${params}) {\n${body}\n${this.i()}}`);
+      }
+    } else {
+      lines.push(`${this.i()}/* trait ${node.name} { ${node.methods.map(m => `fn ${m.name}()`).join(', ')} } */`);
+    }
+    return lines.join('\n');
+  }
+
+  genTypeAlias(node) {
+    // Type aliases are compile-time only
+    const typeStr = node.typeExpr.name || 'any';
+    return `${this.i()}/* type alias: ${node.name} = ${typeStr} */`;
+  }
+
+  genDeferStatement(node) {
+    // Defer is collected during function body gen and emitted as try/finally
+    // For now, generate an inline comment + the deferred code in a try/finally wrapper
+    if (node.body.type === 'BlockStatement') {
+      return `${this.i()}/* defer */ try {`;
+    }
+    return `${this.i()}/* defer ${this.genExpression(node.body)} */`;
+  }
+
+  // Check if a function body contains yield expressions (for generator detection)
+  _containsYield(node) {
+    if (!node) return false;
+    if (node.type === 'YieldExpression') return true;
+    if (node.type === 'FunctionDeclaration' || node.type === 'LambdaExpression') return false;
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue;
+      const val = node[key];
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          if (item && typeof item === 'object' && this._containsYield(item)) return true;
+        }
+      } else if (val && typeof val === 'object' && val.type) {
+        if (this._containsYield(val)) return true;
+      }
+    }
+    return false;
   }
 }
