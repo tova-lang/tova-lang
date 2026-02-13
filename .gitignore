@@ -1,6 +1,8 @@
 node_modules/
 .tova-out/
 *.tova.js
+dist/
+src/runtime/embedded.js
 
 # Editor / IDE
 .vscode/

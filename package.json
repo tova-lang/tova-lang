@@ -7,14 +7,32 @@
   "bin": {
     "tova": "./bin/tova.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "bun test",
     "test:lexer": "bun test tests/lexer.test.js",
     "test:parser": "bun test tests/parser.test.js",
-    "test:codegen": "bun test tests/codegen.test.js"
+    "test:codegen": "bun test tests/codegen.test.js",
+    "build:embed": "bun scripts/embed-runtime.js",
+    "build:binary": "bun scripts/build-binary.js",
+    "prepublishOnly": "bun scripts/embed-runtime.js && bun test"
   },
-  "dependencies": {},
-  "devDependencies": {},
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tova-lang/tova.git"
+  },
+  "homepage": "https://github.com/tova-lang/tova#readme",
+  "bugs": {
+    "url": "https://github.com/tova-lang/tova/issues"
+  },
   "keywords": ["language", "transpiler", "fullstack", "javascript"],
   "license": "MIT"
 }

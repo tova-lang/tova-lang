@@ -3,6 +3,8 @@
 import { resolve, basename, dirname, join, relative } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
+import { createHash } from 'crypto';
+import { createRequire } from 'module';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
@@ -10,9 +12,11 @@ import { CodeGenerator } from '../src/codegen/codegen.js';
 import { richError, formatDiagnostics, DiagnosticFormatter } from '../src/diagnostics/formatter.js';
 import { getFullStdlib, BUILTINS, PROPAGATE } from '../src/stdlib/inline.js';
 import { Formatter } from '../src/formatter/formatter.js';
+import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
 
-const VERSION = '0.1.0';
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require('../package.json');
 
 const HELP = `
   ╦  ╦ ╦═╗ ╦
@@ -349,17 +353,12 @@ async function buildProject(args) {
 
   mkdirSync(outDir, { recursive: true });
 
-  // Copy runtime files to output directory
-  const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-  const runtimeSrc = join(tovaRoot, 'src', 'runtime');
+  // Write embedded runtime files to output directory
   const runtimeDest = join(outDir, 'runtime');
   mkdirSync(runtimeDest, { recursive: true });
-  for (const file of ['reactivity.js', 'rpc.js', 'router.js']) {
-    const src = join(runtimeSrc, file);
-    if (existsSync(src)) {
-      copyFileSync(src, join(runtimeDest, file));
-    }
-  }
+  writeFileSync(join(runtimeDest, 'reactivity.js'), REACTIVITY_SOURCE);
+  writeFileSync(join(runtimeDest, 'rpc.js'), RPC_SOURCE);
+  writeFileSync(join(runtimeDest, 'router.js'), ROUTER_SOURCE);
 
   console.log(`\n  Building ${tovaFiles.length} file(s)...\n`);
 
@@ -454,17 +453,12 @@ async function devServer(args) {
   const outDir = join(srcDir, '.tova-out');
   mkdirSync(outDir, { recursive: true });
 
-  // Copy runtime files to output directory
-  const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-  const runtimeSrc = join(tovaRoot, 'src', 'runtime');
+  // Write embedded runtime files to output directory
   const runtimeDest = join(outDir, 'runtime');
   mkdirSync(runtimeDest, { recursive: true });
-  for (const file of ['reactivity.js', 'rpc.js', 'router.js']) {
-    const src = join(runtimeSrc, file);
-    if (existsSync(src)) {
-      copyFileSync(src, join(runtimeDest, file));
-    }
-  }
+  writeFileSync(join(runtimeDest, 'reactivity.js'), REACTIVITY_SOURCE);
+  writeFileSync(join(runtimeDest, 'rpc.js'), RPC_SOURCE);
+  writeFileSync(join(runtimeDest, 'router.js'), ROUTER_SOURCE);
 
   const serverFiles = [];
   let hasClient = false;
@@ -645,14 +639,9 @@ async function devServer(args) {
 }
 
 function generateDevHTML(clientCode) {
-  // Read runtime files to inline them (no import needed)
-  const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-  const reactivityCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8');
-  const rpcCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'rpc.js'), 'utf-8');
-
-  // Strip import/export keywords from runtime code for inlining
-  const inlineReactivity = reactivityCode.replace(/^export /gm, '');
-  const inlineRpc = rpcCode.replace(/^export /gm, '');
+  // Use embedded runtime sources (no disk reads needed)
+  const inlineReactivity = REACTIVITY_SOURCE.replace(/^export /gm, '');
+  const inlineRpc = RPC_SOURCE.replace(/^export /gm, '');
 
   // Strip import lines from client code (we inline the runtime instead)
   const inlineClient = clientCode
@@ -1314,11 +1303,7 @@ async function productionBuild(srcDir, outDir) {
   }
 
   // Generate content hash for cache busting
-  const hashCode = (s) => {
-    const hasher = new Bun.CryptoHasher('sha256');
-    hasher.update(s);
-    return hasher.digest('hex').slice(0, 12);
-  };
+  const hashCode = (s) => createHash('sha256').update(s).digest('hex').slice(0, 12);
 
   // Write server bundle
   if (allServerCode.trim()) {
@@ -1332,9 +1317,8 @@ async function productionBuild(srcDir, outDir) {
 
   // Write client bundle
   if (allClientCode.trim()) {
-    const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-    const reactivityCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8').replace(/^export /gm, '');
-    const rpcCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'rpc.js'), 'utf-8').replace(/^export /gm, '');
+    const reactivityCode = REACTIVITY_SOURCE.replace(/^export /gm, '');
+    const rpcCode = RPC_SOURCE.replace(/^export /gm, '');
 
     const clientBundle = reactivityCode + '\n' + rpcCode + '\n' + allSharedCode + '\n' +
       allClientCode.replace(/^import\s+\{[^}]+\}\s+from\s+'[^']+';?\s*$/gm, '').trim();

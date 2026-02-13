@@ -7,40 +7,50 @@ description: Install the Tova compiler and create your first project.
 
 Get up and running with Tova in under five minutes.
 
-## Prerequisites
-
-Tova uses [Bun](https://bun.sh/) as its runtime. If you do not have Bun installed, run:
-
-```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
-Verify Bun is available:
-
-```bash
-bun --version
-```
-
-You need Bun 1.0 or later.
-
 ## Install the Tova Compiler
 
-Clone the repository and link the `tova` command globally:
+### Option 1: Install Script (recommended)
 
 ```bash
-git clone https://github.com/tova-lang/tova-lang.git
-cd tova-lang
-bun install
-bun link
+curl -fsSL https://raw.githubusercontent.com/tova-lang/tova/main/install.sh | sh
 ```
 
-This makes the `tova` command available system-wide. Verify the installation:
+This downloads a prebuilt binary for your platform and adds it to your PATH. No dependencies required.
+
+> **Note:** Some commands (`dev`, `test`) require [Bun](https://bun.sh). The standalone binary handles `run`, `build`, `new`, `repl`, `fmt`, and `lsp` without Bun.
+
+### Option 2: npm (requires Bun)
+
+```bash
+bun install -g tova-lang
+```
+
+### Option 3: Download Binary
+
+Download the latest binary for your platform from the [GitHub Releases](https://github.com/tova-lang/tova/releases) page. Place it somewhere on your PATH and make it executable:
+
+```bash
+chmod +x tova-<platform>
+mv tova-<platform> /usr/local/bin/tova
+```
+
+### Verify Installation
 
 ```bash
 tova --version
 ```
 
 You should see the current Tova version printed to the terminal.
+
+## Prerequisites for Full Functionality
+
+Tova uses [Bun](https://bun.sh/) as its runtime for the dev server and test runner. If you need these features, install Bun:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+You need Bun 1.0 or later.
 
 ## Create a New Project
 
