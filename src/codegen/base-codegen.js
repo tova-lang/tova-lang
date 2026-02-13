@@ -1,4 +1,5 @@
 // Base code generation utilities shared across all codegen targets
+import { RESULT_OPTION, PROPAGATE, STRING_PROTO } from '../stdlib/inline.js';
 
 export class BaseCodegen {
   constructor() {
@@ -8,6 +9,9 @@ export class BaseCodegen {
     this._needsContainsHelper = false; // track if __contains helper is needed
     this._needsPropagateHelper = false; // track if __propagate helper is needed
     this._variantFields = { 'Ok': ['value'], 'Err': ['error'], 'Some': ['value'] }; // map variant name -> [field names] for pattern destructuring
+    // Source map tracking
+    this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol}
+    this._outputLineCount = 0;
   }
 
   _uid() {
@@ -39,6 +43,23 @@ export class BaseCodegen {
 
   i() {
     return '  '.repeat(this.indent);
+  }
+
+  // Source map: record a mapping from source location to output line
+  _addMapping(node, outputLine) {
+    if (node && node.loc && node.loc.line) {
+      this._sourceMappings.push({
+        sourceLine: node.loc.line - 1, // 0-based
+        sourceCol: (node.loc.column || 1) - 1, // 0-based
+        outputLine,
+        outputCol: this.indent * 2, // approximate column from indent
+      });
+    }
+  }
+
+  // Get collected source mappings
+  getSourceMappings() {
+    return this._sourceMappings;
   }
 
   getContainsHelper() {
@@ -75,67 +96,55 @@ export class BaseCodegen {
   }
 
   getPropagateHelper() {
-    return `function __propagate(val) {
-  if (val && val.__tag === "Err") throw { __lux_propagate: true, value: val };
-  if (val && val.__tag === "None") throw { __lux_propagate: true, value: val };
-  if (val && val.__tag === "Ok") return val.value;
-  if (val && val.__tag === "Some") return val.value;
-  return val;
-}`;
+    return PROPAGATE;
   }
 
   getResultOptionHelper() {
-    return `function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; } }); }
-function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + error); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; } }); }
-function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { return Some(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(value) ? this : None; } }); }
-const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });`;
+    return RESULT_OPTION;
   }
 
   getStringProtoHelper() {
-    return '// Lux string methods\n' +
-      '(function() {\n' +
-      '  const m = {\n' +
-      '    upper() { return this.toUpperCase(); },\n' +
-      '    lower() { return this.toLowerCase(); },\n' +
-      '    contains(s) { return this.includes(s); },\n' +
-      '    starts_with(s) { return this.startsWith(s); },\n' +
-      '    ends_with(s) { return this.endsWith(s); },\n' +
-      '    chars() { return [...this]; },\n' +
-      '    words() { return this.split(/\\s+/).filter(Boolean); },\n' +
-      '    lines() { return this.split(\'\\n\'); },\n' +
-      '    capitalize() { return this.length ? this.charAt(0).toUpperCase() + this.slice(1) : this; },\n' +
-      '    title_case() { return this.replace(/\\b\\w/g, c => c.toUpperCase()); },\n' +
-      '    snake_case() { return this.replace(/[-\\s]+/g, \'_\').replace(/([a-z0-9])([A-Z])/g, \'$1_$2\').toLowerCase().replace(/^_/, \'\'); },\n' +
-      '    camel_case() { return this.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : \'\').replace(/^[A-Z]/, c => c.toLowerCase()); },\n' +
-      '  };\n' +
-      '  for (const [n, fn] of Object.entries(m)) {\n' +
-      '    if (!String.prototype[n]) Object.defineProperty(String.prototype, n, { value: fn, writable: true, configurable: true });\n' +
-      '  }\n' +
-      '})();';
+    return STRING_PROTO;
   }
 
   generateStatement(node) {
     if (!node) return '';
 
+    // Record source mapping before generating
+    this._addMapping(node, this._outputLineCount);
+
+    let result;
     switch (node.type) {
-      case 'Assignment': return this.genAssignment(node);
-      case 'VarDeclaration': return this.genVarDeclaration(node);
-      case 'LetDestructure': return this.genLetDestructure(node);
-      case 'FunctionDeclaration': return this.genFunctionDeclaration(node);
-      case 'TypeDeclaration': return this.genTypeDeclaration(node);
-      case 'ImportDeclaration': return this.genImport(node);
-      case 'ImportDefault': return this.genImportDefault(node);
-      case 'IfStatement': return this.genIfStatement(node);
-      case 'ForStatement': return this.genForStatement(node);
-      case 'WhileStatement': return this.genWhileStatement(node);
-      case 'TryCatchStatement': return this.genTryCatchStatement(node);
-      case 'ReturnStatement': return this.genReturnStatement(node);
-      case 'ExpressionStatement': return `${this.i()}${this.genExpression(node.expression)};`;
-      case 'BlockStatement': return this.genBlock(node);
-      case 'CompoundAssignment': return this.genCompoundAssignment(node);
+      case 'Assignment': result = this.genAssignment(node); break;
+      case 'VarDeclaration': result = this.genVarDeclaration(node); break;
+      case 'LetDestructure': result = this.genLetDestructure(node); break;
+      case 'FunctionDeclaration': result = this.genFunctionDeclaration(node); break;
+      case 'TypeDeclaration': result = this.genTypeDeclaration(node); break;
+      case 'ImportDeclaration': result = this.genImport(node); break;
+      case 'ImportDefault': result = this.genImportDefault(node); break;
+      case 'IfStatement': result = this.genIfStatement(node); break;
+      case 'ForStatement': result = this.genForStatement(node); break;
+      case 'WhileStatement': result = this.genWhileStatement(node); break;
+      case 'TryCatchStatement': result = this.genTryCatchStatement(node); break;
+      case 'ReturnStatement': result = this.genReturnStatement(node); break;
+      case 'ExpressionStatement': result = `${this.i()}${this.genExpression(node.expression)};`; break;
+      case 'BlockStatement': result = this.genBlock(node); break;
+      case 'CompoundAssignment': result = this.genCompoundAssignment(node); break;
+      case 'BreakStatement': result = `${this.i()}break;`; break;
+      case 'ContinueStatement': result = `${this.i()}continue;`; break;
+      case 'GuardStatement': result = this.genGuardStatement(node); break;
+      case 'InterfaceDeclaration': result = this.genInterfaceDeclaration(node); break;
       default:
-        return `${this.i()}${this.genExpression(node)};`;
+        result = `${this.i()}${this.genExpression(node)};`;
     }
+
+    // Track output line count
+    if (result) {
+      const newlines = result.split('\n').length - 1;
+      this._outputLineCount += newlines + 1; // +1 for the line itself (join with \n)
+    }
+
+    return result;
   }
 
   genExpression(node) {
@@ -169,6 +178,7 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
       case 'SpreadExpression': return `...${this.genExpression(node.argument)}`;
       case 'PropagateExpression': return this.genPropagateExpression(node);
       case 'NamedArgument': return this.genExpression(node.value);
+      case 'AwaitExpression': return `(await ${this.genExpression(node.argument)})`;
       default:
         return `/* unknown: ${node.type} */`;
     }
@@ -240,58 +250,44 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
   genFunctionDeclaration(node) {
     const params = this.genParams(node.params);
     const hasPropagate = this._containsPropagate(node.body);
+    const asyncPrefix = node.isAsync ? 'async ' : '';
     this.pushScope();
-    for (const p of node.params) this.declareVar(p.name);
+    for (const p of node.params) {
+      if (p.destructure) {
+        this._declareDestructureVars(p.destructure);
+      } else {
+        this.declareVar(p.name);
+      }
+    }
     const body = this.genBlockBody(node.body);
     this.popScope();
     if (hasPropagate) {
-      return `${this.i()}function ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
-    return `${this.i()}function ${node.name}(${params}) {\n${body}\n${this.i()}}`;
+    return `${this.i()}${asyncPrefix}function ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
 
   genParams(params) {
     return params.map(p => {
+      if (p.destructure) {
+        if (p.destructure.type === 'ObjectPattern') {
+          const props = p.destructure.properties.map(prop => {
+            let str = prop.key;
+            if (prop.value !== prop.key) str += `: ${prop.value}`;
+            if (prop.defaultValue) str += ` = ${this.genExpression(prop.defaultValue)}`;
+            return str;
+          }).join(', ');
+          return `{ ${props} }`;
+        }
+        if (p.destructure.type === 'ArrayPattern') {
+          return `[${p.destructure.elements.join(', ')}]`;
+        }
+      }
       if (p.defaultValue) {
         return `${p.name} = ${this.genExpression(p.defaultValue)}`;
       }
       return p.name;
     }).join(', ');
-  }
-
-  genTypeDeclaration(node) {
-    const lines = [];
-
-    // Check if it's a struct-like type (all TypeField) or an enum (TypeVariant)
-    const hasVariants = node.variants.some(v => v.type === 'TypeVariant');
-
-    if (hasVariants) {
-      // Generate as tagged union factory functions
-      for (const variant of node.variants) {
-        if (variant.type === 'TypeVariant') {
-          this.declareVar(variant.name);
-          const fieldNames = variant.fields.map(f => f.name);
-          // Store field names for pattern destructuring
-          this._variantFields[variant.name] = fieldNames;
-          if (variant.fields.length === 0) {
-            lines.push(`${this.i()}const ${variant.name} = Object.freeze({ __tag: "${variant.name}" });`);
-          } else {
-            const params = fieldNames.join(', ');
-            const obj = fieldNames.map(f => `${f}`).join(', ');
-            lines.push(`${this.i()}function ${variant.name}(${params}) { return Object.freeze({ __tag: "${variant.name}", ${obj} }); }`);
-          }
-        }
-      }
-    } else {
-      // Struct-like: generate a constructor function
-      this.declareVar(node.name);
-      const fieldNames = node.variants.map(f => f.name);
-      const params = fieldNames.join(', ');
-      const obj = fieldNames.map(f => `${f}`).join(', ');
-      lines.push(`${this.i()}function ${node.name}(${params}) { return { ${obj} }; }`);
-    }
-
-    return lines.join('\n');
   }
 
   genImport(node) {
@@ -413,23 +409,43 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
     }
     this.popScope();
     this.indent--;
-    code += `${this.i()}} catch`;
-    if (node.catchParam) {
-      code += ` (${node.catchParam})`;
-      this.pushScope();
-      this.declareVar(node.catchParam);
-    } else {
-      code += ' (__err)';
-      this.pushScope();
+
+    if (node.catchBody) {
+      code += `${this.i()}} catch`;
+      if (node.catchParam) {
+        code += ` (${node.catchParam})`;
+        this.pushScope();
+        this.declareVar(node.catchParam);
+      } else {
+        code += ' (__err)';
+        this.pushScope();
+      }
+      code += ` {\n`;
+      this.indent++;
+      for (const stmt of node.catchBody) {
+        code += this.generateStatement(stmt) + '\n';
+      }
+      this.popScope();
+      this.indent--;
+      code += `${this.i()}}`;
     }
-    code += ` {\n`;
-    this.indent++;
-    for (const stmt of node.catchBody) {
-      code += this.generateStatement(stmt) + '\n';
+
+    if (node.finallyBody) {
+      if (!node.catchBody) {
+        // try/finally without catch
+        code += `${this.i()}}`;
+      }
+      code += ` finally {\n`;
+      this.indent++;
+      this.pushScope();
+      for (const stmt of node.finallyBody) {
+        code += this.generateStatement(stmt) + '\n';
+      }
+      this.popScope();
+      this.indent--;
+      code += `${this.i()}}`;
     }
-    this.popScope();
-    this.indent--;
-    code += `${this.i()}}`;
+
     return code;
   }
 
@@ -652,8 +668,27 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
     const left = this.genExpression(node.left);
     const right = node.right;
 
-    // If right is a call expression, insert left as the first argument
+    // Method pipe: x |> .method(args) => x.method(args)
+    if (right.type === 'CallExpression' && right.callee.type === 'MemberExpression' &&
+        right.callee.object.type === 'Identifier' && right.callee.object.name === '') {
+      // This is the .method() case - handled through special MemberExpression with empty object
+      const method = right.callee.property;
+      const args = right.arguments.map(a => this.genExpression(a)).join(', ');
+      return `${left}.${method}(${args})`;
+    }
+
+    // If right is a call expression, check for placeholder _ or insert as first arg
     if (right.type === 'CallExpression') {
+      const hasPlaceholder = right.arguments.some(a => a.type === 'Identifier' && a.name === '_');
+      if (hasPlaceholder) {
+        // Replace _ placeholder with left value
+        const callee = this.genExpression(right.callee);
+        const args = right.arguments.map(a => {
+          if (a.type === 'Identifier' && a.name === '_') return left;
+          return this.genExpression(a);
+        }).join(', ');
+        return `${callee}(${args})`;
+      }
       const callee = this.genExpression(right.callee);
       const args = [left, ...right.arguments.map(a => this.genExpression(a))].join(', ');
       return `${callee}(${args})`;
@@ -662,6 +697,10 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
     if (right.type === 'Identifier') {
       return `${right.name}(${left})`;
     }
+    // Method pipe without call: x |> .method => x.method
+    if (right.type === 'MemberExpression' && right.object.type === 'Identifier' && right.object.name === '') {
+      return `${left}.${right.property}`;
+    }
     // Fallback
     return `(${this.genExpression(right)})(${left})`;
   }
@@ -669,33 +708,34 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
   genLambdaExpression(node) {
     const params = this.genParams(node.params);
     const hasPropagate = this._containsPropagate(node.body);
+    const asyncPrefix = node.isAsync ? 'async ' : '';
 
     if (node.body.type === 'BlockStatement') {
       this.pushScope();
-      for (const p of node.params) this.declareVar(p.name);
+      for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       const body = this.genBlockBody(node.body);
       this.popScope();
       if (hasPropagate) {
-        return `(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
       }
-      return `(${params}) => {\n${body}\n${this.i()}}`;
+      return `${asyncPrefix}(${params}) => {\n${body}\n${this.i()}}`;
     }
 
     // Statement bodies (compound assignment, assignment in lambda)
     if (node.body.type === 'CompoundAssignment' || node.body.type === 'Assignment' || node.body.type === 'VarDeclaration') {
       this.pushScope();
-      for (const p of node.params) this.declareVar(p.name);
+      for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       this.indent++;
       const stmt = this.generateStatement(node.body);
       this.indent--;
       this.popScope();
-      return `(${params}) => { ${stmt.trim()} }`;
+      return `${asyncPrefix}(${params}) => { ${stmt.trim()} }`;
     }
 
     if (hasPropagate) {
-      return `(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__lux_propagate) return __e.value; throw __e; } }`;
+      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__lux_propagate) return __e.value; throw __e; } }`;
     }
-    return `(${params}) => ${this.genExpression(node.body)}`;
+    return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
   genMatchExpression(node) {
@@ -811,6 +851,9 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
         cond = checks.join(' && ');
         break;
       }
+      case 'StringConcatPattern':
+        cond = `typeof ${subject} === 'string' && ${subject}.startsWith(${JSON.stringify(pattern.prefix)})`;
+        break;
       case 'WildcardPattern':
         cond = 'true';
         break;
@@ -852,6 +895,11 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
           }
           return this.genPatternBindings(el, `${subject}[${idx}]`);
         }).filter(s => s).join('');
+      case 'StringConcatPattern':
+        if (pattern.rest.type === 'BindingPattern') {
+          return `${this.i()}const ${pattern.rest.name} = ${subject}.slice(${pattern.prefix.length});\n`;
+        }
+        return '';
       default:
         return '';
     }
@@ -930,5 +978,106 @@ const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) 
     if (!start) return `${obj}.slice(0, ${end})`;
     if (!end) return `${obj}.slice(${start})`;
     return `${obj}.slice(${start}, ${end})`;
+  }
+
+  _declareDestructureVars(pattern) {
+    if (pattern.type === 'ObjectPattern') {
+      for (const p of pattern.properties) this.declareVar(p.value);
+    } else if (pattern.type === 'ArrayPattern') {
+      for (const e of pattern.elements) if (e) this.declareVar(e);
+    }
+  }
+
+  genGuardStatement(node) {
+    let code = `${this.i()}if (!(${this.genExpression(node.condition)})) {\n`;
+    this.indent++;
+    this.pushScope();
+    code += this.genBlockStatements(node.elseBody);
+    this.popScope();
+    this.indent--;
+    code += `\n${this.i()}}`;
+    return code;
+  }
+
+  genInterfaceDeclaration(node) {
+    // Interfaces are compile-time only — generate as a documentation comment
+    const methods = node.methods.map(m => {
+      const params = m.params.map(p => {
+        let s = p.name;
+        if (p.typeAnnotation) s += `: ${p.typeAnnotation.name || 'any'}`;
+        return s;
+      }).join(', ');
+      const ret = m.returnType ? ` -> ${m.returnType.name || 'any'}` : '';
+      return `${this.i()} *   fn ${m.name}(${params})${ret}`;
+    }).join('\n');
+    return `${this.i()}/* interface ${node.name} {\n${methods}\n${this.i()} * } */`;
+  }
+
+  genTypeDeclaration(node) {
+    const lines = [];
+
+    const hasVariants = node.variants.some(v => v.type === 'TypeVariant');
+
+    if (hasVariants) {
+      for (const variant of node.variants) {
+        if (variant.type === 'TypeVariant') {
+          this.declareVar(variant.name);
+          const fieldNames = variant.fields.map(f => f.name);
+          this._variantFields[variant.name] = fieldNames;
+          if (variant.fields.length === 0) {
+            lines.push(`${this.i()}const ${variant.name} = Object.freeze({ __tag: "${variant.name}" });`);
+          } else {
+            const params = fieldNames.join(', ');
+            const obj = fieldNames.map(f => `${f}`).join(', ');
+            lines.push(`${this.i()}function ${variant.name}(${params}) { return Object.freeze({ __tag: "${variant.name}", ${obj} }); }`);
+          }
+        }
+      }
+    } else {
+      this.declareVar(node.name);
+      const fieldNames = node.variants.map(f => f.name);
+      const params = fieldNames.join(', ');
+      const obj = fieldNames.map(f => `${f}`).join(', ');
+      lines.push(`${this.i()}function ${node.name}(${params}) { return { ${obj} }; }`);
+    }
+
+    // Derive clause: generate methods
+    if (node.derive && node.derive.length > 0) {
+      const targetName = hasVariants ? null : node.name;
+      const fieldNames = hasVariants ? [] : node.variants.map(f => f.name);
+
+      for (const trait of node.derive) {
+        if (trait === 'Eq' && targetName) {
+          // Deep equality: compare all fields
+          const checks = fieldNames.map(f => `a.${f} === b.${f}`).join(' && ');
+          lines.push(`${this.i()}${targetName}.__eq = function(a, b) { return ${checks || 'true'}; };`);
+        }
+        if (trait === 'Show' && targetName) {
+          const fields = fieldNames.map(f => `${f}: \${JSON.stringify(obj.${f})}`).join(', ');
+          lines.push(`${this.i()}${targetName}.__show = function(obj) { return \`${targetName}(${fields})\`; };`);
+        }
+        if (trait === 'JSON' && targetName) {
+          lines.push(`${this.i()}${targetName}.toJSON = function(obj) { return JSON.stringify(obj); };`);
+          lines.push(`${this.i()}${targetName}.fromJSON = function(str) { const d = JSON.parse(str); return ${targetName}(${fieldNames.map(f => `d.${f}`).join(', ')}); };`);
+        }
+      }
+
+      // For variant types with derive
+      if (hasVariants) {
+        for (const trait of node.derive) {
+          if (trait === 'Eq') {
+            lines.push(`${this.i()}function __eq_${node.name}(a, b) { return a.__tag === b.__tag && JSON.stringify(a) === JSON.stringify(b); }`);
+          }
+          if (trait === 'Show') {
+            lines.push(`${this.i()}function __show_${node.name}(obj) { return obj.__tag + "(" + Object.entries(obj).filter(([k]) => k !== "__tag").map(([k, v]) => k + ": " + JSON.stringify(v)).join(", ") + ")"; }`);
+          }
+          if (trait === 'JSON') {
+            lines.push(`${this.i()}function __toJSON_${node.name}(obj) { return JSON.stringify(obj); }`);
+          }
+        }
+      }
+    }
+
+    return lines.join('\n');
   }
 }

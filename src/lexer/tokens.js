@@ -34,9 +34,25 @@ export const TokenType = {
   TRUE: 'TRUE',
   FALSE: 'FALSE',
 
+  // Control flow
+  BREAK: 'BREAK',
+  CONTINUE: 'CONTINUE',
+
   // Error handling
   TRY: 'TRY',
   CATCH: 'CATCH',
+  FINALLY: 'FINALLY',
+
+  // Async
+  ASYNC: 'ASYNC',
+  AWAIT: 'AWAIT',
+
+  // Guard
+  GUARD: 'GUARD',
+
+  // Interface
+  INTERFACE: 'INTERFACE',
+  DERIVE: 'DERIVE',
 
   // Full-stack keywords
   SERVER: 'SERVER',
@@ -137,8 +153,16 @@ export const Keywords = {
   'true': TokenType.TRUE,
   'false': TokenType.FALSE,
   'nil': TokenType.NIL,
+  'break': TokenType.BREAK,
+  'continue': TokenType.CONTINUE,
   'try': TokenType.TRY,
   'catch': TokenType.CATCH,
+  'finally': TokenType.FINALLY,
+  'async': TokenType.ASYNC,
+  'await': TokenType.AWAIT,
+  'guard': TokenType.GUARD,
+  'interface': TokenType.INTERFACE,
+  'derive': TokenType.DERIVE,
   'server': TokenType.SERVER,
   'client': TokenType.CLIENT,
   'shared': TokenType.SHARED,

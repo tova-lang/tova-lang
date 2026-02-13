@@ -627,8 +627,8 @@ describe('Scope management edge cases', () => {
   });
 
   test('client block scope isolation from module scope', () => {
-    const { scope } = analyze('client { state count = 0 }');
-    expect(scope.lookupLocal('count')).toBeNull();
+    const { scope } = analyze('client { state counter = 0 }');
+    expect(scope.lookupLocal('counter')).toBeNull();
   });
 
   test('shared block scope isolation from module scope', () => {

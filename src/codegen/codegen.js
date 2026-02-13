@@ -118,11 +118,15 @@ export class CodeGenerator {
     // Backward-compatible: if only unnamed blocks, return flat structure
     const hasNamedBlocks = [...serverGroups.keys(), ...clientGroups.keys()].some(k => k !== null);
 
+    // Collect source mappings from all codegens
+    const sourceMappings = sharedGen.getSourceMappings();
+
     if (!hasNamedBlocks) {
       const result = {
         shared: combinedShared,
         server: servers['default'] || '',
         client: clients['default'] || '',
+        sourceMappings,
       };
       if (testCode) result.test = testCode;
       return result;
@@ -136,6 +140,7 @@ export class CodeGenerator {
       servers,   // { "api": code, "ws": code, ... }
       clients,   // { "admin": code, "dashboard": code, ... }
       multiBlock: true,
+      sourceMappings,
     };
     if (testCode) result.test = testCode;
     return result;

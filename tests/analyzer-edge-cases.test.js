@@ -57,10 +57,18 @@ describe('Scope and Variable Analysis', () => {
     `)).not.toThrow();
   });
 
-  test('5. variable shadowing in nested scope', () => {
-    // x is defined in module scope, and then x is defined again inside the if block
-    // Both should succeed without error because they are in different scopes
-    expect(() => analyze('x = 1\nif true { x = 2 }')).not.toThrow();
+  test('5. immutable variable cannot be reassigned in nested block', () => {
+    // x is immutable — reassigning it inside a nested block is an error
+    expect(analyzeThrows('x = 1\nif true { x = 2 }')).toThrow(/Cannot reassign immutable variable/);
+  });
+
+  test('5b. mutable variable can be reassigned in nested block', () => {
+    expect(() => analyze('var x = 1\nif true { x = 2 }')).not.toThrow();
+  });
+
+  test('5c. variable shadowing across function boundaries is allowed', () => {
+    // A new function creates a fresh scope — shadowing is fine
+    expect(() => analyze('x = 1\nfn foo() { x = 2\n x }')).not.toThrow();
   });
 
   test('6. reassignment of immutable variable should produce error', () => {
@@ -640,8 +648,8 @@ describe('Additional Edge Cases', () => {
   });
 
   test('client block creates its own scope context', () => {
-    const { scope } = analyze('client { state count = 0 }');
-    expect(scope.lookupLocal('count')).toBeNull();
+    const { scope } = analyze('client { state counter = 0 }');
+    expect(scope.lookupLocal('counter')).toBeNull();
   });
 
   test('shared block creates its own scope context', () => {

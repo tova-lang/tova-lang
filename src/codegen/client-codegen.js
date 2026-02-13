@@ -1,4 +1,5 @@
 import { BaseCodegen } from './base-codegen.js';
+import { getClientStdlib } from '../stdlib/inline.js';
 
 export class ClientCodegen extends BaseCodegen {
   constructor() {
@@ -796,18 +797,7 @@ export class ClientCodegen extends BaseCodegen {
   }
 
   getStdlibCore() {
-    return `function print(...args) { console.log(...args); }
-function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
-function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }
-function enumerate(a) { return a.map((v, i) => [i, v]); }
-function sum(a) { return a.reduce((x, y) => x + y, 0); }
-function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }
-function reversed(a) { return [...a].reverse(); }
-function zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
-function min(a) { return Math.min(...a); }
-function max(a) { return Math.max(...a); }
-${this.getResultOptionHelper()}
-${this.getPropagateHelper()}`;
+    return getClientStdlib();
   }
 }
 

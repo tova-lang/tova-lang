@@ -39,7 +39,7 @@ describe('Analyzer warnings', () => {
 
 describe('DictComprehension analysis', () => {
   test('analyzes dict comprehension without error', () => {
-    const result = analyze('x = {k: v for k, v in pairs}');
+    const result = analyze('pairs = [[1, 2]]\nx = {k: v for k, v in pairs}');
     expect(result.warnings).toEqual([]);
   });
 });

@@ -7,6 +7,7 @@ export class Parser {
     this.rawTokens = tokens;
     this.filename = filename;
     this.pos = 0;
+    this.errors = [];
     this.docstrings = this.extractDocstrings(tokens);
   }
 
@@ -24,9 +25,11 @@ export class Parser {
 
   error(message) {
     const tok = this.current();
-    throw new Error(
+    const err = new Error(
       `${this.filename}:${tok.line}:${tok.column} — Parse error: ${message}\n  Got: ${tok.type} (${JSON.stringify(tok.value)})`
     );
+    err.loc = { line: tok.line, column: tok.column, file: this.filename };
+    throw err;
   }
 
   current() {
@@ -78,6 +81,28 @@ export class Parser {
     return this.check(TokenType.EOF);
   }
 
+  _synchronize() {
+    this.advance(); // skip the problematic token
+    while (!this.isAtEnd()) {
+      const tok = this.current();
+      // Statement-starting keywords — safe to resume parsing here
+      if (tok.type === TokenType.FN || tok.type === TokenType.TYPE ||
+          tok.type === TokenType.IF || tok.type === TokenType.FOR ||
+          tok.type === TokenType.WHILE || tok.type === TokenType.RETURN ||
+          tok.type === TokenType.IMPORT || tok.type === TokenType.MATCH ||
+          tok.type === TokenType.TRY || tok.type === TokenType.SERVER ||
+          tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
+          tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE) {
+        return;
+      }
+      if (tok.type === TokenType.RBRACE) {
+        this.advance();
+        return;
+      }
+      this.advance();
+    }
+  }
+
   // Detect if current < starts a JSX tag (vs comparison operator)
   _looksLikeJSX() {
     if (!this.check(TokenType.LESS)) return false;
@@ -108,8 +133,19 @@ export class Parser {
   parse() {
     const body = [];
     while (!this.isAtEnd()) {
-      const stmt = this.parseTopLevel();
-      if (stmt) body.push(stmt);
+      try {
+        const stmt = this.parseTopLevel();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronize();
+      }
+    }
+    if (this.errors.length > 0) {
+      const combined = new Error(this.errors.map(e => e.message).join('\n'));
+      combined.errors = this.errors;
+      combined.partialAST = new AST.Program(body);
+      throw combined;
     }
     return new AST.Program(body);
   }
@@ -1082,6 +1118,7 @@ export class Parser {
   // ─── Statements ───────────────────────────────────────────
 
   parseStatement() {
+    if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) return this.parseAsyncFunctionDeclaration();
     if (this.check(TokenType.FN) && this.peek(1).type === TokenType.IDENTIFIER) return this.parseFunctionDeclaration();
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
@@ -1093,6 +1130,10 @@ export class Parser {
     if (this.check(TokenType.IMPORT)) return this.parseImport();
     if (this.check(TokenType.MATCH)) return this.parseMatchAsStatement();
     if (this.check(TokenType.TRY)) return this.parseTryCatch();
+    if (this.check(TokenType.BREAK)) return this.parseBreakStatement();
+    if (this.check(TokenType.CONTINUE)) return this.parseContinueStatement();
+    if (this.check(TokenType.GUARD)) return this.parseGuardStatement();
+    if (this.check(TokenType.INTERFACE)) return this.parseInterfaceDeclaration();
 
     return this.parseExpressionOrAssignment();
   }
@@ -1114,23 +1155,122 @@ export class Parser {
     return new AST.FunctionDeclaration(name, params, body, returnType, l);
   }
 
+  parseAsyncFunctionDeclaration() {
+    const l = this.loc();
+    this.expect(TokenType.ASYNC);
+    this.expect(TokenType.FN);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+    this.expect(TokenType.LPAREN, "Expected '(' after function name");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after parameters");
+
+    let returnType = null;
+    if (this.match(TokenType.THIN_ARROW)) {
+      returnType = this.parseTypeAnnotation();
+    }
+
+    const body = this.parseBlock();
+    return new AST.FunctionDeclaration(name, params, body, returnType, l, true);
+  }
+
+  parseBreakStatement() {
+    const l = this.loc();
+    this.expect(TokenType.BREAK);
+    return new AST.BreakStatement(l);
+  }
+
+  parseContinueStatement() {
+    const l = this.loc();
+    this.expect(TokenType.CONTINUE);
+    return new AST.ContinueStatement(l);
+  }
+
+  parseGuardStatement() {
+    const l = this.loc();
+    this.expect(TokenType.GUARD);
+    const condition = this.parseExpression();
+    this.expect(TokenType.ELSE, "Expected 'else' after guard condition");
+    const elseBody = this.parseBlock();
+    return new AST.GuardStatement(condition, elseBody, l);
+  }
+
+  parseInterfaceDeclaration() {
+    const l = this.loc();
+    this.expect(TokenType.INTERFACE);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected interface name").value;
+    this.expect(TokenType.LBRACE, "Expected '{' to open interface body");
+
+    const methods = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      this.expect(TokenType.FN, "Expected 'fn' in interface body");
+      const methodName = this.expect(TokenType.IDENTIFIER, "Expected method name").value;
+      this.expect(TokenType.LPAREN, "Expected '(' after method name");
+      const params = this.parseParameterList();
+      this.expect(TokenType.RPAREN, "Expected ')' after parameters");
+      let returnType = null;
+      if (this.match(TokenType.THIN_ARROW)) {
+        returnType = this.parseTypeAnnotation();
+      }
+      methods.push({ name: methodName, params, returnType });
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close interface body");
+    return new AST.InterfaceDeclaration(name, methods, l);
+  }
+
   parseParameterList() {
     const params = [];
     while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
       const l = this.loc();
-      const name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
 
-      let typeAnnotation = null;
-      if (this.match(TokenType.COLON)) {
-        typeAnnotation = this.parseTypeAnnotation();
+      // Destructuring pattern parameter: {name, email} or [a, b]
+      if (this.check(TokenType.LBRACE)) {
+        this.advance();
+        const properties = [];
+        while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+          const key = this.expect(TokenType.IDENTIFIER, "Expected property name").value;
+          let value = key;
+          let defaultValue = null;
+          if (this.match(TokenType.COLON)) {
+            value = this.expect(TokenType.IDENTIFIER, "Expected alias name").value;
+          }
+          if (this.match(TokenType.ASSIGN)) {
+            defaultValue = this.parseExpression();
+          }
+          properties.push({ key, value, defaultValue });
+          if (!this.match(TokenType.COMMA)) break;
+        }
+        this.expect(TokenType.RBRACE, "Expected '}'");
+        const pattern = new AST.ObjectPattern(properties, l);
+        const param = new AST.Parameter(null, null, null, l);
+        param.destructure = pattern;
+        params.push(param);
+      } else if (this.check(TokenType.LBRACKET)) {
+        this.advance();
+        const elements = [];
+        while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+          elements.push(this.expect(TokenType.IDENTIFIER, "Expected element name").value);
+          if (!this.match(TokenType.COMMA)) break;
+        }
+        this.expect(TokenType.RBRACKET, "Expected ']'");
+        const pattern = new AST.ArrayPattern(elements, l);
+        const param = new AST.Parameter(null, null, null, l);
+        param.destructure = pattern;
+        params.push(param);
+      } else {
+        const name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
+
+        let typeAnnotation = null;
+        if (this.match(TokenType.COLON)) {
+          typeAnnotation = this.parseTypeAnnotation();
+        }
+
+        let defaultValue = null;
+        if (this.match(TokenType.ASSIGN)) {
+          defaultValue = this.parseExpression();
+        }
+
+        params.push(new AST.Parameter(name, typeAnnotation, defaultValue, l));
       }
-
-      let defaultValue = null;
-      if (this.match(TokenType.ASSIGN)) {
-        defaultValue = this.parseExpression();
-      }
-
-      params.push(new AST.Parameter(name, typeAnnotation, defaultValue, l));
 
       if (!this.match(TokenType.COMMA)) break;
     }
@@ -1210,7 +1350,19 @@ export class Parser {
     }
 
     this.expect(TokenType.RBRACE, "Expected '}' to close type body");
-    return new AST.TypeDeclaration(name, typeParams, variants, l);
+
+    // Optional derive clause: type Foo { ... } derive [Eq, Show, JSON]
+    const node = new AST.TypeDeclaration(name, typeParams, variants, l);
+    if (this.match(TokenType.DERIVE)) {
+      this.expect(TokenType.LBRACKET, "Expected '[' after derive");
+      node.derive = [];
+      while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+        node.derive.push(this.expect(TokenType.IDENTIFIER, "Expected derive trait name").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.RBRACKET, "Expected ']' after derive traits");
+    }
+    return node;
   }
 
   parseVarDeclaration() {
@@ -1355,13 +1507,32 @@ export class Parser {
     const l = this.loc();
     this.expect(TokenType.TRY);
     const tryBlock = this.parseBlock();
-    this.expect(TokenType.CATCH, "Expected 'catch' after try block");
+
     let catchParam = null;
-    if (this.check(TokenType.IDENTIFIER)) {
-      catchParam = this.advance().value;
+    let catchBody = null;
+    let finallyBody = null;
+
+    // Parse optional catch block
+    if (this.match(TokenType.CATCH)) {
+      if (this.check(TokenType.IDENTIFIER)) {
+        catchParam = this.advance().value;
+      }
+      const catchBlock = this.parseBlock();
+      catchBody = catchBlock.body;
     }
-    const catchBlock = this.parseBlock();
-    return new AST.TryCatchStatement(tryBlock.body, catchParam, catchBlock.body, l);
+
+    // Parse optional finally block
+    if (this.match(TokenType.FINALLY)) {
+      const finallyBlock = this.parseBlock();
+      finallyBody = finallyBlock.body;
+    }
+
+    // Must have at least catch or finally
+    if (!catchBody && !finallyBody) {
+      this.error("Expected 'catch' or 'finally' after try block");
+    }
+
+    return new AST.TryCatchStatement(tryBlock.body, catchParam, catchBody, l, finallyBody);
   }
 
   parseReturnStatement() {
@@ -1496,8 +1667,22 @@ export class Parser {
     let left = this.parseNullCoalesce();
     while (this.match(TokenType.PIPE)) {
       const l = this.loc();
-      const right = this.parseNullCoalesce();
-      left = new AST.PipeExpression(left, right, l);
+      // Method pipe: |> .method(args) — parse as MemberExpression with empty Identifier
+      if (this.check(TokenType.DOT)) {
+        this.advance(); // consume .
+        const method = this.expect(TokenType.IDENTIFIER, "Expected method name after '.'").value;
+        const placeholder = new AST.Identifier('', l);
+        const memberExpr = new AST.MemberExpression(placeholder, method, false, l);
+        if (this.check(TokenType.LPAREN)) {
+          const call = this.parseCallExpression(memberExpr);
+          left = new AST.PipeExpression(left, call, l);
+        } else {
+          left = new AST.PipeExpression(left, memberExpr, l);
+        }
+      } else {
+        const right = this.parseNullCoalesce();
+        left = new AST.PipeExpression(left, right, l);
+      }
     }
     return left;
   }
@@ -1640,6 +1825,12 @@ export class Parser {
   }
 
   parseUnary() {
+    if (this.check(TokenType.AWAIT)) {
+      const l = this.loc();
+      this.advance();
+      const operand = this.parseUnary();
+      return new AST.AwaitExpression(operand, l);
+    }
     if (this.check(TokenType.MINUS)) {
       const l = this.loc();
       this.advance();
@@ -1826,6 +2017,11 @@ export class Parser {
       return this.parseIfExpression();
     }
 
+    // Async lambda: async fn(params) body
+    if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) {
+      return this.parseAsyncLambda();
+    }
+
     // Lambda: fn(params) body  or  params => body
     if (this.check(TokenType.FN) && this.peek(1).type === TokenType.LPAREN) {
       return this.parseLambda();
@@ -1931,6 +2127,24 @@ export class Parser {
     return new AST.LambdaExpression(params, body, l);
   }
 
+  parseAsyncLambda() {
+    const l = this.loc();
+    this.expect(TokenType.ASYNC);
+    this.expect(TokenType.FN);
+    this.expect(TokenType.LPAREN);
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN);
+
+    let body;
+    if (this.check(TokenType.LBRACE)) {
+      body = this.parseBlock();
+    } else {
+      body = this.parseExpression();
+    }
+
+    return new AST.LambdaExpression(params, body, l, true);
+  }
+
   parseMatchExpression() {
     const l = this.loc();
     this.expect(TokenType.MATCH);
@@ -1992,9 +2206,17 @@ export class Parser {
       return new AST.LiteralPattern(val, l);
     }
 
-    // String literal pattern
+    // String literal pattern, possibly with ++ concat pattern
     if (this.check(TokenType.STRING)) {
-      return new AST.LiteralPattern(this.advance().value, l);
+      const strVal = this.advance().value;
+      // Check for string concat pattern: "prefix" ++ rest
+      if (this.check(TokenType.PLUS) && this.peek(1).type === TokenType.PLUS) {
+        this.advance(); // first +
+        this.advance(); // second +
+        const rest = this.parsePattern();
+        return new AST.StringConcatPattern(strVal, rest, l);
+      }
+      return new AST.LiteralPattern(strVal, l);
     }
 
     // Boolean literal pattern

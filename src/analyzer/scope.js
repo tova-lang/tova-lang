@@ -16,6 +16,7 @@ export class Scope {
     this.parent = parent;
     this.context = context; // 'module', 'server', 'client', 'shared', 'function', 'block'
     this.symbols = new Map();
+    this.children = [];
   }
 
   define(name, symbol) {
@@ -52,6 +53,8 @@ export class Scope {
   }
 
   child(context) {
-    return new Scope(this, context || this.context);
+    const c = new Scope(this, context || this.context);
+    this.children.push(c);
+    return c;
   }
 }

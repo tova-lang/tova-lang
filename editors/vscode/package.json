@@ -1,0 +1,39 @@
+{
+  "name": "lux-lang",
+  "displayName": "Lux Language",
+  "description": "Language support for the Lux programming language",
+  "version": "0.1.0",
+  "publisher": "lux-lang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:lux"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "lux",
+        "aliases": [
+          "Lux",
+          "lux"
+        ],
+        "extensions": [
+          ".lux"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lux",
+        "scopeName": "source.lux",
+        "path": "./syntaxes/lux.tmLanguage.json"
+      }
+    ]
+  }
+}

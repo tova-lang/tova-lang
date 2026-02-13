@@ -1,12 +1,14 @@
 #!/usr/bin/env bun
 
 import { resolve, basename, dirname, join, relative } from 'path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
+import { richError, formatDiagnostics, DiagnosticFormatter } from '../src/diagnostics/formatter.js';
+import { getFullStdlib, BUILTINS, PROPAGATE } from '../src/stdlib/inline.js';
 import '../src/runtime/string-proto.js';
 
 const VERSION = '0.1.0';
@@ -24,7 +26,9 @@ Usage:
 Commands:
   run <file>       Compile and execute a .lux file
   build [dir]      Compile .lux files to JavaScript (default: current dir)
-  dev              Start development server with hot reload
+  dev              Start development server with file watching
+  repl             Start interactive Lux REPL
+  lsp              Start Language Server Protocol server
   new <name>       Create a new Lux project
   migrate:create <name>   Create a new migration file
   migrate:up [file.lux]   Run pending migrations
@@ -34,6 +38,8 @@ Options:
   --help, -h       Show this help message
   --version, -v    Show version
   --output, -o     Output directory (default: .lux-out)
+  --production     Production build (minify, bundle, hash)
+  --watch          Watch for file changes
   --debug          Show verbose error output
 `;
 
@@ -61,6 +67,12 @@ async function main() {
       break;
     case 'dev':
       devServer(args.slice(1));
+      break;
+    case 'repl':
+      await startRepl();
+      break;
+    case 'lsp':
+      await startLsp();
       break;
     case 'new':
       newProject(args[1]);
@@ -97,8 +109,11 @@ function compileLux(source, filename) {
   const analyzer = new Analyzer(ast, filename);
   const { warnings } = analyzer.analyze();
 
-  for (const w of warnings) {
-    console.warn(`  ⚠ ${w.file}:${w.line}:${w.column} — ${w.message}`);
+  if (warnings.length > 0) {
+    const formatter = new DiagnosticFormatter(source, filename);
+    for (const w of warnings) {
+      console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }));
+    }
   }
 
   const codegen = new CodeGenerator(ast, filename);
@@ -127,13 +142,12 @@ function runFile(filePath) {
 
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-    const stdlib = getStdlibForRuntime();
+    const stdlib = getRunStdlib();
     const code = stdlib + '\n' + output.shared + '\n' + (output.server || output.client || '');
     const fn = new AsyncFunction(code);
     fn();
   } catch (err) {
-    console.error(`\n  Error in ${filePath}:`);
-    console.error(`  ${err.message}\n`);
+    console.error(richError(source, err, filePath));
     if (process.argv.includes('--debug') || process.env.DEBUG) {
       console.error(err.stack);
     }
@@ -143,10 +157,16 @@ function runFile(filePath) {
 
 // ─── Build ──────────────────────────────────────────────────
 
-function buildProject(args) {
-  const srcDir = resolve(args[0] || '.');
+async function buildProject(args) {
+  const isProduction = args.includes('--production');
+  const srcDir = resolve(args.filter(a => !a.startsWith('--'))[0] || '.');
   const outIdx = args.indexOf('--output');
   const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : '.lux-out');
+
+  // Production build uses a separate optimized pipeline
+  if (isProduction) {
+    return await productionBuild(srcDir, outDir);
+  }
 
   const luxFiles = findFiles(srcDir, '.lux');
   if (luxFiles.length === 0) {
@@ -171,31 +191,46 @@ function buildProject(args) {
   console.log(`\n  Building ${luxFiles.length} file(s)...\n`);
 
   let errorCount = 0;
+  compilationCache.clear();
   for (const file of luxFiles) {
     const rel = relative(srcDir, file);
     try {
       const source = readFileSync(file, 'utf-8');
-      const output = compileLux(source, file);
+      const output = compileWithImports(source, file, srcDir);
       const baseName = basename(file, '.lux');
+
+      // Generate source map if mappings available
+      const generateSourceMap = (code, jsFile) => {
+        if (output.sourceMappings && output.sourceMappings.length > 0) {
+          const smb = new SourceMapBuilder(rel);
+          for (const m of output.sourceMappings) {
+            smb.addMapping(m.sourceLine, m.sourceCol, m.outputLine, m.outputCol);
+          }
+          const mapFile = jsFile + '.map';
+          writeFileSync(mapFile, smb.generate(source));
+          return code + `\n//# sourceMappingURL=${basename(mapFile)}`;
+        }
+        return code;
+      };
 
       // Write shared
       if (output.shared && output.shared.trim()) {
         const sharedPath = join(outDir, `${baseName}.shared.js`);
-        writeFileSync(sharedPath, output.shared);
+        writeFileSync(sharedPath, generateSourceMap(output.shared, sharedPath));
         console.log(`  ✓ ${rel} → ${relative('.', sharedPath)}`);
       }
 
       // Write default server
       if (output.server) {
         const serverPath = join(outDir, `${baseName}.server.js`);
-        writeFileSync(serverPath, output.server);
+        writeFileSync(serverPath, generateSourceMap(output.server, serverPath));
         console.log(`  ✓ ${rel} → ${relative('.', serverPath)}`);
       }
 
       // Write default client
       if (output.client) {
         const clientPath = join(outDir, `${baseName}.client.js`);
-        writeFileSync(clientPath, output.client);
+        writeFileSync(clientPath, generateSourceMap(output.client, clientPath));
         console.log(`  ✓ ${rel} → ${relative('.', clientPath)}`);
       }
 
@@ -357,11 +392,59 @@ async function devServer(args) {
     console.log(`  ✓ Client: ${relative('.', outDir)}/index.html`);
   }
 
-  console.log(`\n  Press Ctrl+C to stop\n`);
+  // Start file watcher for auto-rebuild
+  const watcher = startWatcher(srcDir, () => {
+    console.log('  Rebuilding...');
+    // Kill existing server processes
+    for (const p of processes) {
+      p.child.kill('SIGTERM');
+    }
+    processes.length = 0;
+
+    // Recompile and restart
+    try {
+      for (const file of luxFiles) {
+        const source = readFileSync(file, 'utf-8');
+        const output = compileLux(source, file);
+        const baseName = basename(file, '.lux');
+
+        if (output.shared && output.shared.trim()) {
+          writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
+        }
+        if (output.client) {
+          writeFileSync(join(outDir, `${baseName}.client.js`), output.client);
+          const html = generateDevHTML(output.client);
+          writeFileSync(join(outDir, 'index.html'), html);
+        }
+        if (output.server) {
+          let serverCode = output.server;
+          if (output.client) {
+            const html = generateDevHTML(output.client);
+            serverCode = `const __clientHTML = ${JSON.stringify(html)};\n` + serverCode;
+          }
+          const p = join(outDir, `${baseName}.server.js`);
+          writeFileSync(p, serverCode);
+
+          const port = basePort;
+          const child = spawn('bun', ['run', p], {
+            stdio: 'inherit',
+            env: { ...process.env, PORT: String(port) },
+          });
+          processes.push({ child, label: 'server', port });
+        }
+      }
+      console.log('  ✓ Rebuild complete');
+    } catch (err) {
+      console.error(`  ✗ Rebuild failed: ${err.message}`);
+    }
+  });
+
+  console.log(`\n  Watching for changes. Press Ctrl+C to stop\n`);
 
   // Graceful shutdown
   process.on('SIGINT', () => {
     console.log('\n  Shutting down...');
+    watcher.close();
     for (const p of processes) {
       p.child.kill('SIGTERM');
     }
@@ -764,24 +847,376 @@ async function migrateStatus(args) {
 // ─── Utilities ──────────────────────────────────────────────
 
 function getStdlibForRuntime() {
-  return `function print(...args) { console.log(...args); }
-function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
-function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }
-function enumerate(a) { return a.map((v, i) => [i, v]); }
-function sum(a) { return a.reduce((x, y) => x + y, 0); }
-function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }
-function reversed(a) { return [...a].reverse(); }
-function zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
-function min(a) { return Math.min(...a); }
-function max(a) { return Math.max(...a); }
-function type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }
-function filter(arr, fn) { return arr.filter(fn); }
-function map(arr, fn) { return arr.map(fn); }
-function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; } }); }
-function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + error); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; } }); }
-function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { return Some(fn(value)); }, flatMap(fn) { return fn(value); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(value) ? this : None; } }); }
-const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });
-function __propagate(val) { if (val && val.__tag === "Err") throw { __lux_propagate: true, value: val }; if (val && val.__tag === "None") throw { __lux_propagate: true, value: val }; if (val && val.__tag === "Ok") return val.value; if (val && val.__tag === "Some") return val.value; return val; }`;
+  return getFullStdlib();  // Full stdlib for REPL
+}  
+function getRunStdlib() { // Excludes RESULT_OPTION (emitted by codegen)
+  return `${BUILTINS}
+${PROPAGATE}`;
+}
+
+// ─── LSP Server ──────────────────────────────────────────────
+
+async function startLsp() {
+  // Import and start the LSP server - it handles stdio communication
+  await import('../src/lsp/server.js');
+}
+
+// ─── REPL ────────────────────────────────────────────────────
+
+async function startRepl() {
+  const readline = await import('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: 'lux> ',
+  });
+
+  console.log(`\n  Lux REPL v${VERSION}`);
+  console.log('  Type expressions to evaluate. Use :quit to exit.\n');
+
+  const context = {};
+  const stdlib = getStdlibForRuntime();
+  // Initialize stdlib in context
+  const initFn = new Function(stdlib + '\nObject.assign(this, {print,len,range,enumerate,sum,sorted,reversed,zip,min,max,type_of,filter,map,Ok,Err,Some,None,__propagate});');
+  initFn.call(context);
+
+  let buffer = '';
+  let braceDepth = 0;
+
+  rl.prompt();
+
+  rl.on('line', (line) => {
+    const trimmed = line.trim();
+
+    if (trimmed === ':quit' || trimmed === ':exit' || trimmed === ':q') {
+      console.log('  Goodbye!\n');
+      rl.close();
+      process.exit(0);
+    }
+
+    if (trimmed === ':help') {
+      console.log('  :quit    Exit the REPL');
+      console.log('  :help    Show this help');
+      console.log('  :clear   Clear context\n');
+      rl.prompt();
+      return;
+    }
+
+    if (trimmed === ':clear') {
+      initFn.call(context);
+      console.log('  Context cleared.\n');
+      rl.prompt();
+      return;
+    }
+
+    buffer += (buffer ? '\n' : '') + line;
+
+    // Track open braces for multi-line input
+    for (const ch of line) {
+      if (ch === '{' || ch === '(' || ch === '[') braceDepth++;
+      if (ch === '}' || ch === ')' || ch === ']') braceDepth--;
+    }
+
+    if (braceDepth > 0) {
+      process.stdout.write('...  ');
+      return;
+    }
+
+    braceDepth = 0;
+    const input = buffer;
+    buffer = '';
+
+    try {
+      const output = compileLux(input, '<repl>');
+      const code = output.shared || '';
+      if (code.trim()) {
+        const fn = new Function('context', `with(context) { ${code}\n}`);
+        const result = fn(context);
+        if (result !== undefined) {
+          console.log(' ', result);
+        }
+      }
+    } catch (err) {
+      console.error(`  Error: ${err.message}`);
+    }
+
+    rl.prompt();
+  });
+
+  rl.on('close', () => {
+    process.exit(0);
+  });
+}
+
+// ─── Watch Mode ──────────────────────────────────────────────
+
+function startWatcher(srcDir, callback) {
+  let debounceTimer = null;
+
+  console.log(`  Watching for changes in ${srcDir}...`);
+
+  const watcher = fsWatch(srcDir, { recursive: true }, (eventType, filename) => {
+    if (!filename || !filename.endsWith('.lux')) return;
+    // Debounce rapid file changes
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      console.log(`\n  File changed: ${filename}`);
+      try {
+        compilationCache.clear();
+        callback();
+      } catch (err) {
+        console.error(`  Rebuild error: ${err.message}`);
+      }
+    }, 100);
+  });
+
+  return watcher;
+}
+
+// ─── Source Map Support ──────────────────────────────────────
+
+class SourceMapBuilder {
+  constructor(sourceFile) {
+    this.sourceFile = sourceFile;
+    this.mappings = [];
+    this.outputLine = 0;
+    this.outputCol = 0;
+  }
+
+  addMapping(sourceLine, sourceCol, outputLine, outputCol) {
+    this.mappings.push({ sourceLine, sourceCol, outputLine, outputCol });
+  }
+
+  // Generate a VLQ-encoded source map
+  generate(sourceContent) {
+    const sources = [this.sourceFile];
+    const names = [];
+
+    // Sort mappings by output position
+    this.mappings.sort((a, b) => a.outputLine - b.outputLine || a.outputCol - b.outputCol);
+
+    // Encode mappings using VLQ
+    let prevOutputCol = 0;
+    let prevSourceLine = 0;
+    let prevSourceCol = 0;
+    let currentOutputLine = 0;
+    const lines = [];
+    let currentLine = [];
+
+    for (const m of this.mappings) {
+      // Fill empty lines
+      while (currentOutputLine < m.outputLine) {
+        lines.push(currentLine.join(','));
+        currentLine = [];
+        currentOutputLine++;
+        prevOutputCol = 0;
+      }
+
+      const segment = [];
+      segment.push(this._vlqEncode(m.outputCol - prevOutputCol));
+      segment.push(this._vlqEncode(0)); // source index (always 0)
+      segment.push(this._vlqEncode(m.sourceLine - prevSourceLine));
+      segment.push(this._vlqEncode(m.sourceCol - prevSourceCol));
+
+      currentLine.push(segment.join(''));
+      prevOutputCol = m.outputCol;
+      prevSourceLine = m.sourceLine;
+      prevSourceCol = m.sourceCol;
+    }
+    lines.push(currentLine.join(','));
+
+    return JSON.stringify({
+      version: 3,
+      file: this.sourceFile.replace('.lux', '.js'),
+      sources,
+      sourcesContent: sourceContent ? [sourceContent] : undefined,
+      names,
+      mappings: lines.join(';'),
+    });
+  }
+
+  _vlqEncode(value) {
+    let vlq = value < 0 ? ((-value) << 1) + 1 : value << 1;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let encoded = '';
+    do {
+      let digit = vlq & 0x1f;
+      vlq >>= 5;
+      if (vlq > 0) digit |= 0x20;
+      encoded += chars[digit];
+    } while (vlq > 0);
+    return encoded;
+  }
+
+  toDataURL(sourceContent) {
+    const mapJson = this.generate(sourceContent);
+    const base64 = Buffer.from(mapJson).toString('base64');
+    return `//# sourceMappingURL=data:application/json;base64,${base64}`;
+  }
+}
+
+// ─── Production Build ────────────────────────────────────────
+
+async function productionBuild(srcDir, outDir) {
+  const luxFiles = findFiles(srcDir, '.lux');
+  if (luxFiles.length === 0) {
+    console.error('No .lux files found');
+    process.exit(1);
+  }
+
+  mkdirSync(outDir, { recursive: true });
+
+  console.log(`\n  Production build...\n`);
+
+  let allClientCode = '';
+  let allServerCode = '';
+  let allSharedCode = '';
+  let cssContent = '';
+
+  for (const file of luxFiles) {
+    try {
+      const source = readFileSync(file, 'utf-8');
+      const output = compileLux(source, file);
+
+      if (output.shared) allSharedCode += output.shared + '\n';
+      if (output.server) allServerCode += output.server + '\n';
+      if (output.client) allClientCode += output.client + '\n';
+    } catch (err) {
+      console.error(`  Error in ${relative(srcDir, file)}: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  // Generate content hash for cache busting
+  const hashCode = (s) => {
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash << 5) - hash) + s.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(36).slice(0, 8);
+  };
+
+  // Write server bundle
+  if (allServerCode.trim()) {
+    const serverBundle = allSharedCode + '\n' + allServerCode;
+    const hash = hashCode(serverBundle);
+    const serverPath = join(outDir, `server.${hash}.js`);
+    writeFileSync(serverPath, serverBundle);
+    console.log(`  server.${hash}.js`);
+  }
+
+  // Write client bundle
+  if (allClientCode.trim()) {
+    const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+    const reactivityCode = readFileSync(join(luxRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8').replace(/^export /gm, '');
+    const rpcCode = readFileSync(join(luxRoot, 'src', 'runtime', 'rpc.js'), 'utf-8').replace(/^export /gm, '');
+
+    const clientBundle = reactivityCode + '\n' + rpcCode + '\n' + allSharedCode + '\n' +
+      allClientCode.replace(/^import\s+\{[^}]+\}\s+from\s+'[^']+';?\s*$/gm, '').trim();
+
+    const hash = hashCode(clientBundle);
+    const clientPath = join(outDir, `client.${hash}.js`);
+    writeFileSync(clientPath, clientBundle);
+    console.log(`  client.${hash}.js`);
+
+    // Generate production HTML
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lux App</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="client.${hash}.js"></script>
+</body>
+</html>`;
+    writeFileSync(join(outDir, 'index.html'), html);
+    console.log(`  index.html`);
+  }
+
+  // Try to use Bun.build for minification if available
+  try {
+    const clientFiles = readdirSync(outDir).filter(f => f.startsWith('client.') && f.endsWith('.js'));
+    for (const f of clientFiles) {
+      const filePath = join(outDir, f);
+      const result = await Bun.build({
+        entrypoints: [filePath],
+        outdir: outDir,
+        minify: true,
+        naming: f.replace('.js', '.min.js'),
+      });
+      if (result.success) {
+        console.log(`  ${f.replace('.js', '.min.js')} (minified)`);
+      }
+    }
+  } catch (e) {
+    // Bun.build not available, skip minification
+  }
+
+  console.log(`\n  Production build complete.\n`);
+}
+
+// ─── Multi-file Import Support ───────────────────────────────
+
+const compilationCache = new Map();
+const compilationInProgress = new Set();
+
+function compileWithImports(source, filename, srcDir) {
+  if (compilationCache.has(filename)) {
+    return compilationCache.get(filename);
+  }
+
+  compilationInProgress.add(filename);
+
+  // Parse and find .lux imports
+  const lexer = new Lexer(source, filename);
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, filename);
+  const ast = parser.parse();
+
+  // Resolve .lux imports first
+  for (const node of ast.body) {
+    if (node.type === 'ImportDeclaration' && node.source.endsWith('.lux')) {
+      const importPath = resolve(dirname(filename), node.source);
+      if (compilationInProgress.has(importPath)) {
+        console.warn(`Warning: Circular import detected: ${filename} → ${importPath}`);
+      } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
+        const importSource = readFileSync(importPath, 'utf-8');
+        compileWithImports(importSource, importPath, srcDir);
+      }
+      // Rewrite the import path to .js
+      node.source = node.source.replace('.lux', '.shared.js');
+    }
+    if (node.type === 'ImportDefault' && node.source.endsWith('.lux')) {
+      const importPath = resolve(dirname(filename), node.source);
+      if (compilationInProgress.has(importPath)) {
+        console.warn(`Warning: Circular import detected: ${filename} → ${importPath}`);
+      } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
+        const importSource = readFileSync(importPath, 'utf-8');
+        compileWithImports(importSource, importPath, srcDir);
+      }
+      node.source = node.source.replace('.lux', '.shared.js');
+    }
+  }
+
+  const analyzer = new Analyzer(ast, filename);
+  const { warnings } = analyzer.analyze();
+
+  if (warnings.length > 0) {
+    const formatter = new DiagnosticFormatter(source, filename);
+    for (const w of warnings) {
+      console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }));
+    }
+  }
+
+  const codegen = new CodeGenerator(ast, filename);
+  const output = codegen.generate();
+  compilationCache.set(filename, output);
+  compilationInProgress.delete(filename);
+  return output;
 }
 
 function findFiles(dir, ext) {

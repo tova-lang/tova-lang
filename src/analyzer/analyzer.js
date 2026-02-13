@@ -8,6 +8,7 @@ export class Analyzer {
     this.warnings = [];
     this.globalScope = new Scope(null, 'module');
     this.currentScope = this.globalScope;
+    this._allScopes = []; // Track all scopes for unused variable checking
 
     // Register built-in types
     this.registerBuiltins();
@@ -20,6 +21,18 @@ export class Analyzer {
       'map', 'filter', 'reduce', 'sum', 'sorted', 'reversed',
       'fetch', 'db',
       'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
+      // Collections
+      'find', 'any', 'all', 'flat_map', 'unique', 'group_by',
+      'chunk', 'flatten', 'take', 'drop', 'first', 'last',
+      'count', 'partition',
+      // Math
+      'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
+      // Strings
+      'trim', 'split', 'join', 'replace', 'repeat',
+      // Utility
+      'keys', 'values', 'entries', 'merge', 'freeze', 'clone',
+      // Async
+      'sleep',
     ];
     for (const name of builtins) {
       this.globalScope.define(name, new Symbol(name, 'builtin', null, false, { line: 0, column: 0, file: '<builtin>' }));
@@ -73,12 +86,51 @@ export class Analyzer {
 
     this.visitProgram(this.ast);
 
+    // Check for unused variables/imports (#9)
+    this._collectAllScopes(this.globalScope);
+    this._checkUnusedSymbols();
+
     if (this.errors.length > 0) {
       const msgs = this.errors.map(e => `  ${e.file}:${e.line}:${e.column} — ${e.message}`);
       throw new Error(`Analysis errors:\n${msgs.join('\n')}`);
     }
 
     return { warnings: this.warnings, scope: this.globalScope };
+  }
+
+  _checkUnusedSymbols() {
+    for (const scope of this._allScopes) {
+      // Only check inside functions, not module/server/client level
+      if (!this._isScopeInsideFunction(scope)) continue;
+
+      for (const [name, sym] of scope.symbols) {
+        if (sym.kind === 'builtin') continue;
+        if (name.startsWith('_')) continue;
+        if (sym.kind === 'type') continue;
+        if (sym.kind === 'parameter') continue;
+
+        if (!sym.used && sym.loc && sym.loc.line > 0) {
+          this.warn(`'${name}' is declared but never used`, sym.loc);
+        }
+      }
+    }
+  }
+
+  _collectAllScopes(scope) {
+    this._allScopes.push(scope);
+    for (const child of scope.children) {
+      this._collectAllScopes(child);
+    }
+  }
+
+  _isScopeInsideFunction(scope) {
+    let s = scope;
+    while (s) {
+      if (s.context === 'function') return true;
+      if (s.context === 'module' || s.context === 'server' || s.context === 'client' || s.context === 'shared') return false;
+      s = s.parent;
+    }
+    return false;
   }
 
   // ─── Visitors ─────────────────────────────────────────────
@@ -111,6 +163,10 @@ export class Analyzer {
       case 'ExpressionStatement': return this.visitExpression(node.expression);
       case 'BlockStatement': return this.visitBlock(node);
       case 'CompoundAssignment': return this.visitCompoundAssignment(node);
+      case 'BreakStatement': return this.visitBreakStatement(node);
+      case 'ContinueStatement': return this.visitContinueStatement(node);
+      case 'GuardStatement': return this.visitGuardStatement(node);
+      case 'InterfaceDeclaration': return this.visitInterfaceDeclaration(node);
       case 'StateDeclaration': return this.visitStateDeclaration(node);
       case 'ComputedDeclaration': return this.visitComputedDeclaration(node);
       case 'EffectDeclaration': return this.visitEffectDeclaration(node);
@@ -198,6 +254,8 @@ export class Analyzer {
             }
           }
         }
+        // Argument count validation for known functions
+        this._checkCallArgCount(node);
         this.visitExpression(node.callee);
         for (const arg of node.arguments) {
           if (arg.type === 'NamedArgument') {
@@ -248,6 +306,9 @@ export class Analyzer {
         return;
       case 'PropagateExpression':
         this.visitExpression(node.expression);
+        return;
+      case 'AwaitExpression':
+        this.visitExpression(node.argument);
         return;
       case 'IfExpression':
         this.visitExpression(node.condition);
@@ -315,11 +376,12 @@ export class Analyzer {
   visitAssignment(node) {
     // Check if any target is already defined (immutable reassignment check)
     for (const target of node.targets) {
-      const existing = this.currentScope.lookupLocal(target);
+      const existing = this._lookupAssignTarget(target);
       if (existing) {
         if (!existing.mutable) {
           this.error(`Cannot reassign immutable variable '${target}'. Use 'var' for mutable variables.`, node.loc);
         }
+        existing.used = true;
       } else {
         // New binding — define in current scope
         try {
@@ -380,6 +442,8 @@ export class Analyzer {
     try {
       const sym = new Symbol(node.name, 'function', node.returnType, false, node.loc);
       sym._params = node.params.map(p => p.name);
+      sym._totalParamCount = node.params.length;
+      sym._requiredParamCount = node.params.filter(p => !p.defaultValue).length;
       this.currentScope.define(node.name, sym);
     } catch (e) {
       this.error(e.message);
@@ -389,11 +453,15 @@ export class Analyzer {
     this.currentScope = this.currentScope.child('function');
 
     for (const param of node.params) {
-      try {
-        this.currentScope.define(param.name,
-          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
-      } catch (e) {
-        this.error(e.message);
+      if (param.destructure) {
+        this._defineDestructureParams(param.destructure, param.loc);
+      } else {
+        try {
+          this.currentScope.define(param.name,
+            new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+        } catch (e) {
+          this.error(e.message);
+        }
       }
       if (param.defaultValue) {
         this.visitExpression(param.defaultValue);
@@ -402,6 +470,30 @@ export class Analyzer {
 
     this.visitNode(node.body);
     this.currentScope = prevScope;
+  }
+
+  _defineDestructureParams(pattern, loc) {
+    if (pattern.type === 'ObjectPattern') {
+      for (const prop of pattern.properties) {
+        try {
+          this.currentScope.define(prop.value,
+            new Symbol(prop.value, 'parameter', null, false, loc));
+        } catch (e) {
+          this.error(e.message);
+        }
+      }
+    } else if (pattern.type === 'ArrayPattern') {
+      for (const el of pattern.elements) {
+        if (el) {
+          try {
+            this.currentScope.define(el,
+              new Symbol(el, 'parameter', null, false, loc));
+          } catch (e) {
+            this.error(e.message);
+          }
+        }
+      }
+    }
   }
 
   visitTypeDeclaration(node) {
@@ -416,8 +508,11 @@ export class Analyzer {
     for (const variant of node.variants) {
       if (variant.type === 'TypeVariant') {
         try {
-          this.currentScope.define(variant.name,
-            new Symbol(variant.name, 'function', null, false, variant.loc));
+          const varSym = new Symbol(variant.name, 'function', null, false, variant.loc);
+          varSym._params = variant.fields.map(f => f.name);
+          varSym._totalParamCount = variant.fields.length;
+          varSym._requiredParamCount = variant.fields.length;
+          this.currentScope.define(variant.name, varSym);
         } catch (e) {
           this.error(e.message);
         }
@@ -471,6 +566,7 @@ export class Analyzer {
   visitForStatement(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
+    this.currentScope._isLoop = true;
 
     this.visitExpression(node.iterable);
 
@@ -495,7 +591,11 @@ export class Analyzer {
 
   visitWhileStatement(node) {
     this.visitExpression(node.condition);
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('block');
+    this.currentScope._isLoop = true;
     this.visitNode(node.body);
+    this.currentScope = prevScope;
   }
 
   visitTryCatchStatement(node) {
@@ -504,13 +604,22 @@ export class Analyzer {
     for (const stmt of node.tryBody) this.visitNode(stmt);
     this.currentScope = tryScope.parent;
 
-    const catchScope = this.currentScope.child('block');
-    this.currentScope = catchScope;
-    if (node.catchParam) {
-      catchScope.define(node.catchParam, { kind: 'variable', mutable: false });
+    if (node.catchBody) {
+      const catchScope = this.currentScope.child('block');
+      this.currentScope = catchScope;
+      if (node.catchParam) {
+        catchScope.define(node.catchParam, { kind: 'variable', mutable: false });
+      }
+      for (const stmt of node.catchBody) this.visitNode(stmt);
+      this.currentScope = catchScope.parent;
     }
-    for (const stmt of node.catchBody) this.visitNode(stmt);
-    this.currentScope = catchScope.parent;
+
+    if (node.finallyBody) {
+      const finallyScope = this.currentScope.child('block');
+      this.currentScope = finallyScope;
+      for (const stmt of node.finallyBody) this.visitNode(stmt);
+      this.currentScope = finallyScope.parent;
+    }
   }
 
   visitReturnStatement(node) {
@@ -990,15 +1099,57 @@ export class Analyzer {
 
   visitIdentifier(node) {
     if (node.name === '_') return; // wildcard is always valid
+    if (node.name === '') return; // empty identifier from method pipe
 
     const sym = this.currentScope.lookup(node.name);
     if (!sym) {
-      // Allow server.xxx in client context (RPC calls)
-      // Don't error on unknown identifiers — could be globals
-      // We'll just warn for now, strict mode can enforce later
+      if (!this._isKnownGlobal(node.name)) {
+        this.warn(`'${node.name}' is not defined`, node.loc);
+      }
     } else {
       sym.used = true;
     }
+  }
+
+  _isKnownGlobal(name) {
+    const jsGlobals = new Set([
+      // JS built-ins
+      'console', 'document', 'window', 'globalThis', 'self',
+      'JSON', 'Math', 'Date', 'RegExp', 'Error', 'TypeError', 'RangeError',
+      'Promise', 'Set', 'Map', 'WeakSet', 'WeakMap', 'Symbol',
+      'Array', 'Object', 'String', 'Number', 'Boolean', 'Function',
+      'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'NaN', 'Infinity',
+      'undefined', 'null', 'true', 'false',
+      'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+      'queueMicrotask', 'structuredClone',
+      'URL', 'URLSearchParams', 'Headers', 'Request', 'Response',
+      'FormData', 'Blob', 'File', 'FileReader',
+      'AbortController', 'AbortSignal',
+      'TextEncoder', 'TextDecoder',
+      'crypto', 'performance', 'navigator', 'location', 'history',
+      'localStorage', 'sessionStorage',
+      'fetch', 'alert', 'confirm', 'prompt',
+      'Bun', 'Deno', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
+      'Buffer', 'atob', 'btoa',
+      // Lux runtime
+      'print', 'range', 'len', 'type_of', 'enumerate', 'zip',
+      'map', 'filter', 'reduce', 'sum', 'sorted', 'reversed',
+      'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
+      'db', 'server', 'client', 'shared',
+      // Lux stdlib — collections
+      'find', 'any', 'all', 'flat_map', 'unique', 'group_by',
+      'chunk', 'flatten', 'take', 'drop', 'first', 'last',
+      'count', 'partition',
+      // Lux stdlib — math
+      'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
+      // Lux stdlib — strings
+      'trim', 'split', 'join', 'replace', 'repeat',
+      // Lux stdlib — utility
+      'keys', 'values', 'entries', 'merge', 'freeze', 'clone',
+      // Lux stdlib — async
+      'sleep',
+    ]);
+    return jsGlobals.has(name);
   }
 
   visitLambda(node) {
@@ -1035,6 +1186,77 @@ export class Analyzer {
         this.visitExpression(arm.body);
       }
       this.currentScope = prevScope;
+    }
+
+    // Exhaustive match checking (#12)
+    this._checkMatchExhaustiveness(node);
+  }
+
+  _checkMatchExhaustiveness(node) {
+    // Check if the match has a wildcard/binding catch-all
+    const hasWildcard = node.arms.some(arm =>
+      arm.pattern.type === 'WildcardPattern' ||
+      (arm.pattern.type === 'BindingPattern' && !arm.guard)
+    );
+    if (hasWildcard) return; // Catch-all exists, always exhaustive
+
+    // If subject is an identifier, try to find its type for variant checking
+    const variantNames = new Set();
+    const coveredVariants = new Set();
+
+    // Collect all variant patterns used in the match
+    for (const arm of node.arms) {
+      if (arm.pattern.type === 'VariantPattern') {
+        coveredVariants.add(arm.pattern.name);
+      }
+    }
+
+    // If we have variant patterns, check if all known variants are covered
+    if (coveredVariants.size > 0) {
+      // Check built-in Result/Option types
+      if (coveredVariants.has('Ok') || coveredVariants.has('Err')) {
+        if (!coveredVariants.has('Ok')) {
+          this.warn(`Non-exhaustive match: missing 'Ok' variant`, node.loc);
+        }
+        if (!coveredVariants.has('Err')) {
+          this.warn(`Non-exhaustive match: missing 'Err' variant`, node.loc);
+        }
+      }
+      if (coveredVariants.has('Some') || coveredVariants.has('None')) {
+        if (!coveredVariants.has('Some')) {
+          this.warn(`Non-exhaustive match: missing 'Some' variant`, node.loc);
+        }
+        if (!coveredVariants.has('None')) {
+          this.warn(`Non-exhaustive match: missing 'None' variant`, node.loc);
+        }
+      }
+
+      // Check user-defined types — look up in _variantFields from the global scope
+      // Collect all known type variants by iterating type declarations
+      for (const topNode of this.ast.body) {
+        this._collectTypeVariants(topNode, variantNames, coveredVariants);
+      }
+    }
+  }
+
+  _collectTypeVariants(node, allVariants, coveredVariants) {
+    if (node.type === 'TypeDeclaration') {
+      const typeVariants = node.variants.filter(v => v.type === 'TypeVariant').map(v => v.name);
+      // If any of the match arms reference a variant from this type, check all
+      const relevantVariants = typeVariants.filter(v => coveredVariants.has(v));
+      if (relevantVariants.length > 0) {
+        for (const v of typeVariants) {
+          if (!coveredVariants.has(v)) {
+            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${node.name}'`, null);
+          }
+        }
+      }
+    }
+    // Recurse into blocks
+    if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
+      for (const child of node.body) {
+        this._collectTypeVariants(child, allVariants, coveredVariants);
+      }
     }
   }
 
@@ -1158,6 +1380,81 @@ export class Analyzer {
       for (const child of node.alternate) {
         this.visitNode(child);
       }
+    }
+  }
+
+  // ─── New feature visitors ─────────────────────────────────
+
+  visitBreakStatement(node) {
+    if (!this._isInsideLoop()) {
+      this.error("'break' can only be used inside a loop", node.loc);
+    }
+  }
+
+  visitContinueStatement(node) {
+    if (!this._isInsideLoop()) {
+      this.error("'continue' can only be used inside a loop", node.loc);
+    }
+  }
+
+  _checkCallArgCount(node) {
+    if (node.callee.type !== 'Identifier') return;
+    const fnSym = this.currentScope.lookup(node.callee.name);
+    if (!fnSym || fnSym.kind === 'builtin' || fnSym._totalParamCount === undefined) return;
+
+    // Skip check if any argument uses spread (unknown count)
+    const hasSpread = node.arguments.some(a => a.type === 'SpreadExpression');
+    if (hasSpread) return;
+
+    const actualCount = node.arguments.length;
+    const name = node.callee.name;
+
+    if (actualCount > fnSym._totalParamCount) {
+      this.warn(`'${name}' expects ${fnSym._totalParamCount} argument${fnSym._totalParamCount !== 1 ? 's' : ''}, but got ${actualCount}`, node.loc);
+    } else if (actualCount < fnSym._requiredParamCount) {
+      this.warn(`'${name}' expects at least ${fnSym._requiredParamCount} argument${fnSym._requiredParamCount !== 1 ? 's' : ''}, but got ${actualCount}`, node.loc);
+    }
+  }
+
+  // Search for a variable from current scope up to the nearest function/module boundary.
+  // This ensures `x = 20` inside an if/for block finds `x = 10` from the enclosing function,
+  // preventing silent shadowing of immutable bindings within the same function.
+  _lookupAssignTarget(name) {
+    let scope = this.currentScope;
+    while (scope) {
+      const sym = scope.symbols.get(name);
+      if (sym) return sym;
+      // Stop after checking a function or top-level scope (don't cross function boundaries)
+      if (scope.context === 'function' || scope.context === 'module' ||
+          scope.context === 'server' || scope.context === 'client' || scope.context === 'shared') {
+        break;
+      }
+      scope = scope.parent;
+    }
+    return null;
+  }
+
+  _isInsideLoop() {
+    // Walk up the AST context — check if any parent is a for/while loop scope
+    let scope = this.currentScope;
+    while (scope) {
+      if (scope._isLoop) return true;
+      scope = scope.parent;
+    }
+    return false;
+  }
+
+  visitGuardStatement(node) {
+    this.visitExpression(node.condition);
+    this.visitNode(node.elseBody);
+  }
+
+  visitInterfaceDeclaration(node) {
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'type', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
     }
   }
 }

@@ -74,12 +74,13 @@ export class LetDestructure {
 }
 
 export class FunctionDeclaration {
-  constructor(name, params, body, returnType, loc) {
+  constructor(name, params, body, returnType, loc, isAsync = false) {
     this.type = 'FunctionDeclaration';
     this.name = name;
     this.params = params;     // Array of Parameter nodes
     this.body = body;         // BlockStatement or Expression (implicit return)
     this.returnType = returnType; // optional type annotation
+    this.isAsync = isAsync;
     this.loc = loc;
   }
 }
@@ -216,11 +217,35 @@ export class IfExpression {
 }
 
 export class TryCatchStatement {
-  constructor(tryBody, catchParam, catchBody, loc) {
+  constructor(tryBody, catchParam, catchBody, loc, finallyBody = null) {
     this.type = 'TryCatchStatement';
-    this.tryBody = tryBody;       // Array of statements
-    this.catchParam = catchParam; // string (error variable name) or null
-    this.catchBody = catchBody;   // Array of statements
+    this.tryBody = tryBody;         // Array of statements
+    this.catchParam = catchParam;   // string (error variable name) or null
+    this.catchBody = catchBody;     // Array of statements (or null if try/finally only)
+    this.finallyBody = finallyBody; // Array of statements or null
+    this.loc = loc;
+  }
+}
+
+export class BreakStatement {
+  constructor(loc) {
+    this.type = 'BreakStatement';
+    this.loc = loc;
+  }
+}
+
+export class ContinueStatement {
+  constructor(loc) {
+    this.type = 'ContinueStatement';
+    this.loc = loc;
+  }
+}
+
+export class GuardStatement {
+  constructor(condition, elseBody, loc) {
+    this.type = 'GuardStatement';
+    this.condition = condition;
+    this.elseBody = elseBody; // BlockStatement
     this.loc = loc;
   }
 }
@@ -387,10 +412,11 @@ export class PipeExpression {
 }
 
 export class LambdaExpression {
-  constructor(params, body, loc) {
+  constructor(params, body, loc, isAsync = false) {
     this.type = 'LambdaExpression';
     this.params = params;
     this.body = body;
+    this.isAsync = isAsync;
     this.loc = loc;
   }
 }
@@ -490,6 +516,32 @@ export class CompoundAssignment {
     this.target = target;
     this.operator = operator; // +=, -=, *=, /=
     this.value = value;
+    this.loc = loc;
+  }
+}
+
+export class AwaitExpression {
+  constructor(argument, loc) {
+    this.type = 'AwaitExpression';
+    this.argument = argument;
+    this.loc = loc;
+  }
+}
+
+export class InterfaceDeclaration {
+  constructor(name, methods, loc) {
+    this.type = 'InterfaceDeclaration';
+    this.name = name;
+    this.methods = methods; // Array of { name, params, returnType }
+    this.loc = loc;
+  }
+}
+
+export class StringConcatPattern {
+  constructor(prefix, rest, loc) {
+    this.type = 'StringConcatPattern';
+    this.prefix = prefix; // StringLiteral value
+    this.rest = rest;     // BindingPattern or WildcardPattern
     this.loc = loc;
   }
 }
