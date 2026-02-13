@@ -936,7 +936,7 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     if (sessionConfig) {
       lines.push('// ── Session Management ──');
-      const secretExpr = sessionConfig.secret ? this.genExpression(sessionConfig.secret) : '"lux-session-secret"';
+      const secretExpr = sessionConfig.secret ? this.genExpression(sessionConfig.secret) : '"tova-session-secret"';
       const maxAgeExpr = sessionConfig.max_age ? this.genExpression(sessionConfig.max_age) : '3600';
       const cookieNameExpr = sessionConfig.cookie_name ? this.genExpression(sessionConfig.cookie_name) : '"__sid"';
       lines.push(`const __sessionSecret = ${secretExpr};`);
@@ -1203,10 +1203,10 @@ export class ServerCodegen extends BaseCodegen {
           hasManyNames.push(...extractRelNames(modelDecl.config.has_many));
         }
 
-        // Map Lux types to SQL types
-        const sqlType = (luxType) => {
+        // Map Tova types to SQL types
+        const sqlType = (tovaType) => {
           if (dbDriver === 'postgres') {
-            switch (luxType) {
+            switch (tovaType) {
               case 'Int': return 'INTEGER';
               case 'Float': return 'DOUBLE PRECISION';
               case 'Bool': return 'BOOLEAN';
@@ -1214,7 +1214,7 @@ export class ServerCodegen extends BaseCodegen {
               default: return 'TEXT';
             }
           }
-          switch (luxType) {
+          switch (tovaType) {
             case 'Int': return 'INTEGER';
             case 'Float': return 'REAL';
             case 'Bool': return 'INTEGER';
@@ -1819,7 +1819,7 @@ export class ServerCodegen extends BaseCodegen {
     // 17b. OpenAPI Spec Generation — auto-generate from routes + types
     // ════════════════════════════════════════════════════════════
     if (routes.length > 0) {
-      const luxTypeToJsonSchema = (typeName) => {
+      const tovaTypeToJsonSchema = (typeName) => {
         switch (typeName) {
           case 'Int': return '{ "type": "integer" }';
           case 'Float': return '{ "type": "number" }';
@@ -1832,7 +1832,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('// ── OpenAPI Spec ──');
       lines.push('const __openApiSpec = {');
       lines.push('  openapi: "3.0.3",');
-      lines.push(`  info: { title: ${JSON.stringify(blockName || 'Lux API')}, version: "1.0.0" },`);
+      lines.push(`  info: { title: ${JSON.stringify(blockName || 'Tova API')}, version: "1.0.0" },`);
       lines.push('  paths: {},');
       lines.push('  components: { schemas: {} },');
       lines.push('};');
@@ -2363,7 +2363,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push(`  },`);
     }
     lines.push(`});`);
-    lines.push(`console.log(\`Lux server${label} running on \${__server.url}\`);`);
+    lines.push(`console.log(\`Tova server${label} running on \${__server.url}\`);`);
     lines.push('');
 
     // ════════════════════════════════════════════════════════════
@@ -2390,7 +2390,7 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     lines.push('// ── Graceful Shutdown ──');
     lines.push('async function __shutdown() {');
-    lines.push(`  console.log(\`Lux server${label} shutting down...\`);`);
+    lines.push(`  console.log(\`Tova server${label} shutting down...\`);`);
     lines.push('  __shuttingDown = true;');
     lines.push('  __server.stop();');
     lines.push('  const __drainStart = Date.now();');

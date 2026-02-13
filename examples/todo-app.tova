@@ -1,4 +1,4 @@
-// Full-Stack Todo App in Lux — demonstrates server/client/shared blocks
+// Full-Stack Todo App in Tova — demonstrates server/client/shared blocks
 
 shared {
   type Todo {
@@ -79,7 +79,7 @@ client {
 
   component App {
     <div class="todo-app">
-      <h1>"Lux Todo"</h1>
+      <h1>"Tova Todo"</h1>
       <div class="input-row">
         <input
           type="text"

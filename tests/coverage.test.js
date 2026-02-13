@@ -494,8 +494,8 @@ describe('Codegen — Client full pipeline', () => {
     expect(result.client).toContain('createEffect');
     expect(result.client).toContain('function App(');
     expect(result.client).toContain('function helper(');
-    expect(result.client).toContain('setCount(__lux_p => __lux_p + 1)');
-    expect(result.client).toContain('setCount(__lux_p => __lux_p - 1)');
+    expect(result.client).toContain('setCount(__tova_p => __tova_p + 1)');
+    expect(result.client).toContain('setCount(__tova_p => __tova_p - 1)');
     expect(result.client).toContain('setCount(0)');
   });
 
@@ -508,7 +508,7 @@ describe('Codegen — Client full pipeline', () => {
 
   test('client JSX self-closing', () => {
     const result = compile('client { component C { <br /> } }');
-    expect(result.client).toContain('lux_el("br"');
+    expect(result.client).toContain('tova_el("br"');
   });
 
   test('client JSX for loop', () => {
@@ -539,7 +539,7 @@ describe('Codegen — Client full pipeline', () => {
 
   test('client state compound in regular statement', () => {
     const result = compile('client { state x = 0 fn inc() { x += 1 } }');
-    expect(result.client).toContain('setX(__lux_p => __lux_p + 1)');
+    expect(result.client).toContain('setX(__tova_p => __tova_p + 1)');
   });
 
   test('client with shared code', () => {

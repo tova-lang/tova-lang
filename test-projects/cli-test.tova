@@ -1,7 +1,7 @@
-// CLI Test Program — exercises core Lux language features
+// CLI Test Program — exercises core Tova language features
 
 // ─── 1. Variables & String Interpolation ─────────────────
-name = "Lux"
+name = "Tova"
 version = 1
 print("Welcome to {name} v{version}!")
 
@@ -33,7 +33,7 @@ fn greet(who = "World") {
 print("5! = {factorial(5)}")
 print("fib(10) = {fibonacci(10)}")
 print(greet())
-print(greet("Lux"))
+print(greet("Tova"))
 
 // ─── 4. Pattern Matching ─────────────────────────────────
 fn classify(n) {
@@ -107,9 +107,9 @@ if 1 < val < 10 {
 }
 
 // ─── 10. Membership Test ─────────────────────────────────
-langs = ["Lux", "Rust", "Python", "Go"]
-if "Lux" in langs {
-  print("Lux is in the list!")
+langs = ["Tova", "Rust", "Python", "Go"]
+if "Tova" in langs {
+  print("Tova is in the list!")
 }
 
 // ─── 11. Stdlib Functions ────────────────────────────────

@@ -1,17 +1,17 @@
 ---
 title: Hello World
-description: Write and run your first Lux program.
+description: Write and run your first Tova program.
 ---
 
 # Hello World
 
-This page walks you through writing, running, and understanding your first Lux program.
+This page walks you through writing, running, and understanding your first Tova program.
 
 ## Your First Program
 
-Create a file called `hello.lux`:
+Create a file called `hello.tova`:
 
-```lux
+```tova
 name = "World"
 print("Hello, {name}!")
 ```
@@ -19,7 +19,7 @@ print("Hello, {name}!")
 Run it:
 
 ```bash
-lux run hello.lux
+tova run hello.tova
 ```
 
 Output:
@@ -34,14 +34,14 @@ That is all it takes. Let us break down what happened.
 
 **Immutable by default.** The line `name = "World"` creates an immutable binding. Once assigned, `name` cannot be reassigned. If you need a mutable variable, use `var`:
 
-```lux
+```tova
 var count = 0
 count += 1       // OK -- count is mutable
 ```
 
 **String interpolation.** Curly braces inside a string evaluate expressions inline. Any valid expression works:
 
-```lux
+```tova
 print("2 + 3 = {2 + 3}")       // 2 + 3 = 5
 print("upper: {to_upper(name)}")  // upper: WORLD
 ```
@@ -50,9 +50,9 @@ print("upper: {to_upper(name)}")  // upper: WORLD
 
 ## Adding a Function
 
-Extend `hello.lux` with a function:
+Extend `hello.tova` with a function:
 
-```lux
+```tova
 name = "World"
 print("Hello, {name}!")
 
@@ -67,7 +67,7 @@ print("1 + 2 = {result}")
 Run it again:
 
 ```bash
-lux run hello.lux
+tova run hello.tova
 ```
 
 Output:
@@ -77,13 +77,13 @@ Hello, World!
 1 + 2 = 3
 ```
 
-Functions are declared with `fn`. The body is a block delimited by curly braces, and the last expression is returned implicitly. There are no semicolons in Lux.
+Functions are declared with `fn`. The body is a block delimited by curly braces, and the last expression is returned implicitly. There are no semicolons in Tova.
 
 ## Lambdas
 
 Anonymous functions use the same `fn` keyword without a name:
 
-```lux
+```tova
 double = fn(x) x * 2
 
 print("double 5 = {double(5)}")   // double 5 = 10
@@ -91,7 +91,7 @@ print("double 5 = {double(5)}")   // double 5 = 10
 
 For multi-line lambdas, use braces:
 
-```lux
+```tova
 transform = fn(x) {
   y = x * 2
   y + 1
@@ -103,20 +103,20 @@ transform = fn(x) {
 For quick experimentation, start the interactive REPL:
 
 ```bash
-lux repl
+tova repl
 ```
 
-You will see a prompt where you can type Lux expressions and see results immediately:
+You will see a prompt where you can type Tova expressions and see results immediately:
 
 ```
-lux> 1 + 2
+tova> 1 + 2
 3
-lux> name = "Lux"
-"Lux"
-lux> print("Hello from {name}!")
-Hello from Lux!
-lux> fn square(x) { x * x }
-lux> square(7)
+tova> name = "Tova"
+"Tova"
+tova> print("Hello from {name}!")
+Hello from Tova!
+tova> fn square(x) { x * x }
+tova> square(7)
 49
 ```
 
@@ -126,7 +126,7 @@ The REPL supports multi-line input and has the full standard library available. 
 
 Here is a program that puts several features together:
 
-```lux
+```tova
 fn fizzbuzz(n) {
   for i in range(1, n + 1) {
     match [i % 3, i % 5] {
@@ -141,10 +141,10 @@ fn fizzbuzz(n) {
 fizzbuzz(20)
 ```
 
-This shows `for` loops, `range`, pattern matching on arrays, and wildcard patterns -- all concepts covered in the [Tour of Lux](/getting-started/tour).
+This shows `for` loops, `range`, pattern matching on arrays, and wildcard patterns -- all concepts covered in the [Tour of Tova](/getting-started/tour).
 
 ## Next Steps
 
-- [Tour of Lux](/getting-started/tour) -- a fast-paced walkthrough of every major language feature
+- [Tour of Tova](/getting-started/tour) -- a fast-paced walkthrough of every major language feature
 - [Variables](/guide/variables) -- deep dive into immutability, mutability, and destructuring
 - [Functions](/guide/functions) -- default parameters, rest parameters, and more

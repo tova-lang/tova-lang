@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// Lux CLI Demo — comprehensive language feature showcase
+// Tova CLI Demo — comprehensive language feature showcase
 // ═══════════════════════════════════════════════════════════
 
 // ─── 1. Variables & String Interpolation ─────────────────
-name = "Lux"
+name = "Tova"
 print("=== {name} Language Demo ===")
 print("")
 

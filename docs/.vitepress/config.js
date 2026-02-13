@@ -5,18 +5,18 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Load Lux TextMate grammar for syntax highlighting
-let luxGrammar
+// Load Tova TextMate grammar for syntax highlighting
+let tovaGrammar
 try {
-  luxGrammar = JSON.parse(
-    readFileSync(resolve(__dirname, '../../editors/vscode/syntaxes/lux.tmLanguage.json'), 'utf-8')
+  tovaGrammar = JSON.parse(
+    readFileSync(resolve(__dirname, '../../editors/vscode/syntaxes/tova.tmLanguage.json'), 'utf-8')
   )
 } catch {
-  luxGrammar = null
+  tovaGrammar = null
 }
 
 export default defineConfig({
-  title: 'Lux',
+  title: 'Tova',
   description: 'A modern full-stack language that transpiles to JavaScript',
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
@@ -24,7 +24,7 @@ export default defineConfig({
 
   themeConfig: {
     logo: undefined,
-    siteTitle: 'Lux',
+    siteTitle: 'Tova',
 
     nav: [
       { text: 'Guide', link: '/getting-started/' },
@@ -42,7 +42,7 @@ export default defineConfig({
           items: [
             { text: 'Installation', link: '/getting-started/' },
             { text: 'Hello World', link: '/getting-started/hello-world' },
-            { text: 'Tour of Lux', link: '/getting-started/tour' },
+            { text: 'Tour of Tova', link: '/getting-started/tour' },
           ],
         },
       ],
@@ -196,7 +196,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/luxlang/lux' },
+      { icon: 'github', link: 'https://github.com/tovalang/tova' },
     ],
 
     search: {
@@ -204,21 +204,21 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/luxlang/lux/edit/main/docs/:path',
+      pattern: 'https://github.com/tovalang/tova/edit/main/docs/:path',
     },
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright Lux Contributors',
+      copyright: 'Copyright Tova Contributors',
     },
   },
 
   markdown: {
-    languages: luxGrammar ? [
+    languages: tovaGrammar ? [
       {
-        ...luxGrammar,
-        name: 'lux',
-        scopeName: luxGrammar.scopeName || 'source.lux',
+        ...tovaGrammar,
+        name: 'tova',
+        scopeName: tovaGrammar.scopeName || 'source.tova',
       },
     ] : [],
   },

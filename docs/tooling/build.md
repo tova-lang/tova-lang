@@ -4,24 +4,24 @@ title: Build System
 
 # Build System
 
-The Lux build system compiles `.lux` source files into JavaScript, handling shared types, server blocks, client blocks, and runtime dependencies.
+The Tova build system compiles `.tova` source files into JavaScript, handling shared types, server blocks, client blocks, and runtime dependencies.
 
 ## Basic Build
 
 ```bash
-lux build
-lux build src
-lux build src --output dist
+tova build
+tova build src
+tova build src --output dist
 ```
 
-By default, `lux build` compiles all `.lux` files in the current directory and outputs JavaScript to `.lux-out/`.
+By default, `tova build` compiles all `.tova` files in the current directory and outputs JavaScript to `.tova-out/`.
 
 ## Output Structure
 
-After building, the `.lux-out/` directory contains:
+After building, the `.tova-out/` directory contains:
 
 ```
-.lux-out/
+.tova-out/
   app.shared.js          # Shared types and functions
   app.server.js          # Default server block
   app.server.api.js      # Named server block "api"
@@ -33,7 +33,7 @@ After building, the `.lux-out/` directory contains:
     router.js            # Client-side router
 ```
 
-Each `.lux` source file produces up to several output files:
+Each `.tova` source file produces up to several output files:
 
 | Output | Source | Description |
 |--------|--------|-------------|
@@ -46,8 +46,8 @@ Each `.lux` source file produces up to several output files:
 ## Production Builds
 
 ```bash
-lux build --production
-lux build src --production --output dist
+tova build --production
+tova build src --production --output dist
 ```
 
 Production builds apply three optimizations:
@@ -60,7 +60,7 @@ Production builds apply three optimizations:
 
 ## Source Maps
 
-The build system generates source maps for compiled files. Each `.js` output file gets a corresponding `.js.map` file that maps back to the original `.lux` source.
+The build system generates source maps for compiled files. Each `.js` output file gets a corresponding `.js.map` file that maps back to the original `.tova` source.
 
 Source maps are appended as a `sourceMappingURL` comment:
 
@@ -69,14 +69,14 @@ Source maps are appended as a `sourceMappingURL` comment:
 //# sourceMappingURL=app.server.js.map
 ```
 
-This enables debugging in browser DevTools and editor integrations that can step through the original Lux source.
+This enables debugging in browser DevTools and editor integrations that can step through the original Tova source.
 
 ## Multi-File Projects
 
-For projects with multiple `.lux` files that import from each other, the build system uses `compileWithImports` to resolve the dependency graph:
+For projects with multiple `.tova` files that import from each other, the build system uses `compileWithImports` to resolve the dependency graph:
 
-```lux
-// utils.lux
+```tova
+// utils.tova
 shared {
   fn format_date(d) -> String {
     // ...
@@ -84,8 +84,8 @@ shared {
 }
 ```
 
-```lux
-// app.lux
+```tova
+// app.tova
 import { format_date } from "./utils"
 
 server {
@@ -99,14 +99,14 @@ server {
 
 During compilation:
 
-- `.lux` imports are discovered and compiled first
-- Import paths are rewritten from `.lux` to `.js` in the output
+- `.tova` imports are discovered and compiled first
+- Import paths are rewritten from `.tova` to `.js` in the output
 - Circular dependencies are detected and reported as errors
 - A compilation cache prevents re-compiling files that have already been processed
 
 ## Runtime Files
 
-The build copies Lux runtime files into the output `runtime/` directory:
+The build copies Tova runtime files into the output `runtime/` directory:
 
 | File | Purpose |
 |------|---------|
@@ -120,7 +120,7 @@ These are automatically imported by the generated server and client code.
 
 When using multiple named server blocks, each gets its own output file:
 
-```lux
+```tova
 server "api" {
   route GET "/api/users" => list_users
 }
@@ -143,7 +143,7 @@ When compilation fails, the build reports errors with Rust/Elm-style diagnostics
 
 ```
 error: Undefined identifier 'usrName'
-  --> src/app.lux:12:5
+  --> src/app.tova:12:5
    |
 12 |     print(usrName)
    |           ^^^^^^^ Did you mean 'userName'?

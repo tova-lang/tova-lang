@@ -1,6 +1,6 @@
 # Keywords
 
-This page lists every reserved keyword in the Lux language in alphabetical order. Each entry includes a brief description and a minimal code example.
+This page lists every reserved keyword in the Tova language in alphabetical order. Each entry includes a brief description and a minimal code example.
 
 ## Reserved Keywords
 
@@ -74,7 +74,7 @@ These identifiers are reserved only within `server` blocks for route declaration
 
 Logical AND operator. Short-circuits: the right operand is not evaluated if the left is falsy.
 
-```lux
+```tova
 if is_valid and is_active {
   process()
 }
@@ -84,7 +84,7 @@ if is_valid and is_active {
 
 Renames an import to a local alias.
 
-```lux
+```tova
 import { readFile as read } from "fs"
 ```
 
@@ -92,7 +92,7 @@ import { readFile as read } from "fs"
 
 Marks a function as asynchronous. An async function returns a Promise.
 
-```lux
+```tova
 async fn fetch_data(url) {
   response = await fetch(url)
   await response.json()
@@ -103,7 +103,7 @@ async fn fetch_data(url) {
 
 Suspends execution until an asynchronous value resolves.
 
-```lux
+```tova
 data = await fetch_data("/api/users")
 ```
 
@@ -111,7 +111,7 @@ data = await fetch_data("/api/users")
 
 Exits the nearest enclosing `for` or `while` loop immediately.
 
-```lux
+```tova
 for item in items {
   if item == target {
     break
@@ -123,7 +123,7 @@ for item in items {
 
 Handles errors thrown in a `try` block. The caught error is bound to an optional variable.
 
-```lux
+```tova
 try {
   data = parse(input)
 } catch err {
@@ -135,7 +135,7 @@ try {
 
 Opens a client-side block. Code inside is compiled only for the browser.
 
-```lux
+```tova
 client {
   state count = 0
   component Counter() {
@@ -148,7 +148,7 @@ client {
 
 Declares a reactive UI component that renders JSX.
 
-```lux
+```tova
 component Greeting(name) {
   <h1>"Hello, {name}!"</h1>
 }
@@ -158,7 +158,7 @@ component Greeting(name) {
 
 Declares a derived value that automatically updates when its dependencies change.
 
-```lux
+```tova
 state items = []
 computed total = items.length
 ```
@@ -167,7 +167,7 @@ computed total = items.length
 
 Skips the remainder of the current loop iteration and proceeds to the next.
 
-```lux
+```tova
 for i in 0..100 {
   if i % 2 == 0 {
     continue
@@ -180,7 +180,7 @@ for i in 0..100 {
 
 Schedules an expression to run when the enclosing scope exits, regardless of how it exits.
 
-```lux
+```tova
 fn process_file(path) {
   file = open(path)
   defer close(file)
@@ -192,7 +192,7 @@ fn process_file(path) {
 
 Automatically generates trait implementations for a type.
 
-```lux
+```tova
 type Point {
   x: Float
   y: Float
@@ -203,7 +203,7 @@ type Point {
 
 Declares a reactive side effect that re-runs when its dependencies change.
 
-```lux
+```tova
 state query = ""
 effect {
   results = search(query)
@@ -213,9 +213,9 @@ effect {
 
 ### `elif`
 
-A chained conditional branch. Lux uses `elif`, **not** `else if`.
+A chained conditional branch. Tova uses `elif`, **not** `else if`.
 
-```lux
+```tova
 if score >= 90 {
   "A"
 } elif score >= 80 {
@@ -231,7 +231,7 @@ if score >= 90 {
 
 The fallback branch of an `if`/`elif` chain or a `for` loop.
 
-```lux
+```tova
 if condition {
   handle_true()
 } else {
@@ -243,7 +243,7 @@ if condition {
 
 Makes a declaration accessible to other modules.
 
-```lux
+```tova
 export fn greet(name) {
   "Hello, {name}!"
 }
@@ -253,7 +253,7 @@ export fn greet(name) {
 
 Declares an external binding provided by the host environment.
 
-```lux
+```tova
 extern fn console_log(msg)
 ```
 
@@ -261,7 +261,7 @@ extern fn console_log(msg)
 
 The boolean false literal.
 
-```lux
+```tova
 is_done = false
 ```
 
@@ -269,7 +269,7 @@ is_done = false
 
 Specifies a block that always executes after `try`/`catch`, whether or not an error occurred.
 
-```lux
+```tova
 try {
   data = load()
 } catch err {
@@ -283,7 +283,7 @@ try {
 
 Declares a named function or an anonymous lambda.
 
-```lux
+```tova
 fn add(a, b) {
   a + b
 }
@@ -295,7 +295,7 @@ double = fn(x) x * 2
 
 Iterates over a range or collection. Supports an optional second variable for key/index.
 
-```lux
+```tova
 for item in items {
   print(item)
 }
@@ -309,7 +309,7 @@ for i, val in enumerate(items) {
 
 Specifies the module path in an import statement.
 
-```lux
+```tova
 import { sqrt, PI } from "math"
 ```
 
@@ -317,7 +317,7 @@ import { sqrt, PI } from "math"
 
 Asserts a condition. If the condition is false, the `else` block executes (typically returning or breaking).
 
-```lux
+```tova
 fn process(input) {
   guard input != nil else {
     return Error("input is nil")
@@ -331,7 +331,7 @@ fn process(input) {
 
 Conditional branching. Can be used as a statement or an expression.
 
-```lux
+```tova
 // As statement
 if ready {
   start()
@@ -345,7 +345,7 @@ label = if count == 1 { "item" } else { "items" }
 
 Implements methods or trait conformance for a type.
 
-```lux
+```tova
 impl Point {
   fn distance(self, other) {
     sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
@@ -357,7 +357,7 @@ impl Point {
 
 Brings named exports from another module into the current scope.
 
-```lux
+```tova
 import { map, filter, reduce } from "stdlib/collections"
 ```
 
@@ -365,7 +365,7 @@ import { map, filter, reduce } from "stdlib/collections"
 
 Tests membership or specifies the iteration target in a `for` loop.
 
-```lux
+```tova
 if "admin" in roles { grant_access() }
 
 for x in 0..10 { print(x) }
@@ -375,7 +375,7 @@ for x in 0..10 { print(x) }
 
 Defines a structural contract that types can implement.
 
-```lux
+```tova
 interface Printable {
   fn to_string(self) -> String
 }
@@ -385,7 +385,7 @@ interface Printable {
 
 Performs destructuring binding from a value.
 
-```lux
+```tova
 let { name, email } = user
 let [first, ...rest] = items
 ```
@@ -398,7 +398,7 @@ let [first, ...rest] = items
 
 Pattern matching expression. Exhaustive by design.
 
-```lux
+```tova
 match result {
   Ok(value) => print(value)
   Error(msg) => print("Error: {msg}")
@@ -409,7 +409,7 @@ match result {
 
 The absence-of-value literal, equivalent to JavaScript's `null`.
 
-```lux
+```tova
 result = nil
 ```
 
@@ -417,7 +417,7 @@ result = nil
 
 Logical NOT operator (keyword form).
 
-```lux
+```tova
 if not is_empty(list) {
   process(list)
 }
@@ -427,7 +427,7 @@ if not is_empty(list) {
 
 Logical OR operator. Short-circuits: the right operand is not evaluated if the left is truthy.
 
-```lux
+```tova
 name = input or "default"
 ```
 
@@ -435,7 +435,7 @@ name = input or "default"
 
 Marks a declaration as publicly visible.
 
-```lux
+```tova
 pub fn api_handler(req) {
   respond(200, "ok")
 }
@@ -445,7 +445,7 @@ pub fn api_handler(req) {
 
 Explicitly returns a value from a function. Optional when the last expression is the return value.
 
-```lux
+```tova
 fn find(items, target) {
   for item in items {
     if item == target {
@@ -460,7 +460,7 @@ fn find(items, target) {
 
 Defines an HTTP route handler inside a `server` block.
 
-```lux
+```tova
 server {
   route GET "/api/users" => {
     users = db.query("SELECT * FROM users")
@@ -473,7 +473,7 @@ server {
 
 Opens a server-side block. Code inside is compiled only for the server.
 
-```lux
+```tova
 server {
   db { url: "postgres://localhost/mydb" }
   route GET "/health" => "ok"
@@ -484,7 +484,7 @@ server {
 
 Opens a block whose code is available on both server and client.
 
-```lux
+```tova
 shared {
   type User {
     name: String
@@ -497,7 +497,7 @@ shared {
 
 Declares a reactive state variable in a client block or component.
 
-```lux
+```tova
 state count = 0
 state name = "world"
 ```
@@ -506,7 +506,7 @@ state name = "world"
 
 Groups related reactive state, computed values, and methods.
 
-```lux
+```tova
 store TodoStore {
   state items = []
   computed count = items.length
@@ -520,7 +520,7 @@ store TodoStore {
 
 Defines a named set of behavior (similar to a typeclass or protocol).
 
-```lux
+```tova
 trait Comparable {
   fn compare(self, other) -> Int
 }
@@ -530,7 +530,7 @@ trait Comparable {
 
 The boolean true literal.
 
-```lux
+```tova
 is_ready = true
 ```
 
@@ -538,7 +538,7 @@ is_ready = true
 
 Begins an error-handling block. Must be followed by `catch` and optionally `finally`.
 
-```lux
+```tova
 try {
   data = parse(raw_input)
 } catch err {
@@ -550,7 +550,7 @@ try {
 
 Declares a custom type -- either a struct (product type) or an algebraic data type (sum type).
 
-```lux
+```tova
 // Struct
 type Point {
   x: Float
@@ -568,7 +568,7 @@ type Shape {
 
 Declares a mutable variable with an initial value.
 
-```lux
+```tova
 var counter = 0
 counter += 1
 ```
@@ -577,7 +577,7 @@ counter += 1
 
 Loops while a condition is true.
 
-```lux
+```tova
 var i = 0
 while i < 10 {
   print(i)
@@ -589,7 +589,7 @@ while i < 10 {
 
 Yields a value from a generator function.
 
-```lux
+```tova
 fn fibonacci() {
   var a = 0
   var b = 1
@@ -602,11 +602,11 @@ fn fibonacci() {
 
 ## Non-Keywords
 
-The following are **not** keywords in Lux, even though they might be expected from other languages:
+The following are **not** keywords in Tova, even though they might be expected from other languages:
 
-| Word | Status in Lux |
+| Word | Status in Tova |
 |------|---------------|
-| `throw` | Not a keyword. Lux uses `Result`/`Option` for error handling. |
+| `throw` | Not a keyword. Tova uses `Result`/`Option` for error handling. |
 | `class` | Not a keyword. Use `type` for data types and `impl` for methods. |
 | `this` | Not a keyword. Use `self` in `impl` blocks (passed explicitly). |
 | `else if` | Not valid syntax. Use `elif` instead. |

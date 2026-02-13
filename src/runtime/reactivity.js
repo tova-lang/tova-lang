@@ -1,4 +1,4 @@
-// Fine-grained reactivity system for Lux (signals-based)
+// Fine-grained reactivity system for Tova (signals-based)
 
 let currentEffect = null;
 const effectStack = [];
@@ -24,7 +24,7 @@ function flush() {
   try {
     while (pendingEffects.size > 0) {
       if (++iterations > 100) {
-        console.error('Lux: Possible infinite loop in reactive updates (>100 flush iterations). Aborting.');
+        console.error('Tova: Possible infinite loop in reactive updates (>100 flush iterations). Aborting.');
         pendingEffects.clear();
         break;
       }
@@ -73,7 +73,7 @@ export function createRoot(fn) {
       root._children.length = 0;
       // Run cleanups in reverse order
       for (let i = root._cleanups.length - 1; i >= 0; i--) {
-        try { root._cleanups[i](); } catch (e) { console.error('Lux: root cleanup error:', e); }
+        try { root._cleanups[i](); } catch (e) { console.error('Tova: root cleanup error:', e); }
       }
       root._cleanups.length = 0;
     }
@@ -143,12 +143,12 @@ export function createSignal(initialValue) {
 
 function runCleanups(effect) {
   if (effect._cleanup) {
-    try { effect._cleanup(); } catch (e) { console.error('Lux: cleanup error:', e); }
+    try { effect._cleanup(); } catch (e) { console.error('Tova: cleanup error:', e); }
     effect._cleanup = null;
   }
   if (effect._cleanups && effect._cleanups.length > 0) {
     for (const cb of effect._cleanups) {
-      try { cb(); } catch (e) { console.error('Lux: cleanup error:', e); }
+      try { cb(); } catch (e) { console.error('Tova: cleanup error:', e); }
     }
     effect._cleanups = [];
   }
@@ -175,7 +175,7 @@ export function createEffect(fn) {
         effect._cleanup = result;
       }
     } catch (e) {
-      console.error('Lux: Error in effect:', e);
+      console.error('Tova: Error in effect:', e);
       if (currentErrorHandler) {
         currentErrorHandler(e);
       }
@@ -389,13 +389,13 @@ export function ErrorBoundary({ fallback, children }) {
   currentErrorHandler = (e) => setError(e);
 
   // Return a reactive wrapper that switches between children and fallback
-  // The __lux_dynamic marker tells the renderer to create an effect for this node
-  const childContent = children && children.length === 1 ? children[0] : lux_fragment(children || []);
+  // The __tova_dynamic marker tells the renderer to create an effect for this node
+  const childContent = children && children.length === 1 ? children[0] : tova_fragment(children || []);
 
   currentErrorHandler = prev;
 
   return {
-    __lux: true,
+    __tova: true,
     tag: '__dynamic',
     props: {},
     children: [],
@@ -417,12 +417,12 @@ export function ErrorBoundary({ fallback, children }) {
 
 export function Dynamic({ component, ...rest }) {
   return {
-    __lux: true,
+    __tova: true,
     tag: '__dynamic',
     props: {},
     children: [],
     compute: () => {
-      const comp = typeof component === 'function' && !component.__lux ? component() : component;
+      const comp = typeof component === 'function' && !component.__tova ? component() : component;
       if (!comp) return null;
       if (typeof comp === 'function') {
         return comp(rest);
@@ -438,7 +438,7 @@ export function Dynamic({ component, ...rest }) {
 
 export function Portal({ target, children }) {
   return {
-    __lux: true,
+    __tova: true,
     tag: '__portal',
     props: { target },
     children: children || [],
@@ -471,13 +471,13 @@ export function lazy(loader) {
     }
 
     return {
-      __lux: true,
+      __tova: true,
       tag: '__dynamic',
       props: {},
       children: [],
       compute: () => {
         const e = err();
-        if (e) return lux_el('span', { className: 'lux-error' }, [String(e)]);
+        if (e) return tova_el('span', { className: 'tova-error' }, [String(e)]);
         const c = comp();
         if (c) return c(props);
         // Fallback while loading
@@ -517,27 +517,27 @@ export function inject(context) {
 // ─── DOM Rendering ────────────────────────────────────────
 
 // Inject scoped CSS into the page (idempotent — only injects once per id)
-const __luxInjectedStyles = new Set();
-export function lux_inject_css(id, css) {
-  if (__luxInjectedStyles.has(id)) return;
-  __luxInjectedStyles.add(id);
+const __tovaInjectedStyles = new Set();
+export function tova_inject_css(id, css) {
+  if (__tovaInjectedStyles.has(id)) return;
+  __tovaInjectedStyles.add(id);
   const style = document.createElement('style');
-  style.setAttribute('data-lux-style', id);
+  style.setAttribute('data-tova-style', id);
   style.textContent = css;
   document.head.appendChild(style);
 }
 
-export function lux_el(tag, props = {}, children = []) {
-  return { __lux: true, tag, props, children };
+export function tova_el(tag, props = {}, children = []) {
+  return { __tova: true, tag, props, children };
 }
 
-export function lux_fragment(children) {
-  return { __lux: true, tag: '__fragment', props: {}, children };
+export function tova_fragment(children) {
+  return { __tova: true, tag: '__fragment', props: {}, children };
 }
 
 // Inject a key prop into a vnode for keyed reconciliation
-export function lux_keyed(key, vnode) {
-  if (vnode && vnode.__lux) {
+export function tova_keyed(key, vnode) {
+  if (vnode && vnode.__tova) {
     vnode.props = { ...vnode.props, key };
   }
   return vnode;
@@ -560,23 +560,23 @@ function flattenVNodes(children) {
 
 // ─── Marker-based DOM helpers ─────────────────────────────
 // Instead of wrapping dynamic blocks/fragments in <span style="display:contents">,
-// we use comment node markers. A marker's __luxNodes tracks its content nodes.
-// Content nodes have __luxOwner pointing to their owning marker.
+// we use comment node markers. A marker's __tovaNodes tracks its content nodes.
+// Content nodes have __tovaOwner pointing to their owning marker.
 
 // Recursively dispose ownership roots attached to a DOM subtree
 function disposeNode(node) {
   if (!node) return;
-  if (node.__luxRoot) {
-    node.__luxRoot();
-    node.__luxRoot = null;
+  if (node.__tovaRoot) {
+    node.__tovaRoot();
+    node.__tovaRoot = null;
   }
   // If this is a marker, dispose and remove its content nodes
-  if (node.__luxNodes) {
-    for (const cn of node.__luxNodes) {
+  if (node.__tovaNodes) {
+    for (const cn of node.__tovaNodes) {
       disposeNode(cn);
       if (cn.parentNode) cn.parentNode.removeChild(cn);
     }
-    node.__luxNodes = [];
+    node.__tovaNodes = [];
   }
   if (node.childNodes) {
     for (const child of Array.from(node.childNodes)) {
@@ -585,12 +585,12 @@ function disposeNode(node) {
   }
 }
 
-// Check if a node is transitively owned by a marker (walks __luxOwner chain)
+// Check if a node is transitively owned by a marker (walks __tovaOwner chain)
 function isOwnedBy(node, marker) {
-  let owner = node.__luxOwner;
+  let owner = node.__tovaOwner;
   while (owner) {
     if (owner === marker) return true;
-    owner = owner.__luxOwner;
+    owner = owner.__tovaOwner;
   }
   return false;
 }
@@ -600,7 +600,7 @@ function getLogicalChildren(parent) {
   const logical = [];
   for (let i = 0; i < parent.childNodes.length; i++) {
     const node = parent.childNodes[i];
-    if (!node.__luxOwner) {
+    if (!node.__tovaOwner) {
       logical.push(node);
     }
   }
@@ -609,13 +609,13 @@ function getLogicalChildren(parent) {
 
 // Find the first DOM sibling after all of a marker's content
 function nextSiblingAfterMarker(marker) {
-  if (!marker.__luxNodes || marker.__luxNodes.length === 0) {
+  if (!marker.__tovaNodes || marker.__tovaNodes.length === 0) {
     return marker.nextSibling;
   }
-  let last = marker.__luxNodes[marker.__luxNodes.length - 1];
+  let last = marker.__tovaNodes[marker.__tovaNodes.length - 1];
   // If last content is itself a marker, recurse to find physical end
-  while (last && last.__luxNodes && last.__luxNodes.length > 0) {
-    last = last.__luxNodes[last.__luxNodes.length - 1];
+  while (last && last.__tovaNodes && last.__tovaNodes.length > 0) {
+    last = last.__tovaNodes[last.__tovaNodes.length - 1];
   }
   return last ? last.nextSibling : marker.nextSibling;
 }
@@ -627,28 +627,28 @@ function removeLogicalNode(parent, node) {
 }
 
 // Insert rendered result (could be single node or DocumentFragment) before ref,
-// setting __luxOwner on top-level inserted nodes. Returns array of inserted nodes.
+// setting __tovaOwner on top-level inserted nodes. Returns array of inserted nodes.
 function insertRendered(parent, rendered, ref, owner) {
   if (rendered.nodeType === 11) {
     const nodes = Array.from(rendered.childNodes);
     for (const n of nodes) {
-      if (!n.__luxOwner) n.__luxOwner = owner;
+      if (!n.__tovaOwner) n.__tovaOwner = owner;
     }
     parent.insertBefore(rendered, ref);
     return nodes;
   }
-  if (!rendered.__luxOwner) rendered.__luxOwner = owner;
+  if (!rendered.__tovaOwner) rendered.__tovaOwner = owner;
   parent.insertBefore(rendered, ref);
   return [rendered];
 }
 
-// Clear a marker's content from the DOM and reset __luxNodes
+// Clear a marker's content from the DOM and reset __tovaNodes
 function clearMarkerContent(marker) {
-  for (const node of marker.__luxNodes) {
+  for (const node of marker.__tovaNodes) {
     disposeNode(node);
     if (node.parentNode) node.parentNode.removeChild(node);
   }
-  marker.__luxNodes = [];
+  marker.__tovaNodes = [];
 }
 
 // ─── Render ───────────────────────────────────────────────
@@ -664,8 +664,8 @@ export function render(vnode) {
   // Reactive dynamic block (JSXIf, JSXFor, reactive text, etc.)
   if (typeof vnode === 'function') {
     const marker = document.createComment('');
-    marker.__luxDynamic = true;
-    marker.__luxNodes = [];
+    marker.__tovaDynamic = true;
+    marker.__tovaNodes = [];
 
     const frag = document.createDocumentFragment();
     frag.appendChild(marker);
@@ -690,30 +690,30 @@ export function render(vnode) {
       // Text: optimize single text node update in place
       if (val == null || typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
         const text = val == null ? '' : String(val);
-        if (marker.__luxNodes.length === 1 && marker.__luxNodes[0].nodeType === 3) {
-          if (marker.__luxNodes[0].textContent !== text) {
-            marker.__luxNodes[0].textContent = text;
+        if (marker.__tovaNodes.length === 1 && marker.__tovaNodes[0].nodeType === 3) {
+          if (marker.__tovaNodes[0].textContent !== text) {
+            marker.__tovaNodes[0].textContent = text;
           }
           return;
         }
         clearMarkerContent(marker);
         const textNode = document.createTextNode(text);
-        textNode.__luxOwner = marker;
+        textNode.__tovaOwner = marker;
         parent.insertBefore(textNode, ref);
-        marker.__luxNodes = [textNode];
+        marker.__tovaNodes = [textNode];
         return;
       }
 
       // Vnode or other: clear and re-render
       clearMarkerContent(marker);
-      if (val && val.__lux) {
+      if (val && val.__tova) {
         const rendered = render(val);
-        marker.__luxNodes = insertRendered(parent, rendered, ref, marker);
+        marker.__tovaNodes = insertRendered(parent, rendered, ref, marker);
       } else {
         const textNode = document.createTextNode(String(val));
-        textNode.__luxOwner = marker;
+        textNode.__tovaOwner = marker;
         parent.insertBefore(textNode, ref);
-        marker.__luxNodes = [textNode];
+        marker.__tovaNodes = [textNode];
       }
     });
 
@@ -732,15 +732,15 @@ export function render(vnode) {
     return fragment;
   }
 
-  if (!vnode.__lux) {
+  if (!vnode.__tova) {
     return document.createTextNode(String(vnode));
   }
 
   // Fragment — marker + children (no wrapper element)
   if (vnode.tag === '__fragment') {
     const marker = document.createComment('');
-    marker.__luxFragment = true;
-    marker.__luxNodes = [];
+    marker.__tovaFragment = true;
+    marker.__tovaNodes = [];
     marker.__vnode = vnode;
 
     const frag = document.createDocumentFragment();
@@ -749,7 +749,7 @@ export function render(vnode) {
     for (const child of flattenVNodes(vnode.children)) {
       const rendered = render(child);
       const inserted = insertRendered(frag, rendered, null, marker);
-      marker.__luxNodes.push(...inserted);
+      marker.__tovaNodes.push(...inserted);
     }
 
     return frag;
@@ -758,8 +758,8 @@ export function render(vnode) {
   // Dynamic reactive node (ErrorBoundary, Dynamic component, etc.)
   if (vnode.tag === '__dynamic' && typeof vnode.compute === 'function') {
     const marker = document.createComment('');
-    marker.__luxDynamic = true;
-    marker.__luxNodes = [];
+    marker.__tovaDynamic = true;
+    marker.__tovaNodes = [];
 
     const frag = document.createDocumentFragment();
     frag.appendChild(marker);
@@ -779,7 +779,7 @@ export function render(vnode) {
       createRoot((dispose) => {
         prevDispose = dispose;
         const rendered = render(inner);
-        marker.__luxNodes = insertRendered(parent, rendered, ref, marker);
+        marker.__tovaNodes = insertRendered(parent, rendered, ref, marker);
       });
     });
 
@@ -934,7 +934,7 @@ function applyProps(el, newProps, oldProps) {
 // ─── Keyed Reconciliation ────────────────────────────────
 
 function getKey(vnode) {
-  if (vnode && vnode.__lux && vnode.props) return vnode.props.key;
+  if (vnode && vnode.__tova && vnode.props) return vnode.props.key;
   return undefined;
 }
 
@@ -946,7 +946,7 @@ function getNodeKey(node) {
 // Keyed reconciliation within a marker's content range
 function patchKeyedInMarker(marker, newVNodes) {
   const parent = marker.parentNode;
-  const oldNodes = [...marker.__luxNodes];
+  const oldNodes = [...marker.__tovaNodes];
   const oldKeyMap = new Map();
 
   for (const node of oldNodes) {
@@ -964,7 +964,7 @@ function patchKeyedInMarker(marker, newVNodes) {
       const oldNode = oldKeyMap.get(key);
       usedOld.add(oldNode);
 
-      if (oldNode.nodeType === 1 && newChild.__lux &&
+      if (oldNode.nodeType === 1 && newChild.__tova &&
           oldNode.tagName.toLowerCase() === newChild.tag.toLowerCase()) {
         const oldVNode = oldNode.__vnode || { props: {}, children: [] };
         applyProps(oldNode, newChild.props, oldVNode.props);
@@ -976,11 +976,11 @@ function patchKeyedInMarker(marker, newVNodes) {
         // render may return Fragment — collect nodes
         if (node.nodeType === 11) {
           const nodes = Array.from(node.childNodes);
-          for (const n of nodes) { if (!n.__luxOwner) n.__luxOwner = marker; }
+          for (const n of nodes) { if (!n.__tovaOwner) n.__tovaOwner = marker; }
           parent.insertBefore(node, nextSiblingAfterMarker(marker));
           newNodes.push(...nodes);
         } else {
-          if (!node.__luxOwner) node.__luxOwner = marker;
+          if (!node.__tovaOwner) node.__tovaOwner = marker;
           newNodes.push(node);
         }
       }
@@ -988,11 +988,11 @@ function patchKeyedInMarker(marker, newVNodes) {
       const node = render(newChild);
       if (node.nodeType === 11) {
         const nodes = Array.from(node.childNodes);
-        for (const n of nodes) { if (!n.__luxOwner) n.__luxOwner = marker; }
+        for (const n of nodes) { if (!n.__tovaOwner) n.__tovaOwner = marker; }
         parent.insertBefore(node, nextSiblingAfterMarker(marker));
         newNodes.push(...nodes);
       } else {
-        if (!node.__luxOwner) node.__luxOwner = marker;
+        if (!node.__tovaOwner) node.__tovaOwner = marker;
         newNodes.push(node);
       }
     }
@@ -1016,13 +1016,13 @@ function patchKeyedInMarker(marker, newVNodes) {
     }
   }
 
-  marker.__luxNodes = newNodes;
+  marker.__tovaNodes = newNodes;
 }
 
 // Positional reconciliation within a marker's content range
 function patchPositionalInMarker(marker, newChildren) {
   const parent = marker.parentNode;
-  const oldNodes = [...marker.__luxNodes];
+  const oldNodes = [...marker.__tovaNodes];
   const oldCount = oldNodes.length;
   const newCount = newChildren.length;
 
@@ -1046,10 +1046,10 @@ function patchPositionalInMarker(marker, newChildren) {
     if (oldNodes[i].parentNode === parent) parent.removeChild(oldNodes[i]);
   }
 
-  marker.__luxNodes = oldNodes.slice(0, Math.max(newCount, oldCount > newCount ? newCount : oldNodes.length));
-  // Simplify: rebuild __luxNodes from what should remain
+  marker.__tovaNodes = oldNodes.slice(0, Math.max(newCount, oldCount > newCount ? newCount : oldNodes.length));
+  // Simplify: rebuild __tovaNodes from what should remain
   if (newCount <= oldCount) {
-    marker.__luxNodes = oldNodes.slice(0, newCount);
+    marker.__tovaNodes = oldNodes.slice(0, newCount);
   }
 }
 
@@ -1073,7 +1073,7 @@ function patchKeyedChildren(parent, newVNodes) {
       const oldNode = oldKeyMap.get(key);
       usedOld.add(oldNode);
 
-      if (oldNode.nodeType === 1 && newChild.__lux &&
+      if (oldNode.nodeType === 1 && newChild.__tova &&
           oldNode.tagName.toLowerCase() === newChild.tag.toLowerCase()) {
         const oldVNode = oldNode.__vnode || { props: {}, children: [] };
         applyProps(oldNode, newChild.props, oldVNode.props);
@@ -1153,7 +1153,7 @@ function patchSingle(parent, existing, newVNode) {
   // Function vnode — replace with new dynamic block
   if (typeof newVNode === 'function') {
     const rendered = render(newVNode);
-    if (existing.__luxNodes) {
+    if (existing.__tovaNodes) {
       // Existing is a marker — clear its content and replace
       clearMarkerContent(existing);
       parent.replaceChild(rendered, existing);
@@ -1176,7 +1176,7 @@ function patchSingle(parent, existing, newVNode) {
     return;
   }
 
-  if (!newVNode.__lux) {
+  if (!newVNode.__tova) {
     const text = String(newVNode);
     if (existing.nodeType === 3) {
       if (existing.textContent !== text) existing.textContent = text;
@@ -1189,9 +1189,9 @@ function patchSingle(parent, existing, newVNode) {
 
   // Fragment — patch marker content
   if (newVNode.tag === '__fragment') {
-    if (existing.__luxFragment) {
+    if (existing.__tovaFragment) {
       // Patch children within the marker range
-      const oldNodes = [...existing.__luxNodes];
+      const oldNodes = [...existing.__tovaNodes];
       const newChildren = flattenVNodes(newVNode.children);
       // Simple approach: clear and re-render fragment content
       clearMarkerContent(existing);
@@ -1199,7 +1199,7 @@ function patchSingle(parent, existing, newVNode) {
       for (const child of newChildren) {
         const rendered = render(child);
         const inserted = insertRendered(parent, rendered, ref, existing);
-        existing.__luxNodes.push(...inserted);
+        existing.__tovaNodes.push(...inserted);
       }
       existing.__vnode = newVNode;
       return;
@@ -1236,7 +1236,7 @@ function hydrateVNode(domNode, vnode) {
   if (typeof vnode === 'function') {
     if (domNode.nodeType === 3) {
       // Reactive text: attach effect to existing text node
-      domNode.__luxReactive = true;
+      domNode.__tovaReactive = true;
       createEffect(() => {
         const val = vnode();
         const text = val == null ? '' : String(val);
@@ -1269,7 +1269,7 @@ function hydrateVNode(domNode, vnode) {
     return cursor;
   }
 
-  if (!vnode.__lux) return domNode.nextSibling;
+  if (!vnode.__tova) return domNode.nextSibling;
 
   // Fragment — children rendered inline in SSR (no wrapper)
   if (vnode.tag === '__fragment') {
@@ -1339,7 +1339,7 @@ function hydrateProps(el, props) {
 
 export function hydrate(component, container) {
   if (!container) {
-    console.error('Lux: Hydration target not found');
+    console.error('Tova: Hydration target not found');
     return;
   }
 
@@ -1353,7 +1353,7 @@ export function hydrate(component, container) {
 
 export function mount(component, container) {
   if (!container) {
-    console.error('Lux: Mount target not found');
+    console.error('Tova: Mount target not found');
     return;
   }
 

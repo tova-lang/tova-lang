@@ -1,12 +1,12 @@
 # Components
 
-Components are the building blocks of Lux UIs. A component is a reactive function that declares state, computed values, and effects, and returns JSX describing what to render. Components are declared with the `component` keyword inside `client { }` blocks.
+Components are the building blocks of Tova UIs. A component is a reactive function that declares state, computed values, and effects, and returns JSX describing what to render. Components are declared with the `component` keyword inside `client { }` blocks.
 
 ## Basic Components
 
 The simplest component has no parameters and returns JSX:
 
-```lux
+```tova
 client {
   component Hello {
     <div>
@@ -22,7 +22,7 @@ The JSX at the end of the component body is the return value. You do not need an
 
 Components accept props as parameters:
 
-```lux
+```tova
 component Greeting(name) {
   <div>
     <h1>Hello, {name}!</h1>
@@ -32,7 +32,7 @@ component Greeting(name) {
 
 Multiple props are separated by commas:
 
-```lux
+```tova
 component UserCard(name, email, avatar_url) {
   <div class="card">
     <img src={avatar_url} alt={name} />
@@ -46,7 +46,7 @@ component UserCard(name, email, avatar_url) {
 
 Props can have default values:
 
-```lux
+```tova
 component Button(label, variant = "primary", disabled = false) {
   <button class={variant} disabled={disabled}>
     {label}
@@ -62,7 +62,7 @@ component Button(label, variant = "primary", disabled = false) {
 
 Components are used as JSX elements with an uppercase first letter:
 
-```lux
+```tova
 component App {
   <div>
     <Greeting name="Alice" />
@@ -74,7 +74,7 @@ component App {
 
 Self-closing syntax (`<Component />`) is used when there are no children. Components with children use the full open/close form:
 
-```lux
+```tova
 component Layout(title) {
   <div class="layout">
     <header><h1>{title}</h1></header>
@@ -92,9 +92,9 @@ Children are passed as a `children` prop and can be rendered in the component bo
 
 ## Props Are Reactive Getters
 
-Props in Lux are **reactive getters**, not plain values. When a parent's signal changes, the prop in the child component updates automatically:
+Props in Tova are **reactive getters**, not plain values. When a parent's signal changes, the prop in the child component updates automatically:
 
-```lux
+```tova
 component Parent {
   state name = "Alice"
 
@@ -113,7 +113,7 @@ component ChildDisplay(name) {
 
 Under the hood, the compiler generates prop accessors as getter functions on the props object. When the parent writes:
 
-```lux
+```tova
 <ChildDisplay name={name} />
 ```
 
@@ -129,7 +129,7 @@ Inside the child component, `name` is a function `() => __props.name` that acces
 
 Components can declare their own reactive state:
 
-```lux
+```tova
 component Counter {
   state count = 0
 
@@ -147,7 +147,7 @@ Local state is scoped to the component instance. Each instance of `Counter` has 
 
 Components can declare computed values that derive from state or props:
 
-```lux
+```tova
 component PriceDisplay(price, quantity) {
   computed subtotal = price * quantity
   computed tax = subtotal * 0.08
@@ -165,7 +165,7 @@ component PriceDisplay(price, quantity) {
 
 Components can include effects for side effects:
 
-```lux
+```tova
 component PageTitle(title) {
   effect {
     document.title = title
@@ -181,7 +181,7 @@ Effects declared inside a component are automatically disposed when the componen
 
 A component that combines state, computed values, effects, and event handling:
 
-```lux
+```tova
 component TodoList {
   state items = []
   state new_text = ""
@@ -245,7 +245,7 @@ component TodoList {
 
 Components compose naturally. Break complex UIs into smaller, reusable components:
 
-```lux
+```tova
 component SearchInput(value, on_change, placeholder = "Search...") {
   <input
     type="search"
@@ -285,7 +285,7 @@ component UserTable(users, on_select) {
 
 Components commonly accept callback props for communication with parents:
 
-```lux
+```tova
 component Modal(title, on_close) {
   <div class="modal-overlay" on:click={fn() on_close()}>
     <div class="modal" on:click={fn(e) e.stopPropagation()}>
@@ -314,9 +314,9 @@ component App {
 
 ## Auto-Mount
 
-If a component named `App` exists, Lux automatically mounts it to the DOM when the page loads:
+If a component named `App` exists, Tova automatically mounts it to the DOM when the page loads:
 
-```lux
+```tova
 client {
   component App {
     <div>
@@ -340,7 +340,7 @@ This looks for an element with `id="app"` in the HTML, falling back to `document
 
 When you write:
 
-```lux
+```tova
 component Greeting(name) {
   <h1>Hello, {name}!</h1>
 }
@@ -351,7 +351,7 @@ The compiler generates:
 ```javascript
 function Greeting(__props) {
   const name = () => __props.name;
-  return lux_el("h1", {}, ["Hello, ", () => name()]);
+  return tova_el("h1", {}, ["Hello, ", () => name()]);
 }
 ```
 

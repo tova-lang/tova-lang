@@ -1,4 +1,4 @@
-// Hello World in Lux
+// Hello World in Tova
 
 name = "World"
 greeting = "Hello, {name}!"

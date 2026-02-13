@@ -1,21 +1,21 @@
 # Standard Library Overview
 
-Lux provides **60+ built-in functions** that are automatically available in every Lux program. There is nothing to import -- all standard library functions are in scope by default.
+Tova provides **60+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
 
 ## Availability
 
-Standard library functions work everywhere Lux code runs:
+Standard library functions work everywhere Tova code runs:
 
-- **`lux run`** -- all functions available in scripts and the REPL
+- **`tova run`** -- all functions available in scripts and the REPL
 - **Server code** -- all functions available in route handlers and server modules
 - **Client code** -- functions are **tree-shaken** so only the ones you actually use are included in the browser bundle
 
 ## Design Philosophy
 
-Lux's standard library follows a few guiding principles:
+Tova's standard library follows a few guiding principles:
 
 - **Functional style** -- most functions take data as the first argument and return new values rather than mutating
-- **Result and Option types** -- instead of `throw` and `try/catch`, Lux uses `Ok`/`Err` and `Some`/`None` for principled error handling
+- **Result and Option types** -- instead of `throw` and `try/catch`, Tova uses `Ok`/`Err` and `Some`/`None` for principled error handling
 - **Pipeable** -- every function works naturally with the pipe operator `|>`
 - **Method syntax** -- many functions (especially string functions) can be called as methods: `"hello".upper()` is the same as `upper("hello")`
 
@@ -34,14 +34,14 @@ Lux's standard library follows a few guiding principles:
 
 ### I/O
 
-```lux
+```tova
 print("Hello, World!")
 print("Name:", name, "Age:", age)
 ```
 
 ### Collections
 
-```lux
+```tova
 len([1, 2, 3])                  // 3
 range(5)                         // [0, 1, 2, 3, 4]
 sorted([3, 1, 2])               // [1, 2, 3]
@@ -51,7 +51,7 @@ unique([1, 2, 2, 3])            // [1, 2, 3]
 
 ### Strings
 
-```lux
+```tova
 upper("hello")                   // "HELLO"
 split("a,b,c", ",")             // ["a", "b", "c"]
 "hello".contains("ell")         // true
@@ -59,7 +59,7 @@ split("a,b,c", ",")             // ["a", "b", "c"]
 
 ### Math
 
-```lux
+```tova
 abs(-5)                          // 5
 clamp(15, 0, 10)                // 10
 sqrt(16)                         // 4
@@ -67,14 +67,14 @@ sqrt(16)                         // 4
 
 ### Objects
 
-```lux
+```tova
 keys({ a: 1, b: 2 })           // ["a", "b"]
 merge({ a: 1 }, { b: 2 })      // { a: 1, b: 2 }
 ```
 
 ### Result & Option
 
-```lux
+```tova
 result = Ok(42)
 result.map(fn(x) x * 2)        // Ok(84)
 result.unwrap()                  // 42
@@ -86,7 +86,7 @@ None.unwrapOr("default")        // "default"
 
 ### Assertions
 
-```lux
+```tova
 assert(len(items) > 0, "items must not be empty")
 assert_eq(add(2, 3), 5)
 ```
@@ -95,7 +95,7 @@ assert_eq(add(2, 3), 5)
 
 All standard library functions are designed to work with the pipe operator `|>`:
 
-```lux
+```tova
 [1, 2, 3, 4, 5]
   |> filter(fn(x) x > 2)
   |> map(fn(x) x * 10)

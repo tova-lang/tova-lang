@@ -330,13 +330,13 @@ describe('Codegen — Bug Fixes', () => {
 describe('Codegen — Null Coalescing', () => {
   test('?? operator (NaN-safe)', () => {
     const code = compileShared('x = a ?? "default"');
-    expect(code).toContain('__lux_v != null && __lux_v === __lux_v');
+    expect(code).toContain('__tova_v != null && __tova_v === __tova_v');
     expect(code).toContain('"default"');
   });
 
   test('?? chains', () => {
     const code = compileShared('x = a ?? b ?? "fallback"');
-    expect(code).toContain('__lux_v');
+    expect(code).toContain('__tova_v');
     expect(code).toContain('"fallback"');
   });
 });
@@ -398,7 +398,7 @@ describe('Codegen — Client', () => {
   test('generates component', () => {
     const result = compile('client { component App { <div>"Hello"</div> } }');
     expect(result.client).toContain('function App(');
-    expect(result.client).toContain('lux_el("div"');
+    expect(result.client).toContain('tova_el("div"');
   });
 
   test('generates server RPC proxy', () => {
@@ -469,7 +469,7 @@ describe('Codegen — Component-Scoped State (Item 6)', () => {
         <button on:click={fn() count += 1}>"+"</button>
       }
     }`);
-    expect(result.client).toContain('setCount(__lux_p => __lux_p + 1)');
+    expect(result.client).toContain('setCount(__tova_p => __tova_p + 1)');
   });
 });
 
@@ -508,7 +508,7 @@ describe('Codegen — Children/Slots (Item 12)', () => {
   test('component with children passes them as children prop', () => {
     const result = compile('client { component Card { <div>"card"</div> }\ncomponent App { <Card><p>"hi"</p></Card> } }');
     expect(result.client).toContain('children:');
-    expect(result.client).toContain('lux_el("p"');
+    expect(result.client).toContain('tova_el("p"');
   });
 
   test('self-closing component has no children prop', () => {
@@ -577,7 +577,7 @@ describe('Codegen — Inter-Server RPC', () => {
 // ─── Scoped CSS ───────────────────────────────────────────
 
 describe('Codegen — Scoped CSS', () => {
-  test('style block in component emits lux_inject_css', () => {
+  test('style block in component emits tova_inject_css', () => {
     const result = compile(`client {
       component Card {
         style {
@@ -586,8 +586,8 @@ describe('Codegen — Scoped CSS', () => {
         <div class="card">"hello"</div>
       }
     }`);
-    expect(result.client).toContain('lux_inject_css(');
-    expect(result.client).toContain('.card[data-lux-');
+    expect(result.client).toContain('tova_inject_css(');
+    expect(result.client).toContain('.card[data-tova-');
   });
 
   test('scoped CSS adds data attribute to JSX elements', () => {
@@ -599,7 +599,7 @@ describe('Codegen — Scoped CSS', () => {
         <div class="card">"hello"</div>
       }
     }`);
-    expect(result.client).toContain('data-lux-');
+    expect(result.client).toContain('data-tova-');
     expect(result.client).toContain(': ""');
   });
 
@@ -613,10 +613,10 @@ describe('Codegen — Scoped CSS', () => {
         <div class="wrapper"><Inner /></div>
       }
     }`);
-    // Inner() call should NOT have data-lux attribute
+    // Inner() call should NOT have data-tova attribute
     expect(result.client).toMatch(/Inner\(\{/);
     // The div should have the scope attribute
-    expect(result.client).toMatch(/lux_el\("div", \{.*data-lux/);
+    expect(result.client).toMatch(/tova_el\("div", \{.*data-tova/);
   });
 
   test('component without style block has no scope attributes', () => {
@@ -625,14 +625,14 @@ describe('Codegen — Scoped CSS', () => {
         <div>"no style"</div>
       }
     }`);
-    // lux_inject_css appears in import but should NOT be called
-    expect(result.client).not.toContain('lux_inject_css(');
-    expect(result.client).not.toContain('data-lux-');
+    // tova_inject_css appears in import but should NOT be called
+    expect(result.client).not.toContain('tova_inject_css(');
+    expect(result.client).not.toContain('data-tova-');
   });
 
-  test('imports lux_inject_css from runtime', () => {
+  test('imports tova_inject_css from runtime', () => {
     const result = compile('client { state x = 0 }');
-    expect(result.client).toContain('lux_inject_css');
+    expect(result.client).toContain('tova_inject_css');
   });
 });
 
@@ -725,8 +725,8 @@ describe('Bug Fix — JSXIf generates reactive closure', () => {
     }`);
     // Should be a reactive closure, not a bare ternary
     expect(result.client).toContain('() => (show())');
-    expect(result.client).toContain('? lux_el("span"');
-    expect(result.client).toContain(': lux_el("span"');
+    expect(result.client).toContain('? tova_el("span"');
+    expect(result.client).toContain(': tova_el("span"');
   });
 
   test('JSXIf with elif generates reactive closure', () => {
@@ -777,29 +777,29 @@ describe('Bug Fix — JSXFor generates reactive closure', () => {
       }
     }`);
     expect(result.client).toContain('() => items().map(');
-    expect(result.client).toContain('lux_keyed(');
+    expect(result.client).toContain('tova_keyed(');
     expect(result.client).not.toContain('...items()');
   });
 });
 
-describe('Bug Fix — __lux_p variable name', () => {
-  test('compound assignment uses __lux_p (no collision with user vars)', () => {
+describe('Bug Fix — __tova_p variable name', () => {
+  test('compound assignment uses __tova_p (no collision with user vars)', () => {
     const result = compile(`client {
       state count = 0
       component App {
         <button on:click={fn() count += 1}>"+"</button>
       }
     }`);
-    expect(result.client).toContain('__lux_p');
+    expect(result.client).toContain('__tova_p');
     expect(result.client).not.toContain('__prev');
   });
 
-  test('top-level compound assignment uses __lux_p', () => {
+  test('top-level compound assignment uses __tova_p', () => {
     const result = compile(`client {
       state score = 0
       effect { score += 10 }
     }`);
-    expect(result.client).toContain('setScore(__lux_p => __lux_p + 10)');
+    expect(result.client).toContain('setScore(__tova_p => __tova_p + 10)');
   });
 });
 
@@ -817,9 +817,9 @@ describe('Bug Fix — CSS scope hash includes content', () => {
         <div class="card">"b"</div>
       }
     }`);
-    // Extract scope IDs from lux_inject_css calls
-    const match1 = result1.client.match(/lux_inject_css\("([^"]+)"/);
-    const match2 = result2.client.match(/lux_inject_css\("([^"]+)"/);
+    // Extract scope IDs from tova_inject_css calls
+    const match1 = result1.client.match(/tova_inject_css\("([^"]+)"/);
+    const match2 = result2.client.match(/tova_inject_css\("([^"]+)"/);
     expect(match1).not.toBeNull();
     expect(match2).not.toBeNull();
     // Different CSS → different scope IDs

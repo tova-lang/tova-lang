@@ -1,12 +1,12 @@
 # Configuration
 
-Lux server blocks support a variety of declarative configuration blocks for CORS, rate limiting, sessions, file uploads, TLS, and more. Each block is placed directly inside the `server { }` block.
+Tova server blocks support a variety of declarative configuration blocks for CORS, rate limiting, sessions, file uploads, TLS, and more. Each block is placed directly inside the `server { }` block.
 
 ## CORS
 
 Configure Cross-Origin Resource Sharing to control which origins can access your server:
 
-```lux
+```tova
 server {
   cors {
     origins: ["https://example.com", "http://localhost:3000"]
@@ -19,7 +19,7 @@ server {
 
 Use `origins: ["*"]` to allow all origins (not recommended for production with credentials):
 
-```lux
+```tova
 cors {
   origins: ["*"]
   methods: ["GET", "POST"]
@@ -37,7 +37,7 @@ cors {
 
 Protect your server from abuse by limiting the number of requests a client can make within a time window:
 
-```lux
+```tova
 server {
   rate_limit {
     max: 100          // maximum requests per window
@@ -57,7 +57,7 @@ When a client exceeds the limit, the server responds with `429 Too Many Requests
 
 Declare typed environment variables with optional default values. Variables are validated at startup:
 
-```lux
+```tova
 server {
   env DATABASE_URL: String = "sqlite:./data.db"
   env PORT: Int = 3000
@@ -76,7 +76,7 @@ server {
 
 Environment variables are available as regular variables throughout the server block:
 
-```lux
+```tova
 server {
   env PORT: Int = 3000
   env DATABASE_URL: String
@@ -93,7 +93,7 @@ server {
 
 Serve static files from a directory:
 
-```lux
+```tova
 server {
   static "/public" => "./public"
   static "/assets" => "./dist/assets"
@@ -106,7 +106,7 @@ The first argument is the URL path prefix, and the second is the filesystem dire
 
 For single-page applications, use the `fallback` keyword to serve a fallback file when no static file matches:
 
-```lux
+```tova
 static "/app" => "./dist" fallback "index.html"
 ```
 
@@ -116,7 +116,7 @@ This serves `./dist/index.html` for any request under `/app` that does not match
 
 Enable server-side session management:
 
-```lux
+```tova
 server {
   session {
     secret: "your-session-secret"
@@ -136,7 +136,7 @@ server {
 
 Configure file upload limits and allowed types:
 
-```lux
+```tova
 server {
   upload {
     max_size: 10_000_000        // 10MB maximum file size
@@ -156,7 +156,7 @@ Requests that exceed the size limit or send a disallowed content type are reject
 
 Enable TLS for encrypted connections:
 
-```lux
+```tova
 server {
   tls {
     cert: "./cert.pem"
@@ -176,7 +176,7 @@ When TLS is configured, the server listens on HTTPS. Both `cert` and `key` are p
 
 Enable response compression. Responses are compressed using gzip or deflate based on the client's `Accept-Encoding` header:
 
-```lux
+```tova
 server {
   compression {
     min_size: 1024              // only compress responses larger than 1KB
@@ -194,7 +194,7 @@ The presence of the `compression` block enables compression. Responses smaller t
 
 Configure default cache headers for responses:
 
-```lux
+```tova
 server {
   cache {
     max_age: 3600                        // Cache-Control max-age in seconds
@@ -214,7 +214,7 @@ This sets the `Cache-Control` header on responses. Individual routes can overrid
 
 Set a global limit on request body size:
 
-```lux
+```tova
 server {
   max_body 10_000_000          // 10MB limit
 }
@@ -226,7 +226,7 @@ Requests with bodies exceeding this limit are rejected with a `413 Payload Too L
 
 Add a health check endpoint with a single line:
 
-```lux
+```tova
 server {
   health "/health"
 }
@@ -238,7 +238,7 @@ This creates a `GET /health` endpoint that returns `{ status: "ok" }` with a 200
 
 Here is a server block demonstrating multiple configuration options together:
 
-```lux
+```tova
 server {
   // Environment
   env PORT: Int = 3000

@@ -1,6 +1,6 @@
 # Grammar
 
-This appendix provides the complete EBNF (Extended Backus-Naur Form) grammar for the Lux programming language, derived from the parser and lexer source code.
+This appendix provides the complete EBNF (Extended Backus-Naur Form) grammar for the Tova programming language, derived from the parser and lexer source code.
 
 ## Notation
 

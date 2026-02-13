@@ -1,8 +1,8 @@
 # Result & Option
 
-Result and Option are Lux's primary error-handling types. Instead of throwing exceptions, Lux functions return `Result` or `Option` values that explicitly represent success/failure or presence/absence.
+Result and Option are Tova's primary error-handling types. Instead of throwing exceptions, Tova functions return `Result` or `Option` values that explicitly represent success/failure or presence/absence.
 
-This is the most important part of the standard library. Master these types and you will write robust, predictable Lux code.
+This is the most important part of the standard library. Master these types and you will write robust, predictable Tova code.
 
 ## Overview
 
@@ -11,7 +11,7 @@ This is the most important part of the standard library. Master these types and 
 | **Result** | `Ok(value)`, `Err(error)` | An operation can succeed or fail with an error |
 | **Option** | `Some(value)`, `None` | A value may or may not exist |
 
-```lux
+```tova
 // Result: parsing can fail
 fn parse_int(s) {
   n = Int.new(s)
@@ -37,7 +37,7 @@ The `Result` type represents the outcome of an operation that can succeed or fai
 
 ### Creating Results
 
-```lux
+```tova
 success = Ok(42)
 failure = Err("something went wrong")
 
@@ -53,7 +53,7 @@ When a Result is `Ok(value)`, these methods behave as follows:
 
 Transforms the success value. Returns `Ok(fn(value))`.
 
-```lux
+```tova
 Ok(5).map(fn(x) x * 2)          // Ok(10)
 Ok("hello").map(upper)           // Ok("HELLO")
 ```
@@ -62,7 +62,7 @@ Ok("hello").map(upper)           // Ok("HELLO")
 
 Chains operations that themselves return Results. The function must return an `Ok` or `Err`.
 
-```lux
+```tova
 Ok(5).flatMap(fn(x) {
   if x > 0 { Ok(x * 2) } else { Err("must be positive") }
 })
@@ -78,7 +78,7 @@ Ok(-1).flatMap(fn(x) {
 
 Extracts the value from `Ok`. **Throws if called on `Err`**.
 
-```lux
+```tova
 Ok(42).unwrap()                  // 42
 // Err("fail").unwrap()          -- throws!
 ```
@@ -87,7 +87,7 @@ Ok(42).unwrap()                  // 42
 
 Extracts the value, or returns the default if this is an `Err`.
 
-```lux
+```tova
 Ok(42).unwrapOr(0)               // 42
 Err("fail").unwrapOr(0)          // 0
 ```
@@ -96,14 +96,14 @@ Err("fail").unwrapOr(0)          // 0
 
 Like `.unwrap()` but throws with a custom message on `Err`.
 
-```lux
+```tova
 Ok(42).expect("should have value")   // 42
 // Err("x").expect("oh no")          -- throws "oh no"
 ```
 
 #### .isOk() / .isErr()
 
-```lux
+```tova
 Ok(42).isOk()                    // true
 Ok(42).isErr()                   // false
 ```
@@ -112,7 +112,7 @@ Ok(42).isErr()                   // false
 
 Transforms the error value. On `Ok`, returns self unchanged.
 
-```lux
+```tova
 Ok(42).mapErr(fn(e) "wrapped: {e}")   // Ok(42)  -- no change
 ```
 
@@ -120,7 +120,7 @@ Ok(42).mapErr(fn(e) "wrapped: {e}")   // Ok(42)  -- no change
 
 Extracts the error value. **Throws if called on `Ok`**.
 
-```lux
+```tova
 // Ok(42).unwrapErr()            -- throws!
 ```
 
@@ -128,7 +128,7 @@ Extracts the error value. **Throws if called on `Ok`**.
 
 Returns self (`Ok`) when the result is `Ok`.
 
-```lux
+```tova
 Ok(42).or(Ok(99))                // Ok(42)
 ```
 
@@ -136,7 +136,7 @@ Ok(42).or(Ok(99))                // Ok(42)
 
 Returns `other` when the result is `Ok`.
 
-```lux
+```tova
 Ok(42).and(Ok(99))               // Ok(99)
 Ok(42).and(Err("fail"))          // Err("fail")
 ```
@@ -151,7 +151,7 @@ When a Result is `Err(error)`, these methods behave as follows:
 
 Returns self (`Err`) unchanged. The function is not called.
 
-```lux
+```tova
 Err("fail").map(fn(x) x * 2)    // Err("fail")
 ```
 
@@ -159,7 +159,7 @@ Err("fail").map(fn(x) x * 2)    // Err("fail")
 
 Returns self (`Err`) unchanged. The function is not called.
 
-```lux
+```tova
 Err("fail").flatMap(fn(x) Ok(x * 2))   // Err("fail")
 ```
 
@@ -167,7 +167,7 @@ Err("fail").flatMap(fn(x) Ok(x * 2))   // Err("fail")
 
 **Throws** with the error value.
 
-```lux
+```tova
 // Err("something broke").unwrap()  -- throws "something broke"
 ```
 
@@ -175,7 +175,7 @@ Err("fail").flatMap(fn(x) Ok(x * 2))   // Err("fail")
 
 Returns the default value.
 
-```lux
+```tova
 Err("fail").unwrapOr(0)          // 0
 Err("fail").unwrapOr("fallback") // "fallback"
 ```
@@ -184,13 +184,13 @@ Err("fail").unwrapOr("fallback") // "fallback"
 
 **Throws** with the custom message.
 
-```lux
+```tova
 // Err("x").expect("config missing")  -- throws "config missing"
 ```
 
 #### .isOk() / .isErr()
 
-```lux
+```tova
 Err("fail").isOk()               // false
 Err("fail").isErr()              // true
 ```
@@ -199,7 +199,7 @@ Err("fail").isErr()              // true
 
 Transforms the error value. Returns `Err(fn(error))`.
 
-```lux
+```tova
 Err("not found").mapErr(fn(e) "Error: {e}")
 // Err("Error: not found")
 ```
@@ -208,7 +208,7 @@ Err("not found").mapErr(fn(e) "Error: {e}")
 
 Extracts the error value.
 
-```lux
+```tova
 Err("fail").unwrapErr()          // "fail"
 ```
 
@@ -216,7 +216,7 @@ Err("fail").unwrapErr()          // "fail"
 
 Returns `other` since this result is an `Err`.
 
-```lux
+```tova
 Err("fail").or(Ok(99))           // Ok(99)
 Err("a").or(Err("b"))            // Err("b")
 ```
@@ -225,7 +225,7 @@ Err("a").or(Err("b"))            // Err("b")
 
 Returns self (`Err`) since the first result already failed.
 
-```lux
+```tova
 Err("fail").and(Ok(99))          // Err("fail")
 ```
 
@@ -255,7 +255,7 @@ The `Option` type represents a value that may or may not exist. Use it instead o
 
 ### Creating Options
 
-```lux
+```tova
 present = Some(42)
 absent = None
 ```
@@ -270,7 +270,7 @@ When an Option is `Some(value)`:
 
 Transforms the inner value. Returns `Some(fn(value))`.
 
-```lux
+```tova
 Some(5).map(fn(x) x * 2)        // Some(10)
 Some("hello").map(upper)         // Some("HELLO")
 ```
@@ -279,7 +279,7 @@ Some("hello").map(upper)         // Some("HELLO")
 
 Chains operations that return Options. The function must return `Some` or `None`.
 
-```lux
+```tova
 Some(5).flatMap(fn(x) {
   if x > 0 { Some(x * 2) } else { None }
 })
@@ -290,7 +290,7 @@ Some(5).flatMap(fn(x) {
 
 Extracts the value. **Throws if called on `None`**.
 
-```lux
+```tova
 Some(42).unwrap()                // 42
 ```
 
@@ -298,7 +298,7 @@ Some(42).unwrap()                // 42
 
 Extracts the value, or returns the default.
 
-```lux
+```tova
 Some(42).unwrapOr(0)             // 42
 ```
 
@@ -306,13 +306,13 @@ Some(42).unwrapOr(0)             // 42
 
 Like `.unwrap()` but throws with a custom message on `None`.
 
-```lux
+```tova
 Some(42).expect("need value")    // 42
 ```
 
 #### .isSome() / .isNone()
 
-```lux
+```tova
 Some(42).isSome()                // true
 Some(42).isNone()                // false
 ```
@@ -321,7 +321,7 @@ Some(42).isNone()                // false
 
 Returns self (`Some`).
 
-```lux
+```tova
 Some(42).or(Some(99))            // Some(42)
 ```
 
@@ -329,7 +329,7 @@ Some(42).or(Some(99))            // Some(42)
 
 Returns `other` when this Option has a value.
 
-```lux
+```tova
 Some(42).and(Some(99))           // Some(99)
 Some(42).and(None)               // None
 ```
@@ -338,7 +338,7 @@ Some(42).and(None)               // None
 
 Returns `Some(value)` if the predicate returns `true`, otherwise `None`.
 
-```lux
+```tova
 Some(5).filter(fn(x) x > 3)     // Some(5)
 Some(1).filter(fn(x) x > 3)     // None
 ```
@@ -362,7 +362,7 @@ When an Option is `None`:
 | `.and(other)` | `None` |
 | `.filter(pred)` | `None` |
 
-```lux
+```tova
 None.map(fn(x) x * 2)           // None
 None.unwrapOr(0)                 // 0
 None.or(Some(99))                // Some(99)
@@ -396,7 +396,7 @@ When applied to a value:
 - If the value is `Ok(v)` or `Some(v)`, it extracts `v` and execution continues
 - If the value is `Err(e)` or `None`, the **enclosing function** immediately returns that `Err` or `None`
 
-```lux
+```tova
 fn process(input) {
   // Without propagation
   result = parse(input)
@@ -412,7 +412,7 @@ fn process(input) {
 
 ### Example: Chaining Fallible Operations
 
-```lux
+```tova
 fn process_user(raw_data) {
   // Each ! unwraps Ok or short-circuits with Err
   parsed = parse_json(raw_data)!
@@ -445,7 +445,7 @@ You never need to call `__propagate` manually -- just use the `!` suffix operato
 
 Use `.map()` when the transformation cannot fail. Use `.flatMap()` when the transformation itself returns a Result or Option.
 
-```lux
+```tova
 // .map() -- transform cannot fail
 Ok(5)
   .map(fn(x) x * 2)
@@ -472,7 +472,7 @@ parse_and_double("9999")     // Err("number too large")
 
 ### Providing Defaults
 
-```lux
+```tova
 // Use .unwrapOr() for a default value
 config_port = get_env("PORT")
   .map(fn(s) parse_int(s).unwrapOr(3000))
@@ -488,7 +488,7 @@ fn find_config() {
 
 ### Pattern Matching on Results and Options
 
-```lux
+```tova
 match fetch_user(id) {
   Ok(user) => render_profile(user)
   Err("not found") => render_404()
@@ -503,7 +503,7 @@ match find(items, fn(x) x.id == target_id) {
 
 ### Converting Between Result and Option
 
-```lux
+```tova
 // Result to value-or-null
 value = result.unwrapOr(null)
 
@@ -517,7 +517,7 @@ if result.isOk() {
 
 ### Error Transformation
 
-```lux
+```tova
 // Wrap low-level errors with context
 fn load_user_config(path) {
   read_file(path)
@@ -536,7 +536,7 @@ Use **Result** when:
 - You need to propagate error messages or codes
 - The failure represents an error condition
 
-```lux
+```tova
 // Result: the caller needs to know what went wrong
 fn divide(a, b) {
   if b == 0 {
@@ -552,7 +552,7 @@ Use **Option** when:
 - There is no meaningful error to report
 - You are doing lookups or searches
 
-```lux
+```tova
 // Option: the item might not exist, and that is fine
 fn find_by_name(users, name) {
   result = find(users, fn(u) u.name == name)

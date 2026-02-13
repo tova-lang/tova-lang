@@ -1172,7 +1172,7 @@ describe('Unquoted JSX text — edge cases', () => {
 // ── Codegen: unquoted text output ──────────────────────────
 
 describe('Unquoted JSX text — Codegen', () => {
-  test('unquoted text produces string child in lux_el', () => {
+  test('unquoted text produces string child in tova_el', () => {
     const r = compile('client { component App { <h1>Hello World</h1> } }');
     expect(r.client).toContain('"Hello World"');
   });

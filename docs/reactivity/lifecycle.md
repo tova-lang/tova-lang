@@ -1,12 +1,12 @@
 # Lifecycle
 
-Lux provides lifecycle hooks that let you run code at specific points in a component's or effect's life. These hooks integrate with the reactive ownership system to ensure proper cleanup and resource management.
+Tova provides lifecycle hooks that let you run code at specific points in a component's or effect's life. These hooks integrate with the reactive ownership system to ensure proper cleanup and resource management.
 
 ## onMount
 
 `onMount` runs a function after the component has been mounted to the DOM. It executes asynchronously via `queueMicrotask`, ensuring the DOM elements are available:
 
-```lux
+```tova
 component AutoFocusInput {
   ref = createRef()
 
@@ -26,7 +26,7 @@ component AutoFocusInput {
 
 `onMount` can return a cleanup function. If the callback returns a function, that function is registered as a cleanup on the component's owner and runs when the component is disposed:
 
-```lux
+```tova
 component KeyboardListener {
   state last_key = ""
 
@@ -48,7 +48,7 @@ This pattern is useful for setting up event listeners, timers, subscriptions, or
 
 ### Common Use Cases
 
-```lux
+```tova
 component Chart(data) {
   ref = createRef()
 
@@ -66,7 +66,7 @@ component Chart(data) {
 }
 ```
 
-```lux
+```tova
 component Timer {
   state elapsed = 0
 
@@ -83,7 +83,7 @@ component Timer {
 
 `onUnmount` registers a function to run when the component's owner is disposed -- typically when the component unmounts from the DOM:
 
-```lux
+```tova
 component WebSocketChat(room_id) {
   state messages = []
 
@@ -122,7 +122,7 @@ Both approaches are valid. Choose whichever keeps your code clearest.
 
 `onCleanup` registers a cleanup function on the **current effect**. It is designed for use inside `effect { }` blocks rather than at the component level:
 
-```lux
+```tova
 component PollingComponent(url) {
   state data = nil
 
@@ -153,7 +153,7 @@ The cleanup function registered with `onCleanup` runs in two situations:
 
 This makes `onCleanup` essential for effects that set up resources:
 
-```lux
+```tova
 component EventTracker(event_name) {
   state count = 0
 
@@ -175,7 +175,7 @@ When `event_name` changes (it is a reactive prop), the effect re-runs. Before re
 
 You can call `onCleanup` multiple times within a single effect. All registered cleanup functions run in reverse order:
 
-```lux
+```tova
 effect {
   // Resource A
   timer_a = setInterval(fn() { update_a() }, 1000)
@@ -191,9 +191,9 @@ effect {
 
 ## Lifecycle in the Ownership Tree
 
-All lifecycle hooks participate in Lux's ownership system. When a component or root is disposed, cleanup runs in reverse order through the ownership tree:
+All lifecycle hooks participate in Tova's ownership system. When a component or root is disposed, cleanup runs in reverse order through the ownership tree:
 
-```lux
+```tova
 component Parent {
   state show_child = true
 
@@ -233,7 +233,7 @@ When `show_child` changes from `true` to `false`, the `Child` component's owner 
 
 A component that ties together all three lifecycle hooks:
 
-```lux
+```tova
 component LiveSearch(api_endpoint) {
   state query = ""
   state results = []

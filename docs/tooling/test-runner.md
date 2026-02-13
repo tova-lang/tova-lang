@@ -4,22 +4,22 @@ title: Test Runner
 
 # Test Runner
 
-Lux has a built-in test runner that discovers and executes `test` blocks in `.lux` files. Tests are compiled to JavaScript and run via Bun's test infrastructure.
+Tova has a built-in test runner that discovers and executes `test` blocks in `.tova` files. Tests are compiled to JavaScript and run via Bun's test infrastructure.
 
 ## Running Tests
 
 ```bash
-lux test              # Run tests in the current directory
-lux test src          # Run tests in the src/ directory
-lux test --filter "math"   # Run only tests matching "math"
-lux test --watch      # Watch for changes and re-run
+tova test              # Run tests in the current directory
+tova test src          # Run tests in the src/ directory
+tova test --filter "math"   # Run only tests matching "math"
+tova test --watch      # Watch for changes and re-run
 ```
 
 ## Writing Tests
 
 Tests are defined using `test` blocks with a description string and a body:
 
-```lux
+```tova
 test "addition works" {
   assert_eq(1 + 1, 2)
 }
@@ -32,13 +32,13 @@ test "string concatenation" {
 
 ## Assertions
 
-Lux provides three assertion functions for tests:
+Tova provides three assertion functions for tests:
 
 ### `assert(condition)`
 
 Asserts that a condition is truthy:
 
-```lux
+```tova
 test "basic assertions" {
   assert(true)
   assert(1 > 0)
@@ -50,7 +50,7 @@ test "basic assertions" {
 
 Asserts that two values are equal:
 
-```lux
+```tova
 test "equality checks" {
   assert_eq(2 + 2, 4)
   assert_eq("hello", "hello")
@@ -62,7 +62,7 @@ test "equality checks" {
 
 Asserts that two values are not equal:
 
-```lux
+```tova
 test "inequality checks" {
   assert_ne(1, 2)
   assert_ne("hello", "world")
@@ -74,7 +74,7 @@ test "inequality checks" {
 
 Define functions in the same file and test them:
 
-```lux
+```tova
 fn factorial(n) {
   match n {
     0 => 1
@@ -97,7 +97,7 @@ test "factorial of 10" {
 
 ## Testing with Types
 
-```lux
+```tova
 type Point {
   x: Int
   y: Int
@@ -118,7 +118,7 @@ test "distance between points" {
 
 ## Testing Result and Option
 
-```lux
+```tova
 fn safe_divide(a, b) {
   match b {
     0 => Err("division by zero")
@@ -142,43 +142,43 @@ test "safe division by zero returns error" {
 Use `--filter` to run a subset of tests matching a pattern:
 
 ```bash
-lux test --filter "factorial"
+tova test --filter "factorial"
 ```
 
 This runs only tests whose description contains "factorial".
 
 ## Watch Mode
 
-Use `--watch` to automatically re-run tests when `.lux` files change:
+Use `--watch` to automatically re-run tests when `.tova` files change:
 
 ```bash
-lux test --watch
+tova test --watch
 ```
 
-The watcher monitors the target directory recursively and re-runs the full test suite whenever a `.lux` file is modified.
+The watcher monitors the target directory recursively and re-runs the full test suite whenever a `.tova` file is modified.
 
 ## Test Organization
 
 A recommended approach for organizing tests:
 
-- **Inline tests**: Place `test` blocks alongside the functions they test in the same `.lux` file. This keeps tests close to the code they verify.
-- **Dedicated test files**: For larger test suites, create separate `.lux` files (e.g., `math_test.lux`, `api_test.lux`) in a `tests/` directory.
+- **Inline tests**: Place `test` blocks alongside the functions they test in the same `.tova` file. This keeps tests close to the code they verify.
+- **Dedicated test files**: For larger test suites, create separate `.tova` files (e.g., `math_test.tova`, `api_test.tova`) in a `tests/` directory.
 
 ```
 my-project/
   src/
-    app.lux          # Application code with inline tests
-    utils.lux        # Utility functions with inline tests
+    app.tova          # Application code with inline tests
+    utils.tova        # Utility functions with inline tests
   tests/
-    integration.lux  # Integration tests
+    integration.tova  # Integration tests
 ```
 
 ## How It Works
 
-Under the hood, `lux test` performs these steps:
+Under the hood, `tova test` performs these steps:
 
-1. Scans the target directory for `.lux` files containing `test` blocks
+1. Scans the target directory for `.tova` files containing `test` blocks
 2. Compiles each file to JavaScript, extracting the test code
-3. Writes compiled test files to `.lux-test-out/`
+3. Writes compiled test files to `.tova-test-out/`
 4. Runs the compiled tests using `bun test`
 5. Reports results and exits with the appropriate exit code

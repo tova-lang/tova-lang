@@ -4,20 +4,20 @@ title: Hello World
 
 # Hello World
 
-The simplest Lux program is a single `print` call.
+The simplest Tova program is a single `print` call.
 
 ## Basic Output
 
-Create a file called `hello.lux`:
+Create a file called `hello.tova`:
 
-```lux
+```tova
 print("Hello, World!")
 ```
 
 Run it:
 
 ```bash
-lux run hello.lux
+tova run hello.tova
 ```
 
 Output:
@@ -28,10 +28,10 @@ Hello, World!
 
 ## String Interpolation
 
-Lux supports string interpolation with curly braces inside double-quoted strings:
+Tova supports string interpolation with curly braces inside double-quoted strings:
 
-```lux
-name = "Lux"
+```tova
+name = "Tova"
 version = 1
 
 print("Welcome to {name}!")
@@ -41,35 +41,35 @@ print("{name} version {version} is ready.")
 Output:
 
 ```
-Welcome to Lux!
-Lux version 1 is ready.
+Welcome to Tova!
+Tova version 1 is ready.
 ```
 
 ## Defining Functions
 
 Use `fn` to define functions. The last expression in a function body is the return value:
 
-```lux
+```tova
 fn greet(name) {
   "Hello, {name}!"
 }
 
 print(greet("World"))
-print(greet("Lux"))
+print(greet("Tova"))
 ```
 
 Output:
 
 ```
 Hello, World!
-Hello, Lux!
+Hello, Tova!
 ```
 
 ## Functions with Logic
 
 Combine functions with `match` expressions and the pipe operator:
 
-```lux
+```tova
 fn fizzbuzz(n) {
   match [n % 3, n % 5] {
     [0, 0] => "FizzBuzz"
@@ -86,9 +86,9 @@ range(1, 21) |> each(fn(n) {
 
 ## Working with Collections
 
-Lux has a rich standard library for working with lists:
+Tova has a rich standard library for working with lists:
 
-```lux
+```tova
 numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 // Filter and transform
@@ -111,9 +111,9 @@ Sum: 60
 
 ## Error Handling with Result
 
-Lux uses `Result` types instead of exceptions:
+Tova uses `Result` types instead of exceptions:
 
-```lux
+```tova
 fn parse_age(input) {
   n = parseInt(input)
   match n {

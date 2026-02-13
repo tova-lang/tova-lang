@@ -1,12 +1,12 @@
 # Strings
 
-Lux provides a rich set of string manipulation functions. All string functions are non-mutating -- they return new strings.
+Tova provides a rich set of string manipulation functions. All string functions are non-mutating -- they return new strings.
 
 ## Method Syntax
 
 String functions can be called in two ways:
 
-```lux
+```tova
 // Standalone function call
 upper("hello")          // "HELLO"
 
@@ -18,9 +18,9 @@ Both forms are equivalent. The method syntax is often more readable when chainin
 
 ## String Interpolation
 
-Lux strings support interpolation with `{}`:
+Tova strings support interpolation with `{}`:
 
-```lux
+```tova
 name = "Alice"
 age = 30
 print("Hello, {name}! You are {age} years old.")
@@ -34,7 +34,7 @@ print("2 + 2 = {2 + 2}")
 
 The `*` operator repeats a string:
 
-```lux
+```tova
 "-" * 40
 // "----------------------------------------"
 
@@ -48,26 +48,26 @@ The `*` operator repeats a string:
 
 ### trim
 
-```lux
+```tova
 trim(s) -> String
 ```
 
 Removes whitespace from both ends of a string.
 
-```lux
+```tova
 trim("  hello  ")       // "hello"
 trim("\n\thello\n")     // "hello"
 ```
 
 ### split
 
-```lux
+```tova
 split(s, sep) -> List[String]
 ```
 
 Splits a string by a separator and returns an array of parts.
 
-```lux
+```tova
 split("a,b,c", ",")            // ["a", "b", "c"]
 split("hello world", " ")      // ["hello", "world"]
 split("one::two::three", "::")  // ["one", "two", "three"]
@@ -75,13 +75,13 @@ split("one::two::three", "::")  // ["one", "two", "three"]
 
 ### join
 
-```lux
+```tova
 join(arr, sep) -> String
 ```
 
 Joins an array of strings with a separator.
 
-```lux
+```tova
 join(["a", "b", "c"], ", ")    // "a, b, c"
 join(["hello", "world"], " ")  // "hello world"
 join(["one", "two"], "")       // "onetwo"
@@ -89,38 +89,38 @@ join(["one", "two"], "")       // "onetwo"
 
 ### words
 
-```lux
+```tova
 words(s) -> List[String]
 ```
 
 Splits a string by whitespace, filtering out empty strings.
 
-```lux
+```tova
 words("hello   world")          // ["hello", "world"]
 words("  spaced  out  ")        // ["spaced", "out"]
 ```
 
 ### lines
 
-```lux
+```tova
 lines(s) -> List[String]
 ```
 
 Splits a string by newline characters.
 
-```lux
+```tova
 lines("line1\nline2\nline3")   // ["line1", "line2", "line3"]
 ```
 
 ### chars
 
-```lux
+```tova
 chars(s) -> List[String]
 ```
 
 Splits a string into an array of individual characters.
 
-```lux
+```tova
 chars("hello")                  // ["h", "e", "l", "l", "o"]
 chars("abc") |> reversed() |> join("")  // "cba"
 ```
@@ -131,13 +131,13 @@ chars("abc") |> reversed() |> join("")  // "cba"
 
 ### contains
 
-```lux
+```tova
 contains(s, sub) -> Bool
 ```
 
 Returns `true` if the string contains the given substring.
 
-```lux
+```tova
 contains("hello world", "world")    // true
 contains("hello world", "xyz")      // false
 
@@ -147,13 +147,13 @@ contains("hello world", "xyz")      // false
 
 ### starts_with
 
-```lux
+```tova
 starts_with(s, prefix) -> Bool
 ```
 
 Returns `true` if the string starts with the given prefix.
 
-```lux
+```tova
 starts_with("hello", "hel")    // true
 starts_with("hello", "world")  // false
 
@@ -162,15 +162,15 @@ starts_with("hello", "world")  // false
 
 ### ends_with
 
-```lux
+```tova
 ends_with(s, suffix) -> Bool
 ```
 
 Returns `true` if the string ends with the given suffix.
 
-```lux
-ends_with("hello.lux", ".lux")     // true
-ends_with("hello.lux", ".js")      // false
+```tova
+ends_with("hello.tova", ".tova")     // true
+ends_with("hello.tova", ".js")      // false
 
 "photo.png".ends_with(".png")       // true
 ```
@@ -181,15 +181,15 @@ ends_with("hello.lux", ".js")      // false
 
 ### replace
 
-```lux
+```tova
 replace(s, from, to) -> String
 ```
 
 Replaces occurrences in a string. When `from` is a plain string, **all** occurrences are replaced. When `from` is a regex, the **first** match is replaced.
 
-```lux
-replace("hello world", "world", "Lux")
-// "hello Lux"
+```tova
+replace("hello world", "world", "Tova")
+// "hello Tova"
 
 replace("aabbcc", "b", "x")
 // "aaxxcc"
@@ -197,13 +197,13 @@ replace("aabbcc", "b", "x")
 
 ### repeat
 
-```lux
+```tova
 repeat(s, n) -> String
 ```
 
 Repeats a string `n` times.
 
-```lux
+```tova
 repeat("ha", 3)         // "hahaha"
 repeat("-", 20)          // "--------------------"
 repeat("ab", 0)          // ""
@@ -215,65 +215,65 @@ repeat("ab", 0)          // ""
 
 ### upper
 
-```lux
+```tova
 upper(s) -> String
 ```
 
 Converts a string to uppercase.
 
-```lux
+```tova
 upper("hello")           // "HELLO"
 "hello".upper()          // "HELLO"
 ```
 
 ### lower
 
-```lux
+```tova
 lower(s) -> String
 ```
 
 Converts a string to lowercase.
 
-```lux
+```tova
 lower("HELLO")           // "hello"
 "HELLO".lower()          // "hello"
 ```
 
 ### capitalize
 
-```lux
+```tova
 capitalize(s) -> String
 ```
 
 Uppercases the first letter of the string.
 
-```lux
+```tova
 capitalize("hello")      // "Hello"
 capitalize("hello world")  // "Hello world"
 ```
 
 ### title_case
 
-```lux
+```tova
 title_case(s) -> String
 ```
 
 Uppercases the first letter of each word.
 
-```lux
+```tova
 title_case("hello world")       // "Hello World"
 title_case("the quick brown fox")  // "The Quick Brown Fox"
 ```
 
 ### snake_case
 
-```lux
+```tova
 snake_case(s) -> String
 ```
 
 Converts a string to `snake_case`. Handles camelCase, spaces, and hyphens.
 
-```lux
+```tova
 snake_case("helloWorld")         // "hello_world"
 snake_case("Hello World")        // "hello_world"
 snake_case("some-thing")         // "some_thing"
@@ -282,13 +282,13 @@ snake_case("XMLParser")          // "xml_parser"
 
 ### camel_case
 
-```lux
+```tova
 camel_case(s) -> String
 ```
 
 Converts a string to `camelCase`. Handles snake_case, spaces, and hyphens.
 
-```lux
+```tova
 camel_case("hello_world")       // "helloWorld"
 camel_case("Hello World")       // "helloWorld"
 camel_case("some-thing")        // "someThing"
@@ -300,7 +300,7 @@ camel_case("some-thing")        // "someThing"
 
 String functions work naturally with the pipe operator `|>`:
 
-```lux
+```tova
 // Clean and normalize user input
 input
   |> trim()
@@ -314,13 +314,13 @@ input
 // [[0, "Alice"], [1, "30"], [2, "Engineer"]]
 
 // Build a slug from a title
-"Hello World! This is Lux."
+"Hello World! This is Tova."
   |> lower()
   |> replace("!", "")
   |> replace(".", "")
   |> words()
   |> join("-")
-// "hello-world-this-is-lux"
+// "hello-world-this-is-tova"
 
 // Count vowels
 "hello world"
@@ -332,9 +332,9 @@ input
 
 ## String Concatenation
 
-Lux uses `++` for string concatenation:
+Tova uses `++` for string concatenation:
 
-```lux
+```tova
 "hello" ++ " " ++ "world"   // "hello world"
 
 greeting = "Hello, " ++ name ++ "!"
@@ -342,6 +342,6 @@ greeting = "Hello, " ++ name ++ "!"
 
 For most cases, string interpolation is more readable:
 
-```lux
+```tova
 greeting = "Hello, {name}!"
 ```

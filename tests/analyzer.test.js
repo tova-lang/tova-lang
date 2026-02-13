@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
-import { Scope, Symbol as LuxSymbol } from '../src/analyzer/scope.js';
+import { Scope, Symbol as TovaSymbol } from '../src/analyzer/scope.js';
 
 function analyze(source) {
   const lexer = new Lexer(source, '<test>');
@@ -27,7 +27,7 @@ function analyzeThrows(source) {
 describe('Scope', () => {
   test('define and lookup symbol', () => {
     const scope = new Scope(null, 'module');
-    const sym = new LuxSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
+    const sym = new TovaSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
     scope.define('x', sym);
     expect(scope.lookup('x')).toBe(sym);
   });
@@ -35,7 +35,7 @@ describe('Scope', () => {
   test('lookup traverses parent scope', () => {
     const parent = new Scope(null, 'module');
     const child = parent.child('block');
-    const sym = new LuxSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
+    const sym = new TovaSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
     parent.define('x', sym);
     expect(child.lookup('x')).toBe(sym);
   });
@@ -48,7 +48,7 @@ describe('Scope', () => {
   test('lookupLocal only checks current scope', () => {
     const parent = new Scope(null, 'module');
     const child = parent.child('block');
-    const sym = new LuxSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
+    const sym = new TovaSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
     parent.define('x', sym);
     expect(child.lookupLocal('x')).toBeNull();
     expect(parent.lookupLocal('x')).toBe(sym);
@@ -56,7 +56,7 @@ describe('Scope', () => {
 
   test('define throws on duplicate', () => {
     const scope = new Scope(null, 'module');
-    const sym = new LuxSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
+    const sym = new TovaSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
     scope.define('x', sym);
     expect(() => scope.define('x', sym)).toThrow("'x' is already defined");
   });
@@ -94,7 +94,7 @@ describe('Scope', () => {
 
 describe('Symbol', () => {
   test('symbol properties', () => {
-    const sym = new LuxSymbol('count', 'state', 'Int', true, { line: 1, column: 1, file: '<test>' });
+    const sym = new TovaSymbol('count', 'state', 'Int', true, { line: 1, column: 1, file: '<test>' });
     expect(sym.name).toBe('count');
     expect(sym.kind).toBe('state');
     expect(sym.type).toBe('Int');

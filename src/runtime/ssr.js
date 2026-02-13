@@ -1,4 +1,4 @@
-// Server-Side Rendering for Lux
+// Server-Side Rendering for Tova
 // Renders vnodes to HTML strings for initial page load
 
 // Self-closing HTML tags
@@ -41,8 +41,8 @@ export function renderToString(vnode) {
     return vnode.map(renderToString).join('');
   }
 
-  // Non-lux object
-  if (!vnode.__lux) {
+  // Non-tova object
+  if (!vnode.__tova) {
     return escapeHtml(String(vnode));
   }
 
@@ -115,7 +115,7 @@ function flattenSSR(children) {
 }
 
 // Render a full HTML page with the app component for SSR
-export function renderPage(component, { title = 'Lux App', head = '', scriptSrc = '/client.js' } = {}) {
+export function renderPage(component, { title = 'Tova App', head = '', scriptSrc = '/client.js' } = {}) {
   const appHtml = renderToString(typeof component === 'function' ? component() : component);
 
   return `<!DOCTYPE html>

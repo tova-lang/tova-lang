@@ -4,7 +4,7 @@ The `shared` block defines types, validation functions, and constants that are a
 
 ## Purpose
 
-In a traditional web application, you would define your types in a schema file, then manually keep your server-side types and client-side types in sync. In Lux, the shared block eliminates this problem entirely. You define your types once, and the compiler makes them available to both runtimes.
+In a traditional web application, you would define your types in a schema file, then manually keep your server-side types and client-side types in sync. In Tova, the shared block eliminates this problem entirely. You define your types once, and the compiler makes them available to both runtimes.
 
 Common uses:
 - **Type definitions** -- the shape of your data
@@ -14,7 +14,7 @@ Common uses:
 
 ## Basic Syntax
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -30,7 +30,7 @@ The `shared` keyword opens a block. Everything inside it is compiled to a standa
 
 Shared types define the data contracts for your application. They are the single source of truth for what a "User" or "ApiError" looks like:
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -60,7 +60,7 @@ Both the server and client can use these types for parameter annotations, return
 
 One of the most important uses of the shared block is validation. By putting validation logic in `shared {}`, the same function runs on the client (for instant feedback) and the server (for security):
 
-```lux
+```tova
 shared {
   fn validate_email(email: String) -> Bool {
     email.contains("@") && email.contains(".") && email.length() > 5
@@ -78,7 +78,7 @@ shared {
 
 The client can use these for form validation before the request is sent:
 
-```lux
+```tova
 client {
   fn handle_signup() {
     guard validate_email(email) else {
@@ -97,7 +97,7 @@ client {
 
 The server re-validates to guard against tampered requests:
 
-```lux
+```tova
 server {
   fn signup(email: String, password: String) -> User {
     guard validate_email(email) else {
@@ -116,7 +116,7 @@ server {
 
 Shared constants ensure that magic numbers and configuration values are consistent:
 
-```lux
+```tova
 shared {
   MAX_USERNAME_LENGTH = 50
   MIN_PASSWORD_LENGTH = 8
@@ -136,7 +136,7 @@ Both client and server can reference `MAX_USERNAME_LENGTH` or pattern-match on `
 
 Any function that does not depend on server or client APIs belongs in shared:
 
-```lux
+```tova
 shared {
   fn format_currency(amount: Float) -> String {
     "$" ++ amount.toFixed(2)
@@ -158,10 +158,10 @@ shared {
 
 ## Compilation Output
 
-The shared block compiles to its own JavaScript file. For a file named `app.lux`, the output is:
+The shared block compiles to its own JavaScript file. For a file named `app.tova`, the output is:
 
 ```
-.lux-out/
+.tova-out/
   app.shared.js    <-- shared block output
   app.server.js    <-- imports app.shared.js
   app.client.js    <-- imports app.shared.js
@@ -171,9 +171,9 @@ The generated `app.shared.js` contains plain JavaScript functions and class defi
 
 ### Example Output
 
-Given this Lux code:
+Given this Tova code:
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -206,7 +206,7 @@ The server and client outputs both import these definitions so there is zero dup
 
 You can have multiple `shared` blocks in the same file. They are merged during compilation:
 
-```lux
+```tova
 shared {
   type User { id: Int, name: String }
 }
@@ -229,7 +229,7 @@ Both types and the validation function end up in the same `app.shared.js` output
 
 Shared code should be **pure** -- no side effects, no database calls, no DOM access, no network requests. If it touches the database, it belongs in `server {}`. If it touches the DOM, it belongs in `client {}`.
 
-```lux
+```tova
 // Good: pure validation
 shared {
   fn is_valid_age(age: Int) -> Bool {
@@ -249,7 +249,7 @@ shared {
 
 Put all your application types in shared so both sides always agree on data shapes:
 
-```lux
+```tova
 shared {
   type CreateUserRequest {
     name: String
@@ -274,7 +274,7 @@ shared {
 
 For each type, consider writing a validation function right next to it:
 
-```lux
+```tova
 shared {
   type ContactForm {
     name: String

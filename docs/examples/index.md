@@ -4,11 +4,11 @@ title: Examples
 
 # Examples
 
-Learn Lux through practical, annotated examples that progressively introduce language features.
+Learn Tova through practical, annotated examples that progressively introduce language features.
 
 ## Getting Started
 
-- **[Hello World](./hello-world.md)** -- Your first Lux program. Covers `print`, string interpolation, functions, and running with `lux run`.
+- **[Hello World](./hello-world.md)** -- Your first Tova program. Covers `print`, string interpolation, functions, and running with `tova run`.
 
 - **[Counter App](./counter.md)** -- A client-side reactive counter. Introduces `state`, `computed`, `match` expressions, and JSX components.
 
@@ -24,4 +24,4 @@ Learn Lux through practical, annotated examples that progressively introduce lan
 
 - **[Authentication Flow](./auth-flow.md)** -- JWT-based authentication with registration, login, and protected endpoints. Covers password hashing, middleware, and token management.
 
-- **[Database & Models](./database.md)** -- Database configuration, model definitions, CRUD routes, and query patterns using Lux's built-in ORM.
+- **[Database & Models](./database.md)** -- Database configuration, model definitions, CRUD routes, and query patterns using Tova's built-in ORM.

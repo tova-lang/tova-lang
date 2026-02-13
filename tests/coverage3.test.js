@@ -389,7 +389,7 @@ describe('ClientCodegen — lambda with block body + state', () => {
       }
     `);
     expect(result.client).toContain('function helper()');
-    expect(result.client).toContain('lux_el("div"');
+    expect(result.client).toContain('tova_el("div"');
   });
 
   // Line 198: statement generated before JSX in component
@@ -403,7 +403,7 @@ describe('ClientCodegen — lambda with block body + state', () => {
       }
     `);
     expect(result.client).toContain('function onClick()');
-    expect(result.client).toContain('return lux_el');
+    expect(result.client).toContain('return tova_el');
   });
 });
 

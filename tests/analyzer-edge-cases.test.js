@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
-import { Scope, Symbol as LuxSymbol } from '../src/analyzer/scope.js';
+import { Scope, Symbol as TovaSymbol } from '../src/analyzer/scope.js';
 
 function analyze(source) {
   const lexer = new Lexer(source, '<test>');
@@ -769,7 +769,7 @@ describe('Additional Edge Cases', () => {
   });
 
   test('symbol tracks used flag', () => {
-    const sym = new LuxSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
+    const sym = new TovaSymbol('x', 'variable', null, false, { line: 1, column: 1, file: '<test>' });
     expect(sym.used).toBe(false);
     sym.used = true;
     expect(sym.used).toBe(true);

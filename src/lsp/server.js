@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Lux Language Server Protocol implementation
+// Tova Language Server Protocol implementation
 // Communicates via JSON-RPC over stdio
 
 import { Lexer } from '../lexer/lexer.js';
@@ -8,7 +8,7 @@ import { Analyzer } from '../analyzer/analyzer.js';
 import { TokenType } from '../lexer/tokens.js';
 import { Formatter } from '../formatter/formatter.js';
 
-class LuxLanguageServer {
+class TovaLanguageServer {
   static MAX_CACHE_SIZE = 100; // max cached diagnostics entries
 
   constructor() {
@@ -30,14 +30,14 @@ class LuxLanguageServer {
       try {
         this._logError(`Uncaught exception (recovered): ${err.message}`);
       } catch {
-        process.stderr.write(`[lux-lsp] Uncaught exception: ${err.message}\n`);
+        process.stderr.write(`[tova-lsp] Uncaught exception: ${err.message}\n`);
       }
     });
     process.on('unhandledRejection', (err) => {
       try {
         this._logError(`Unhandled rejection (recovered): ${err && err.message || err}`);
       } catch {
-        process.stderr.write(`[lux-lsp] Unhandled rejection: ${err}\n`);
+        process.stderr.write(`[tova-lsp] Unhandled rejection: ${err}\n`);
       }
     });
   }
@@ -92,11 +92,11 @@ class LuxLanguageServer {
   }
 
   _logError(msg) {
-    this._notify('window/logMessage', { type: 1, message: `[lux-lsp] ${msg}` });
+    this._notify('window/logMessage', { type: 1, message: `[tova-lsp] ${msg}` });
   }
 
   _logInfo(msg) {
-    this._notify('window/logMessage', { type: 3, message: `[lux-lsp] ${msg}` });
+    this._notify('window/logMessage', { type: 3, message: `[tova-lsp] ${msg}` });
   }
 
   // ─── Message Routing ──────────────────────────────────────
@@ -161,7 +161,7 @@ class LuxLanguageServer {
   }
 
   _onInitialized() {
-    this._logInfo('Lux Language Server initialized');
+    this._logInfo('Tova Language Server initialized');
   }
 
   // ─── Document Management ──────────────────────────────────
@@ -215,9 +215,9 @@ class LuxLanguageServer {
 
       // Cache for go-to-definition (with LRU eviction)
       this._diagnosticsCache.set(uri, { ast, analyzer, text });
-      if (this._diagnosticsCache.size > LuxLanguageServer.MAX_CACHE_SIZE) {
+      if (this._diagnosticsCache.size > TovaLanguageServer.MAX_CACHE_SIZE) {
         // Evict oldest entries (first inserted in Map iteration order)
-        const toEvict = this._diagnosticsCache.size - LuxLanguageServer.MAX_CACHE_SIZE;
+        const toEvict = this._diagnosticsCache.size - TovaLanguageServer.MAX_CACHE_SIZE;
         let evicted = 0;
         for (const key of this._diagnosticsCache.keys()) {
           if (evicted >= toEvict) break;
@@ -236,7 +236,7 @@ class LuxLanguageServer {
             end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
           },
           severity: 2, // Warning
-          source: 'lux',
+          source: 'tova',
           message: w.message,
         });
       }
@@ -251,7 +251,7 @@ class LuxLanguageServer {
             end: { line: (loc?.line || 1) - 1, character: 1000 },
           },
           severity: 1, // Error
-          source: 'lux',
+          source: 'tova',
           message: loc?.message || e.message,
         });
       }
@@ -265,7 +265,7 @@ class LuxLanguageServer {
               end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
             },
             severity: 2, // Warning
-            source: 'lux',
+            source: 'tova',
             message: w.message,
           });
         }
@@ -287,7 +287,7 @@ class LuxLanguageServer {
                 end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
               },
               severity: 2, // Warning
-              source: 'lux',
+              source: 'tova',
               message: w.message,
             });
           }
@@ -300,7 +300,7 @@ class LuxLanguageServer {
                   end: { line: (e.line || 1) - 1, character: (e.column || 1) + 10 },
                 },
                 severity: 1, // Error
-                source: 'lux',
+                source: 'tova',
                 message: e.message,
               });
             }
@@ -365,7 +365,7 @@ class LuxLanguageServer {
     ];
     for (const fn of builtins) {
       if (fn.startsWith(prefix)) {
-        items.push({ label: fn, kind: 3 /* Function */, detail: 'Lux built-in' });
+        items.push({ label: fn, kind: 3 /* Function */, detail: 'Tova built-in' });
       }
     }
 
@@ -443,7 +443,7 @@ class LuxLanguageServer {
       'zip': '`fn zip(...arrays)` — Zip arrays together',
       'min': '`fn min(arr)` — Minimum value in array',
       'max': '`fn max(arr)` — Maximum value in array',
-      'type_of': '`fn type_of(v)` — Get Lux type name as string',
+      'type_of': '`fn type_of(v)` — Get Tova type name as string',
       'Ok': '`Ok(value)` — Create a successful Result',
       'Err': '`Err(error)` — Create an error Result',
       'Some': '`Some(value)` — Create an Option with a value',
@@ -734,5 +734,5 @@ class LuxLanguageServer {
 }
 
 // Start the server
-const server = new LuxLanguageServer();
+const server = new TovaLanguageServer();
 server.start();

@@ -1,6 +1,6 @@
 # Strings
 
-Lux provides two kinds of string literals and a rich set of built-in methods and standalone functions for working with text.
+Tova provides two kinds of string literals and a rich set of built-in methods and standalone functions for working with text.
 
 ## String Literals
 
@@ -8,7 +8,7 @@ Lux provides two kinds of string literals and a rich set of built-in methods and
 
 Double-quoted strings support interpolation with `{expr}`:
 
-```lux
+```tova
 name = "Alice"
 greeting = "Hello, {name}!"           // "Hello, Alice!"
 math = "1 + 2 = {1 + 2}"             // "1 + 2 = 3"
@@ -17,7 +17,7 @@ info = "User {name} has {len(items)} items"
 
 Any valid expression can appear inside the braces:
 
-```lux
+```tova
 result = "The answer is {if x > 0 { "positive" } else { "non-positive" }}"
 list = "Items: {items.join(", ")}"
 ```
@@ -26,7 +26,7 @@ list = "Items: {items.join(", ")}"
 
 Single-quoted strings are literal -- no interpolation is performed:
 
-```lux
+```tova
 pattern = 'no {interpolation} here'   // literal: no {interpolation} here
 regex = '\d+\.\d+'
 ```
@@ -45,7 +45,7 @@ Both string types support the following escape sequences:
 | `\'` | Single quote |
 | `\{` | Literal `{` (prevents interpolation in double-quoted strings) |
 
-```lux
+```tova
 multiline = "Line one\nLine two\nLine three"
 path = "C:\\Users\\Alice\\Documents"
 quoted = "She said \"hello\""
@@ -56,7 +56,7 @@ literal_brace = "Use \{braces} for interpolation"
 
 Repeat a string by multiplying it with an integer:
 
-```lux
+```tova
 separator = "-" * 40
 // "----------------------------------------"
 
@@ -67,7 +67,7 @@ dots = "." * 20
 
 This is useful for formatting output:
 
-```lux
+```tova
 fn print_header(title) {
   line = "=" * len(title)
   print(line)
@@ -83,11 +83,11 @@ print_header("Report")
 
 ## Method-Style String Functions
 
-Lux provides string manipulation through method calls on string values:
+Tova provides string manipulation through method calls on string values:
 
 ### Case Conversion
 
-```lux
+```tova
 text = "hello world"
 
 text.upper()          // "HELLO WORLD"
@@ -98,7 +98,7 @@ text.title_case()     // "Hello World"
 
 Converting between naming conventions:
 
-```lux
+```tova
 name = "myVariableName"
 name.snake_case()     // "my_variable_name"
 
@@ -108,7 +108,7 @@ name2.camel_case()    // "myVariableName"
 
 ### Searching and Testing
 
-```lux
+```tova
 text = "Hello, World!"
 
 text.contains("World")       // true
@@ -119,7 +119,7 @@ text.contains("xyz")        // false
 
 ### Splitting into Parts
 
-```lux
+```tova
 text = "Hello, World!"
 
 text.chars()    // ["H", "e", "l", "l", "o", ",", " ", "W", "o", "r", "l", "d", "!"]
@@ -132,22 +132,22 @@ multiline.lines()    // ["Line 1", "Line 2", "Line 3"]
 
 ## Standalone String Functions
 
-Lux also provides standalone functions that take a string as their first argument. These work well with the pipe operator:
+Tova also provides standalone functions that take a string as their first argument. These work well with the pipe operator:
 
 ### Trimming and Manipulating
 
-```lux
+```tova
 padded = "  hello  "
 trim(padded)              // "hello"
 
 text = "hello world"
-replace(text, "world", "Lux")   // "hello Lux"
+replace(text, "world", "Tova")   // "hello Tova"
 repeat("ha", 3)                 // "hahaha"
 ```
 
 ### Splitting and Joining
 
-```lux
+```tova
 csv = "alice,bob,carol"
 split(csv, ",")           // ["alice", "bob", "carol"]
 
@@ -158,7 +158,7 @@ join(names, " and ")       // "Alice and Bob and Carol"
 
 ### Case Conversion (Standalone)
 
-```lux
+```tova
 upper("hello")          // "HELLO"
 lower("HELLO")          // "hello"
 capitalize("hello")     // "Hello"
@@ -169,7 +169,7 @@ camel_case("hello_world")  // "helloWorld"
 
 ### Searching (Standalone)
 
-```lux
+```tova
 contains("hello world", "world")    // true
 starts_with("hello", "hel")        // true
 ends_with("hello", "llo")          // true
@@ -177,7 +177,7 @@ ends_with("hello", "llo")          // true
 
 ### Splitting into Parts (Standalone)
 
-```lux
+```tova
 chars("hello")     // ["h", "e", "l", "l", "o"]
 words("hello world")   // ["hello", "world"]
 lines("a\nb\nc")       // ["a", "b", "c"]
@@ -187,16 +187,16 @@ lines("a\nb\nc")       // ["a", "b", "c"]
 
 The standalone functions are designed to work smoothly with the pipe operator `|>`:
 
-```lux
+```tova
 result = "  Hello, World!  "
   |> trim()
   |> lower()
-  |> replace("world", "lux")
+  |> replace("world", "tova")
   |> capitalize()
-// "Hello, lux!"
+// "Hello, tova!"
 ```
 
-```lux
+```tova
 csv_line = "  Alice , Bob , Carol  "
 names = csv_line
   |> trim()
@@ -209,7 +209,7 @@ names = csv_line
 
 Use the `++` operator or interpolation:
 
-```lux
+```tova
 first = "Hello"
 second = "World"
 
@@ -230,19 +230,19 @@ Prefer string interpolation over concatenation. `"Hello, {name}!"` is clearer an
 
 **Use method-style calls for chaining on a known string:**
 
-```lux
+```tova
 input.trim().lower().replace(" ", "_")
 ```
 
 **Use standalone functions with pipes for data pipelines:**
 
-```lux
+```tova
 data |> trim() |> split(",") |> map(fn(s) s.upper())
 ```
 
 **String multiplication is great for formatting:**
 
-```lux
+```tova
 fn table_row(label, value) {
   padding = " " * (20 - len(label))
   "{label}{padding}{value}"

@@ -1,4 +1,4 @@
-// Scope and symbol management for the Lux analyzer
+// Scope and symbol management for the Tova analyzer
 
 export class Symbol {
   constructor(name, kind, type, mutable, loc) {

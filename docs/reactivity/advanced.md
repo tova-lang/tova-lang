@@ -1,12 +1,12 @@
 # Advanced Reactivity
 
-This page covers the advanced reactive APIs in Lux, including DOM refs, context, watchers, error boundaries, dynamic components, portals, lazy loading, and the rendering API.
+This page covers the advanced reactive APIs in Tova, including DOM refs, context, watchers, error boundaries, dynamic components, portals, lazy loading, and the rendering API.
 
 ## createRef
 
 `createRef` creates a mutable reference object with a `current` property. It is primarily used to obtain references to DOM elements:
 
-```lux
+```tova
 component FocusInput {
   input_ref = createRef()
 
@@ -24,7 +24,7 @@ After the component renders, `input_ref.current` points to the actual DOM `<inpu
 
 You can pass an initial value to `createRef`:
 
-```lux
+```tova
 counter_ref = createRef(0)
 print(counter_ref.current)  // 0
 counter_ref.current = 5
@@ -43,7 +43,7 @@ Context provides a way to pass data down the component tree without threading pr
 
 ### Creating a Context
 
-```lux
+```tova
 // Create a context with a default value
 theme_ctx = createContext("light")
 locale_ctx = createContext("en")
@@ -55,7 +55,7 @@ locale_ctx = createContext("en")
 
 Use `provide` inside a component to supply a value to all descendants:
 
-```lux
+```tova
 component App {
   state theme = "dark"
 
@@ -76,7 +76,7 @@ The provided value can be a signal getter, a plain value, an object, or anything
 
 Use `inject` in a descendant component to retrieve the nearest provided value:
 
-```lux
+```tova
 component ThemedButton(label) {
   theme = inject(theme_ctx)
 
@@ -88,7 +88,7 @@ component ThemedButton(label) {
 
 ### Full Context Example
 
-```lux
+```tova
 client {
   // Define contexts
   theme_ctx = createContext("light")
@@ -127,7 +127,7 @@ client {
 
 `watch` observes a reactive expression and calls a callback whenever the value changes. Unlike effects, which re-run their entire body, `watch` separates the tracked expression from the side-effect callback:
 
-```lux
+```tova
 client {
   state count = 0
 
@@ -156,7 +156,7 @@ watch(getter, callback, options?)
 
 By default, the callback is not called with the initial value. Use `immediate: true` to invoke it right away:
 
-```lux
+```tova
 watch(fn() user.name, fn(name, prev) {
   print("Name is now: {name}")
 }, { immediate: true })
@@ -167,7 +167,7 @@ watch(fn() user.name, fn(name, prev) {
 
 You can watch any reactive expression, including computed values or complex expressions:
 
-```lux
+```tova
 watch(fn() len(items), fn(count, prev_count) {
   if count > prev_count {
     print("{count - prev_count} items added")
@@ -181,7 +181,7 @@ watch(fn() len(items), fn(count, prev_count) {
 
 `watch` returns a dispose function. Call it to stop watching:
 
-```lux
+```tova
 unwatch = watch(fn() route, fn(new_route, _) {
   analytics.track("page_view", new_route.path)
 })
@@ -194,7 +194,7 @@ unwatch()
 
 `untrack` runs a function without tracking any signal reads. This lets you read a signal inside a reactive context without creating a dependency on it:
 
-```lux
+```tova
 client {
   state count = 0
   state label = "Counter"
@@ -212,7 +212,7 @@ client {
 
 ### Use Cases
 
-```lux
+```tova
 // Log the current count without re-logging on every count change
 effect {
   print("Name: {name}")
@@ -221,7 +221,7 @@ effect {
 }
 ```
 
-```lux
+```tova
 // Use a configuration signal without tracking it
 effect {
   data = server.fetch(url)
@@ -241,7 +241,7 @@ Error boundaries catch errors in reactive code and display fallback UI instead o
 - **run(fn)** -- executes a function within the error boundary; if it throws, the error signal is set
 - **reset()** -- clears the error signal, allowing recovery
 
-```lux
+```tova
 component SafeWidget {
   boundary = createErrorBoundary()
 
@@ -267,7 +267,7 @@ component SafeWidget {
 
 `ErrorBoundary` is a built-in component that wraps children in an error boundary. It accepts a `fallback` prop -- either a vnode or a function that receives `{ error, reset }`:
 
-```lux
+```tova
 component App {
   <ErrorBoundary fallback={fn(props) {
     <div class="error">
@@ -286,7 +286,7 @@ When an error occurs in a reactive effect within the `ErrorBoundary`'s children,
 
 `Dynamic` renders a component dynamically based on a reactive signal. This is useful when the component to render is determined at runtime:
 
-```lux
+```tova
 client {
   state current_view = HomePage
 
@@ -305,7 +305,7 @@ The `component` prop can be a signal getter that returns a component function. W
 
 Additional props are passed through to the rendered component:
 
-```lux
+```tova
 <Dynamic component={current_tab} user={user} on_close={handle_close} />
 ```
 
@@ -313,7 +313,7 @@ Additional props are passed through to the rendered component:
 
 `Portal` renders its children into a different DOM node, outside the normal component tree. This is useful for modals, tooltips, and overlays that need to escape their parent's CSS stacking context:
 
-```lux
+```tova
 component Modal(title, on_close) {
   <Portal target="#modal-root">
     <div class="modal-overlay" on:click={fn() on_close()}>
@@ -342,7 +342,7 @@ Make sure the target element exists in your HTML:
 
 `lazy` enables async component loading, which is essential for code splitting. It takes a loader function that returns a promise (typically a dynamic `import()`):
 
-```lux
+```tova
 // Define a lazy component
 HeavyChart = lazy(fn() import("./components/HeavyChart.js"))
 
@@ -365,10 +365,10 @@ component Dashboard {
 
 If the loader fails, an error message is displayed:
 
-```lux
+```tova
 HeavyComponent = lazy(fn() import("./HeavyComponent.js"))
 
-// If the import fails, a <span class="lux-error"> is rendered
+// If the import fails, a <span class="tova-error"> is rendered
 // with the error message
 <HeavyComponent fallback={<p>Loading...</p>} />
 ```
@@ -377,7 +377,7 @@ HeavyComponent = lazy(fn() import("./HeavyComponent.js"))
 
 `mount` renders a component into a DOM container, replacing any existing content:
 
-```lux
+```tova
 mount(App, document.getElementById("app"))
 ```
 
@@ -388,7 +388,7 @@ mount(App, document.getElementById("app"))
 4. Renders the vnodes into real DOM and appends to the container
 5. Returns a dispose function to tear down the reactive tree
 
-```lux
+```tova
 // Manual mount with dispose
 dispose = mount(App, document.getElementById("app"))
 
@@ -397,14 +397,14 @@ dispose()
 ```
 
 ::: tip
-If you define a component named `App`, Lux automatically generates a `DOMContentLoaded` handler that calls `mount(App, document.getElementById("app") || document.body)`. You typically do not need to call `mount` yourself.
+If you define a component named `App`, Tova automatically generates a `DOMContentLoaded` handler that calls `mount(App, document.getElementById("app") || document.body)`. You typically do not need to call `mount` yourself.
 :::
 
 ## hydrate
 
 `hydrate` attaches reactivity to server-rendered HTML without re-rendering from scratch:
 
-```lux
+```tova
 hydrate(App, document.getElementById("app"))
 ```
 
@@ -420,7 +420,7 @@ Hydration is used for server-side rendering (SSR) -- the server renders static H
 
 `createRoot` creates an ownership root for reactive primitives. All signals, effects, and computed values created inside the root are tracked and can be disposed together:
 
-```lux
+```tova
 dispose = createRoot(fn(dispose) {
   state = createSignal(0)
   // ... create effects, computeds, etc.
@@ -433,7 +433,7 @@ dispose = createRoot(fn(dispose) {
 dispose()  // Disposes all reactive primitives created in the root
 ```
 
-`createRoot` is used internally by `mount` and `hydrate`. You typically use it directly when you need manual control over a reactive scope outside of components, such as in tests or when integrating Lux's reactivity with non-Lux code.
+`createRoot` is used internally by `mount` and `hydrate`. You typically use it directly when you need manual control over a reactive scope outside of components, such as in tests or when integrating Tova's reactivity with non-Tova code.
 
 ### Ownership Hierarchy
 

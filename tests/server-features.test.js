@@ -412,7 +412,7 @@ describe('Phase 3 — Graceful shutdown', () => {
 
   test('named server shutdown includes label', () => {
     const result = compile('server "api" { fn hello() { "world" } }');
-    expect(result.servers['api']).toContain('Lux server [api] shutting down');
+    expect(result.servers['api']).toContain('Tova server [api] shutting down');
   });
 });
 
@@ -3892,7 +3892,7 @@ describe('Model / ORM Layer', () => {
     expect(result.server).toContain('SELECT * FROM people');
   });
 
-  test('model maps Lux types to SQL types correctly', () => {
+  test('model maps Tova types to SQL types correctly', () => {
     const result = compile(`
       shared { type Item { id: Int, price: Float, active: Bool, name: String } }
       server { db { path: ":memory:" } model Item }
@@ -4617,10 +4617,10 @@ describe('Gap 1 — Streaming body enforcement', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('Gap 2 — Migration CLI helpers', () => {
-  test('bin/lux.js exports are importable', async () => {
+  test('bin/tova.js exports are importable', async () => {
     // Verify the CLI file can be parsed without errors
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/lux.js', import.meta.url), 'utf-8');
+    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
     expect(cliCode).toContain('migrateCreate');
     expect(cliCode).toContain('migrateUp');
     expect(cliCode).toContain('migrateStatus');
@@ -4628,7 +4628,7 @@ describe('Gap 2 — Migration CLI helpers', () => {
 
   test('CLI help text includes migrate commands', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/lux.js', import.meta.url), 'utf-8');
+    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
     expect(cliCode).toContain('migrate:create');
     expect(cliCode).toContain('migrate:up');
     expect(cliCode).toContain('migrate:status');
@@ -4636,7 +4636,7 @@ describe('Gap 2 — Migration CLI helpers', () => {
 
   test('CLI switch includes migrate:create case', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/lux.js', import.meta.url), 'utf-8');
+    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
     expect(cliCode).toContain("case 'migrate:create':");
     expect(cliCode).toContain("case 'migrate:up':");
     expect(cliCode).toContain("case 'migrate:status':");
@@ -4644,20 +4644,20 @@ describe('Gap 2 — Migration CLI helpers', () => {
 
   test('discoverDbConfig function parses db declaration from AST', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/lux.js', import.meta.url), 'utf-8');
+    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
     expect(cliCode).toContain('discoverDbConfig');
     expect(cliCode).toContain('DbDeclaration');
   });
 
   test('migrateUp creates __migrations table', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/lux.js', import.meta.url), 'utf-8');
+    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
     expect(cliCode).toContain('CREATE TABLE IF NOT EXISTS __migrations');
   });
 
   test('migration template includes up and down exports', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/lux.js', import.meta.url), 'utf-8');
+    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
     expect(cliCode).toContain('export const up');
     expect(cliCode).toContain('export const down');
   });

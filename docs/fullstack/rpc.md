@@ -16,7 +16,7 @@ The compiler automatically wires both sides. You define a function in `server {}
 
 For each function in a `server` block, the compiler generates a POST endpoint:
 
-```lux
+```tova
 server {
   fn get_users() -> [User] {
     UserModel.all()
@@ -76,7 +76,7 @@ const server = new Proxy({}, {
 });
 ```
 
-When you write `server.get_users()` in Lux, the generated JavaScript calls `rpc("get_users", [])`. When you write `server.create_user("alice", "alice@example.com")`, it calls `rpc("create_user", ["alice", "alice@example.com"])`.
+When you write `server.get_users()` in Tova, the generated JavaScript calls `rpc("get_users", [])`. When you write `server.create_user("alice", "alice@example.com")`, it calls `rpc("create_user", ["alice", "alice@example.com"])`.
 
 ### The `rpc()` Function
 
@@ -84,7 +84,7 @@ The `rpc()` function lives in `src/runtime/rpc.js` and handles the HTTP communic
 
 ```javascript
 const RPC_BASE = typeof window !== 'undefined'
-  ? (window.__LUX_RPC_BASE || '')
+  ? (window.__TOVA_RPC_BASE || '')
   : 'http://localhost:3000';
 
 export async function rpc(functionName, args = []) {
@@ -117,7 +117,7 @@ export async function rpc(functionName, args = []) {
 
 Key details:
 
-- **Base URL:** Determined by `window.__LUX_RPC_BASE` (defaults to same origin in the browser, `http://localhost:3000` for non-browser contexts).
+- **Base URL:** Determined by `window.__TOVA_RPC_BASE` (defaults to same origin in the browser, `http://localhost:3000` for non-browser contexts).
 - **Single object argument:** If you pass a single object, it is sent directly as the body (useful for structured payloads).
 - **Multiple arguments:** Wrapped in `{ "__args": [arg1, arg2, ...] }`.
 - **No arguments:** Empty body `{}`.
@@ -128,7 +128,7 @@ Key details:
 
 The compiler is smart about `async/await`. When it detects a `server.fn_name()` call inside an effect, event handler, or function body, it automatically wraps the containing function as `async` and adds `await` to the RPC call:
 
-```lux
+```tova
 client {
   effect {
     users = server.get_users()
@@ -156,13 +156,13 @@ async function handle_submit() {
 
 The compiler walks the AST to detect whether a function or effect body contains any `server.xxx()` calls. If it does, the function is marked `async` and each RPC call gets `await`. You never need to write `async` or `await` explicitly for RPC.
 
-## Full Example: Lux to Generated JS
+## Full Example: Tova to Generated JS
 
-Here is a complete example showing both the Lux source and the generated JavaScript on each side.
+Here is a complete example showing both the Tova source and the generated JavaScript on each side.
 
-### Lux Source
+### Tova Source
 
-```lux
+```tova
 shared {
   type User { id: Int, name: String, email: String }
 }
@@ -257,7 +257,7 @@ __addRoute("POST", "/rpc/create_user", async (req) => {
 
 ```javascript
 // app.client.js
-import { createSignal, createEffect, mount, lux_el } from './runtime/reactivity.js';
+import { createSignal, createEffect, mount, tova_el } from './runtime/reactivity.js';
 import { rpc } from './runtime/rpc.js';
 
 const server = new Proxy({}, {
@@ -280,16 +280,16 @@ async function handle_create() {
 }
 
 function App() {
-  return lux_el("div", {},
-    lux_el("h1", {}, "Users"),
-    lux_el("ul", {},
+  return tova_el("div", {},
+    tova_el("h1", {}, "Users"),
+    tova_el("ul", {},
       () => users().map(user =>
-        lux_el("li", {}, () => `${user.name} (${user.email})`)
+        tova_el("li", {}, () => `${user.name} (${user.email})`)
       )
     ),
-    lux_el("input", { value: name, oninput: (e) => setName(e.target.value), placeholder: "Name" }),
-    lux_el("input", { value: email, oninput: (e) => setEmail(e.target.value), placeholder: "Email" }),
-    lux_el("button", { onclick: handle_create }, "Create User")
+    tova_el("input", { value: name, oninput: (e) => setName(e.target.value), placeholder: "Name" }),
+    tova_el("input", { value: email, oninput: (e) => setEmail(e.target.value), placeholder: "Email" }),
+    tova_el("button", { onclick: handle_create }, "Create User")
   );
 }
 
@@ -300,7 +300,7 @@ mount(App, document.getElementById("app"));
 
 Arguments are serialized as a JSON array and spread into the server function's parameters on the other side:
 
-```lux
+```tova
 // Client calls:
 server.search_users("alice", 10, true)
 
@@ -316,7 +316,7 @@ server.search_users("alice", 10, true)
 
 If you pass a single object argument, it is sent directly as the body (not wrapped in `__args`):
 
-```lux
+```tova
 // Client calls:
 server.create_user({ name: "Alice", email: "alice@example.com" })
 
@@ -330,7 +330,7 @@ By default, RPC calls use the same origin as the page (in the browser) or `http:
 
 ```javascript
 // In client code or an initialization script:
-window.__LUX_RPC_BASE = "https://api.example.com";
+window.__TOVA_RPC_BASE = "https://api.example.com";
 ```
 
 Or use the `configureRPC` function exported by the RPC runtime:
@@ -346,7 +346,7 @@ configureRPC("https://api.example.com");
 
 All arguments and return values must be JSON-serializable. Functions, class instances with methods, circular references, and other non-serializable values cannot be passed through RPC.
 
-```lux
+```tova
 // Works: primitives, arrays, plain objects
 server.create_user("Alice", 25)
 server.update_settings({ theme: "dark", notifications: true })
@@ -359,7 +359,7 @@ server.process(fn(x) { x + 1 })  // Functions are not serializable
 
 When a server function throws an error or the HTTP request fails, the RPC call throws on the client side:
 
-```lux
+```tova
 client {
   fn handle_action() {
     match server.risky_operation() {
@@ -384,7 +384,7 @@ RPC endpoints are standard HTTP POST endpoints. They are accessible to anyone wh
 
 Each `server.fn_name()` call is a full HTTP round-trip. Avoid calling server functions in tight loops. Instead, design server functions that return batches of data:
 
-```lux
+```tova
 // Bad: N+1 calls
 client {
   fn load_details() {

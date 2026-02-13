@@ -107,7 +107,7 @@ export class ClientCodegen extends BaseCodegen {
       const setter = `set${capitalize(name)}`;
       const op = node.operator[0]; // += → +, -= → -, etc.
       const val = this.genExpression(node.value);
-      return `${this.i()}${setter}(__lux_p => __lux_p ${op} ${val});`;
+      return `${this.i()}${setter}(__tova_p => __tova_p ${op} ${val});`;
     }
 
     // Intercept assignments to state variables: count = 0 → setCount(0)
@@ -133,7 +133,7 @@ export class ClientCodegen extends BaseCodegen {
       const body = this.genBlockBody(node.body);
       this.popScope();
       if (hasPropagate) {
-        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
       }
       return `${asyncPrefix}(${params}) => {\n${body}\n${this.i()}}`;
     }
@@ -144,7 +144,7 @@ export class ClientCodegen extends BaseCodegen {
       const setter = `set${capitalize(name)}`;
       const op = node.body.operator[0];
       const val = this.genExpression(node.body.value);
-      return `${asyncPrefix}(${params}) => { ${setter}(__lux_p => __lux_p ${op} ${val}); }`;
+      return `${asyncPrefix}(${params}) => { ${setter}(__tova_p => __tova_p ${op} ${val}); }`;
     }
 
     // Assignment in lambda body: fn() count = 0
@@ -167,7 +167,7 @@ export class ClientCodegen extends BaseCodegen {
     }
 
     if (hasPropagate) {
-      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__lux_propagate) return __e.value; throw __e; } }`;
+      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__tova_propagate) return __e.value; throw __e; } }`;
     }
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
@@ -176,7 +176,7 @@ export class ClientCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, lux_el, lux_fragment, lux_keyed, lux_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
     lines.push(`import { rpc } from './runtime/rpc.js';`);
     lines.push('');
 
@@ -187,7 +187,7 @@ export class ClientCodegen extends BaseCodegen {
       lines.push('');
     }
 
-    // Stdlib core functions (available in all Lux code)
+    // Stdlib core functions (available in all Tova code)
     lines.push('// ── Stdlib ──');
     lines.push(this.getStdlibCore());
     lines.push('');
@@ -346,7 +346,7 @@ export class ClientCodegen extends BaseCodegen {
     return Math.abs(h).toString(36).slice(0, 6);
   }
 
-  // Scope CSS selectors by appending [data-lux-HASH] to each selector
+  // Scope CSS selectors by appending [data-tova-HASH] to each selector
   _scopeCSS(css, scopeAttr) {
     return css.replace(/([^{}@/]+)\{/g, (match, selectorGroup) => {
       const selectors = selectorGroup.split(',').map(s => {
@@ -415,8 +415,8 @@ export class ClientCodegen extends BaseCodegen {
       const rawCSS = styleBlocks.map(s => s.css).join('\n');
       const scopeId = this._genScopeId(comp.name, rawCSS);
       this._currentScopeId = scopeId;
-      const scopedCSS = this._scopeCSS(rawCSS, `[data-lux-${scopeId}]`);
-      code += `${this.i()}lux_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`;
+      const scopedCSS = this._scopeCSS(rawCSS, `[data-tova-${scopeId}]`);
+      code += `${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`;
     }
 
     // Generate body items in order (state, computed, effect, other statements)
@@ -444,7 +444,7 @@ export class ClientCodegen extends BaseCodegen {
       code += `${this.i()}return ${this.genJSX(jsxElements[0])};\n`;
     } else if (jsxElements.length > 1) {
       const children = jsxElements.map(el => this.genJSX(el)).join(', ');
-      code += `${this.i()}return lux_fragment([${children}]);\n`;
+      code += `${this.i()}return tova_fragment([${children}]);\n`;
     }
 
     this.indent--;
@@ -645,7 +645,7 @@ export class ClientCodegen extends BaseCodegen {
             ? `() => ${expr}.includes(${valueExpr})`
             : `${expr}.includes(${valueExpr})`;
           if (this.stateNames.has(exprName)) {
-            events.change = `(e) => { const v = ${valueExpr}; if (e.target.checked) { set${capitalize(exprName)}(__lux_p => [...__lux_p, v]); } else { set${capitalize(exprName)}(__lux_p => __lux_p.filter(x => x !== v)); } }`;
+            events.change = `(e) => { const v = ${valueExpr}; if (e.target.checked) { set${capitalize(exprName)}(__tova_p => [...__tova_p, v]); } else { set${capitalize(exprName)}(__tova_p => __tova_p.filter(x => x !== v)); } }`;
           }
         } else {
           // Radio: single value
@@ -687,7 +687,7 @@ export class ClientCodegen extends BaseCodegen {
 
     // Add scoped CSS attribute to HTML elements (not components)
     if (this._currentScopeId && !isComponent) {
-      attrs[`"data-lux-${this._currentScopeId}"`] = '""';
+      attrs[`"data-tova-${this._currentScopeId}"`] = '""';
     }
 
     const propParts = [];
@@ -757,11 +757,11 @@ export class ClientCodegen extends BaseCodegen {
     const tag = JSON.stringify(node.tag);
 
     if (node.selfClosing || node.children.length === 0) {
-      return `lux_el(${tag}, ${propsStr})`;
+      return `tova_el(${tag}, ${propsStr})`;
     }
 
     const children = node.children.map(c => this.genJSX(c)).join(', ');
-    return `lux_el(${tag}, ${propsStr}, [${children}])`;
+    return `tova_el(${tag}, ${propsStr}, [${children}])`;
   }
 
   genJSXText(node) {
@@ -789,21 +789,21 @@ export class ClientCodegen extends BaseCodegen {
     if (node.keyExpr) {
       const keyExpr = this.genExpression(node.keyExpr);
       if (children.length === 1) {
-        return `() => ${iterable}.map((${varName}) => lux_keyed(${keyExpr}, ${children[0]}))`;
+        return `() => ${iterable}.map((${varName}) => tova_keyed(${keyExpr}, ${children[0]}))`;
       }
-      return `() => ${iterable}.map((${varName}) => lux_keyed(${keyExpr}, lux_fragment([${children.join(', ')}])))`;
+      return `() => ${iterable}.map((${varName}) => tova_keyed(${keyExpr}, tova_fragment([${children.join(', ')}])))`;
     }
 
     if (children.length === 1) {
       return `() => ${iterable}.map((${varName}) => ${children[0]})`;
     }
-    return `() => ${iterable}.map((${varName}) => lux_fragment([${children.join(', ')}]))`;
+    return `() => ${iterable}.map((${varName}) => tova_fragment([${children.join(', ')}]))`;
   }
 
   genJSXIf(node) {
     const cond = this.genExpression(node.condition);
     const consequent = node.consequent.map(c => this.genJSX(c));
-    const thenPart = consequent.length === 1 ? consequent[0] : `lux_fragment([${consequent.join(', ')}])`;
+    const thenPart = consequent.length === 1 ? consequent[0] : `tova_fragment([${consequent.join(', ')}])`;
 
     // Build chained ternary: cond1 ? a : cond2 ? b : cond3 ? c : else
     let result = `(${cond}) ? ${thenPart}`;
@@ -813,14 +813,14 @@ export class ClientCodegen extends BaseCodegen {
       for (const alt of node.alternates) {
         const elifCond = this.genExpression(alt.condition);
         const elifBody = alt.body.map(c => this.genJSX(c));
-        const elifPart = elifBody.length === 1 ? elifBody[0] : `lux_fragment([${elifBody.join(', ')}])`;
+        const elifPart = elifBody.length === 1 ? elifBody[0] : `tova_fragment([${elifBody.join(', ')}])`;
         result += ` : (${elifCond}) ? ${elifPart}`;
       }
     }
 
     if (node.alternate) {
       const alt = node.alternate.map(c => this.genJSX(c));
-      const elsePart = alt.length === 1 ? alt[0] : `lux_fragment([${alt.join(', ')}])`;
+      const elsePart = alt.length === 1 ? alt[0] : `tova_fragment([${alt.join(', ')}])`;
       result += ` : ${elsePart}`;
     } else {
       result += ` : null`;
@@ -853,7 +853,7 @@ export class ClientCodegen extends BaseCodegen {
     this._asyncContext = prevAsync;
     this.popScope();
     if (hasPropagate) {
-      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
     return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }

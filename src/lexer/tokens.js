@@ -1,4 +1,4 @@
-// Token type definitions for the Lux language
+// Token type definitions for the Tova language
 
 export const TokenType = {
   // Literals

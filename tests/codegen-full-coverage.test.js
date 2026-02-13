@@ -23,45 +23,45 @@ function compile(source) {
 describe('Codegen — CSS pseudo-element and pseudo-class scoping', () => {
   test('_scopeCSS scopes :hover pseudo-class correctly', () => {
     const cg = new ClientCodegen();
-    const scoped = cg._scopeCSS('.btn:hover { color: red; }', '[data-lux-abc]');
-    expect(scoped).toContain('.btn[data-lux-abc]:hover');
-    expect(scoped).not.toContain('.btn:hover[data-lux-abc]');
+    const scoped = cg._scopeCSS('.btn:hover { color: red; }', '[data-tova-abc]');
+    expect(scoped).toContain('.btn[data-tova-abc]:hover');
+    expect(scoped).not.toContain('.btn:hover[data-tova-abc]');
   });
 
   test('_scopeCSS scopes ::before pseudo-element correctly', () => {
     const cg = new ClientCodegen();
-    const scoped = cg._scopeCSS('.btn::before { content: "→"; }', '[data-lux-xyz]');
-    expect(scoped).toContain('.btn[data-lux-xyz]::before');
+    const scoped = cg._scopeCSS('.btn::before { content: "→"; }', '[data-tova-xyz]');
+    expect(scoped).toContain('.btn[data-tova-xyz]::before');
   });
 
   test('_scopeCSS scopes ::after pseudo-element correctly', () => {
     const cg = new ClientCodegen();
-    const scoped = cg._scopeCSS('.item::after { content: ""; }', '[data-lux-q1]');
-    expect(scoped).toContain('.item[data-lux-q1]::after');
+    const scoped = cg._scopeCSS('.item::after { content: ""; }', '[data-tova-q1]');
+    expect(scoped).toContain('.item[data-tova-q1]::after');
   });
 
   test('_scopeCSS scopes :focus pseudo-class correctly', () => {
     const cg = new ClientCodegen();
-    const scoped = cg._scopeCSS('input:focus { border: 1px solid blue; }', '[data-lux-f1]');
-    expect(scoped).toContain('input[data-lux-f1]:focus');
+    const scoped = cg._scopeCSS('input:focus { border: 1px solid blue; }', '[data-tova-f1]');
+    expect(scoped).toContain('input[data-tova-f1]:focus');
   });
 
   test('_scopeCSS scopes :nth-child() pseudo-class', () => {
     const cg = new ClientCodegen();
-    const scoped = cg._scopeCSS('li:nth-child(2n) { background: gray; }', '[data-lux-n1]');
-    expect(scoped).toContain('li[data-lux-n1]:nth-child(2n)');
+    const scoped = cg._scopeCSS('li:nth-child(2n) { background: gray; }', '[data-tova-n1]');
+    expect(scoped).toContain('li[data-tova-n1]:nth-child(2n)');
   });
 
   test('_scopeCSS scopes regular selector without pseudo', () => {
     const cg = new ClientCodegen();
-    const scoped = cg._scopeCSS('.card { padding: 10px; }', '[data-lux-c1]');
-    expect(scoped).toContain('.card[data-lux-c1]');
+    const scoped = cg._scopeCSS('.card { padding: 10px; }', '[data-tova-c1]');
+    expect(scoped).toContain('.card[data-tova-c1]');
   });
 
   test('component with style block containing pseudo-selectors compiles', () => {
     const result = compile('client { component Btn() { style { .btn:hover { color: red } .btn::before { content: "x" } } <button class="btn">"click"</button> } }');
-    expect(result.client).toContain('data-lux-');
-    expect(result.client).toContain('lux_inject_css');
+    expect(result.client).toContain('data-tova-');
+    expect(result.client).toContain('tova_inject_css');
   });
 });
 
@@ -288,28 +288,28 @@ describe('Codegen — store member reactivity in JSX', () => {
 // ─── Component with multiple JSX roots ──────────────────────
 
 describe('Codegen — component with multiple JSX roots', () => {
-  test('multiple JSX elements produce lux_fragment', () => {
+  test('multiple JSX elements produce tova_fragment', () => {
     const result = compile('client { component App() { <div>"a"</div>\n <div>"b"</div> } }');
-    expect(result.client).toContain('lux_fragment');
+    expect(result.client).toContain('tova_fragment');
   });
 });
 
 // ─── genJSXFor with and without keys ────────────────────────
 
 describe('Codegen — JSXFor with keys', () => {
-  test('for loop with key expression generates lux_keyed', () => {
+  test('for loop with key expression generates tova_keyed', () => {
     // JSXFor must be inside JSX context; key syntax is key={expr}
     const result = compile('client { component App() { state items = [1, 2]\n <ul>\n for item in items key={item} { <li>{item}</li> }\n </ul> } }');
-    // lux_keyed should appear in the component body (not just the import)
+    // tova_keyed should appear in the component body (not just the import)
     const bodyCode = result.client.split('function App')[1] || '';
-    expect(bodyCode).toContain('lux_keyed');
+    expect(bodyCode).toContain('tova_keyed');
   });
 
   test('for loop without key uses plain map', () => {
     const result = compile('client { component App() { state items = [1, 2]\n <ul>\n for item in items { <li>{item}</li> }\n </ul> } }');
-    // lux_keyed should NOT appear in the component body
+    // tova_keyed should NOT appear in the component body
     const bodyCode = result.client.split('function App')[1] || '';
-    expect(bodyCode).not.toContain('lux_keyed');
+    expect(bodyCode).not.toContain('tova_keyed');
     expect(bodyCode).toContain('.map(');
   });
 });

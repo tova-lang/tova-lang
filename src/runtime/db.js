@@ -1,4 +1,4 @@
-// Database abstraction for Lux server-side code
+// Database abstraction for Tova server-side code
 // Supports Bun's built-in SQLite and PostgreSQL via connection string
 
 let _db = null;

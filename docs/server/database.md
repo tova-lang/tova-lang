@@ -1,12 +1,12 @@
 # Database
 
-Lux servers include built-in database support. SQLite is the default driver, with PostgreSQL and MySQL also available. Configuration is declarative, and query methods are available throughout your server code.
+Tova servers include built-in database support. SQLite is the default driver, with PostgreSQL and MySQL also available. Configuration is declarative, and query methods are available throughout your server code.
 
 ## Configuration
 
 ### SQLite (Default)
 
-```lux
+```tova
 server {
   db { path: "./data.db" }
 }
@@ -16,7 +16,7 @@ SQLite requires no external service -- the database is a single file. This is th
 
 ### PostgreSQL
 
-```lux
+```tova
 server {
   db {
     driver: "postgres"
@@ -27,7 +27,7 @@ server {
 
 ### MySQL
 
-```lux
+```tova
 server {
   db {
     driver: "mysql"
@@ -38,7 +38,7 @@ server {
 
 ::: tip
 Store database connection strings in environment variables rather than hardcoding them. Use the `env` declaration to load them at startup:
-```lux
+```tova
 env DATABASE_URL: String = "sqlite:./data.db"
 db { url: DATABASE_URL }
 ```
@@ -46,13 +46,13 @@ db { url: DATABASE_URL }
 
 ## Query Methods
 
-Lux provides four core query methods on the `db` object:
+Tova provides four core query methods on the `db` object:
 
 ### db.query
 
 Execute a SELECT statement and return all matching rows as an array:
 
-```lux
+```tova
 users = db.query("SELECT * FROM users WHERE age > ?", 18)
 active = db.query("SELECT * FROM users WHERE active = ? AND role = ?", true, "admin")
 ```
@@ -61,7 +61,7 @@ active = db.query("SELECT * FROM users WHERE active = ? AND role = ?", true, "ad
 
 Execute a SELECT statement and return a single row (or `nil` if no match):
 
-```lux
+```tova
 user = db.get("SELECT * FROM users WHERE id = ?", id)
 ```
 
@@ -69,7 +69,7 @@ user = db.get("SELECT * FROM users WHERE id = ?", id)
 
 Execute an INSERT, UPDATE, or DELETE statement. Returns metadata about the operation (e.g., rows affected, last insert ID):
 
-```lux
+```tova
 db.run("INSERT INTO users (name, email) VALUES (?, ?)", name, email)
 db.run("UPDATE users SET active = ? WHERE id = ?", false, user_id)
 db.run("DELETE FROM users WHERE last_login < ?", cutoff_date)
@@ -79,7 +79,7 @@ db.run("DELETE FROM users WHERE last_login < ?", cutoff_date)
 
 Execute raw SQL statements, typically for DDL (schema changes). Does not support parameterized values:
 
-```lux
+```tova
 db.exec("CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -92,7 +92,7 @@ db.exec("CREATE TABLE IF NOT EXISTS users (
 
 All parameterized methods (`query`, `get`, `run`) use `?` placeholders to prevent SQL injection:
 
-```lux
+```tova
 // Safe -- parameters are escaped
 db.query("SELECT * FROM users WHERE name = ?", user_input)
 
@@ -104,7 +104,7 @@ db.query("SELECT * FROM users WHERE name = '{user_input}'")
 
 Wrap multiple operations in a transaction to ensure atomicity. If any statement fails, the entire transaction rolls back:
 
-```lux
+```tova
 db.transaction(fn() {
   db.run("INSERT INTO orders (user_id, total) VALUES (?, ?)", user_id, total)
   db.run("UPDATE inventory SET count = count - 1 WHERE id = ?", item_id)
@@ -123,7 +123,7 @@ Migrations let you evolve your database schema over time in a controlled, versio
 Use the CLI to generate a new migration file:
 
 ```sh
-lux migrate:create add_users_table
+tova migrate:create add_users_table
 ```
 
 This creates a timestamped migration file that you can fill in with your schema changes.
@@ -133,7 +133,7 @@ This creates a timestamped migration file that you can fill in with your schema 
 Apply all pending migrations:
 
 ```sh
-lux migrate:up app.lux
+tova migrate:up app.tova
 ```
 
 ### Checking Status
@@ -141,14 +141,14 @@ lux migrate:up app.lux
 See which migrations have been applied and which are pending:
 
 ```sh
-lux migrate:status app.lux
+tova migrate:status app.tova
 ```
 
 ### Auto-Migration on Startup
 
 Run pending migrations automatically when the server starts:
 
-```lux
+```tova
 server {
   db { path: "./data.db" }
   db.migrate()
@@ -161,7 +161,7 @@ This is convenient for development. For production, running migrations explicitl
 
 A global async mutex is available for protecting critical sections from concurrent access. Use `withLock` to serialize access:
 
-```lux
+```tova
 server {
   fn update_counter() {
     withLock(fn() {
@@ -180,4 +180,4 @@ server {
 
 **Prefer parameterized queries.** Always use `?` placeholders instead of string interpolation. This prevents SQL injection and handles type escaping correctly.
 
-**Run migrations explicitly in production.** While `db.migrate()` on startup is convenient for development, production deployments benefit from running `lux migrate:up` as a separate step so you can inspect and control the migration process.
+**Run migrations explicitly in production.** While `db.migrate()` on startup is convenient for development, production deployments benefit from running `tova migrate:up` as a separate step so you can inspect and control the migration process.

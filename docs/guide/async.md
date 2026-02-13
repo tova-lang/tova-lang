@@ -1,12 +1,12 @@
 # Async Programming
 
-Lux has first-class support for asynchronous programming with `async` and `await` keywords. Since Lux compiles to JavaScript, async operations map directly to JavaScript promises with zero overhead.
+Tova has first-class support for asynchronous programming with `async` and `await` keywords. Since Tova compiles to JavaScript, async operations map directly to JavaScript promises with zero overhead.
 
 ## Async Functions
 
 Declare an asynchronous function by prefixing `fn` with `async`:
 
-```lux
+```tova
 async fn fetch_data(url) {
   response = await fetch(url)
   data = await response.json()
@@ -20,7 +20,7 @@ An `async fn` always returns a promise. Within the function body, you can use `a
 
 The `await` keyword pauses the async function until the awaited promise resolves, then returns the result:
 
-```lux
+```tova
 async fn get_user(id) {
   response = await fetch("/api/users/{id}")
   user = await response.json()
@@ -30,7 +30,7 @@ async fn get_user(id) {
 
 You can `await` any expression that returns a promise:
 
-```lux
+```tova
 async fn load_config() {
   response = await fetch("/config.json")
   config = await response.json()
@@ -45,7 +45,7 @@ async fn load_config() {
 
 By default, `await` calls run one after another:
 
-```lux
+```tova
 async fn load_page_data() {
   user = await fetch_user(current_user_id)
   posts = await fetch_posts(user.id)
@@ -60,7 +60,7 @@ async fn load_page_data() {
 
 To run multiple async operations concurrently, use `Promise.all()`:
 
-```lux
+```tova
 async fn load_dashboard() {
   results = await Promise.all([
     fetch_user(user_id),
@@ -79,14 +79,14 @@ This starts all three requests simultaneously and waits for all of them to finis
 
 Anonymous functions can be async too:
 
-```lux
+```tova
 handler = async fn(request) {
   data = await process(request.body)
   { status: 200, body: data }
 }
 ```
 
-```lux
+```tova
 items = ["url1", "url2", "url3"]
 results = await Promise.all(
   items.map(async fn(url) {
@@ -102,7 +102,7 @@ results = await Promise.all(
 
 Since `await` can reject (throw), use `try`/`catch` for JavaScript interop:
 
-```lux
+```tova
 async fn safe_fetch(url) {
   try {
     response = await fetch(url)
@@ -119,9 +119,9 @@ async fn safe_fetch(url) {
 
 ### With Result
 
-Wrap async results in Result for idiomatic Lux error handling:
+Wrap async results in Result for idiomatic Tova error handling:
 
-```lux
+```tova
 async fn fetch_user(id) -> Result<User, String> {
   try {
     response = await fetch("/api/users/{id}")
@@ -146,11 +146,11 @@ async fn display_user(id) {
 
 ## Using with the Fetch API
 
-The browser's `fetch` API is the most common use case for async in Lux:
+The browser's `fetch` API is the most common use case for async in Tova:
 
 ### GET Request
 
-```lux
+```tova
 async fn get_todos() {
   response = await fetch("/api/todos")
   todos = await response.json()
@@ -160,7 +160,7 @@ async fn get_todos() {
 
 ### POST Request
 
-```lux
+```tova
 async fn create_todo(title) {
   response = await fetch("/api/todos", {
     method: "POST",
@@ -174,7 +174,7 @@ async fn create_todo(title) {
 
 ### PUT Request
 
-```lux
+```tova
 async fn update_todo(id, updates) {
   response = await fetch("/api/todos/{id}", {
     method: "PUT",
@@ -187,7 +187,7 @@ async fn update_todo(id, updates) {
 
 ### DELETE Request
 
-```lux
+```tova
 async fn delete_todo(id) {
   await fetch("/api/todos/{id}", {
     method: "DELETE"
@@ -197,9 +197,9 @@ async fn delete_todo(id) {
 
 ## Async in Client Blocks
 
-In Lux's full-stack architecture, async is commonly used in client blocks with `effect`:
+In Tova's full-stack architecture, async is commonly used in client blocks with `effect`:
 
-```lux
+```tova
 client {
   state users = []
   state loading = true
@@ -229,7 +229,7 @@ client {
 
 **Prefer parallel when possible.** If two async operations do not depend on each other, run them with `Promise.all()` instead of awaiting them sequentially. This can dramatically improve performance:
 
-```lux
+```tova
 // Slow: sequential (total time = time_a + time_b)
 a = await fetch_a()
 b = await fetch_b()
@@ -245,7 +245,7 @@ let [a, b] = results
 
 **Use async lambdas for inline handlers:**
 
-```lux
+```tova
 button.on("click", async fn() {
   data = await save_changes()
   update_ui(data)

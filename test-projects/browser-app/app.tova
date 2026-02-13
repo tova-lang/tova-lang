@@ -1,4 +1,4 @@
-// Lux Browser Test App — Pomodoro Timer + Task Manager
+// Tova Browser Test App — Pomodoro Timer + Task Manager
 
 client {
   // Timer state
@@ -83,7 +83,7 @@ client {
   component App {
     <div class="app">
       <header>
-        <h1>"Lux Pomodoro"</h1>
+        <h1>"Tova Pomodoro"</h1>
         <p class="subtitle">"Focus Timer & Tasks"</p>
       </header>
 

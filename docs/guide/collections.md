@@ -1,12 +1,12 @@
 # Collections
 
-Lux provides powerful collection types -- arrays and objects -- with Python-inspired features like comprehensions, slicing, and membership testing.
+Tova provides powerful collection types -- arrays and objects -- with Python-inspired features like comprehensions, slicing, and membership testing.
 
 ## Arrays
 
 Create arrays with square brackets:
 
-```lux
+```tova
 numbers = [1, 2, 3, 4, 5]
 names = ["Alice", "Bob", "Carol"]
 mixed = [1, "two", true, nil]
@@ -17,7 +17,7 @@ empty = []
 
 Use zero-based indexing:
 
-```lux
+```tova
 fruits = ["apple", "banana", "cherry"]
 first = fruits[0]     // "apple"
 last = fruits[-1]     // "cherry" (negative index counts from end)
@@ -25,7 +25,7 @@ last = fruits[-1]     // "cherry" (negative index counts from end)
 
 ### Common Array Methods
 
-```lux
+```tova
 items = [3, 1, 4, 1, 5, 9]
 
 len(items)             // 6
@@ -44,7 +44,7 @@ items.join(", ")       // "3, 1, 4, 1, 5, 9"
 
 Create objects with key-value pairs in curly braces:
 
-```lux
+```tova
 user = {
   name: "Alice",
   age: 30,
@@ -54,7 +54,7 @@ user = {
 
 ### Accessing Properties
 
-```lux
+```tova
 user.name        // "Alice"
 user["age"]      // 30 (bracket notation for dynamic keys)
 ```
@@ -63,7 +63,7 @@ user["age"]      // 30 (bracket notation for dynamic keys)
 
 When the variable name matches the key name, you can use shorthand:
 
-```lux
+```tova
 name = "Alice"
 age = 30
 
@@ -78,7 +78,7 @@ user = { name, age }
 
 Use bracket notation for dynamic keys:
 
-```lux
+```tova
 field = "email"
 data = { [field]: "alice@example.com" }
 // { email: "alice@example.com" }
@@ -90,7 +90,7 @@ The `...` operator spreads arrays and objects into new collections.
 
 ### Array Spread
 
-```lux
+```tova
 a = [1, 2, 3]
 b = [4, 5, 6]
 combined = [...a, ...b]       // [1, 2, 3, 4, 5, 6]
@@ -99,7 +99,7 @@ with_extra = [0, ...a, 99]   // [0, 1, 2, 3, 99]
 
 ### Object Spread
 
-```lux
+```tova
 defaults = { host: "localhost", port: 8080, debug: false }
 overrides = { port: 3000, debug: true }
 config = { ...defaults, ...overrides }
@@ -108,7 +108,7 @@ config = { ...defaults, ...overrides }
 
 This is the standard way to create updated copies of immutable objects:
 
-```lux
+```tova
 fn update_name(user, new_name) {
   { ...user, name: new_name }
 }
@@ -116,9 +116,9 @@ fn update_name(user, new_name) {
 
 ## List Comprehensions
 
-Lux supports Python-style list comprehensions for concise collection transformations:
+Tova supports Python-style list comprehensions for concise collection transformations:
 
-```lux
+```tova
 squares = [x * x for x in range(10)]
 // [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
 ```
@@ -127,7 +127,7 @@ squares = [x * x for x in range(10)]
 
 Add an `if` clause to filter:
 
-```lux
+```tova
 evens = [x for x in range(20) if x % 2 == 0]
 // [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
 
@@ -136,7 +136,7 @@ short_names = [name for name in names if len(name) <= 4]
 
 ### With Transformation and Filtering
 
-```lux
+```tova
 processed = [x * 2 for x in range(10) if x > 0]
 // [2, 4, 6, 8, 10, 12, 14, 16, 18]
 
@@ -145,7 +145,7 @@ upper_long = [name.upper() for name in names if len(name) > 3]
 
 ### Nested Comprehensions
 
-```lux
+```tova
 pairs = [[x, y] for x in range(3) for y in range(3)]
 // [[0,0], [0,1], [0,2], [1,0], [1,1], [1,2], [2,0], [2,1], [2,2]]
 ```
@@ -154,12 +154,12 @@ pairs = [[x, y] for x in range(3) for y in range(3)]
 
 Build objects from key-value pairs:
 
-```lux
+```tova
 squares_map = {x: x * x for x in range(5)}
 // {0: 0, 1: 1, 2: 4, 3: 9, 4: 16}
 ```
 
-```lux
+```tova
 entries = [["name", "Alice"], ["age", "30"]]
 obj = {k: v for k, v in entries}
 // { name: "Alice", age: "30" }
@@ -167,11 +167,11 @@ obj = {k: v for k, v in entries}
 
 ## Slicing
 
-Lux supports Python-style array slicing with `[start:end:step]` syntax:
+Tova supports Python-style array slicing with `[start:end:step]` syntax:
 
 ### Basic Slicing
 
-```lux
+```tova
 items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 items[2:5]     // [2, 3, 4]       start at 2, end before 5
@@ -182,7 +182,7 @@ items[-3:]     // [7, 8, 9]       last 3 elements
 
 ### Slicing with Step
 
-```lux
+```tova
 items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 items[::2]     // [0, 2, 4, 6, 8]    every other element
@@ -192,7 +192,7 @@ items[::3]     // [0, 3, 6, 9]       every third element
 
 ### Reversing with Slicing
 
-```lux
+```tova
 items = [1, 2, 3, 4, 5]
 
 items[::-1]    // [5, 4, 3, 2, 1]    reverse the array
@@ -203,7 +203,7 @@ items[4:1:-1]  // [4, 3, 2]          reverse a portion
 
 Slicing works on strings too:
 
-```lux
+```tova
 text = "Hello, World!"
 
 text[0:5]      // "Hello"
@@ -213,9 +213,9 @@ text[::-1]     // "!dlroW ,olleH"
 
 ## Chained Comparisons
 
-Lux supports Python-style chained comparisons:
+Tova supports Python-style chained comparisons:
 
-```lux
+```tova
 if 1 < x < 10 {
   print("x is between 1 and 10")
 }
@@ -235,7 +235,7 @@ This is more readable than `if x > 1 and x < 10`.
 
 Use `in` to check whether an element exists in a collection:
 
-```lux
+```tova
 fruits = ["apple", "banana", "cherry"]
 
 if "apple" in fruits {
@@ -249,7 +249,7 @@ if "mango" not in fruits {
 
 Works with strings too:
 
-```lux
+```tova
 if "@" in email {
   print("Looks like an email")
 }
@@ -261,7 +261,7 @@ if "admin" in username {
 
 And with objects (checks keys):
 
-```lux
+```tova
 config = { host: "localhost", port: 8080 }
 
 if "host" in config {
@@ -273,7 +273,7 @@ if "host" in config {
 
 **Use comprehensions for transformations.** They are more concise and often more readable than `.map()` and `.filter()` chains:
 
-```lux
+```tova
 // Comprehension style:
 active_names = [user.name for user in users if user.active]
 
@@ -287,7 +287,7 @@ Both are valid; use whichever reads better for your case.
 
 **Spread for immutable updates.** Since variables are immutable by default, use spread to create "updated" copies:
 
-```lux
+```tova
 fn add_item(cart, item) {
   { ...cart, items: [...cart.items, item] }
 }

@@ -1,4 +1,4 @@
-// Lux standard library — core functions
+// Tova standard library — core functions
 
 export function print(...args) {
   console.log(...args);

@@ -1086,7 +1086,7 @@ describe('Error Propagation — getPropagateHelper generation', () => {
     expect(helper).toContain('__tag === "None"');
     expect(helper).toContain('__tag === "Ok"');
     expect(helper).toContain('__tag === "Some"');
-    expect(helper).toContain('__lux_propagate: true');
+    expect(helper).toContain('__tova_propagate: true');
   });
 
   test('function with ? operator gets try/catch wrapper', () => {
@@ -1094,7 +1094,7 @@ describe('Error Propagation — getPropagateHelper generation', () => {
     expect(code).toContain('__propagate(x)');
     expect(code).toContain('try {');
     expect(code).toContain('catch (__e)');
-    expect(code).toContain('__e.__lux_propagate');
+    expect(code).toContain('__e.__tova_propagate');
     expect(code).toContain('return __e.value');
   });
 
@@ -1103,7 +1103,7 @@ describe('Error Propagation — getPropagateHelper generation', () => {
     expect(code).toContain('__propagate(x)');
     expect(code).toContain('try {');
     expect(code).toContain('catch (__e)');
-    expect(code).toContain('__e.__lux_propagate');
+    expect(code).toContain('__e.__tova_propagate');
   });
 });
 
@@ -1279,7 +1279,7 @@ describe('Base — Foo.new() transform', () => {
 describe('Base — NaN-safe null coalescing ??', () => {
   test('?? operator generates NaN-safe check', () => {
     const code = genShared('x = a ?? "default"');
-    expect(code).toContain('__lux_v != null && __lux_v === __lux_v');
+    expect(code).toContain('__tova_v != null && __tova_v === __tova_v');
     expect(code).toContain('"default"');
   });
 });

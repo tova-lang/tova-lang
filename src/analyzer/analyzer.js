@@ -1466,22 +1466,22 @@ export class Analyzer {
       'fetch', 'alert', 'confirm', 'prompt',
       'Bun', 'Deno', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
       'Buffer', 'atob', 'btoa',
-      // Lux runtime
+      // Tova runtime
       'print', 'range', 'len', 'type_of', 'enumerate', 'zip',
       'map', 'filter', 'reduce', 'sum', 'sorted', 'reversed',
       'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
       'db', 'server', 'client', 'shared',
-      // Lux stdlib — collections
+      // Tova stdlib — collections
       'find', 'any', 'all', 'flat_map', 'unique', 'group_by',
       'chunk', 'flatten', 'take', 'drop', 'first', 'last',
       'count', 'partition',
-      // Lux stdlib — math
+      // Tova stdlib — math
       'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
-      // Lux stdlib — strings
+      // Tova stdlib — strings
       'trim', 'split', 'join', 'replace', 'repeat',
-      // Lux stdlib — utility
+      // Tova stdlib — utility
       'keys', 'values', 'entries', 'merge', 'freeze', 'clone',
-      // Lux stdlib — async
+      // Tova stdlib — async
       'sleep',
     ]);
     return jsGlobals.has(name);
@@ -1880,7 +1880,7 @@ export class Analyzer {
         this.warn(`Type mismatch: '${op}' expects numeric type, but got ${rightType}`, node.loc);
       }
     } else if (op === '+') {
-      // Addition: both sides must be numeric (Lux uses ++ for strings)
+      // Addition: both sides must be numeric (Tova uses ++ for strings)
       const numerics = new Set(['Int', 'Float']);
       if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
         this.warn(`Type mismatch: '+' expects numeric type, but got ${leftType}`, node.loc);

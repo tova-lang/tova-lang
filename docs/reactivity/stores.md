@@ -6,7 +6,7 @@ Stores encapsulate related reactive state, computed values, and functions into a
 
 Use the `store` keyword to declare a store:
 
-```lux
+```tova
 client {
   store CounterStore {
     state count = 0
@@ -37,7 +37,7 @@ A store can contain:
 
 Store members are accessed with dot notation:
 
-```lux
+```tova
 // Reading state (reactive)
 print(CounterStore.count)
 
@@ -55,7 +55,7 @@ Stores use JavaScript getters and setters under the hood, so reading `CounterSto
 
 Stores are available to any component in the same client block:
 
-```lux
+```tova
 client {
   store CartStore {
     state items = []
@@ -129,7 +129,7 @@ Since stores are reactive, components that read store properties automatically r
 
 Computed values inside stores can use pattern matching:
 
-```lux
+```tova
 store TodoStore {
   state items = []
   state filter = "all"
@@ -173,7 +173,7 @@ store TodoStore {
 
 An application can have multiple stores, each managing a different concern:
 
-```lux
+```tova
 client {
   store AuthStore {
     state user = nil
@@ -224,7 +224,7 @@ Stores can reference each other's public members, enabling coordination between 
 
 When you write:
 
-```lux
+```tova
 store TodoStore {
   state items = []
   computed count = len(items)

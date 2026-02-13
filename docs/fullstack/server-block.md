@@ -15,7 +15,7 @@ The server block is where your application's backend logic lives:
 
 ## Basic Structure
 
-```lux
+```tova
 server {
   db { path: "./data.db" }
   model User
@@ -43,7 +43,7 @@ This compiles to a Bun HTTP server that:
 
 Every function defined in a `server` block automatically gets an RPC endpoint. This is the primary way the client communicates with the server:
 
-```lux
+```tova
 server {
   fn get_users() -> [User] {
     UserModel.all()
@@ -73,7 +73,7 @@ From the client, these are called as `server.get_users()`, `server.search_users(
 
 When you annotate server function parameters with types, the compiler generates automatic validation code in the RPC endpoint:
 
-```lux
+```tova
 server {
   fn create_user(name: String, age: Int, active: Bool) -> User {
     UserModel.create({ name, age, active })
@@ -92,7 +92,7 @@ If validation fails, the endpoint returns a `400` response with details before t
 
 Routes map HTTP methods and paths to handler functions:
 
-```lux
+```tova
 server {
   route GET "/api/users" => list_users
   route POST "/api/users" => create_user
@@ -108,7 +108,7 @@ Supported HTTP methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTION
 
 Path segments prefixed with `:` are extracted and passed as arguments:
 
-```lux
+```tova
 server {
   route GET "/api/users/:id" => get_user
 
@@ -120,7 +120,7 @@ server {
 
 With type annotations, parameters are automatically parsed and validated:
 
-```lux
+```tova
 server {
   fn get_user(id: Int) {
     UserModel.find(id)  // id is auto-parsed as Int
@@ -132,7 +132,7 @@ server {
 
 The `with` keyword attaches middleware or guards to specific routes:
 
-```lux
+```tova
 server {
   route GET "/admin/users" with auth => list_users
   route DELETE "/api/users/:id" with auth, role("admin") => delete_user
@@ -143,7 +143,7 @@ server {
 
 The `db` declaration sets up a database connection:
 
-```lux
+```tova
 server {
   db { path: "./data.db" }
 
@@ -154,7 +154,7 @@ server {
 
 Models provide an ORM-like interface for querying:
 
-```lux
+```tova
 server {
   fn get_all_users() -> [User] {
     UserModel.all()
@@ -174,7 +174,7 @@ server {
 
 Middleware functions run before route handlers:
 
-```lux
+```tova
 server {
   middleware fn log_request(req) {
     print("#{req.method} #{req.url}")
@@ -190,7 +190,7 @@ server {
 
 Built-in auth support with JWT:
 
-```lux
+```tova
 server {
   auth {
     secret: "my-secret-key"
@@ -209,7 +209,7 @@ server {
 
 Real-time bidirectional communication:
 
-```lux
+```tova
 server {
   ws {
     on_open fn(socket) {
@@ -231,7 +231,7 @@ server {
 
 One-way streaming from server to client:
 
-```lux
+```tova
 server {
   sse "/events" fn(send, close) {
     send("connected", { status: "ok" })
@@ -248,7 +248,7 @@ server {
 
 Built-in health endpoint:
 
-```lux
+```tova
 server {
   health "/healthz"
 }
@@ -260,7 +260,7 @@ Generates a `GET /healthz` endpoint that returns `{ "status": "ok", "uptime": ..
 
 Custom error handlers for unhandled errors:
 
-```lux
+```tova
 server {
   on_error fn(error, req) {
     print("Error: #{error.message}")
@@ -273,7 +273,7 @@ server {
 
 Server configuration with environment variables:
 
-```lux
+```tova
 server {
   config {
     port: 3000
@@ -286,10 +286,10 @@ The port can be overridden with the `PORT` environment variable.
 
 ## Compilation Output
 
-The server block compiles to a standalone Bun script. For `app.lux`:
+The server block compiles to a standalone Bun script. For `app.tova`:
 
 ```
-.lux-out/
+.tova-out/
   app.server.js    <-- standalone Bun.serve script
 ```
 
@@ -304,13 +304,13 @@ The generated file:
 Run it with:
 
 ```bash
-bun run .lux-out/app.server.js
+bun run .tova-out/app.server.js
 ```
 
 Or use the dev server which handles this automatically:
 
 ```bash
-lux dev
+tova dev
 ```
 
 ## Related Pages

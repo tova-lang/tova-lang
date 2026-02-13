@@ -1,4 +1,4 @@
-// Counter App in Lux — demonstrates reactive UI
+// Counter App in Tova — demonstrates reactive UI
 
 client {
   state count = 0
@@ -13,7 +13,7 @@ client {
 
   component App {
     <div class="counter-app">
-      <h1>"Lux Counter"</h1>
+      <h1>"Tova Counter"</h1>
       <p class="count">"{count}"</p>
       <p class="doubled">"Doubled: {doubled}"</p>
       <p class="message">"{message}"</p>

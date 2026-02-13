@@ -1,10 +1,10 @@
 # Types
 
-Lux has a rich type system that supports struct-like types, algebraic data types (ADTs), generics, and derive macros. Types help you model your domain precisely and let the compiler catch errors early.
+Tova has a rich type system that supports struct-like types, algebraic data types (ADTs), generics, and derive macros. Types help you model your domain precisely and let the compiler catch errors early.
 
 ## Built-in Types
 
-Lux has the following built-in primitive and compound types:
+Tova has the following built-in primitive and compound types:
 
 | Type | Description | Examples |
 |------|-------------|----------|
@@ -20,7 +20,7 @@ Lux has the following built-in primitive and compound types:
 
 Define a type with named fields to create a struct:
 
-```lux
+```tova
 type User {
   id: Int
   name: String
@@ -32,7 +32,7 @@ type User {
 
 Create instances by passing field values in order:
 
-```lux
+```tova
 alice = User(1, "Alice", "alice@example.com")
 bob = User(2, "Bob", "bob@example.com")
 ```
@@ -41,14 +41,14 @@ bob = User(2, "Bob", "bob@example.com")
 
 Use dot notation to access fields:
 
-```lux
+```tova
 print(alice.name)    // "Alice"
 print(alice.email)   // "alice@example.com"
 ```
 
 ### Using with Functions
 
-```lux
+```tova
 fn display_user(user: User) -> String {
   "{user.name} ({user.email})"
 }
@@ -64,7 +64,7 @@ ADTs let you define types with multiple variants. Each variant can optionally ca
 
 Variants with no data act like enums:
 
-```lux
+```tova
 type Color {
   Red
   Green
@@ -78,7 +78,7 @@ favorite = Color.Red
 
 Variants can carry fields:
 
-```lux
+```tova
 type Shape {
   Circle(radius: Float)
   Rectangle(width: Float, height: Float)
@@ -94,7 +94,7 @@ tri = Triangle(3.0, 4.0)
 
 Some variants can have data while others do not:
 
-```lux
+```tova
 type Color {
   Red
   Green
@@ -110,7 +110,7 @@ purple = Custom(128, 0, 128)
 
 ADTs pair naturally with `match` expressions:
 
-```lux
+```tova
 fn area(shape: Shape) -> Float {
   match shape {
     Circle(r) => 3.14159 * r * r
@@ -131,9 +131,9 @@ fn color_name(c: Color) -> String {
 
 ## Result and Option
 
-Lux has two built-in ADTs that are central to error handling:
+Tova has two built-in ADTs that are central to error handling:
 
-```lux
+```tova
 // Built-in — you don't need to define these
 type Result<T, E> {
   Ok(value: T)
@@ -148,7 +148,7 @@ type Option<T> {
 
 Use them with pattern matching:
 
-```lux
+```tova
 fn find_user(id: Int) -> Option<User> {
   if id == 1 {
     Some(User(1, "Alice", "alice@example.com"))
@@ -169,7 +169,7 @@ See the [Error Handling guide](error-handling.md) for full details on Result and
 
 Use `derive` to automatically generate common trait implementations for your types:
 
-```lux
+```tova
 type User {
   id: Int
   name: String
@@ -185,7 +185,7 @@ Available derive macros:
 | `Show` | String representation for display |
 | `JSON` | JSON serialization and deserialization |
 
-```lux
+```tova
 type Point {
   x: Float
   y: Float
@@ -197,7 +197,7 @@ print(a == b)        // true
 print(a)             // Point(1.0, 2.0)
 ```
 
-```lux
+```tova
 type Config {
   host: String
   port: Int
@@ -212,7 +212,7 @@ json_str = config.to_json()    // {"host":"localhost","port":8080,"debug":true}
 
 Create shorter names for complex types:
 
-```lux
+```tova
 type UserList = [User]
 type Handler = (Request) -> Response
 type Pair = (String, Int)
@@ -220,16 +220,16 @@ type Pair = (String, Int)
 
 ## Tuples
 
-Lux supports tuple types for grouping a fixed number of values:
+Tova supports tuple types for grouping a fixed number of values:
 
-```lux
+```tova
 point = (10, 20)
 name_age = ("Alice", 30)
 ```
 
 Access elements by position:
 
-```lux
+```tova
 x = point.0    // 10
 y = point.1    // 20
 ```
@@ -238,7 +238,7 @@ y = point.1    // 20
 
 When you need to call JavaScript constructors (like `new Date()` or `new Map()`), use the `.new()` syntax:
 
-```lux
+```tova
 date = Date.new()
 map = Map.new()
 set = Set.new([1, 2, 3])
@@ -251,7 +251,7 @@ This compiles to `new Date()`, `new Map()`, etc. in JavaScript.
 
 **Model your domain with types.** Instead of passing raw strings and numbers around, define types that make your code self-documenting:
 
-```lux
+```tova
 // Instead of:
 fn create_order(customer_name: String, amount: Float, currency: String) { ... }
 
@@ -271,7 +271,7 @@ fn create_order(customer: Customer, total: Money) { ... }
 
 **Use ADTs for state machines.** When something can be in one of several states, an ADT makes each state explicit:
 
-```lux
+```tova
 type LoadingState {
   Idle
   Loading

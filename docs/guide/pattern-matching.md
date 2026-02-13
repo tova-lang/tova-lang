@@ -1,12 +1,12 @@
 # Pattern Matching
 
-Pattern matching is one of Lux's most powerful features. The `match` expression lets you compare a value against multiple patterns and execute the corresponding branch. The compiler also performs exhaustive checking, warning you if you miss any cases.
+Pattern matching is one of Tova's most powerful features. The `match` expression lets you compare a value against multiple patterns and execute the corresponding branch. The compiler also performs exhaustive checking, warning you if you miss any cases.
 
 ## Basic Match
 
 A `match` expression compares a value against patterns using `=>`:
 
-```lux
+```tova
 fn describe(x) {
   match x {
     0 => "zero"
@@ -23,7 +23,7 @@ The `_` wildcard matches anything and is typically used as the final catch-all p
 
 Match against numbers, strings, and booleans:
 
-```lux
+```tova
 match status_code {
   200 => "OK"
   404 => "Not Found"
@@ -32,7 +32,7 @@ match status_code {
 }
 ```
 
-```lux
+```tova
 match command {
   "start" => start_server()
   "stop" => stop_server()
@@ -41,7 +41,7 @@ match command {
 }
 ```
 
-```lux
+```tova
 match is_enabled {
   true => "Feature is on"
   false => "Feature is off"
@@ -52,7 +52,7 @@ match is_enabled {
 
 Match against ranges of values. Use `..` for exclusive end and `..=` for inclusive end:
 
-```lux
+```tova
 fn classify_age(age) {
   match age {
     0..13 => "child"        // 0 to 12 (exclusive of 13)
@@ -63,7 +63,7 @@ fn classify_age(age) {
 }
 ```
 
-```lux
+```tova
 fn grade_letter(score) {
   match score {
     90..=100 => "A"
@@ -79,7 +79,7 @@ fn grade_letter(score) {
 
 Bind the matched value to a name for use in the result expression:
 
-```lux
+```tova
 match value {
   0 => "nothing"
   n => "got: {n}"
@@ -88,7 +88,7 @@ match value {
 
 Combine bindings with guards for more specific matching:
 
-```lux
+```tova
 match temperature {
   t if t < 0 => "freezing ({t} degrees)"
   t if t < 20 => "cold ({t} degrees)"
@@ -101,7 +101,7 @@ match temperature {
 
 Match against type variants (ADTs / enums). This is where pattern matching truly shines:
 
-```lux
+```tova
 type Shape {
   Circle(radius: Float)
   Rectangle(width: Float, height: Float)
@@ -117,7 +117,7 @@ fn area(shape) {
 }
 ```
 
-```lux
+```tova
 type Color {
   Red
   Green
@@ -139,7 +139,7 @@ fn to_hex(color) {
 
 Destructure arrays inside match arms:
 
-```lux
+```tova
 fn describe_list(items) {
   match items {
     [] => "empty"
@@ -150,7 +150,7 @@ fn describe_list(items) {
 }
 ```
 
-```lux
+```tova
 fn head(list) {
   match list {
     [] => None
@@ -163,7 +163,7 @@ fn head(list) {
 
 The `_` pattern matches any value without binding it to a name:
 
-```lux
+```tova
 match result {
   Ok(value) => print("Success: {value}")
   Err(_) => print("Something went wrong")    // we don't need the error details
@@ -172,7 +172,7 @@ match result {
 
 You can use `_` in nested positions too:
 
-```lux
+```tova
 match point {
   (0, _) => "on the Y axis"
   (_, 0) => "on the X axis"
@@ -184,7 +184,7 @@ match point {
 
 Add `if` conditions to patterns for finer control:
 
-```lux
+```tova
 fn classify(n) {
   match n {
     n if n < 0 => "negative"
@@ -195,7 +195,7 @@ fn classify(n) {
 }
 ```
 
-```lux
+```tova
 fn process_user(user) {
   match user {
     { role: "admin" } => grant_full_access()
@@ -209,7 +209,7 @@ fn process_user(user) {
 
 Match and destructure strings using the `++` operator. This lets you check prefixes and extract the rest:
 
-```lux
+```tova
 fn parse_route(url) {
   match url {
     "/api" ++ rest => handle_api(rest)
@@ -221,7 +221,7 @@ fn parse_route(url) {
 }
 ```
 
-```lux
+```tova
 fn parse_protocol(url) {
   match url {
     "https://" ++ domain => { protocol: "https", domain: domain }
@@ -235,7 +235,7 @@ fn parse_protocol(url) {
 
 `match` returns a value, so you can assign its result directly:
 
-```lux
+```tova
 greeting = match time_of_day {
   "morning" => "Good morning!"
   "afternoon" => "Good afternoon!"
@@ -244,7 +244,7 @@ greeting = match time_of_day {
 }
 ```
 
-```lux
+```tova
 fn to_string(color) {
   match color {
     Red => "red"
@@ -256,9 +256,9 @@ fn to_string(color) {
 
 ## Exhaustive Checking
 
-The Lux compiler performs exhaustive checking on match expressions. If you miss a variant, you will get a warning:
+The Tova compiler performs exhaustive checking on match expressions. If you miss a variant, you will get a warning:
 
-```lux
+```tova
 type Direction { North, South, East, West }
 
 fn describe(dir) {
@@ -272,7 +272,7 @@ fn describe(dir) {
 
 This works for Result and Option types too:
 
-```lux
+```tova
 fn handle(result) {
   match result {
     Ok(v) => print(v)
@@ -291,7 +291,7 @@ Exhaustive checking helps you handle every case and prevents runtime surprises w
 
 **Prefer match over chains of if/elif.** When you are comparing a value against multiple possibilities, `match` is more readable and the compiler can check it for completeness:
 
-```lux
+```tova
 // Instead of:
 if status == "active" {
   // ...
@@ -311,7 +311,7 @@ match status {
 
 **Combine patterns with guards for complex logic:**
 
-```lux
+```tova
 fn shipping_cost(order) {
   match order {
     { total: t } if t > 100 => 0           // free shipping over $100

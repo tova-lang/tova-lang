@@ -1,4 +1,4 @@
-// Lux standard library — string utilities
+// Tova standard library — string utilities
 
 export function upper(str) {
   return str.toUpperCase();

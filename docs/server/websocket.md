@@ -1,12 +1,12 @@
 # WebSocket
 
-Lux servers support WebSocket connections for real-time, bidirectional communication. The `ws` block defines event handlers for the WebSocket lifecycle, and built-in room management makes it straightforward to build chat applications, live dashboards, and collaborative tools.
+Tova servers support WebSocket connections for real-time, bidirectional communication. The `ws` block defines event handlers for the WebSocket lifecycle, and built-in room management makes it straightforward to build chat applications, live dashboards, and collaborative tools.
 
 ## WebSocket Block
 
 Declare a `ws` block inside your server with handlers for each lifecycle event:
 
-```lux
+```tova
 server {
   ws {
     on_open fn(ws) {
@@ -45,7 +45,7 @@ All four handlers are optional. Define only the ones you need.
 
 Use `ws.send(data)` to send a message to a specific connected client:
 
-```lux
+```tova
 on_message fn(ws, message) {
   // Parse the incoming message
   data = JSON.parse(message)
@@ -62,7 +62,7 @@ Rooms let you organize connected clients into named groups. This is the foundati
 
 ### Joining and Leaving Rooms
 
-```lux
+```tova
 join(ws, "room_name")      // add a client to a room
 leave(ws, "room_name")     // remove a client from a room
 ```
@@ -71,7 +71,7 @@ leave(ws, "room_name")     // remove a client from a room
 
 Send a message to all connected clients, or to all clients in a specific room:
 
-```lux
+```tova
 broadcast(data)                          // send to all connected clients
 broadcast(data, ws)                      // send to all except the sender
 broadcast_to("room_name", data)          // send to all clients in a room
@@ -93,7 +93,7 @@ The optional `exclude` parameter (typically `ws`) prevents the sender from recei
 
 Here is a complete chat application using rooms:
 
-```lux
+```tova
 server {
   ws {
     on_open fn(ws) {
@@ -154,7 +154,7 @@ server {
 
 WebSockets are well-suited for pushing live data to clients:
 
-```lux
+```tova
 server {
   ws {
     on_open fn(ws) {

@@ -1,12 +1,12 @@
 # Signals (State)
 
-Signals are the foundational reactive primitive in Lux. A signal holds a value and automatically notifies anything that depends on it when that value changes. In Lux, you create signals with the `state` keyword inside `client { }` blocks or components.
+Signals are the foundational reactive primitive in Tova. A signal holds a value and automatically notifies anything that depends on it when that value changes. In Tova, you create signals with the `state` keyword inside `client { }` blocks or components.
 
 ## Declaring State
 
 Use `state` to declare a reactive signal:
 
-```lux
+```tova
 client {
   state count = 0
   state name = "World"
@@ -18,9 +18,9 @@ Each `state` declaration creates a signal with the given initial value. The vari
 
 ## Reading Signals
 
-Reading a signal is as simple as using the variable name. Lux transparently calls the underlying getter function:
+Reading a signal is as simple as using the variable name. Tova transparently calls the underlying getter function:
 
-```lux
+```tova
 client {
   state count = 0
 
@@ -43,7 +43,7 @@ Any reactive context (effect, computed value, or JSX expression) that reads a si
 
 Assign to the signal variable to update its value:
 
-```lux
+```tova
 client {
   state count = 0
 
@@ -59,11 +59,11 @@ client {
 
 The compiler transforms these assignments into setter calls:
 
-| Lux Code | Generated JavaScript |
+| Tova Code | Generated JavaScript |
 |---|---|
 | `count = 5` | `setCount(5)` |
-| `count += 1` | `setCount(__lux_p => __lux_p + 1)` |
-| `count -= 3` | `setCount(__lux_p => __lux_p - 3)` |
+| `count += 1` | `setCount(__tova_p => __tova_p + 1)` |
+| `count -= 3` | `setCount(__tova_p => __tova_p - 3)` |
 
 Compound assignments (`+=`, `-=`, `*=`, `/=`, `%=`) use functional updates under the hood, meaning the setter receives a function of the previous value. This ensures correctness even during batched updates.
 
@@ -71,12 +71,12 @@ Compound assignments (`+=`, `-=`, `*=`, `/=`, `%=`) use functional updates under
 
 When the new value depends on the previous value, the compiler generates functional update forms automatically:
 
-```lux
+```tova
 client {
   state items = []
 
   // Append an item — the compiler sees the self-reference and generates
-  // setItems(__lux_p => [...__lux_p, new_item])
+  // setItems(__tova_p => [...__tova_p, new_item])
   items = [...items, new_item]
 }
 ```
@@ -97,7 +97,7 @@ function setter(newValue) {
 
 You can annotate the type of a signal for documentation and clarity:
 
-```lux
+```tova
 client {
   state items: [String] = []
   state count: Int = 0
@@ -106,13 +106,13 @@ client {
 }
 ```
 
-Type annotations appear between the variable name and the `=` sign, following Lux's standard type annotation syntax.
+Type annotations appear between the variable name and the `=` sign, following Tova's standard type annotation syntax.
 
 ## Signals in Event Handlers
 
 Signals are commonly updated from event handlers in JSX. The lambda syntax `fn()` creates a handler that writes to the signal:
 
-```lux
+```tova
 component Counter {
   state count = 0
 
@@ -129,7 +129,7 @@ component Counter {
 
 Signals only notify subscribers when the value actually changes. The runtime uses strict equality (`!==`) to compare the old and new values:
 
-```lux
+```tova
 client {
   state count = 5
   count = 5    // No update — value hasn't changed, subscribers don't re-run
@@ -143,7 +143,7 @@ This avoids unnecessary work when setting a signal to its current value.
 
 The `state` keyword is syntactic sugar for `createSignal`. When you write:
 
-```lux
+```tova
 state count = 0
 ```
 
@@ -163,7 +163,7 @@ When the setter is called and the value has changed, all dependent effects are s
 
 Components can have their own local signals. These are scoped to the component and not visible outside:
 
-```lux
+```tova
 component TodoInput(on_add) {
   state text = ""
 
@@ -183,7 +183,7 @@ Each instance of the component gets its own independent signal. The signal is cr
 
 A component or client block can have any number of signals:
 
-```lux
+```tova
 component RegistrationForm {
   state username = ""
   state email = ""

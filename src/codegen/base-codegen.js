@@ -323,7 +323,7 @@ export class BaseCodegen {
     const body = this.genBlockBody(node.body);
     this.popScope();
     if (hasPropagate) {
-      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
     return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
@@ -484,7 +484,7 @@ export class BaseCodegen {
       this.declareVar(catchVar);
       this.indent++;
       // Re-throw propagation sentinels so ? operator works through user try/catch
-      code += `${this.i()}if (${catchVar} && ${catchVar}.__lux_propagate) throw ${catchVar};\n`;
+      code += `${this.i()}if (${catchVar} && ${catchVar}.__tova_propagate) throw ${catchVar};\n`;
       for (const stmt of node.catchBody) {
         code += this.generateStatement(stmt) + '\n';
       }
@@ -673,9 +673,9 @@ export class BaseCodegen {
       return `${left}.repeat(${right})`;
     }
 
-    // Lux ?? is NaN-safe: catches null, undefined, AND NaN
+    // Tova ?? is NaN-safe: catches null, undefined, AND NaN
     if (op === '??') {
-      return `((__lux_v) => (__lux_v != null && __lux_v === __lux_v) ? __lux_v : ${right})(${left})`;
+      return `((__tova_v) => (__tova_v != null && __tova_v === __tova_v) ? __tova_v : ${right})(${left})`;
     }
 
     return `(${left} ${op} ${right})`;
@@ -860,7 +860,7 @@ export class BaseCodegen {
       const body = this.genBlockBody(node.body);
       this.popScope();
       if (hasPropagate) {
-        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
       }
       return `${asyncPrefix}(${params}) => {\n${body}\n${this.i()}}`;
     }
@@ -877,7 +877,7 @@ export class BaseCodegen {
     }
 
     if (hasPropagate) {
-      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__lux_propagate) return __e.value; throw __e; } }`;
+      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__tova_propagate) return __e.value; throw __e; } }`;
     }
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
@@ -1285,7 +1285,7 @@ export class BaseCodegen {
       const body = this.genBlockBody(method.body);
       this.popScope();
       if (hasPropagate) {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
       } else {
         lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${body}\n${this.i()}};`);
       }

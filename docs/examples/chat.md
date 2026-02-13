@@ -8,9 +8,9 @@ A real-time chat application using Server-Sent Events (SSE) for live message str
 
 ## Full Code
 
-Create `chat.lux`:
+Create `chat.tova`:
 
-```lux
+```tova
 shared {
   type ChatMessage {
     username: String
@@ -150,7 +150,7 @@ client {
 Run it:
 
 ```bash
-lux dev .
+tova dev .
 ```
 
 Open multiple browser tabs at `http://localhost:3000` to see real-time messaging.
@@ -159,7 +159,7 @@ Open multiple browser tabs at `http://localhost:3000` to see real-time messaging
 
 ### Shared Message Type
 
-```lux
+```tova
 shared {
   type ChatMessage {
     username: String
@@ -173,7 +173,7 @@ The `ChatMessage` type is shared between server and client, ensuring both sides 
 
 ### Server-Side Message Storage
 
-```lux
+```tova
 server {
   mut messages = []
   mut clients = []
@@ -186,7 +186,7 @@ The server maintains two mutable arrays:
 
 ### Server-Sent Events Endpoint
 
-```lux
+```tova
 fn sse_connect(req, res) {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -211,7 +211,7 @@ The SSE endpoint:
 
 ### Broadcasting Messages
 
-```lux
+```tova
 fn send_message(username, text) -> ChatMessage {
   msg = ChatMessage(username, text, Date.new().toISOString())
   messages = messages ++ [msg]
@@ -233,7 +233,7 @@ When a message is sent:
 
 ### Client SSE Connection
 
-```lux
+```tova
 effect {
   result = server.get_messages()
   messages = result
@@ -255,7 +255,7 @@ The client effect:
 
 ### Connection Status
 
-```lux
+```tova
 state connected = false
 
 // In effect:
@@ -265,7 +265,7 @@ source.onerror = fn() { connected = false }
 
 The `connected` state tracks the SSE connection status. The header displays a different message depending on whether the client is connected or disconnected, using inline `match`:
 
-```lux
+```tova
 {match connected {
   true => "Connected -- {message_count} messages"
   false => "Disconnected"
@@ -274,7 +274,7 @@ The `connected` state tracks the SSE connection status. The header displays a di
 
 ### Guard Clauses for Validation
 
-```lux
+```tova
 fn handle_send() {
   guard username != "" else { return }
   guard text != "" else { return }

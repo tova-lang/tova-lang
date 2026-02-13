@@ -32,8 +32,8 @@ describe('Keywords', () => {
 // ─── Lexer.error() ───────────────────────────────────────
 describe('Lexer — error function', () => {
   test('Lexer.error() throws with filename and position', () => {
-    const lexer = new Lexer('test', 'myfile.lux');
-    expect(() => lexer.error('bad token')).toThrow('myfile.lux');
+    const lexer = new Lexer('test', 'myfile.tova');
+    expect(() => lexer.error('bad token')).toThrow('myfile.tova');
   });
 });
 

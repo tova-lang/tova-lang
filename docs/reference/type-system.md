@@ -1,10 +1,10 @@
 # Type System
 
-Lux features a gradual type system with type annotations that are checked at compile time and erased at runtime. Types can be inferred in most situations, but explicit annotations serve as documentation and enable stronger checking.
+Tova features a gradual type system with type annotations that are checked at compile time and erased at runtime. Types can be inferred in most situations, but explicit annotations serve as documentation and enable stronger checking.
 
 ## Built-in Types
 
-Lux provides the following primitive types:
+Tova provides the following primitive types:
 
 | Type | Description | Examples |
 |------|-------------|---------|
@@ -20,7 +20,7 @@ Lux provides the following primitive types:
 
 Array types use bracket syntax:
 
-```lux
+```tova
 scores: [Int] = [90, 85, 92, 78]
 names: [String] = ["Alice", "Bob", "Charlie"]
 matrix: [[Int]] = [[1, 2], [3, 4]]
@@ -30,7 +30,7 @@ matrix: [[Int]] = [[1, 2], [3, 4]]
 
 Object types are written as inline record types or using named types:
 
-```lux
+```tova
 point = {x: 10, y: 20}
 
 type Config {
@@ -43,7 +43,7 @@ type Config {
 
 Function types describe the signature of a callable:
 
-```lux
+```tova
 // A function from (Int, Int) to Int
 (Int, Int) -> Int
 
@@ -56,7 +56,7 @@ Function types describe the signature of a callable:
 
 Function types are used in type annotations for higher-order functions:
 
-```lux
+```tova
 fn apply(f: (Int) -> Int, x: Int) -> Int {
   f(x)
 }
@@ -66,7 +66,7 @@ fn apply(f: (Int) -> Int, x: Int) -> Int {
 
 ### On Variables
 
-```lux
+```tova
 name: String = "Alice"
 count: Int = 42
 ratio: Float = 0.75
@@ -75,7 +75,7 @@ active: Bool = true
 
 ### On Function Parameters
 
-```lux
+```tova
 fn greet(name: String) {
   print("Hello, {name}!")
 }
@@ -89,7 +89,7 @@ fn add(a: Int, b: Int) {
 
 Use the `->` arrow to annotate a function's return type:
 
-```lux
+```tova
 fn square(x: Int) -> Int {
   x * x
 }
@@ -105,7 +105,7 @@ fn format_name(first: String, last: String) -> String {
 
 ### Full Signature
 
-```lux
+```tova
 fn divide(a: Float, b: Float) -> Result<Float, String> {
   if b == 0.0 {
     Error("division by zero")
@@ -121,7 +121,7 @@ fn divide(a: Float, b: Float) -> Result<Float, String> {
 
 A type with named fields:
 
-```lux
+```tova
 type Point {
   x: Float
   y: Float
@@ -136,14 +136,14 @@ type User {
 
 Struct instances are created by calling the type as a function:
 
-```lux
+```tova
 p = Point(1.0, 2.0)
 u = User("Alice", "alice@example.com", 30)
 ```
 
 Fields are accessed with dot notation:
 
-```lux
+```tova
 print(p.x)       // 1.0
 print(u.name)    // "Alice"
 ```
@@ -152,7 +152,7 @@ print(u.name)    // "Alice"
 
 A type with multiple variants, each of which can carry different data:
 
-```lux
+```tova
 type Shape {
   Circle(radius: Float)
   Rectangle(width: Float, height: Float)
@@ -162,14 +162,14 @@ type Shape {
 
 Variants are constructed by name:
 
-```lux
+```tova
 s1 = Circle(5.0)
 s2 = Rectangle(3.0, 4.0)
 ```
 
 Sum types are used with pattern matching:
 
-```lux
+```tova
 fn area(shape: Shape) -> Float {
   match shape {
     Circle(r) => 3.14159 * r ** 2
@@ -186,7 +186,7 @@ fn area(shape: Shape) -> Float {
 
 A type can have both variants and fields. Variants without payloads serve as enumerations:
 
-```lux
+```tova
 type Color {
   Red
   Green
@@ -201,7 +201,7 @@ Types and functions can be parameterized with type variables using angle bracket
 
 ### Generic Types
 
-```lux
+```tova
 type Option<T> {
   Some(T)
   None
@@ -220,7 +220,7 @@ type Pair<A, B> {
 
 Usage:
 
-```lux
+```tova
 maybe_name: Option<String> = Some("Alice")
 result: Result<Int, String> = Ok(42)
 pair = Pair(1, "hello")
@@ -230,7 +230,7 @@ pair = Pair(1, "hello")
 
 Functions can accept generic type parameters:
 
-```lux
+```tova
 fn identity<T>(x: T) -> T {
   x
 }
@@ -246,14 +246,14 @@ fn first<T>(items: [T]) -> Option<T> {
 
 ## Type Inference
 
-Lux infers types in most contexts, so explicit annotations are optional. The compiler determines types from:
+Tova infers types in most contexts, so explicit annotations are optional. The compiler determines types from:
 
 - **Literal values**: `42` is `Int`, `"hello"` is `String`
 - **Operators**: `a + b` where `a: Int` infers `b: Int`
 - **Function return values**: inferred from the body's last expression
 - **Variable assignments**: inferred from the right-hand side
 
-```lux
+```tova
 // All types inferred -- no annotations needed
 name = "Alice"           // String
 count = 42               // Int
@@ -271,7 +271,7 @@ Annotations are recommended for:
 
 For JavaScript built-in types, use `Type.new()` to invoke the constructor:
 
-```lux
+```tova
 regex = RegExp.new("\\d+", "g")
 date = Date.new()
 buf = ArrayBuffer.new(1024)
@@ -287,14 +287,14 @@ const date = new Date();
 ```
 
 ::: tip
-`Type.new()` is the standard way to create instances of JavaScript built-in types in Lux. For Lux-defined types, use the type name directly as a constructor: `Point(1.0, 2.0)`.
+`Type.new()` is the standard way to create instances of JavaScript built-in types in Tova. For Tova-defined types, use the type name directly as a constructor: `Point(1.0, 2.0)`.
 :::
 
 ## Derive
 
 The `derive` keyword automatically generates implementations of common traits for a type. It follows the type declaration:
 
-```lux
+```tova
 type Point {
   x: Float
   y: Float
@@ -311,7 +311,7 @@ type Point {
 
 Multiple derives are specified in a single bracket list:
 
-```lux
+```tova
 type User {
   name: String
   email: String
@@ -321,7 +321,7 @@ type User {
 
 The generated methods can be used directly:
 
-```lux
+```tova
 p1 = Point(1.0, 2.0)
 p2 = Point(1.0, 2.0)
 
@@ -334,7 +334,7 @@ json_str = to_json(p1)  // JSON serialization
 
 Interfaces define a structural contract that types can implement:
 
-```lux
+```tova
 interface Printable {
   fn to_string(self) -> String
 }
@@ -346,7 +346,7 @@ interface Comparable {
 
 Types satisfy an interface by implementing the required methods via `impl`:
 
-```lux
+```tova
 impl Printable for Point {
   fn to_string(self) -> String {
     "({self.x}, {self.y})"
@@ -358,7 +358,7 @@ impl Printable for Point {
 
 ### Option for Nullable Values
 
-```lux
+```tova
 fn find(items: [String], target: String) -> Option<Int> {
   for i, item in enumerate(items) {
     if item == target {
@@ -371,7 +371,7 @@ fn find(items: [String], target: String) -> Option<Int> {
 
 ### Result for Error Handling
 
-```lux
+```tova
 fn parse_int(s: String) -> Result<Int, String> {
   // ... parsing logic
   if valid {
@@ -384,7 +384,7 @@ fn parse_int(s: String) -> Result<Int, String> {
 
 ### Pattern Matching on Types
 
-```lux
+```tova
 match fetch_user(id) {
   Ok(user) => render(user)
   Error("not found") => show_404()

@@ -1,4 +1,4 @@
-// AST Node definitions for the Lux language
+// AST Node definitions for the Tova language
 
 // Sentinel value for pipe target placeholder (used in method pipe |> .method())
 export const PIPE_TARGET = '__pipe_target__';

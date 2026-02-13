@@ -1,12 +1,12 @@
 # Interfaces and Traits
 
-Lux provides two mechanisms for defining shared behavior across types: **interfaces** and **traits**. Both let you specify a set of methods that a type must implement, enabling polymorphism and code reuse.
+Tova provides two mechanisms for defining shared behavior across types: **interfaces** and **traits**. Both let you specify a set of methods that a type must implement, enabling polymorphism and code reuse.
 
 ## Interfaces
 
 An `interface` declares a contract -- a set of method signatures that any implementing type must provide:
 
-```lux
+```tova
 interface Printable {
   fn to_string() -> String
 }
@@ -16,7 +16,7 @@ interface Printable {
 
 Use `impl` to provide the method bodies for a specific type:
 
-```lux
+```tova
 type User {
   id: Int
   name: String
@@ -32,7 +32,7 @@ impl Printable for User {
 
 Now any `User` value can call `.to_string()`:
 
-```lux
+```tova
 alice = User(1, "Alice", "alice@example.com")
 print(alice.to_string())   // "Alice <alice@example.com>"
 ```
@@ -41,7 +41,7 @@ print(alice.to_string())   // "Alice <alice@example.com>"
 
 A type can implement as many interfaces as needed:
 
-```lux
+```tova
 interface Printable {
   fn to_string() -> String
 }
@@ -74,7 +74,7 @@ impl Comparable for Temperature {
 
 Interfaces can require more than one method:
 
-```lux
+```tova
 interface Collection {
   fn length() -> Int
   fn is_empty() -> Bool
@@ -104,7 +104,7 @@ impl Collection for Stack {
 
 Traits work similarly to interfaces. Use `trait` to declare shared behavior:
 
-```lux
+```tova
 trait Serializable {
   fn serialize() -> String
 }
@@ -118,7 +118,7 @@ trait Deserializable {
 
 The `impl` syntax is the same:
 
-```lux
+```tova
 type Config {
   host: String
   port: Int
@@ -140,7 +140,7 @@ impl Serializable for Config {
 
 Traits can provide default method bodies that implementing types inherit for free. Types can override them if needed:
 
-```lux
+```tova
 trait Describable {
   fn name() -> String
 
@@ -171,9 +171,9 @@ Both `interface` and `trait` define shared behavior. The choice between them is 
 
 ## Derive Macros
 
-For common traits, Lux can automatically generate implementations with `derive`:
+For common traits, Tova can automatically generate implementations with `derive`:
 
-```lux
+```tova
 type Point {
   x: Float
   y: Float
@@ -189,7 +189,7 @@ This generates:
 
 Derive works with algebraic data types too:
 
-```lux
+```tova
 type Shape {
   Circle(radius: Float)
   Rectangle(width: Float, height: Float)
@@ -216,7 +216,7 @@ print(a)        // Circle(5.0)
 
 Here is a more complete example combining types, interfaces, traits, and derive:
 
-```lux
+```tova
 interface Renderable {
   fn render() -> String
 }
@@ -277,7 +277,7 @@ print(render_all(doc))
 
 **Use `impl` blocks to organize related behavior.** Even for a single type, splitting behavior into separate `impl` blocks by interface keeps your code modular:
 
-```lux
+```tova
 type User {
   id: Int
   name: String

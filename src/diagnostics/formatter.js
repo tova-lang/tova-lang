@@ -1,4 +1,4 @@
-// Rich error message formatter for the Lux language
+// Rich error message formatter for the Tova language
 // Produces Rust/Elm-style error messages with source context and carets
 
 export class DiagnosticFormatter {
@@ -87,7 +87,7 @@ export function formatDiagnostics(source, filename, errors, warnings = []) {
   return output;
 }
 
-// Helper: extract location from typical Lux error messages
+// Helper: extract location from typical Tova error messages
 export function parseErrorLocation(errorMessage) {
   const match = errorMessage.match(/^(.+?):(\d+):(\d+)\s*[—-]\s*(.+)/);
   if (match) {
@@ -101,7 +101,7 @@ export function parseErrorLocation(errorMessage) {
   return null;
 }
 
-// Create a rich error from a Lux parse/analysis error
+// Create a rich error from a Tova parse/analysis error
 export function richError(source, error, filename = '<stdin>') {
   const formatter = new DiagnosticFormatter(source, filename);
 

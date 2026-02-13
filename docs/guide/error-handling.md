@@ -1,10 +1,10 @@
 # Error Handling
 
-Lux takes a deliberate approach to error handling: there is **no `throw` keyword**. Instead, Lux uses the `Result` and `Option` types to represent operations that can fail or produce no value. This makes error paths explicit and forces you to handle them, rather than letting exceptions silently propagate.
+Tova takes a deliberate approach to error handling: there is **no `throw` keyword**. Instead, Tova uses the `Result` and `Option` types to represent operations that can fail or produce no value. This makes error paths explicit and forces you to handle them, rather than letting exceptions silently propagate.
 
 ## Philosophy
 
-In many languages, errors are thrown as exceptions and caught elsewhere -- or not caught at all, crashing the program. Lux avoids this by encoding success and failure directly in the type system:
+In many languages, errors are thrown as exceptions and caught elsewhere -- or not caught at all, crashing the program. Tova avoids this by encoding success and failure directly in the type system:
 
 - **Result** -- an operation that can succeed (`Ok`) or fail (`Err`)
 - **Option** -- a value that may exist (`Some`) or not (`None`)
@@ -15,7 +15,7 @@ Both are ordinary values you can pass around, store, and pattern match on. No su
 
 `Result<T, E>` represents an operation that either produces a value of type `T` or an error of type `E`:
 
-```lux
+```tova
 fn divide(a: Float, b: Float) -> Result<Float, String> {
   if b == 0 {
     Err("Division by zero")
@@ -29,7 +29,7 @@ fn divide(a: Float, b: Float) -> Result<Float, String> {
 
 The most explicit way to handle a `Result`:
 
-```lux
+```tova
 match divide(10.0, 3.0) {
   Ok(value) => print("Result: {value}")
   Err(error) => print("Error: {error}")
@@ -42,7 +42,7 @@ Result comes with a rich set of methods for working with success and error value
 
 #### Transforming Values
 
-```lux
+```tova
 // .map() -- transform the Ok value, pass through Err
 result = Ok(5)
 doubled = result.map(fn(x) x * 2)   // Ok(10)
@@ -69,7 +69,7 @@ result.mapErr(fn(e) "Error: {e}")   // Err("Error: not found")
 
 #### Extracting Values
 
-```lux
+```tova
 // .unwrap() -- get the Ok value, or panic on Err
 Ok(42).unwrap()       // 42
 Err("fail").unwrap()  // PANIC!
@@ -89,7 +89,7 @@ Ok(42).unwrapErr()        // PANIC!
 
 #### Checking State
 
-```lux
+```tova
 // .isOk() and .isErr()
 Ok(42).isOk()       // true
 Ok(42).isErr()      // false
@@ -99,7 +99,7 @@ Err("x").isErr()    // true
 
 #### Combining Results
 
-```lux
+```tova
 // .or(other) -- return self if Ok, otherwise return other
 Ok(1).or(Ok(2))        // Ok(1)
 Err("a").or(Ok(2))     // Ok(2)
@@ -115,7 +115,7 @@ Err("a").and(Ok(2))    // Err("a")
 
 `Option<T>` represents a value that may or may not exist. It is the safe alternative to `nil`:
 
-```lux
+```tova
 fn find_user(id: Int) -> Option<User> {
   user = db.query("SELECT * FROM users WHERE id = ?", id)
   if user != nil {
@@ -128,7 +128,7 @@ fn find_user(id: Int) -> Option<User> {
 
 ### Pattern Matching on Option
 
-```lux
+```tova
 match find_user(1) {
   Some(user) => print("Hello, {user.name}!")
   None => print("User not found")
@@ -141,7 +141,7 @@ Option provides a similar method set to Result:
 
 #### Transforming Values
 
-```lux
+```tova
 // .map() -- transform the inner value if Some
 Some(5).map(fn(x) x * 2)    // Some(10)
 None.map(fn(x) x * 2)       // None
@@ -156,7 +156,7 @@ email = find_user(1).flatMap(fn(u) find_email(u))
 
 #### Extracting Values
 
-```lux
+```tova
 // .unwrap() -- get the value, or panic on None
 Some(42).unwrap()    // 42
 None.unwrap()        // PANIC!
@@ -172,7 +172,7 @@ None.expect("missing")        // PANIC: "missing"
 
 #### Checking State
 
-```lux
+```tova
 // .isSome() and .isNone()
 Some(42).isSome()    // true
 Some(42).isNone()    // false
@@ -182,7 +182,7 @@ None.isNone()        // true
 
 #### Combining and Filtering
 
-```lux
+```tova
 // .or(other) -- return self if Some, otherwise other
 Some(1).or(Some(2))    // Some(1)
 None.or(Some(2))       // Some(2)
@@ -203,7 +203,7 @@ None.filter(fn(x) x > 3)       // None
 
 The `!` operator propagates errors upward. If the expression evaluates to `Err` (for Result) or `None` (for Option), the function immediately returns that error. Otherwise, it unwraps the success value:
 
-```lux
+```tova
 fn process_data(input: String) -> Result<Data, String> {
   parsed = parse(input)!           // return Err early if parse fails
   validated = validate(parsed)!    // return Err early if validation fails
@@ -214,7 +214,7 @@ fn process_data(input: String) -> Result<Data, String> {
 
 This is equivalent to the more verbose pattern matching version:
 
-```lux
+```tova
 fn process_data(input: String) -> Result<Data, String> {
   match parse(input) {
     Err(e) => return Err(e)
@@ -237,9 +237,9 @@ The `!` operator eliminates this nesting and makes the happy path the primary re
 
 ## Try / Catch for JavaScript Interop
 
-When calling JavaScript APIs that may throw exceptions, use `try`/`catch` to convert them into Lux-style error handling:
+When calling JavaScript APIs that may throw exceptions, use `try`/`catch` to convert them into Tova-style error handling:
 
-```lux
+```tova
 fn parse_json(input: String) -> Result<Object, String> {
   try {
     Ok(JSON.parse(input))
@@ -249,7 +249,7 @@ fn parse_json(input: String) -> Result<Object, String> {
 }
 ```
 
-```lux
+```tova
 fn read_file_safe(path: String) -> Result<String, String> {
   try {
     content = fs.readFileSync(path, "utf8")
@@ -261,14 +261,14 @@ fn read_file_safe(path: String) -> Result<String, String> {
 ```
 
 ::: tip
-Use try/catch at the boundary between Lux and JavaScript. Inside pure Lux code, prefer Result and Option.
+Use try/catch at the boundary between Tova and JavaScript. Inside pure Tova code, prefer Result and Option.
 :::
 
 ## Chaining Methods
 
 The real power emerges when you chain Result and Option methods together:
 
-```lux
+```tova
 fn get_user_display_name(id: Int) -> String {
   find_user(id)
     .map(fn(u) u.display_name)
@@ -276,7 +276,7 @@ fn get_user_display_name(id: Int) -> String {
 }
 ```
 
-```lux
+```tova
 fn process_config(path: String) -> Result<Config, String> {
   read_file(path)
     .mapErr(fn(e) "File error: {e}")
@@ -297,7 +297,7 @@ fn process_config(path: String) -> Result<Config, String> {
 
 **Use `!` to keep code flat.** When chaining several fallible operations, the `!` operator produces clean, linear code instead of deeply nested match expressions.
 
-```lux
+```tova
 // Clean and readable
 fn load_config() -> Result<Config, String> {
   content = read_file("config.json")!

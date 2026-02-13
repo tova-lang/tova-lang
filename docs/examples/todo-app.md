@@ -8,9 +8,9 @@ A full-stack todo application demonstrating shared types, server CRUD operations
 
 ## Full Code
 
-Create `todo.lux`:
+Create `todo.tova`:
 
-```lux
+```tova
 shared {
   type Todo {
     id: Int
@@ -146,14 +146,14 @@ client {
 Run it:
 
 ```bash
-lux dev .
+tova dev .
 ```
 
 ## Walkthrough
 
 ### Shared Types
 
-```lux
+```tova
 shared {
   type Todo {
     id: Int
@@ -167,7 +167,7 @@ The `shared` block defines types available to both server and client. The `Todo`
 
 ### Server Block
 
-```lux
+```tova
 server {
   mut todos = []
   mut next_id = 1
@@ -191,16 +191,16 @@ Key concepts:
 
 ### RPC Calls
 
-```lux
+```tova
 // In the client:
 todo = server.add_todo(new_title)
 ```
 
-The `server.` prefix generates an RPC call to the corresponding server function. Lux compiles this to a `fetch()` call to the appropriate route, serializing arguments and deserializing the response. Shared types guarantee the data format matches.
+The `server.` prefix generates an RPC call to the corresponding server function. Tova compiles this to a `fetch()` call to the appropriate route, serializing arguments and deserializing the response. Shared types guarantee the data format matches.
 
 ### Client Reactivity
 
-```lux
+```tova
 client {
   state todos = []
   state new_title = ""
@@ -214,7 +214,7 @@ client {
 
 ### Effects
 
-```lux
+```tova
 effect {
   result = server.list_todos()
   todos = result
@@ -225,7 +225,7 @@ An `effect` block runs after the component mounts. This is where you perform sid
 
 ### Guard Clauses
 
-```lux
+```tova
 fn handle_add() {
   guard new_title != "" else { return }
   todo = server.add_todo(new_title)
@@ -238,7 +238,7 @@ fn handle_add() {
 
 ### Component Composition
 
-```lux
+```tova
 component TodoItem(todo) {
   <li class={match todo.completed { true => "done" _ => "" }}>
     <span onclick={fn() handle_toggle(todo.id)}>{todo.title}</span>
@@ -257,7 +257,7 @@ Components can accept parameters and be composed together. The `App` component m
 
 ### Inline Match in JSX
 
-```lux
+```tova
 <li class={match todo.completed { true => "done" _ => "" }}>
 ```
 

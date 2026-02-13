@@ -1,4 +1,4 @@
-// Edge case tests for the Lux language runtime (reactivity.js)
+// Edge case tests for the Tova language runtime (reactivity.js)
 // Covers: signal edge cases, effect edge cases, computed edge cases,
 // batch edge cases, rendering edge cases, lifecycle hooks, context,
 // error boundary, and router edge cases.
@@ -6,7 +6,7 @@
 import { describe, test, expect } from 'bun:test';
 import {
   createSignal, createEffect, createComputed,
-  lux_el, lux_fragment, render, mount,
+  tova_el, tova_fragment, render, mount,
   batch, onMount, onUnmount, onCleanup,
   createRef, createContext, provide, inject,
   createErrorBoundary, createRoot,
@@ -620,7 +620,7 @@ describe('Edge Case — computed returns same value', () => {
     // The computed will be marked dirty and re-evaluated,
     // but the effect runs because the computed's subscribers are notified
     // (the runtime does not skip effects when computed value is unchanged)
-    // This is the actual behavior of the Lux runtime.
+    // This is the actual behavior of the Tova runtime.
     expect(label()).toBe('big');
   });
 });
@@ -813,7 +813,7 @@ describe('Edge Case — render array of vnodes', () => {
   test('render mixed array of vnodes and strings', () => {
     const frag = render([
       'text',
-      lux_el('span', {}, ['child']),
+      tova_el('span', {}, ['child']),
       42,
     ]);
     expect(frag.nodeType).toBe(11);
@@ -828,7 +828,7 @@ describe('Edge Case — render array of vnodes', () => {
 
 describe('Edge Case — render with style object', () => {
   test('style object properties are applied to element', () => {
-    const vnode = lux_el('div', { style: { color: 'red', fontSize: '14px', marginTop: '10px' } }, []);
+    const vnode = tova_el('div', { style: { color: 'red', fontSize: '14px', marginTop: '10px' } }, []);
     const el = render(vnode);
     expect(el.style.color).toBe('red');
     expect(el.style.fontSize).toBe('14px');
@@ -839,7 +839,7 @@ describe('Edge Case — render with style object', () => {
 describe('Edge Case — render with event handler', () => {
   test('event handler is registered on element', () => {
     const handler = () => {};
-    const vnode = lux_el('button', { onClick: handler }, ['click']);
+    const vnode = tova_el('button', { onClick: handler }, ['click']);
     const el = render(vnode);
     expect(el.eventListeners['click']).toBeDefined();
     expect(el.eventListeners['click'].length).toBe(1);
@@ -849,7 +849,7 @@ describe('Edge Case — render with event handler', () => {
   test('multiple event handlers on same element', () => {
     const clickHandler = () => {};
     const mouseOverHandler = () => {};
-    const vnode = lux_el('div', { onClick: clickHandler, onMouseover: mouseOverHandler }, []);
+    const vnode = tova_el('div', { onClick: clickHandler, onMouseover: mouseOverHandler }, []);
     const el = render(vnode);
     expect(el.eventListeners['click'].length).toBe(1);
     expect(el.eventListeners['mouseover'].length).toBe(1);
@@ -858,13 +858,13 @@ describe('Edge Case — render with event handler', () => {
 
 describe('Edge Case — render with className', () => {
   test('className prop sets className on element', () => {
-    const vnode = lux_el('div', { className: 'foo bar' }, []);
+    const vnode = tova_el('div', { className: 'foo bar' }, []);
     const el = render(vnode);
     expect(el.className).toBe('foo bar');
   });
 
   test('empty className is applied', () => {
-    const vnode = lux_el('div', { className: '' }, []);
+    const vnode = tova_el('div', { className: '' }, []);
     const el = render(vnode);
     expect(el.className).toBe('');
   });
@@ -872,25 +872,25 @@ describe('Edge Case — render with className', () => {
 
 describe('Edge Case — render self-closing tags', () => {
   test('br element is created', () => {
-    const el = render(lux_el('br', {}, []));
+    const el = render(tova_el('br', {}, []));
     expect(el.tagName).toBe('br');
     expect(el.children.length).toBe(0);
   });
 
   test('hr element is created', () => {
-    const el = render(lux_el('hr', {}, []));
+    const el = render(tova_el('hr', {}, []));
     expect(el.tagName).toBe('hr');
   });
 
   test('img element with src attribute', () => {
-    const el = render(lux_el('img', { src: 'test.png', alt: 'Test' }, []));
+    const el = render(tova_el('img', { src: 'test.png', alt: 'Test' }, []));
     expect(el.tagName).toBe('img');
     expect(el.attributes.src).toBe('test.png');
     expect(el.attributes.alt).toBe('Test');
   });
 
   test('input element with type attribute', () => {
-    const el = render(lux_el('input', { type: 'text' }, []));
+    const el = render(tova_el('input', { type: 'text' }, []));
     expect(el.tagName).toBe('input');
     expect(el.attributes.type).toBe('text');
   });
@@ -898,25 +898,25 @@ describe('Edge Case — render self-closing tags', () => {
 
 describe('Edge Case — render fragment with multiple children', () => {
   test('fragment renders marker and content nodes', () => {
-    const frag = lux_fragment([
-      lux_el('span', {}, ['a']),
-      lux_el('span', {}, ['b']),
-      lux_el('span', {}, ['c']),
+    const frag = tova_fragment([
+      tova_el('span', {}, ['a']),
+      tova_el('span', {}, ['b']),
+      tova_el('span', {}, ['c']),
     ]);
     const rendered = render(frag);
     expect(rendered.nodeType).toBe(11);
     const marker = rendered.children[0];
     expect(marker.nodeType).toBe(8);
-    expect(marker.__luxFragment).toBe(true);
-    expect(marker.__luxNodes.length).toBe(3);
+    expect(marker.__tovaFragment).toBe(true);
+    expect(marker.__tovaNodes.length).toBe(3);
   });
 
   test('empty fragment has marker but no content', () => {
-    const frag = lux_fragment([]);
+    const frag = tova_fragment([]);
     const rendered = render(frag);
     const marker = rendered.children[0];
-    expect(marker.__luxFragment).toBe(true);
-    expect(marker.__luxNodes.length).toBe(0);
+    expect(marker.__tovaFragment).toBe(true);
+    expect(marker.__tovaNodes.length).toBe(0);
   });
 });
 
@@ -926,32 +926,32 @@ describe('Edge Case — mount with signal that updates', () => {
     const [count, setCount] = createSignal(0);
 
     function App() {
-      return lux_el('div', {}, [() => String(count())]);
+      return tova_el('div', {}, [() => String(count())]);
     }
 
     mount(App, container);
     const div = container.children[0];
     const marker = div.children[0];
-    expect(marker.__luxDynamic).toBe(true);
-    expect(marker.__luxNodes[0].textContent).toBe('0');
+    expect(marker.__tovaDynamic).toBe(true);
+    expect(marker.__tovaNodes[0].textContent).toBe('0');
 
     setCount(5);
-    expect(marker.__luxNodes[0].textContent).toBe('5');
+    expect(marker.__tovaNodes[0].textContent).toBe('5');
 
     setCount(100);
-    expect(marker.__luxNodes[0].textContent).toBe('100');
+    expect(marker.__tovaNodes[0].textContent).toBe('100');
   });
 });
 
 describe('Edge Case — render with key attribute', () => {
   test('key prop is not set as DOM attribute', () => {
-    const vnode = lux_el('div', { key: 'my-key' }, []);
+    const vnode = tova_el('div', { key: 'my-key' }, []);
     const el = render(vnode);
     expect(el.getAttribute('key')).toBeNull();
   });
 
   test('key is accessible on vnode props', () => {
-    const vnode = lux_el('div', { key: 'my-key' }, []);
+    const vnode = tova_el('div', { key: 'my-key' }, []);
     expect(vnode.props.key).toBe('my-key');
   });
 });
@@ -1308,7 +1308,7 @@ describe('Edge Case — untrack within effect', () => {
 describe('Edge Case — mount with static vnode (not function)', () => {
   test('mount accepts a static vnode directly', () => {
     const container = createMockElement('div');
-    const vnode = lux_el('p', {}, ['static content']);
+    const vnode = tova_el('p', {}, ['static content']);
     mount(vnode, container);
     expect(container.children.length).toBeGreaterThan(0);
     expect(container.children[0].tagName).toBe('p');
@@ -1321,16 +1321,16 @@ describe('Edge Case — render reactive function child', () => {
     const container = createMockElement('div');
 
     function App() {
-      return lux_el('div', {}, [() => text()]);
+      return tova_el('div', {}, [() => text()]);
     }
 
     mount(App, container);
     const div = container.children[0];
     const marker = div.children[0];
-    expect(marker.__luxDynamic).toBe(true);
-    expect(marker.__luxNodes[0].textContent).toBe('initial');
+    expect(marker.__tovaDynamic).toBe(true);
+    expect(marker.__tovaNodes[0].textContent).toBe('initial');
 
     setText('updated');
-    expect(marker.__luxNodes[0].textContent).toBe('updated');
+    expect(marker.__tovaNodes[0].textContent).toBe('updated');
   });
 });

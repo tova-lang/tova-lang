@@ -1,12 +1,12 @@
 # Router
 
-Lux includes a built-in client-side router that integrates with the reactive signal system. Route changes are reactive -- components that read the route signal automatically re-render when the URL changes.
+Tova includes a built-in client-side router that integrates with the reactive signal system. Route changes are reactive -- components that read the route signal automatically re-render when the URL changes.
 
 ## Defining Routes
 
 Use `defineRoutes` to declare your application's routes. Pass an object mapping URL patterns to components:
 
-```lux
+```tova
 client {
   defineRoutes({
     "/": HomePage,
@@ -27,7 +27,7 @@ client {
 
 Static routes match exact paths:
 
-```lux
+```tova
 defineRoutes({
   "/": HomePage,
   "/about": AboutPage,
@@ -39,7 +39,7 @@ defineRoutes({
 
 Use `:name` to capture dynamic path segments:
 
-```lux
+```tova
 defineRoutes({
   "/users/:id": UserPage,
   "/posts/:slug": PostPage,
@@ -53,7 +53,7 @@ When the URL `/users/42` is matched against `/users/:id`, the params object will
 
 Append `?` to make a parameter optional:
 
-```lux
+```tova
 defineRoutes({
   "/posts/:id?": PostPage
 })
@@ -65,7 +65,7 @@ This matches both `/posts` (where `id` is undefined) and `/posts/42` (where `id`
 
 Use `"*"` to match any URL that doesn't match a defined route:
 
-```lux
+```tova
 defineRoutes({
   "/": HomePage,
   "/about": AboutPage,
@@ -83,7 +83,7 @@ Both serve as fallbacks, but `"*"` has a lower priority than specific routes and
 
 Use the `Router` component to render the currently matched route:
 
-```lux
+```tova
 component App {
   defineRoutes({
     "/": HomePage,
@@ -108,7 +108,7 @@ component App {
 
 Use `navigate(path)` to change the route programmatically:
 
-```lux
+```tova
 component LoginForm {
   state username = ""
   state password = ""
@@ -137,7 +137,7 @@ component LoginForm {
 
 The `Link` component provides client-side navigation without a full page reload:
 
-```lux
+```tova
 component NavBar {
   <nav>
     <Link href="/">Home</Link>
@@ -150,7 +150,7 @@ component NavBar {
 
 `Link` renders an `<a>` tag with an `onClick` handler that calls `e.preventDefault()` and `navigate(href)`. It accepts all standard `<a>` attributes in addition to `href`:
 
-```lux
+```tova
 <Link href="/profile" class="nav-link" id="profile-link">
   Profile
 </Link>
@@ -160,7 +160,7 @@ component NavBar {
 
 The `Redirect` component immediately navigates to a different path when rendered:
 
-```lux
+```tova
 component ProtectedPage {
   user = inject(auth_ctx)
 
@@ -182,7 +182,7 @@ The router exposes several signal-based accessors for reading route information 
 
 Returns the route signal getter. The signal value is an object with `path`, `params`, `query`, and `component`:
 
-```lux
+```tova
 component Breadcrumb {
   route = getCurrentRoute()
 
@@ -207,7 +207,7 @@ The route object shape:
 
 Returns a signal getter for the route params:
 
-```lux
+```tova
 component UserPage {
   params = getParams()
 
@@ -232,7 +232,7 @@ component UserPage {
 
 Returns a signal getter for the current matched path pattern:
 
-```lux
+```tova
 component NavItem(href, label) {
   path = getPath()
 
@@ -246,7 +246,7 @@ component NavItem(href, label) {
 
 Returns a signal getter for the parsed query string:
 
-```lux
+```tova
 component SearchResults {
   query = getQuery()
 
@@ -274,7 +274,7 @@ The query string is parsed automatically. For a URL like `/search?q=hello&page=2
 
 For code that does not use the reactive signal pattern, `onRouteChange` registers a callback that fires on every route change:
 
-```lux
+```tova
 onRouteChange(fn(matched) {
   print("Route changed to: {matched.path}")
   analytics.track_page_view(matched.path)
@@ -310,7 +310,7 @@ This means even regular `<a>` tags (not just `<Link>` components) get client-sid
 
 ## Full Router Example
 
-```lux
+```tova
 client {
   component App {
     defineRoutes({

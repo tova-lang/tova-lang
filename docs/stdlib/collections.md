@@ -1,6 +1,6 @@
 # Collections
 
-Collection functions operate on arrays, strings, and objects. They are the workhorses of Lux's standard library -- you will use them in nearly every program.
+Collection functions operate on arrays, strings, and objects. They are the workhorses of Tova's standard library -- you will use them in nearly every program.
 
 All collection functions return **new values** rather than mutating the original data.
 
@@ -8,13 +8,13 @@ All collection functions return **new values** rather than mutating the original
 
 ### print
 
-```lux
+```tova
 print(...args) -> Nil
 ```
 
 Outputs to the console. Accepts multiple arguments, which are printed separated by spaces.
 
-```lux
+```tova
 print("Hello, World!")
 // Hello, World!
 
@@ -31,13 +31,13 @@ print("Items: {len(items)}")
 
 ### len
 
-```lux
+```tova
 len(v) -> Int
 ```
 
 Returns the length of a string, array, or the number of keys in an object. Returns `0` for `null`.
 
-```lux
+```tova
 len([1, 2, 3])         // 3
 len("hello")            // 5
 len({ a: 1, b: 2 })   // 2
@@ -47,13 +47,13 @@ len(null)               // 0
 
 ### type_of
 
-```lux
+```tova
 type_of(v) -> String
 ```
 
-Returns the Lux type name of a value. For custom type variants, returns the variant tag name.
+Returns the Tova type name of a value. For custom type variants, returns the variant tag name.
 
-```lux
+```tova
 type_of(42)             // "Int"
 type_of(3.14)           // "Float"
 type_of("hello")        // "String"
@@ -74,7 +74,7 @@ type_of(None)           // "None"
 
 ### range
 
-```lux
+```tova
 range(end) -> List[Int]
 range(start, end) -> List[Int]
 range(start, end, step) -> List[Int]
@@ -82,14 +82,14 @@ range(start, end, step) -> List[Int]
 
 Generates an array of sequential integers. The `end` value is exclusive.
 
-```lux
+```tova
 range(5)                // [0, 1, 2, 3, 4]
 range(2, 7)             // [2, 3, 4, 5, 6]
 range(0, 10, 2)         // [0, 2, 4, 6, 8]
 range(10, 0, -1)        // [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 ```
 
-```lux
+```tova
 // Common pattern: iterate n times
 for i in range(5) {
   print("Iteration {i}")
@@ -98,13 +98,13 @@ for i in range(5) {
 
 ### enumerate
 
-```lux
+```tova
 enumerate(arr) -> List[[Int, T]]
 ```
 
 Returns `[index, value]` pairs. Useful for iterating with an index.
 
-```lux
+```tova
 enumerate(["a", "b", "c"])
 // [[0, "a"], [1, "b"], [2, "c"]]
 
@@ -115,13 +115,13 @@ for i, item in enumerate(items) {
 
 ### map
 
-```lux
+```tova
 map(arr, fn) -> List
 ```
 
 Applies a function to each element and returns a new array of results.
 
-```lux
+```tova
 map([1, 2, 3], fn(x) x * 2)
 // [2, 4, 6]
 
@@ -132,13 +132,13 @@ map(names, capitalize)
 
 ### filter
 
-```lux
+```tova
 filter(arr, fn) -> List
 ```
 
 Returns a new array containing only elements where the function returns `true`.
 
-```lux
+```tova
 filter([1, 2, 3, 4, 5], fn(x) x > 3)
 // [4, 5]
 
@@ -148,13 +148,13 @@ evens = filter(range(10), fn(x) x % 2 == 0)
 
 ### flat_map
 
-```lux
+```tova
 flat_map(arr, fn) -> List
 ```
 
 Applies a function to each element (which should return an array), then flattens the result one level.
 
-```lux
+```tova
 flat_map([1, 2, 3], fn(x) [x, x * 10])
 // [1, 10, 2, 20, 3, 30]
 
@@ -164,13 +164,13 @@ flat_map(["hello world", "foo bar"], fn(s) split(s, " "))
 
 ### flatten
 
-```lux
+```tova
 flatten(arr) -> List
 ```
 
 Flattens a nested array by one level.
 
-```lux
+```tova
 flatten([[1, 2], [3, 4], [5]])
 // [1, 2, 3, 4, 5]
 
@@ -180,13 +180,13 @@ flatten([[1, [2]], [3]])
 
 ### unique
 
-```lux
+```tova
 unique(arr) -> List
 ```
 
 Returns a new array with duplicate elements removed. Uses `Set` internally for deduplication.
 
-```lux
+```tova
 unique([1, 2, 2, 3, 3, 3])
 // [1, 2, 3]
 
@@ -196,13 +196,13 @@ unique(["a", "b", "a", "c"])
 
 ### chunk
 
-```lux
+```tova
 chunk(arr, n) -> List[List]
 ```
 
 Splits an array into chunks of size `n`. The last chunk may be smaller.
 
-```lux
+```tova
 chunk([1, 2, 3, 4, 5], 2)
 // [[1, 2], [3, 4], [5]]
 
@@ -216,13 +216,13 @@ chunk(range(9), 3)
 
 ### reduce
 
-```lux
+```tova
 reduce(arr, fn, init?) -> T
 ```
 
 Folds an array into a single value using an accumulator function. If `init` is omitted, the first element is used as the initial value.
 
-```lux
+```tova
 reduce([1, 2, 3, 4], fn(acc, x) acc + x, 0)
 // 10
 
@@ -236,13 +236,13 @@ reduce([1, 2, 3], fn(acc, x) acc * x)
 
 ### sum
 
-```lux
+```tova
 sum(arr) -> Number
 ```
 
 Returns the sum of all elements in the array. Equivalent to `reduce(arr, fn(a, b) a + b, 0)`.
 
-```lux
+```tova
 sum([1, 2, 3, 4])      // 10
 sum([])                  // 0
 sum(range(101))          // 5050
@@ -250,13 +250,13 @@ sum(range(101))          // 5050
 
 ### count
 
-```lux
+```tova
 count(arr, fn) -> Int
 ```
 
 Counts the number of elements that satisfy a predicate.
 
-```lux
+```tova
 count([1, 2, 3, 4, 5], fn(x) x > 3)
 // 2
 
@@ -266,13 +266,13 @@ count(["apple", "avocado", "banana"], fn(s) starts_with(s, "a"))
 
 ### min
 
-```lux
+```tova
 min(arr) -> T | Nil
 ```
 
 Returns the minimum element in the array. Returns `null` for an empty array.
 
-```lux
+```tova
 min([3, 1, 4, 1, 5])   // 1
 min(["c", "a", "b"])    // "a"
 min([])                  // null
@@ -280,13 +280,13 @@ min([])                  // null
 
 ### max
 
-```lux
+```tova
 max(arr) -> T | Nil
 ```
 
 Returns the maximum element in the array. Returns `null` for an empty array.
 
-```lux
+```tova
 max([3, 1, 4, 1, 5])   // 5
 max(["c", "a", "b"])    // "c"
 max([])                  // null
@@ -298,13 +298,13 @@ max([])                  // null
 
 ### find
 
-```lux
+```tova
 find(arr, fn) -> T | Nil
 ```
 
 Returns the first element where the function returns `true`. Returns `null` if no element matches.
 
-```lux
+```tova
 find([1, 2, 3, 4], fn(x) x > 2)
 // 3
 
@@ -317,13 +317,13 @@ find([1, 2, 3], fn(x) x > 10)
 
 ### any
 
-```lux
+```tova
 any(arr, fn) -> Bool
 ```
 
 Returns `true` if any element satisfies the predicate.
 
-```lux
+```tova
 any([1, 2, 3], fn(x) x > 2)       // true
 any([1, 2, 3], fn(x) x > 10)      // false
 any([], fn(x) true)                 // false
@@ -331,13 +331,13 @@ any([], fn(x) true)                 // false
 
 ### all
 
-```lux
+```tova
 all(arr, fn) -> Bool
 ```
 
 Returns `true` if all elements satisfy the predicate. Returns `true` for an empty array.
 
-```lux
+```tova
 all([2, 4, 6], fn(x) x % 2 == 0)  // true
 all([2, 3, 6], fn(x) x % 2 == 0)  // false
 all([], fn(x) false)                // true
@@ -349,13 +349,13 @@ all([], fn(x) false)                // true
 
 ### sorted
 
-```lux
+```tova
 sorted(arr, keyFn?) -> List
 ```
 
 Returns a sorted copy of the array. An optional key function specifies what to sort by.
 
-```lux
+```tova
 sorted([3, 1, 4, 1, 5])
 // [1, 1, 3, 4, 5]
 
@@ -372,65 +372,65 @@ sorted(items, fn(x) -x.price)
 
 ### reversed
 
-```lux
+```tova
 reversed(arr) -> List
 ```
 
 Returns a reversed copy of the array.
 
-```lux
+```tova
 reversed([1, 2, 3])    // [3, 2, 1]
 reversed("hello" |> chars())  // ["o", "l", "l", "e", "h"]
 ```
 
 ### take
 
-```lux
+```tova
 take(arr, n) -> List
 ```
 
 Returns the first `n` elements.
 
-```lux
+```tova
 take([1, 2, 3, 4, 5], 3)    // [1, 2, 3]
 take([1, 2], 10)              // [1, 2]
 ```
 
 ### drop
 
-```lux
+```tova
 drop(arr, n) -> List
 ```
 
 Returns the array with the first `n` elements removed.
 
-```lux
+```tova
 drop([1, 2, 3, 4, 5], 2)    // [3, 4, 5]
 drop([1, 2], 10)              // []
 ```
 
 ### first
 
-```lux
+```tova
 first(arr) -> T | Nil
 ```
 
 Returns the first element, or `null` if the array is empty.
 
-```lux
+```tova
 first([10, 20, 30])    // 10
 first([])               // null
 ```
 
 ### last
 
-```lux
+```tova
 last(arr) -> T | Nil
 ```
 
 Returns the last element, or `null` if the array is empty.
 
-```lux
+```tova
 last([10, 20, 30])     // 30
 last([])                // null
 ```
@@ -441,13 +441,13 @@ last([])                // null
 
 ### zip
 
-```lux
+```tova
 zip(...arrays) -> List[List]
 ```
 
 Combines multiple arrays into an array of tuples. Truncates to the length of the shortest array.
 
-```lux
+```tova
 zip([1, 2, 3], ["a", "b", "c"])
 // [[1, "a"], [2, "b"], [3, "c"]]
 
@@ -461,13 +461,13 @@ zip([1, 2, 3], ["a", "b"])
 
 ### partition
 
-```lux
+```tova
 partition(arr, fn) -> [List, List]
 ```
 
 Splits an array into two arrays: elements that pass the predicate and elements that fail it.
 
-```lux
+```tova
 partition([1, 2, 3, 4, 5], fn(x) x % 2 == 0)
 // [[2, 4], [1, 3, 5]]
 
@@ -476,13 +476,13 @@ evens, odds = partition(range(10), fn(x) x % 2 == 0)
 
 ### group_by
 
-```lux
+```tova
 group_by(arr, fn) -> Object
 ```
 
 Groups elements into an object by the key returned from the function.
 
-```lux
+```tova
 group_by(["apple", "avocado", "banana", "blueberry"], fn(s) chars(s) |> first())
 // { a: ["apple", "avocado"], b: ["banana", "blueberry"] }
 
@@ -496,7 +496,7 @@ group_by(users, fn(u) u.role)
 
 These functions compose beautifully with the pipe operator `|>`:
 
-```lux
+```tova
 // Find the top 3 most expensive items
 items
   |> sorted(fn(x) -x.price)

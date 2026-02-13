@@ -4,14 +4,14 @@ title: Contributing
 
 # Contributing
 
-This guide covers the Lux project architecture, how to add new language features, and how to contribute effectively.
+This guide covers the Tova project architecture, how to add new language features, and how to contribute effectively.
 
 ## Project Architecture
 
-Lux is a full-stack language that transpiles to JavaScript. The compiler is a four-stage pipeline:
+Tova is a full-stack language that transpiles to JavaScript. The compiler is a four-stage pipeline:
 
 ```
-Source Code (.lux)
+Source Code (.tova)
     |
     v
   Lexer        -->  Tokens
@@ -38,9 +38,9 @@ Each stage is a separate module in `src/`:
 ## Source Layout
 
 ```
-lux-lang/
+tova-lang/
   bin/
-    lux.js                  # CLI entry point (all commands)
+    tova.js                  # CLI entry point (all commands)
   src/
     lexer/
       lexer.js              # Tokenizer
@@ -78,7 +78,7 @@ lux-lang/
 
 ## How to Add a New Language Feature
 
-Adding a new feature to Lux involves changes across all four pipeline stages, plus tests. Here is the workflow:
+Adding a new feature to Tova involves changes across all four pipeline stages, plus tests. Here is the workflow:
 
 ### 1. Add Token(s)
 
@@ -98,7 +98,7 @@ In `src/lexer/lexer.js`, add the keyword mapping:
 
 ### 2. Define AST Node(s)
 
-In `src/parser/parser.js`, add parsing logic that produces the new AST node. Lux uses a recursive descent parser:
+In `src/parser/parser.js`, add parsing logic that produces the new AST node. Tova uses a recursive descent parser:
 
 ```javascript
 // Example: parsing a guard clause
@@ -162,7 +162,7 @@ Place tests in the `tests/` directory following the existing naming conventions.
 
 ## Running Tests
 
-Lux uses Bun's built-in test runner:
+Tova uses Bun's built-in test runner:
 
 ```bash
 # Run all tests
@@ -235,7 +235,7 @@ This produces Rust/Elm-style error messages with source context and caret marker
 
 When filing an issue, include:
 
-- A minimal `.lux` code sample that reproduces the problem
+- A minimal `.tova` code sample that reproduces the problem
 - The expected behavior
 - The actual behavior (error message, incorrect output, etc.)
 - Your Bun version (`bun --version`)

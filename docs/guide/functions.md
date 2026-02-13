@@ -1,12 +1,12 @@
 # Functions
 
-Functions are the primary building blocks in Lux. They are declared with the `fn` keyword and feature implicit returns, optional type annotations, and flexible parameter styles.
+Functions are the primary building blocks in Tova. They are declared with the `fn` keyword and feature implicit returns, optional type annotations, and flexible parameter styles.
 
 ## Basic Functions
 
 Declare a function with `fn`, a name, parameters in parentheses, and a body in curly braces:
 
-```lux
+```tova
 fn greet(name) {
   print("Hello, {name}!")
 }
@@ -18,7 +18,7 @@ greet("Alice")   // Hello, Alice!
 
 The last expression in a function body is automatically returned. No `return` keyword needed:
 
-```lux
+```tova
 fn add(a, b) {
   a + b
 }
@@ -26,7 +26,7 @@ fn add(a, b) {
 result = add(3, 4)   // 7
 ```
 
-```lux
+```tova
 fn full_name(first, last) {
   "{first} {last}"
 }
@@ -36,7 +36,7 @@ name = full_name("Alice", "Smith")   // "Alice Smith"
 
 For single-expression functions, this keeps things concise:
 
-```lux
+```tova
 fn double(x) {
   x * 2
 }
@@ -50,7 +50,7 @@ fn is_even(n) {
 
 Use `return` when you need to exit a function early:
 
-```lux
+```tova
 fn find_first_negative(numbers) {
   for n in numbers {
     if n < 0 {
@@ -61,7 +61,7 @@ fn find_first_negative(numbers) {
 }
 ```
 
-```lux
+```tova
 fn validate_age(age) {
   if age < 0 {
     return Err("Age cannot be negative")
@@ -77,7 +77,7 @@ fn validate_age(age) {
 
 Parameters can have default values. When a caller omits them, the defaults are used:
 
-```lux
+```tova
 fn greet(name, greeting = "Hello") {
   "{greeting}, {name}!"
 }
@@ -86,7 +86,7 @@ greet("Alice")            // "Hello, Alice!"
 greet("Alice", "Hey")     // "Hey, Alice!"
 ```
 
-```lux
+```tova
 fn create_user(name, role = "member", active = true) {
   { name: name, role: role, active: active }
 }
@@ -100,7 +100,7 @@ create_user("Carol", "editor", false)    // { name: "Carol", role: "editor", act
 
 Add type annotations to parameters and return types for documentation and type checking:
 
-```lux
+```tova
 fn add(a: Int, b: Int) -> Int {
   a + b
 }
@@ -116,7 +116,7 @@ fn is_adult(age: Int) -> Bool {
 
 The return type annotation uses `->` after the parameter list:
 
-```lux
+```tova
 fn divide(a: Float, b: Float) -> Result<Float, String> {
   if b == 0 {
     Err("Division by zero")
@@ -128,13 +128,13 @@ fn divide(a: Float, b: Float) -> Result<Float, String> {
 
 ## Lambdas (Anonymous Functions)
 
-Lux has two styles for anonymous functions.
+Tova has two styles for anonymous functions.
 
 ### `fn` Lambdas
 
 Use `fn(params) body` for inline anonymous functions:
 
-```lux
+```tova
 double = fn(x) x * 2
 add = fn(a, b) a + b
 
@@ -146,7 +146,7 @@ sum = numbers.reduce(fn(acc, x) acc + x, 0)     // 15
 
 For multi-line lambda bodies, use curly braces:
 
-```lux
+```tova
 process = fn(item) {
   cleaned = item.trim()
   validated = validate(cleaned)
@@ -158,7 +158,7 @@ process = fn(item) {
 
 For very short lambdas, use the arrow syntax:
 
-```lux
+```tova
 double = x => x * 2
 add = (a, b) => a + b
 
@@ -170,7 +170,7 @@ upper_names = names.map(x => x.upper())
 
 When calling functions with many parameters, you can use named arguments for clarity:
 
-```lux
+```tova
 fn create_server(host, port, debug) {
   // ...
 }
@@ -184,7 +184,7 @@ Functions can destructure objects and arrays directly in the parameter list.
 
 ### Object Destructuring
 
-```lux
+```tova
 fn greet_user({ name, age }) {
   "Hello, {name}! You are {age} years old."
 }
@@ -193,7 +193,7 @@ user = { name: "Alice", age: 30, email: "alice@example.com" }
 greet_user(user)   // "Hello, Alice! You are 30 years old."
 ```
 
-```lux
+```tova
 fn format_address({ street, city, state, zip }) {
   "{street}\n{city}, {state} {zip}"
 }
@@ -201,7 +201,7 @@ fn format_address({ street, city, state, zip }) {
 
 ### Array Destructuring
 
-```lux
+```tova
 fn distance([x1, y1], [x2, y2]) {
   dx = x2 - x1
   dy = y2 - y1
@@ -215,7 +215,7 @@ distance([0, 0], [3, 4])   // 5.0
 
 Prefix a function with `async` to make it asynchronous. Use `await` inside to wait for promises:
 
-```lux
+```tova
 async fn fetch_user(id) {
   response = await fetch("/api/users/{id}")
   data = await response.json()
@@ -232,9 +232,9 @@ See the [Async guide](async.md) for more details.
 
 ## Functions as Values
 
-Functions are first-class values in Lux. You can assign them to variables, pass them as arguments, and return them from other functions:
+Functions are first-class values in Tova. You can assign them to variables, pass them as arguments, and return them from other functions:
 
-```lux
+```tova
 fn apply_twice(f, x) {
   f(f(x))
 }
@@ -243,7 +243,7 @@ apply_twice(fn(x) x + 1, 5)    // 7
 apply_twice(fn(x) x * 2, 3)    // 12
 ```
 
-```lux
+```tova
 fn make_multiplier(factor) {
   fn(x) x * factor
 }
@@ -255,9 +255,9 @@ triple(10)   // 30
 
 ## Recursive Functions
 
-Functions can call themselves. Lux supports standard recursion:
+Functions can call themselves. Tova supports standard recursion:
 
-```lux
+```tova
 fn factorial(n) {
   if n <= 1 {
     1
@@ -269,7 +269,7 @@ fn factorial(n) {
 factorial(5)   // 120
 ```
 
-```lux
+```tova
 fn fibonacci(n) {
   match n {
     0 => 0
@@ -287,7 +287,7 @@ fn fibonacci(n) {
 
 **Use destructuring parameters** when a function operates on a specific shape of data. It makes the function signature self-documenting:
 
-```lux
+```tova
 // Instead of:
 fn send_email(user) {
   to = user.email

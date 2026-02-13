@@ -1,12 +1,12 @@
 # Routes
 
-Routes are the foundation of any Lux server. They map HTTP methods and URL paths to handler functions that process requests and return responses.
+Routes are the foundation of any Tova server. They map HTTP methods and URL paths to handler functions that process requests and return responses.
 
 ## Route Declaration
 
 Declare routes with the `route` keyword, followed by an HTTP method, a path, and a handler function:
 
-```lux
+```tova
 server {
   fn get_users() -> [User] {
     UserModel.all()
@@ -23,7 +23,7 @@ server {
 
 ## HTTP Methods
 
-Lux supports all standard HTTP methods:
+Tova supports all standard HTTP methods:
 
 | Method | Typical Use |
 |--------|-------------|
@@ -35,7 +35,7 @@ Lux supports all standard HTTP methods:
 | `HEAD` | Retrieve headers only |
 | `OPTIONS` | Preflight / capability checks |
 
-```lux
+```tova
 server {
   route GET "/api/users" => list_users
   route POST "/api/users" => create_user
@@ -51,7 +51,7 @@ server {
 
 Use `:param` syntax to capture dynamic segments from the URL. Parameters are extracted and passed as arguments to the handler:
 
-```lux
+```tova
 route GET "/users/:id" => get_user
 
 fn get_user(id: String) {
@@ -61,7 +61,7 @@ fn get_user(id: String) {
 
 With type annotations, path parameters are automatically validated and converted:
 
-```lux
+```tova
 fn get_user(id: Int) {
   // id is auto-parsed as Int; invalid values return a 400 error
   UserModel.find(id)
@@ -70,7 +70,7 @@ fn get_user(id: Int) {
 
 Multiple path parameters work as you would expect:
 
-```lux
+```tova
 route GET "/users/:user_id/posts/:post_id" => get_user_post
 
 fn get_user_post(user_id: Int, post_id: Int) {
@@ -82,13 +82,13 @@ fn get_user_post(user_id: Int, post_id: Int) {
 
 The `with` keyword attaches middleware or guard functions to specific routes. Guards run before the handler and can reject requests early:
 
-```lux
+```tova
 route GET "/admin/users" with auth => get_users
 ```
 
 Chain multiple guards with commas. They execute left to right:
 
-```lux
+```tova
 route DELETE "/users/:id" with auth, role("admin") => delete_user
 route PUT "/settings" with auth, rate_limit(10) => update_settings
 ```
@@ -99,7 +99,7 @@ If any guard rejects the request, subsequent guards and the handler do not run.
 
 Use `routes` to group routes under a shared path prefix. Groups can nest:
 
-```lux
+```tova
 routes "/api/v1" {
   route GET "/users" => get_users
   route POST "/users" => create_user
@@ -117,14 +117,14 @@ In this example, the nested routes resolve to `/api/v1/admin/stats` and `/api/v1
 
 Routes support wildcard parameters for capturing the remainder of a path:
 
-```lux
+```tova
 route GET "/files/*path" => serve_file     // *param captures the rest of the URL
 route GET "/proxy/*" => proxy_request      // trailing * is a catch-all
 ```
 
 The wildcard value is passed to the handler as a parameter:
 
-```lux
+```tova
 fn serve_file(path: String) {
   // path contains everything after /files/
   // e.g., /files/images/logo.png -> path = "images/logo.png"
@@ -134,11 +134,11 @@ fn serve_file(path: String) {
 
 ## Response Helpers
 
-Lux provides built-in functions for constructing common HTTP responses.
+Tova provides built-in functions for constructing common HTTP responses.
 
 ### JSON Responses
 
-```lux
+```tova
 respond(200, { data: users })           // JSON response with status 200
 respond(201, user)                       // JSON response with status 201
 respond(204, nil)                        // No content
@@ -148,20 +148,20 @@ respond(204, nil)                        // No content
 
 Pass a third argument to `respond` to include custom response headers:
 
-```lux
+```tova
 respond(200, data, { "X-Request-Id": req_id, "X-Total-Count": "42" })
 ```
 
 ### Redirects
 
-```lux
+```tova
 redirect("/login")                      // 302 temporary redirect (default)
 redirect("/login", 301)                 // 301 permanent redirect
 ```
 
 ### HTML and Text
 
-```lux
+```tova
 html("<h1>Hello, world!</h1>")          // HTML response with Content-Type: text/html
 text("plain text response")             // Text response with Content-Type: text/plain
 ```
@@ -174,7 +174,7 @@ Both `html` and `text` accept optional status code and header arguments.
 
 Use `with_headers` to attach headers to a response:
 
-```lux
+```tova
 response = respond(200, data)
 with_headers(response, {
   "X-Custom": "value",
@@ -186,7 +186,7 @@ with_headers(response, {
 
 `set_cookie` produces a cookie string. Attach it to the response via headers:
 
-```lux
+```tova
 cookie = set_cookie("session", token, {
   httpOnly: true,
   secure: true,
@@ -209,7 +209,7 @@ Common cookie options:
 
 Use `stream` to send chunked responses progressively:
 
-```lux
+```tova
 stream(fn(send, close) {
   send("chunk 1\n")
   send("chunk 2\n")
@@ -224,7 +224,7 @@ This is useful for large responses, real-time data feeds, or server-side renderi
 
 The `negotiate` function inspects the request's `Accept` header and dispatches to the appropriate formatter:
 
-```lux
+```tova
 fn get_user(req, id: Int) {
   user = UserModel.find(id)
   negotiate(req, user, {

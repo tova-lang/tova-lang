@@ -6,7 +6,7 @@ Server-Sent Events (SSE) provide a one-way channel from the server to the client
 
 Declare an SSE endpoint with the `sse` keyword, a path, and a handler function that receives `send` and `close` callbacks:
 
-```lux
+```tova
 server {
   sse "/events" fn(send, close) {
     send({ type: "connected", data: "Welcome" })
@@ -34,7 +34,7 @@ server {
 
 Each event sent to the client has a `type` (maps to the SSE event name) and `data` (the payload):
 
-```lux
+```tova
 send({ type: "notification", data: "You have a new message" })
 send({ type: "status", data: JSON.stringify({ online: 42, active: 18 }) })
 ```
@@ -61,9 +61,9 @@ source.addEventListener("error", (e) => {
 });
 ```
 
-In Lux client code, you can use the same API:
+In Tova client code, you can use the same API:
 
-```lux
+```tova
 client {
   source = EventSource.new("/events")
 
@@ -79,7 +79,7 @@ For more advanced use cases, SSE channels let you manage named streams of events
 
 ### Creating a Channel
 
-```lux
+```tova
 channel = sse_channel("updates")
 ```
 
@@ -87,20 +87,20 @@ channel = sse_channel("updates")
 
 Push data to all clients subscribed to the channel:
 
-```lux
+```tova
 channel.send({ type: "new_data", data: payload })
 ```
 
 ### Checking Subscriber Count
 
-```lux
+```tova
 count = channel.count()
 print("Active subscribers: {count}")
 ```
 
 ### Channel Example
 
-```lux
+```tova
 server {
   channel = sse_channel("orders")
 
@@ -124,7 +124,7 @@ server {
 
 A practical example of a real-time activity feed:
 
-```lux
+```tova
 server {
   activity_channel = sse_channel("activity")
 

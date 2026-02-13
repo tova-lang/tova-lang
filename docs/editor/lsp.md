@@ -4,14 +4,14 @@ title: LSP Server
 
 # LSP Server
 
-Lux includes a built-in Language Server Protocol (LSP) server that provides rich editor support. The server communicates via JSON-RPC over stdio and works with any LSP-compatible editor.
+Tova includes a built-in Language Server Protocol (LSP) server that provides rich editor support. The server communicates via JSON-RPC over stdio and works with any LSP-compatible editor.
 
 ## Starting the Server
 
 The LSP server is typically started by your editor automatically. You can also start it manually:
 
 ```bash
-lux lsp
+tova lsp
 ```
 
 Or directly:
@@ -24,14 +24,14 @@ bun run src/lsp/server.js
 
 ### Diagnostics
 
-The server analyzes `.lux` files on every change and reports errors and warnings in real time:
+The server analyzes `.tova` files on every change and reports errors and warnings in real time:
 
 - **Syntax errors** -- Invalid tokens, unexpected characters, malformed expressions
 - **Parse errors** -- Missing braces, incorrect block structure, invalid patterns
 - **Type warnings** -- Undefined identifiers, unused variables (in function scopes)
 - **Exhaustive match warnings** -- Uncovered Result/Option/custom type variants
 
-Diagnostics use Lux's rich error message system with precise source locations. The server supports parser error recovery, providing diagnostics for multiple errors in a single file rather than stopping at the first one.
+Diagnostics use Tova's rich error message system with precise source locations. The server supports parser error recovery, providing diagnostics for multiple errors in a single file rather than stopping at the first one.
 
 ### Completion
 
@@ -77,7 +77,7 @@ Built-in functions include full parameter documentation. User-defined functions 
 
 ### Document Formatting
 
-Format the entire document using the Lux formatter. This is the same formatter available via `lux fmt` on the command line.
+Format the entire document using the Tova formatter. This is the same formatter available via `tova fmt` on the command line.
 
 ### Rename
 
@@ -124,15 +124,15 @@ Using [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig):
 local lspconfig = require('lspconfig')
 local configs = require('lspconfig.configs')
 
-configs.lux = {
+configs.tova = {
   default_config = {
-    cmd = { 'bun', 'run', '/path/to/lux-lang/src/lsp/server.js' },
-    filetypes = { 'lux' },
+    cmd = { 'bun', 'run', '/path/to/tova-lang/src/lsp/server.js' },
+    filetypes = { 'tova' },
     root_dir = lspconfig.util.root_pattern('package.json', '.git'),
   },
 }
 
-lspconfig.lux.setup({})
+lspconfig.tova.setup({})
 ```
 
 Add a file type detection autocmd:
@@ -140,7 +140,7 @@ Add a file type detection autocmd:
 ```lua
 vim.filetype.add({
   extension = {
-    lux = 'lux',
+    tova = 'tova',
   },
 })
 ```
@@ -151,12 +151,12 @@ Using [lsp-mode](https://github.com/emacs-lsp/lsp-mode):
 
 ```elisp
 (with-eval-after-load 'lsp-mode
-  (add-to-list 'lsp-language-id-configuration '(lux-mode . "lux"))
+  (add-to-list 'lsp-language-id-configuration '(tova-mode . "tova"))
   (lsp-register-client
    (make-lsp-client
-    :new-connection (lsp-stdio-connection '("bun" "run" "/path/to/lux-lang/src/lsp/server.js"))
-    :major-modes '(lux-mode)
-    :server-id 'lux-ls)))
+    :new-connection (lsp-stdio-connection '("bun" "run" "/path/to/tova-lang/src/lsp/server.js"))
+    :major-modes '(tova-mode)
+    :server-id 'tova-ls)))
 ```
 
 ### Helix
@@ -165,14 +165,14 @@ In `languages.toml`:
 
 ```toml
 [[language]]
-name = "lux"
-scope = "source.lux"
-file-types = ["lux"]
-language-servers = ["lux-ls"]
+name = "tova"
+scope = "source.tova"
+file-types = ["tova"]
+language-servers = ["tova-ls"]
 
-[language-server.lux-ls]
+[language-server.tova-ls]
 command = "bun"
-args = ["run", "/path/to/lux-lang/src/lsp/server.js"]
+args = ["run", "/path/to/tova-lang/src/lsp/server.js"]
 ```
 
 ## Error Recovery

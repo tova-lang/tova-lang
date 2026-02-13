@@ -1,18 +1,18 @@
 # Objects & Utilities
 
-Lux provides functions for working with objects (key-value maps). These functions make it easy to inspect, transform, and combine objects.
+Tova provides functions for working with objects (key-value maps). These functions make it easy to inspect, transform, and combine objects.
 
 ## Inspecting Objects
 
 ### keys
 
-```lux
+```tova
 keys(obj) -> List[String]
 ```
 
 Returns an array of the object's keys.
 
-```lux
+```tova
 keys({ name: "Alice", age: 30 })
 // ["name", "age"]
 
@@ -20,7 +20,7 @@ keys({})
 // []
 ```
 
-```lux
+```tova
 // Check if an object has a specific key
 fn has_key(obj, key) {
   contains(keys(obj), key)
@@ -29,13 +29,13 @@ fn has_key(obj, key) {
 
 ### values
 
-```lux
+```tova
 values(obj) -> List
 ```
 
 Returns an array of the object's values.
 
-```lux
+```tova
 values({ name: "Alice", age: 30 })
 // ["Alice", 30]
 
@@ -45,18 +45,18 @@ values({ a: 1, b: 2, c: 3 }) |> sum()
 
 ### entries
 
-```lux
+```tova
 entries(obj) -> List[[String, T]]
 ```
 
 Returns an array of `[key, value]` pairs.
 
-```lux
+```tova
 entries({ name: "Alice", age: 30 })
 // [["name", "Alice"], ["age", 30]]
 ```
 
-```lux
+```tova
 // Convert object to formatted string
 config = { host: "localhost", port: 3000, debug: true }
 
@@ -73,13 +73,13 @@ config
 
 ### merge
 
-```lux
+```tova
 merge(...objs) -> Object
 ```
 
 Shallow-merges multiple objects together. Later objects override earlier ones for duplicate keys.
 
-```lux
+```tova
 merge({ a: 1 }, { b: 2 })
 // { a: 1, b: 2 }
 
@@ -97,13 +97,13 @@ merge(defaults, user_prefs, overrides)
 
 ### clone
 
-```lux
+```tova
 clone(obj) -> Object
 ```
 
 Creates a deep clone of an object. Nested objects and arrays are fully copied, not shared by reference.
 
-```lux
+```tova
 original = { name: "Alice", scores: [90, 85, 92] }
 copy = clone(original)
 
@@ -118,13 +118,13 @@ print(original.scores[0])   // 90
 
 ### freeze
 
-```lux
+```tova
 freeze(obj) -> Object
 ```
 
 Makes an object immutable. Any attempt to modify the object's properties after freezing will have no effect (in strict mode, it throws an error).
 
-```lux
+```tova
 config = freeze({
   api_url: "https://api.example.com",
   timeout: 5000,
@@ -134,7 +134,7 @@ config = freeze({
 // config.timeout = 10000  -- this would have no effect or throw
 ```
 
-```lux
+```tova
 // Freeze is useful for constants
 COLORS = freeze({
   red: "#ff0000",
@@ -149,7 +149,7 @@ COLORS = freeze({
 
 ### Building Objects from Arrays
 
-```lux
+```tova
 // Convert entries back to an object
 pairs = [["name", "Alice"], ["age", 30]]
 
@@ -161,7 +161,7 @@ result = reduce(pairs, fn(acc, pair) {
 
 ### Filtering Object Keys
 
-```lux
+```tova
 // Keep only specific keys
 fn pick(obj, wanted_keys) {
   entries(obj)
@@ -175,7 +175,7 @@ pick({ a: 1, b: 2, c: 3 }, ["a", "c"])
 
 ### Transforming Values
 
-```lux
+```tova
 // Double all numeric values in an object
 scores = { math: 85, science: 92, english: 78 }
 

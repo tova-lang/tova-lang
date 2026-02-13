@@ -38,8 +38,8 @@ function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { re
 const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });
 
 function __propagate(val) {
-  if (val && val.__tag === "Err") throw { __lux_propagate: true, value: val };
-  if (val && val.__tag === "None") throw { __lux_propagate: true, value: val };
+  if (val && val.__tag === "Err") throw { __tova_propagate: true, value: val };
+  if (val && val.__tag === "None") throw { __tova_propagate: true, value: val };
   if (val && val.__tag === "Ok") return val.value;
   if (val && val.__tag === "Some") return val.value;
   return val;
@@ -121,14 +121,14 @@ describe('Codegen — ? operator', () => {
   test('? on function body generates try/catch wrapper', () => {
     const code = compileShared('fn test() { foo()? }');
     expect(code).toContain('try {');
-    expect(code).toContain('__lux_propagate');
+    expect(code).toContain('__tova_propagate');
     expect(code).toContain('catch (__e)');
   });
 
   test('function without ? has no try/catch wrapper', () => {
     const code = compileShared('fn test() { foo() }');
     expect(code).not.toContain('try {');
-    expect(code).not.toContain('__lux_propagate');
+    expect(code).not.toContain('__tova_propagate');
   });
 
   test('nested f(a()?, b) generates correctly', () => {
@@ -140,13 +140,13 @@ describe('Codegen — ? operator', () => {
     const code = compileShared('handler = fn(x) { foo(x)? }');
     expect(code).toContain('__propagate(foo(x))');
     expect(code).toContain('try {');
-    expect(code).toContain('__lux_propagate');
+    expect(code).toContain('__tova_propagate');
   });
 
   test('expression lambda with ? gets try/catch wrapper', () => {
     const code = compileShared('handler = fn(x) foo(x)?');
     expect(code).toContain('__propagate(foo(x))');
-    expect(code).toContain('__lux_propagate');
+    expect(code).toContain('__tova_propagate');
   });
 
   test('Result/Option helper is included in shared output', () => {
@@ -419,7 +419,7 @@ describe('Runtime — __propagate', () => {
       __propagate(Err('fail'));
       expect(true).toBe(false); // should not reach
     } catch (e) {
-      expect(e.__lux_propagate).toBe(true);
+      expect(e.__tova_propagate).toBe(true);
       expect(e.value.__tag).toBe('Err');
       expect(e.value.error).toBe('fail');
     }
@@ -430,7 +430,7 @@ describe('Runtime — __propagate', () => {
       __propagate(None);
       expect(true).toBe(false);
     } catch (e) {
-      expect(e.__lux_propagate).toBe(true);
+      expect(e.__tova_propagate).toBe(true);
       expect(e.value.__tag).toBe('None');
     }
   });
@@ -447,7 +447,7 @@ describe('Runtime — __propagate', () => {
         const val = __propagate(result);
         return Ok(val + 1);
       } catch (__e) {
-        if (__e && __e.__lux_propagate) return __e.value;
+        if (__e && __e.__tova_propagate) return __e.value;
         throw __e;
       }
     }
@@ -467,7 +467,7 @@ describe('Runtime — __propagate', () => {
         const val = __propagate(option);
         return Some(val * 2);
       } catch (__e) {
-        if (__e && __e.__lux_propagate) return __e.value;
+        if (__e && __e.__tova_propagate) return __e.value;
         throw __e;
       }
     }
@@ -485,7 +485,7 @@ describe('Runtime — __propagate', () => {
       try {
         throw new Error('real error');
       } catch (__e) {
-        if (__e && __e.__lux_propagate) return __e.value;
+        if (__e && __e.__tova_propagate) return __e.value;
         throw __e;
       }
     }

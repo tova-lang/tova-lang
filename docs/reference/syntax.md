@@ -1,12 +1,12 @@
 # Syntax
 
-This page documents the lexical elements of the Lux programming language -- the fundamental building blocks from which all programs are composed.
+This page documents the lexical elements of the Tova programming language -- the fundamental building blocks from which all programs are composed.
 
 ## Comments
 
-Lux supports three styles of comments:
+Tova supports three styles of comments:
 
-```lux
+```tova
 // Line comment -- everything to the end of the line is ignored
 
 /// Docstring comment -- preserved as metadata for tooling
@@ -17,7 +17,7 @@ Lux supports three styles of comments:
 
 Block comments are **nestable**. The following is valid:
 
-```lux
+```tova
 /* outer comment
    /* nested comment */
    still in the outer comment
@@ -47,7 +47,7 @@ Unicode letters are also supported in identifiers for international use.
 
 ### Integers and Floats
 
-```lux
+```tova
 42              // integer
 3.14            // float
 0               // zero
@@ -57,14 +57,14 @@ Unicode letters are also supported in identifiers for international use.
 
 Underscores can be placed between digits for readability. They are ignored by the compiler:
 
-```lux
+```tova
 1_000_000       // one million
 3.141_592_653   // pi with separators
 ```
 
 ### Alternate Bases
 
-```lux
+```tova
 0xFF            // hexadecimal (255)
 0XFF            // uppercase prefix also valid
 0b1010          // binary (10)
@@ -75,7 +75,7 @@ Underscores can be placed between digits for readability. They are ignored by th
 
 Underscore separators work with alternate bases as well:
 
-```lux
+```tova
 0xFF_FF         // hex with separator
 0b1010_0101     // binary with separator
 0o77_55         // octal with separator
@@ -83,7 +83,7 @@ Underscore separators work with alternate bases as well:
 
 ### Scientific Notation
 
-```lux
+```tova
 1.5e10          // 1.5 * 10^10
 2.5E-3          // 2.5 * 10^-3
 1e6             // 1_000_000
@@ -92,13 +92,13 @@ Underscore separators work with alternate bases as well:
 
 ## String Literals
 
-Lux has two kinds of string literals, distinguished by their quote character.
+Tova has two kinds of string literals, distinguished by their quote character.
 
 ### Double-Quoted Strings (with interpolation)
 
 Double-quoted strings support **string interpolation** using `{expression}`:
 
-```lux
+```tova
 name = "Alice"
 greeting = "Hello, {name}!"             // "Hello, Alice!"
 math = "1 + 2 = {1 + 2}"               // "1 + 2 = 3"
@@ -106,13 +106,13 @@ nested = "Items: {len(items)}"           // function calls in interpolation
 complex = "Result: {if x > 0 { "positive" } else { "negative" }}"
 ```
 
-Any valid Lux expression can appear inside `{...}` within a double-quoted string.
+Any valid Tova expression can appear inside `{...}` within a double-quoted string.
 
 ### Single-Quoted Strings (no interpolation)
 
 Single-quoted strings are literal -- no interpolation is performed:
 
-```lux
+```tova
 pattern = 'no {interpolation} here'     // literal text: no {interpolation} here
 regex_like = 'hello\nworld'             // escape sequences still work
 ```
@@ -133,7 +133,7 @@ Both string types support the following escape sequences:
 
 Example:
 
-```lux
+```tova
 escaped = "She said \"hello\""
 path = "C:\\Users\\name"
 literal_brace = "Use \{curly braces\} literally"
@@ -143,7 +143,7 @@ literal_brace = "Use \{curly braces\} literally"
 
 The two boolean values:
 
-```lux
+```tova
 is_active = true
 is_deleted = false
 ```
@@ -154,7 +154,7 @@ Booleans are their own type (`Bool`), distinct from integers. There is no implic
 
 The `nil` literal represents the absence of a value:
 
-```lux
+```tova
 result = nil
 ```
 
@@ -162,10 +162,10 @@ result = nil
 
 ## Semicolons
 
-Semicolons are **optional** in Lux. Newlines serve as statement terminators:
+Semicolons are **optional** in Tova. Newlines serve as statement terminators:
 
-```lux
-// Idiomatic Lux -- no semicolons needed
+```tova
+// Idiomatic Tova -- no semicolons needed
 x = 10
 y = 20
 z = x + y
@@ -173,7 +173,7 @@ z = x + y
 
 Semicolons can be used to place multiple statements on a single line:
 
-```lux
+```tova
 x = 10; y = 20; z = x + y
 ```
 
@@ -183,7 +183,7 @@ In practice, semicolons are rarely used. The convention is to write one statemen
 
 The last expression in a function body is automatically returned. There is no need for an explicit `return` statement:
 
-```lux
+```tova
 fn double(x) {
   x * 2            // implicitly returned
 }
@@ -195,7 +195,7 @@ fn greet(name) {
 
 Explicit `return` is supported for early exits:
 
-```lux
+```tova
 fn abs(x) {
   if x < 0 {
     return -x
@@ -208,9 +208,9 @@ When a function body ends with a statement that has no value (such as a `for` lo
 
 ## Newline Sensitivity
 
-Lux is newline-sensitive in certain contexts. A `[` on a new line is **not** treated as a subscript of the previous expression:
+Tova is newline-sensitive in certain contexts. A `[` on a new line is **not** treated as a subscript of the previous expression:
 
-```lux
+```tova
 x = foo
 [1, 2, 3]       // this is a new array expression, NOT foo[1, 2, 3]
 ```

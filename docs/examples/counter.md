@@ -4,13 +4,13 @@ title: Counter App
 
 # Counter App
 
-A client-only reactive counter that demonstrates Lux's reactivity system, computed values, pattern matching, and JSX components.
+A client-only reactive counter that demonstrates Tova's reactivity system, computed values, pattern matching, and JSX components.
 
 ## Full Code
 
-Create `counter.lux`:
+Create `counter.tova`:
 
-```lux
+```tova
 client {
   // Reactive state -- the single source of truth
   state count = 0
@@ -31,7 +31,7 @@ client {
     <div class="app">
       <header>
         <h1>"Counter"</h1>
-        <p class="subtitle">"Lux Reactivity Demo"</p>
+        <p class="subtitle">"Tova Reactivity Demo"</p>
       </header>
 
       <div class="counter-section">
@@ -53,7 +53,7 @@ client {
 Run the dev server:
 
 ```bash
-lux dev .
+tova dev .
 ```
 
 Open `http://localhost:3000` in your browser.
@@ -62,7 +62,7 @@ Open `http://localhost:3000` in your browser.
 
 ### Reactive State
 
-```lux
+```tova
 state count = 0
 ```
 
@@ -70,7 +70,7 @@ The `state` keyword creates a reactive variable. When `count` changes, anything 
 
 ### Computed Values
 
-```lux
+```tova
 computed doubled = count * 2
 ```
 
@@ -78,7 +78,7 @@ A `computed` value is derived from reactive state. It re-calculates whenever its
 
 ### Pattern Matching in Computed
 
-```lux
+```tova
 computed message = match count {
   0 => "Click to start counting"
   1 => "You clicked once"
@@ -98,7 +98,7 @@ The `message` computed value re-evaluates whenever `count` changes, automaticall
 
 ### JSX Components
 
-```lux
+```tova
 component App {
   <div class="app">
     <h1>"Counter"</h1>
@@ -117,7 +117,7 @@ Components use JSX syntax. Key points:
 
 ### Event Handlers
 
-```lux
+```tova
 <button onclick={fn() count = count - 1}>"-"</button>
 <button onclick={fn() count = 0}>"Reset"</button>
 <button onclick={fn() count = count + 1}>"+"</button>
@@ -129,7 +129,7 @@ Event handlers are anonymous functions using `fn()` syntax. Assigning to a `stat
 2. `doubled` and `message` recompute
 3. The DOM updates to reflect new values
 
-There is no manual DOM manipulation, no `setState` call, and no virtual DOM diffing. Lux's fine-grained reactivity updates only the specific DOM nodes that changed.
+There is no manual DOM manipulation, no `setState` call, and no virtual DOM diffing. Tova's fine-grained reactivity updates only the specific DOM nodes that changed.
 
 ## What's Next
 

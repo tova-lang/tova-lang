@@ -4,13 +4,13 @@ title: Database & Models
 
 # Database & Models
 
-Lux includes a built-in ORM for database operations. This example demonstrates database configuration, model definitions, CRUD routes, and query patterns.
+Tova includes a built-in ORM for database operations. This example demonstrates database configuration, model definitions, CRUD routes, and query patterns.
 
 ## Full Code
 
-Create `blog.lux`:
+Create `blog.tova`:
 
-```lux
+```tova
 shared {
   type Post {
     id: Int
@@ -251,14 +251,14 @@ client {
 Run it:
 
 ```bash
-lux dev .
+tova dev .
 ```
 
 ## Walkthrough
 
 ### Database Configuration
 
-```lux
+```tova
 server {
   db {
     adapter: "sqlite"
@@ -276,7 +276,7 @@ The `db` block configures the database connection. Supported adapters include:
 
 For PostgreSQL, provide a connection string:
 
-```lux
+```tova
 db {
   adapter: "postgres"
   url: process.env["DATABASE_URL"]
@@ -285,7 +285,7 @@ db {
 
 ### Model Definitions
 
-```lux
+```tova
 model Author {
   name: String
   email: String
@@ -300,7 +300,7 @@ model Post {
 }
 ```
 
-A `model` defines the fields and their types. Lux generates a database table and provides ORM methods on the model.
+A `model` defines the fields and their types. Tova generates a database table and provides ORM methods on the model.
 
 The `id` field is automatically added as an auto-incrementing primary key -- you do not need to declare it.
 
@@ -320,7 +320,7 @@ Each model provides these built-in query methods:
 
 ### Creating Records
 
-```lux
+```tova
 fn create_post(req, title, body) -> Post {
   Post.create({
     title: title,
@@ -336,7 +336,7 @@ fn create_post(req, title, body) -> Post {
 
 ### Querying Records
 
-```lux
+```tova
 // Find all published posts
 fn list_posts() -> [Post] {
   Post.where({ published: true })
@@ -361,9 +361,9 @@ Use `where` for filtered queries and pipe the results through standard library f
 
 ### Relations
 
-While Lux does not have a formal `has_many` / `belongs_to` DSL, you can model relations through foreign key fields and manual joins:
+While Tova does not have a formal `has_many` / `belongs_to` DSL, you can model relations through foreign key fields and manual joins:
 
-```lux
+```tova
 // Author has many Posts (via author_id)
 fn posts_by_author(author_id) -> [Post] {
   Post.where({ author_id: author_id, published: true })
@@ -379,7 +379,7 @@ fn get_post(id) -> PostWithAuthor {
 
 ### Authorization Guards
 
-```lux
+```tova
 fn update_post(req, id, title, body) -> Post {
   post = Post.find(id)
   guard post != nil else {
@@ -405,7 +405,7 @@ Each guard clause short-circuits the function with an error if the condition fai
 
 ### Search Patterns
 
-```lux
+```tova
 fn search_posts(query) -> [Post] {
   Post.where({ published: true })
     |> filter(fn(p) {
@@ -422,13 +422,13 @@ Use the migration commands to manage database schema changes:
 
 ```bash
 # Create a new migration
-lux migrate:create add_posts_table
+tova migrate:create add_posts_table
 
 # Run pending migrations
-lux migrate:up
+tova migrate:up
 
 # Check migration status
-lux migrate:status
+tova migrate:status
 ```
 
 See the [CLI Reference](../tooling/cli.md) for more details on migration commands.

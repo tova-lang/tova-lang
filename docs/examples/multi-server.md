@@ -4,13 +4,13 @@ title: Multi-Server Architecture
 
 # Multi-Server Architecture
 
-Lux supports named server blocks that compile to independent processes, each running on its own port. This enables separation of concerns for complex applications.
+Tova supports named server blocks that compile to independent processes, each running on its own port. This enables separation of concerns for complex applications.
 
 ## Full Code
 
-Create `app.lux`:
+Create `app.tova`:
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -193,7 +193,7 @@ client {
 Run it:
 
 ```bash
-lux dev .
+tova dev .
 ```
 
 Output:
@@ -211,7 +211,7 @@ Output:
 
 ### Named Server Blocks
 
-```lux
+```tova
 server "api" {
   // REST API server
 }
@@ -231,7 +231,7 @@ Each named server block compiles to a separate JavaScript file and runs as its o
 Ports increment automatically from the base port. Override them with environment variables:
 
 ```bash
-PORT_API=4000 PORT_EVENTS=4001 lux dev .
+PORT_API=4000 PORT_EVENTS=4001 tova dev .
 ```
 
 ### Why Separate Servers?
@@ -248,7 +248,7 @@ Separating concerns into named server blocks provides several benefits:
 
 ### Database and Models
 
-```lux
+```tova
 server "api" {
   db {
     adapter: "sqlite"
@@ -266,7 +266,7 @@ The `db` block configures the database connection. The `model` keyword defines a
 
 ### Middleware Stack
 
-```lux
+```tova
 middleware cors(req, res) { ... }
 middleware auth(req, res) { ... }
 middleware rate_limit(req, res) { ... }
@@ -280,7 +280,7 @@ Middleware functions run before route handlers. They can:
 
 ### WebSocket Server
 
-```lux
+```tova
 server "events" {
   mut connections = []
 
@@ -314,7 +314,7 @@ The events server manages WebSocket connections:
 
 ### Client Connecting to Multiple Servers
 
-```lux
+```tova
 client {
   // REST API call to server:api
   effect {

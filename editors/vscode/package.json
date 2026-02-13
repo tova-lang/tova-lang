@@ -1,9 +1,9 @@
 {
-  "name": "lux-lang",
-  "displayName": "Lux Language",
-  "description": "Language support for the Lux programming language",
+  "name": "tova-lang",
+  "displayName": "Tova Language",
+  "description": "Language support for the Tova programming language",
   "version": "0.1.0",
-  "publisher": "lux-lang",
+  "publisher": "tova-lang",
   "engines": {
     "vscode": "^1.75.0"
   },
@@ -11,28 +11,28 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:lux"
+    "onLanguage:tova"
   ],
   "main": "./extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "lux",
+        "id": "tova",
         "aliases": [
-          "Lux",
-          "lux"
+          "Tova",
+          "tova"
         ],
         "extensions": [
-          ".lux"
+          ".tova"
         ],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "lux",
-        "scopeName": "source.lux",
-        "path": "./syntaxes/lux.tmLanguage.json"
+        "language": "tova",
+        "scopeName": "source.tova",
+        "path": "./syntaxes/tova.tmLanguage.json"
       }
     ]
   }

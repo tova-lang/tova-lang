@@ -4,20 +4,20 @@ title: VS Code Extension
 
 # VS Code Extension
 
-The Lux VS Code extension provides full language support for `.lux` files, including syntax highlighting, real-time diagnostics, code completion, and navigation.
+The Tova VS Code extension provides full language support for `.tova` files, including syntax highlighting, real-time diagnostics, code completion, and navigation.
 
 ## Installation
 
 ### From the Marketplace
 
-Search for "Lux Language" in the VS Code Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`) and click Install.
+Search for "Tova Language" in the VS Code Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`) and click Install.
 
 ### Local Installation
 
 To install from the source repository:
 
 ```bash
-# From the lux-lang repository root
+# From the tova-lang repository root
 cd editors/vscode
 npm install
 code --install-extension .
@@ -28,14 +28,14 @@ Or package it as a `.vsix` file:
 ```bash
 cd editors/vscode
 npx vsce package
-code --install-extension lux-lang-0.1.0.vsix
+code --install-extension tova-lang-0.1.0.vsix
 ```
 
 ## Features
 
 ### Syntax Highlighting
 
-The extension uses a TextMate grammar (`syntaxes/lux.tmLanguage.json`) to provide syntax highlighting for all Lux constructs:
+The extension uses a TextMate grammar (`syntaxes/tova.tmLanguage.json`) to provide syntax highlighting for all Tova constructs:
 
 - Keywords (`fn`, `let`, `if`, `elif`, `else`, `match`, `for`, `while`, `return`, etc.)
 - Block keywords (`shared`, `server`, `client`)
@@ -47,7 +47,7 @@ The extension uses a TextMate grammar (`syntaxes/lux.tmLanguage.json`) to provid
 
 ### LSP Integration
 
-The extension automatically starts the Lux Language Server when you open a `.lux` file. This provides:
+The extension automatically starts the Tova Language Server when you open a `.tova` file. This provides:
 
 - **Diagnostics** -- Real-time error and warning markers as you type. Syntax errors, type warnings, and unused variable warnings appear inline with squiggly underlines and in the Problems panel.
 
@@ -69,7 +69,7 @@ The extension automatically starts the Lux Language Server when you open a `.lux
 
 ## File Association
 
-The extension automatically associates `.lux` files with the Lux language. Files with the `.lux` extension will use Lux syntax highlighting and LSP features.
+The extension automatically associates `.tova` files with the Tova language. Files with the `.tova` extension will use Tova syntax highlighting and LSP features.
 
 The language configuration (`language-configuration.json`) defines:
 
@@ -92,8 +92,8 @@ The extension works with default settings out of the box. The LSP server is loca
 If the language server fails to start:
 
 1. Verify Bun is installed: `bun --version`
-2. Check the Output panel in VS Code (select "Lux Language Server" from the dropdown)
-3. Ensure the `lux-lang` package is properly installed
+2. Check the Output panel in VS Code (select "Tova Language Server" from the dropdown)
+3. Ensure the `tova-lang` package is properly installed
 
 The LSP server includes crash recovery -- uncaught exceptions are logged rather than crashing the server process, so the extension should remain responsive even when processing files with errors.
 
@@ -104,8 +104,8 @@ The extension consists of:
 | File | Purpose |
 |------|---------|
 | `package.json` | Extension manifest, language contribution points |
-| `extension.js` | LSP client that spawns the Lux language server |
+| `extension.js` | LSP client that spawns the Tova language server |
 | `language-configuration.json` | Bracket matching, comment toggling, indentation |
-| `syntaxes/lux.tmLanguage.json` | TextMate grammar for syntax highlighting |
+| `syntaxes/tova.tmLanguage.json` | TextMate grammar for syntax highlighting |
 
 The LSP client communicates with the server via stdio using the standard Language Server Protocol.

@@ -1,7 +1,7 @@
 // RPC bridge — client calls to server functions are auto-routed via HTTP
 
 const RPC_BASE = typeof window !== 'undefined'
-  ? (window.__LUX_RPC_BASE || '')
+  ? (window.__TOVA_RPC_BASE || '')
   : 'http://localhost:3000';
 
 export async function rpc(functionName, args = []) {
@@ -41,6 +41,6 @@ export async function rpc(functionName, args = []) {
 // Configure RPC base URL
 export function configureRPC(baseUrl) {
   if (typeof window !== 'undefined') {
-    window.__LUX_RPC_BASE = baseUrl;
+    window.__TOVA_RPC_BASE = baseUrl;
   }
 }

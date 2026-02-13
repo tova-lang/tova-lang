@@ -40,12 +40,12 @@ describe('Module System — Parser', () => {
     expect(node.source).toBe('utils.js');
   });
 
-  test('parses wildcard import with .lux source', () => {
-    const ast = parse('import * as math from "./math.lux"');
+  test('parses wildcard import with .tova source', () => {
+    const ast = parse('import * as math from "./math.tova"');
     const node = ast.body[0];
     expect(node.type).toBe('ImportWildcard');
     expect(node.local).toBe('math');
-    expect(node.source).toBe('./math.lux');
+    expect(node.source).toBe('./math.tova');
   });
 
   test('pub fn parsed with isPublic flag', () => {
@@ -182,9 +182,9 @@ describe('Module System — Codegen (wildcard imports)', () => {
     expect(output).toBe('import * as utils from "utils.js";');
   });
 
-  test('generates import * as for .lux source', () => {
-    const output = codegen('import * as math from "./math.lux"');
-    expect(output).toBe('import * as math from "./math.lux";');
+  test('generates import * as for .tova source', () => {
+    const output = codegen('import * as math from "./math.tova"');
+    expect(output).toBe('import * as math from "./math.tova";');
   });
 });
 

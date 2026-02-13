@@ -194,7 +194,7 @@ describe('LSP: Formatting', () => {
   });
 
   test('formatter handles imports', () => {
-    const source = `import { foo, bar } from "./module.lux"`;
+    const source = `import { foo, bar } from "./module.tova"`;
     const lexer = new Lexer(source, '<test>');
     const tokens = lexer.tokenize();
     const parser = new Parser(tokens, '<test>');

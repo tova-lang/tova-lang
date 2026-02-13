@@ -4,29 +4,29 @@ title: CLI Reference
 
 # CLI Reference
 
-The `lux` command-line interface is the primary tool for developing, building, and running Lux applications. It runs on [Bun](https://bun.sh) and is located at `bin/lux.js`.
+The `tova` command-line interface is the primary tool for developing, building, and running Tova applications. It runs on [Bun](https://bun.sh) and is located at `bin/tova.js`.
 
 ## Installation
 
 ```bash
-bun install lux-lang
+bun install tova-lang
 ```
 
-After installation, the `lux` command is available globally (or via `bunx lux`).
+After installation, the `tova` command is available globally (or via `bunx tova`).
 
 ## Commands
 
-### `lux new <name>`
+### `tova new <name>`
 
-Scaffold a new Lux project.
+Scaffold a new Tova project.
 
 ```bash
-lux new my-app
+tova new my-app
 ```
 
 This creates a project directory with:
 
-- `src/app.lux` -- a starter full-stack application with shared types, a server route, and a reactive client
+- `src/app.tova` -- a starter full-stack application with shared types, a server route, and a reactive client
 - `package.json` -- configured with `dev` and `build` scripts
 - `README.md` -- basic project documentation
 
@@ -38,19 +38,19 @@ bun install
 bun run dev
 ```
 
-### `lux run <file>`
+### `tova run <file>`
 
-Compile and execute a single `.lux` file with Bun. The full standard library is automatically available.
+Compile and execute a single `.tova` file with Bun. The full standard library is automatically available.
 
 ```bash
-lux run src/app.lux
-lux run src/app.lux --debug
+tova run src/app.tova
+tova run src/app.tova --debug
 ```
 
-You can also pass a `.lux` file directly without the `run` subcommand:
+You can also pass a `.tova` file directly without the `run` subcommand:
 
 ```bash
-lux app.lux
+tova app.tova
 ```
 
 **Flags:**
@@ -59,15 +59,15 @@ lux app.lux
 |------|-------------|
 | `--debug` | Show verbose error output with full stack traces |
 
-### `lux build [dir]`
+### `tova build [dir]`
 
-Compile all `.lux` files in a directory to JavaScript. The default source directory is the current directory, and output goes to `.lux-out/`.
+Compile all `.tova` files in a directory to JavaScript. The default source directory is the current directory, and output goes to `.tova-out/`.
 
 ```bash
-lux build
-lux build src
-lux build src --output dist
-lux build src --production
+tova build
+tova build src
+tova build src --output dist
+tova build src --production
 ```
 
 **Output structure:**
@@ -84,21 +84,21 @@ lux build src --production
 
 | Flag | Description |
 |------|-------------|
-| `--output`, `-o` | Output directory (default: `.lux-out`) |
+| `--output`, `-o` | Output directory (default: `.tova-out`) |
 | `--production` | Production build with bundling, content hashing, and minification |
 | `--debug` | Verbose error output |
 
-### `lux dev [dir]`
+### `tova dev [dir]`
 
 Start the development server with automatic file watching and rebuilds.
 
 ```bash
-lux dev
-lux dev src
-lux dev src --port 8080
+tova dev
+tova dev src
+tova dev src --port 8080
 ```
 
-The dev server compiles all `.lux` files, starts server processes, serves client HTML, and watches for file changes with automatic rebuilds.
+The dev server compiles all `.tova` files, starts server processes, serves client HTML, and watches for file changes with automatic rebuilds.
 
 **Flags:**
 
@@ -109,27 +109,27 @@ The dev server compiles all `.lux` files, starts server processes, serves client
 
 See [Dev Server](./dev-server.md) for more details.
 
-### `lux repl`
+### `tova repl`
 
 Start an interactive Read-Eval-Print Loop.
 
 ```bash
-lux repl
+tova repl
 ```
 
 The REPL supports multi-line input, full standard library access, and special commands like `:quit`, `:help`, and `:clear`.
 
 See [REPL](./repl.md) for more details.
 
-### `lux test [dir]`
+### `tova test [dir]`
 
-Discover and run `test` blocks in `.lux` files.
+Discover and run `test` blocks in `.tova` files.
 
 ```bash
-lux test
-lux test src
-lux test --filter "math"
-lux test --watch
+tova test
+tova test src
+tova test --filter "math"
+tova test --watch
 ```
 
 **Flags:**
@@ -141,14 +141,14 @@ lux test --watch
 
 See [Test Runner](./test-runner.md) for more details.
 
-### `lux fmt [files]`
+### `tova fmt [files]`
 
-Format `.lux` source files for consistent style.
+Format `.tova` source files for consistent style.
 
 ```bash
-lux fmt src/app.lux
-lux fmt src/app.lux src/utils.lux
-lux fmt src/app.lux --check
+tova fmt src/app.tova
+tova fmt src/app.tova src/utils.tova
+tova fmt src/app.tova --check
 ```
 
 **Flags:**
@@ -159,46 +159,46 @@ lux fmt src/app.lux --check
 
 See [Formatter](./formatter.md) for more details.
 
-### `lux lsp`
+### `tova lsp`
 
 Start the Language Server Protocol server. This is typically invoked by editors rather than run directly.
 
 ```bash
-lux lsp
+tova lsp
 ```
 
 The LSP communicates via JSON-RPC over stdio and provides diagnostics, completion, go-to-definition, hover, and signature help.
 
 See [LSP Server](../editor/lsp.md) for more details.
 
-### `lux migrate:create <name>`
+### `tova migrate:create <name>`
 
 Create a new migration file in the `migrations/` directory.
 
 ```bash
-lux migrate:create add_users_table
+tova migrate:create add_users_table
 ```
 
 This generates a timestamped migration file like `20260213143022_add_users_table.js` with `up` and `down` SQL templates.
 
-### `lux migrate:up [file]`
+### `tova migrate:up [file]`
 
-Run all pending migrations against the database configured in your `.lux` file.
+Run all pending migrations against the database configured in your `.tova` file.
 
 ```bash
-lux migrate:up
-lux migrate:up src/app.lux
+tova migrate:up
+tova migrate:up src/app.tova
 ```
 
-The command reads the `db` configuration from the specified `.lux` file (or auto-discovers `main.lux` / `app.lux`), creates a `__migrations` tracking table if needed, and executes any unapplied migration files in order.
+The command reads the `db` configuration from the specified `.tova` file (or auto-discovers `main.tova` / `app.tova`), creates a `__migrations` tracking table if needed, and executes any unapplied migration files in order.
 
-### `lux migrate:status [file]`
+### `tova migrate:status [file]`
 
 Show the current status of all migrations.
 
 ```bash
-lux migrate:status
-lux migrate:status src/app.lux
+tova migrate:status
+tova migrate:status src/app.tova
 ```
 
 Displays each migration file with its status (`applied` with timestamp, or `pending`).
@@ -208,7 +208,7 @@ Displays each migration file with its status (`applied` with timestamp, or `pend
 | Flag | Description |
 |------|-------------|
 | `--help`, `-h` | Show help message |
-| `--version`, `-v` | Show Lux version |
+| `--version`, `-v` | Show Tova version |
 | `--debug` | Verbose error output (available on most commands) |
 
 ## Environment Variables

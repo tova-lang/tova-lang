@@ -1,4 +1,4 @@
-// Comprehensive runtime test coverage for Lux language
+// Comprehensive runtime test coverage for Tova language
 // Covers: signal edge cases, effect cleanup, computed diamond dependencies,
 // batch edge cases, DOM patching, router query params, RPC, SSR, string-proto,
 // context API, ownership/disposal, keyed reconciliation, error boundary,
@@ -7,11 +7,11 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import {
   createSignal, createEffect, createComputed,
-  lux_el, lux_fragment, lux_keyed, render, mount, hydrate,
+  tova_el, tova_fragment, tova_keyed, render, mount, hydrate,
   batch, onMount, onUnmount, onCleanup,
   createRef, createContext, provide, inject,
   createErrorBoundary, ErrorBoundary, createRoot,
-  watch, untrack, Dynamic, Portal, lazy, lux_inject_css
+  watch, untrack, Dynamic, Portal, lazy, tova_inject_css
 } from '../src/runtime/reactivity.js';
 import { renderToString, renderPage } from '../src/runtime/ssr.js';
 import {
@@ -535,22 +535,22 @@ describe('DOM patching — attribute removal', () => {
     const [showTitle, setShowTitle] = createSignal(true);
 
     function App() {
-      return lux_el('div', {}, [
+      return tova_el('div', {}, [
         () => showTitle()
-          ? lux_el('span', { title: 'tooltip', className: 'has-title' }, ['text'])
-          : lux_el('span', { className: 'no-title' }, ['text'])
+          ? tova_el('span', { title: 'tooltip', className: 'has-title' }, ['text'])
+          : tova_el('span', { className: 'no-title' }, ['text'])
       ]);
     }
 
     mount(App, container);
     const div = container.children[0];
     const marker = div.children[0];
-    let span = marker.__luxNodes[0];
+    let span = marker.__tovaNodes[0];
     expect(span.attributes.title).toBe('tooltip');
     expect(span.className).toBe('has-title');
 
     setShowTitle(false);
-    span = marker.__luxNodes[0];
+    span = marker.__tovaNodes[0];
     expect(span.className).toBe('no-title');
     // The old 'title' attribute should be gone on the new element
     // (Since we replaced the vnode entirely, a new span is created)
@@ -563,7 +563,7 @@ describe('DOM patching — style object replacement', () => {
     const [color, setColor] = createSignal('red');
 
     function App() {
-      return lux_el('div', { style: () => ({ color: color() }) }, []);
+      return tova_el('div', { style: () => ({ color: color() }) }, []);
     }
 
     mount(App, container);
@@ -581,7 +581,7 @@ describe('DOM patching — boolean DOM props', () => {
     const [disabled, setDisabled] = createSignal(false);
 
     function App() {
-      return lux_el('button', { disabled: () => disabled() }, ['Click']);
+      return tova_el('button', { disabled: () => disabled() }, ['Click']);
     }
 
     mount(App, container);
@@ -596,15 +596,15 @@ describe('DOM patching — boolean DOM props', () => {
   });
 
   test('readOnly prop sets correctly', () => {
-    const el = render(lux_el('input', { readOnly: true }, []));
+    const el = render(tova_el('input', { readOnly: true }, []));
     expect(el.readOnly).toBe(true);
 
-    const el2 = render(lux_el('input', { readOnly: false }, []));
+    const el2 = render(tova_el('input', { readOnly: false }, []));
     expect(el2.readOnly).toBe(false);
   });
 
   test('hidden prop sets correctly', () => {
-    const el = render(lux_el('div', { hidden: true }, []));
+    const el = render(tova_el('div', { hidden: true }, []));
     expect(el.hidden).toBe(true);
   });
 });
@@ -617,22 +617,22 @@ describe('DOM patching — event handler same reference', () => {
 
     // Create a scenario where props are re-applied with same handler
     function App() {
-      return lux_el('div', {}, [
-        () => lux_el('button', { onClick: handler, 'data-val': String(dummy()) }, ['click'])
+      return tova_el('div', {}, [
+        () => tova_el('button', { onClick: handler, 'data-val': String(dummy()) }, ['click'])
       ]);
     }
 
     mount(App, container);
     const div = container.children[0];
     const marker = div.children[0];
-    let btn = marker.__luxNodes[0];
+    let btn = marker.__tovaNodes[0];
 
     const initialListenerCount = btn.eventListeners['click'] ? btn.eventListeners['click'].length : 0;
     expect(initialListenerCount).toBe(1);
 
     // Re-render with same handler reference
     setDummy(1);
-    btn = marker.__luxNodes[0];
+    btn = marker.__tovaNodes[0];
     // The button may be replaced, but if same tag + key, props are patched
     // For same handler reference, applyProps checks oldHandler !== value
     // and skips adding if they match
@@ -656,8 +656,8 @@ describe('Router edge cases — query param parsing', () => {
 
   test('defineRoutes with parameterized routes', () => {
     defineRoutes({
-      '/users/:id': (params) => lux_el('div', {}, [`User ${params.id}`]),
-      '/posts/:slug': (params) => lux_el('div', {}, [`Post ${params.slug}`]),
+      '/users/:id': (params) => tova_el('div', {}, [`User ${params.id}`]),
+      '/posts/:slug': (params) => tova_el('div', {}, [`Post ${params.slug}`]),
     });
     const route = getCurrentRoute();
     expect(typeof route).toBe('function');
@@ -666,15 +666,15 @@ describe('Router edge cases — query param parsing', () => {
   test('defineRoutes with optional params', () => {
     expect(() => {
       defineRoutes({
-        '/files/:path?': (params) => lux_el('div', {}, ['Files']),
+        '/files/:path?': (params) => tova_el('div', {}, ['Files']),
       });
     }).not.toThrow();
   });
 
   test('defineRoutes with catch-all *', () => {
-    const NotFound = () => lux_el('div', {}, ['404']);
+    const NotFound = () => tova_el('div', {}, ['404']);
     defineRoutes({
-      '/': () => lux_el('div', {}, ['Home']),
+      '/': () => tova_el('div', {}, ['Home']),
       '*': NotFound,
     });
     // The catch-all is registered but does not prevent normal matching
@@ -692,8 +692,8 @@ describe('Router edge cases — overlapping route patterns', () => {
     const catchAllHit = { called: false };
 
     defineRoutes({
-      '/specific': () => { specificHit.called = true; return lux_el('div', {}, ['specific']); },
-      '*': () => { catchAllHit.called = true; return lux_el('div', {}, ['catchall']); },
+      '/specific': () => { specificHit.called = true; return tova_el('div', {}, ['specific']); },
+      '*': () => { catchAllHit.called = true; return tova_el('div', {}, ['catchall']); },
     });
 
     // Since we are in a test environment without real window.location,
@@ -709,7 +709,7 @@ describe('Router edge cases — overlapping route patterns', () => {
 describe('Router edge cases — Link with external URL', () => {
   test('Link creates anchor with href', () => {
     const link = Link({ href: 'https://example.com', children: ['External'] });
-    expect(link.__lux).toBe(true);
+    expect(link.__tova).toBe(true);
     expect(link.tag).toBe('a');
     expect(link.props.href).toBe('https://example.com');
   });
@@ -874,17 +874,17 @@ describe('RPC edge cases — invalid JSON response', () => {
 
 describe('SSR edge cases — nested fragments', () => {
   test('nested fragments render inline', () => {
-    const inner = lux_fragment([lux_el('b', {}, ['bold'])]);
-    const outer = lux_fragment([lux_el('i', {}, ['italic']), inner]);
+    const inner = tova_fragment([tova_el('b', {}, ['bold'])]);
+    const outer = tova_fragment([tova_el('i', {}, ['italic']), inner]);
     const result = renderToString(outer);
     expect(result).toBe('<i>italic</i><b>bold</b>');
   });
 
   test('deeply nested fragments', () => {
-    const deep = lux_fragment([
-      lux_fragment([
-        lux_fragment([
-          lux_el('span', {}, ['deep'])
+    const deep = tova_fragment([
+      tova_fragment([
+        tova_fragment([
+          tova_el('span', {}, ['deep'])
         ])
       ])
     ]);
@@ -895,38 +895,38 @@ describe('SSR edge cases — nested fragments', () => {
 
 describe('SSR edge cases — function props evaluated in SSR', () => {
   test('function className is evaluated', () => {
-    const result = renderToString(lux_el('div', { className: () => 'dynamic-class' }, []));
+    const result = renderToString(tova_el('div', { className: () => 'dynamic-class' }, []));
     expect(result).toContain('class="dynamic-class"');
   });
 
   test('function returning false is skipped', () => {
-    const result = renderToString(lux_el('div', { 'data-active': () => false }, []));
+    const result = renderToString(tova_el('div', { 'data-active': () => false }, []));
     expect(result).not.toContain('data-active');
   });
 
   test('function returning null is skipped', () => {
-    const result = renderToString(lux_el('div', { title: () => null }, []));
+    const result = renderToString(tova_el('div', { title: () => null }, []));
     expect(result).not.toContain('title');
   });
 });
 
 describe('SSR edge cases — null children', () => {
   test('null children are skipped', () => {
-    const vnode = lux_el('div', {}, [null, 'hello', null, 'world', null]);
+    const vnode = tova_el('div', {}, [null, 'hello', null, 'world', null]);
     const result = renderToString(vnode);
     expect(result).toBe('<div>helloworld</div>');
   });
 
   test('undefined children are skipped', () => {
-    const vnode = lux_el('div', {}, [undefined, 'text']);
+    const vnode = tova_el('div', {}, [undefined, 'text']);
     const result = renderToString(vnode);
     expect(result).toBe('<div>text</div>');
   });
 
   test('mixed null/undefined/element children', () => {
-    const vnode = lux_el('div', {}, [
+    const vnode = tova_el('div', {}, [
       null,
-      lux_el('span', {}, ['a']),
+      tova_el('span', {}, ['a']),
       undefined,
       'text',
       null,
@@ -1176,7 +1176,7 @@ describe('Ownership and disposal — disposing root disposes children', () => {
   });
 
   test('dispose root disposes direct child effects but not nested roots', () => {
-    // In Lux, createRoot creates an independent ownership scope.
+    // In Tova, createRoot creates an independent ownership scope.
     // The inner root is NOT registered as a child of the outer root,
     // so disposing the outer root does NOT dispose the inner root's effects.
     // Only effects/computeds created directly under the outer root are disposed.
@@ -1258,16 +1258,16 @@ describe('Keyed reconciliation — reorder items', () => {
     ]);
 
     function App() {
-      return lux_el('div', {}, [
-        () => items().map(i => lux_keyed(i.id, lux_el('span', {}, [i.t])))
+      return tova_el('div', {}, [
+        () => items().map(i => tova_keyed(i.id, tova_el('span', {}, [i.t])))
       ]);
     }
 
     mount(App, container);
     const marker = container.children[0].children[0];
-    const spanX = marker.__luxNodes[0];
-    const spanY = marker.__luxNodes[1];
-    const spanZ = marker.__luxNodes[2];
+    const spanX = marker.__tovaNodes[0];
+    const spanY = marker.__tovaNodes[1];
+    const spanZ = marker.__tovaNodes[2];
 
     // Reverse order
     setItems([
@@ -1276,9 +1276,9 @@ describe('Keyed reconciliation — reorder items', () => {
       { id: 'x', t: 'X' },
     ]);
 
-    expect(marker.__luxNodes[0]).toBe(spanZ);
-    expect(marker.__luxNodes[1]).toBe(spanY);
-    expect(marker.__luxNodes[2]).toBe(spanX);
+    expect(marker.__tovaNodes[0]).toBe(spanZ);
+    expect(marker.__tovaNodes[1]).toBe(spanY);
+    expect(marker.__tovaNodes[2]).toBe(spanX);
   });
 
   test('swap first and last', () => {
@@ -1290,15 +1290,15 @@ describe('Keyed reconciliation — reorder items', () => {
     ]);
 
     function App() {
-      return lux_el('div', {}, [
-        () => items().map(i => lux_keyed(i.id, lux_el('li', {}, [i.t])))
+      return tova_el('div', {}, [
+        () => items().map(i => tova_keyed(i.id, tova_el('li', {}, [i.t])))
       ]);
     }
 
     mount(App, container);
     const marker = container.children[0].children[0];
-    const liA = marker.__luxNodes[0];
-    const liC = marker.__luxNodes[2];
+    const liA = marker.__tovaNodes[0];
+    const liC = marker.__tovaNodes[2];
 
     setItems([
       { id: 'c', t: 'C' },
@@ -1306,8 +1306,8 @@ describe('Keyed reconciliation — reorder items', () => {
       { id: 'a', t: 'A' },
     ]);
 
-    expect(marker.__luxNodes[0]).toBe(liC);
-    expect(marker.__luxNodes[2]).toBe(liA);
+    expect(marker.__tovaNodes[0]).toBe(liC);
+    expect(marker.__tovaNodes[2]).toBe(liA);
   });
 });
 
@@ -1321,15 +1321,15 @@ describe('Keyed reconciliation — remove from middle', () => {
     ]);
 
     function App() {
-      return lux_el('div', {}, [
-        () => items().map(i => lux_keyed(i.id, lux_el('div', {}, [i.t])))
+      return tova_el('div', {}, [
+        () => items().map(i => tova_keyed(i.id, tova_el('div', {}, [i.t])))
       ]);
     }
 
     mount(App, container);
     const marker = container.children[0].children[0];
-    const div1 = marker.__luxNodes[0];
-    const div3 = marker.__luxNodes[2];
+    const div1 = marker.__tovaNodes[0];
+    const div3 = marker.__tovaNodes[2];
 
     // Remove middle item
     setItems([
@@ -1337,9 +1337,9 @@ describe('Keyed reconciliation — remove from middle', () => {
       { id: '3', t: 'Three' },
     ]);
 
-    expect(marker.__luxNodes.length).toBe(2);
-    expect(marker.__luxNodes[0]).toBe(div1);
-    expect(marker.__luxNodes[1]).toBe(div3);
+    expect(marker.__tovaNodes.length).toBe(2);
+    expect(marker.__tovaNodes[0]).toBe(div1);
+    expect(marker.__tovaNodes[1]).toBe(div3);
   });
 });
 
@@ -1352,15 +1352,15 @@ describe('Keyed reconciliation — add to beginning', () => {
     ]);
 
     function App() {
-      return lux_el('div', {}, [
-        () => items().map(i => lux_keyed(i.id, lux_el('div', {}, [i.t])))
+      return tova_el('div', {}, [
+        () => items().map(i => tova_keyed(i.id, tova_el('div', {}, [i.t])))
       ]);
     }
 
     mount(App, container);
     const marker = container.children[0].children[0];
-    const divB = marker.__luxNodes[0];
-    const divC = marker.__luxNodes[1];
+    const divB = marker.__tovaNodes[0];
+    const divC = marker.__tovaNodes[1];
 
     // Add to beginning
     setItems([
@@ -1369,12 +1369,12 @@ describe('Keyed reconciliation — add to beginning', () => {
       { id: 'c', t: 'C' },
     ]);
 
-    expect(marker.__luxNodes.length).toBe(3);
+    expect(marker.__tovaNodes.length).toBe(3);
     // divB and divC should be reused
-    expect(marker.__luxNodes[1]).toBe(divB);
-    expect(marker.__luxNodes[2]).toBe(divC);
+    expect(marker.__tovaNodes[1]).toBe(divB);
+    expect(marker.__tovaNodes[2]).toBe(divC);
     // New item at beginning
-    expect(marker.__luxNodes[0].children[0].textContent).toBe('A');
+    expect(marker.__tovaNodes[0].children[0].textContent).toBe('A');
   });
 });
 
@@ -1418,9 +1418,9 @@ describe('Error boundary — error in child effect', () => {
 
 describe('Error boundary — fallback rendering', () => {
   test('ErrorBoundary component renders child when no error', () => {
-    const child = lux_el('p', {}, ['ok content']);
+    const child = tova_el('p', {}, ['ok content']);
     const eb = ErrorBoundary({
-      fallback: ({ error }) => lux_el('div', {}, [`Error: ${error}`]),
+      fallback: ({ error }) => tova_el('div', {}, [`Error: ${error}`]),
       children: [child],
     });
 
@@ -1432,8 +1432,8 @@ describe('Error boundary — fallback rendering', () => {
     // We need to trigger the error signal inside the ErrorBoundary
     // ErrorBoundary sets up its own error signal + handler
     const eb = ErrorBoundary({
-      fallback: ({ error, reset }) => lux_el('div', { className: 'error' }, [error.message]),
-      children: [lux_el('span', {}, ['child'])],
+      fallback: ({ error, reset }) => tova_el('div', { className: 'error' }, [error.message]),
+      children: [tova_el('span', {}, ['child'])],
     });
 
     // The compute function checks the error signal
@@ -1450,11 +1450,11 @@ describe('Error boundary — fallback rendering', () => {
 
 describe('Lazy component — successful load', () => {
   test('lazy component resolves and renders', async () => {
-    const MyComp = (props) => lux_el('div', { className: 'loaded' }, ['Loaded!']);
+    const MyComp = (props) => tova_el('div', { className: 'loaded' }, ['Loaded!']);
     const Lazy = lazy(() => Promise.resolve({ default: MyComp }));
 
     const vnode = Lazy({});
-    expect(vnode.__lux).toBe(true);
+    expect(vnode.__tova).toBe(true);
     expect(vnode.tag).toBe('__dynamic');
 
     // Initially returns null (no fallback)
@@ -1464,14 +1464,14 @@ describe('Lazy component — successful load', () => {
     await new Promise(r => setTimeout(r, 20));
 
     const result = vnode.compute();
-    expect(result.__lux).toBe(true);
+    expect(result.__tova).toBe(true);
     expect(result.tag).toBe('div');
     expect(result.props.className).toBe('loaded');
   });
 
   test('lazy component caches after first load', async () => {
     let loadCount = 0;
-    const MyComp = () => lux_el('span', {}, ['cached']);
+    const MyComp = () => tova_el('span', {}, ['cached']);
     const Lazy = lazy(() => {
       loadCount++;
       return Promise.resolve({ default: MyComp });
@@ -1484,7 +1484,7 @@ describe('Lazy component — successful load', () => {
     // Second call uses cached resolved component
     const result = Lazy({});
     // Should return vnode directly (not __dynamic)
-    expect(result.__lux).toBe(true);
+    expect(result.__tova).toBe(true);
     expect(result.tag).toBe('span');
     expect(loadCount).toBe(1);
   });
@@ -1493,7 +1493,7 @@ describe('Lazy component — successful load', () => {
 describe('Lazy component — named export', () => {
   test('lazy resolves non-default export', async () => {
     // When module has no .default, it uses the module object itself
-    const moduleObj = (props) => lux_el('div', {}, ['named']);
+    const moduleObj = (props) => tova_el('div', {}, ['named']);
     const Lazy = lazy(() => Promise.resolve(moduleObj));
 
     Lazy({});
@@ -1501,7 +1501,7 @@ describe('Lazy component — named export', () => {
 
     // After resolution, the cached component is mod.default || mod
     const result = Lazy({});
-    expect(result.__lux).toBe(true);
+    expect(result.__tova).toBe(true);
   });
 });
 
@@ -1513,9 +1513,9 @@ describe('Lazy component — error handling', () => {
     await new Promise(r => setTimeout(r, 20));
 
     const result = vnode.compute();
-    expect(result.__lux).toBe(true);
+    expect(result.__tova).toBe(true);
     expect(result.tag).toBe('span');
-    expect(result.props.className).toBe('lux-error');
+    expect(result.props.className).toBe('tova-error');
   });
 });
 
@@ -1525,40 +1525,40 @@ describe('Lazy component — error handling', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('CSS injection — same ID not injected twice', () => {
-  test('lux_inject_css is idempotent for same ID', () => {
+  test('tova_inject_css is idempotent for same ID', () => {
     const id = 'unique-css-test-' + Date.now();
     const headBefore = document.head.children.length;
 
-    lux_inject_css(id, '.a { color: red }');
+    tova_inject_css(id, '.a { color: red }');
     const afterFirst = document.head.children.length;
     expect(afterFirst).toBe(headBefore + 1);
 
-    lux_inject_css(id, '.a { color: red }');
+    tova_inject_css(id, '.a { color: red }');
     expect(document.head.children.length).toBe(afterFirst);
 
     // Third call
-    lux_inject_css(id, '.b { color: blue }'); // different CSS, same ID
+    tova_inject_css(id, '.b { color: blue }'); // different CSS, same ID
     expect(document.head.children.length).toBe(afterFirst);
   });
 
-  test('lux_inject_css with different IDs creates separate styles', () => {
+  test('tova_inject_css with different IDs creates separate styles', () => {
     const id1 = 'css-diff-1-' + Date.now();
     const id2 = 'css-diff-2-' + Date.now();
     const headBefore = document.head.children.length;
 
-    lux_inject_css(id1, '.x {}');
-    lux_inject_css(id2, '.y {}');
+    tova_inject_css(id1, '.x {}');
+    tova_inject_css(id2, '.y {}');
     expect(document.head.children.length).toBe(headBefore + 2);
   });
 
   test('injected style has correct attributes', () => {
     const id = 'css-attr-test-' + Date.now();
-    lux_inject_css(id, 'body { margin: 0 }');
+    tova_inject_css(id, 'body { margin: 0 }');
 
     const styles = document.head.children;
     const last = styles[styles.length - 1];
     expect(last.tagName).toBe('style');
-    expect(last.attributes['data-lux-style']).toBe(id);
+    expect(last.attributes['data-tova-style']).toBe(id);
     expect(last.textContent).toBe('body { margin: 0 }');
   });
 });
@@ -1615,14 +1615,14 @@ describe('createRef — mutation', () => {
 
   test('ref used with render element', () => {
     const ref = createRef();
-    const vnode = lux_el('div', { ref }, ['content']);
+    const vnode = tova_el('div', { ref }, ['content']);
     const el = render(vnode);
     expect(ref.current).toBe(el);
   });
 
   test('function ref is called with element', () => {
     let captured = null;
-    const vnode = lux_el('input', { ref: (el) => { captured = el; } }, []);
+    const vnode = tova_el('input', { ref: (el) => { captured = el; } }, []);
     const el = render(vnode);
     expect(captured).toBe(el);
   });
@@ -1635,7 +1635,7 @@ describe('createRef — mutation', () => {
 
 describe('flattenVNodes — deeply nested arrays', () => {
   test('deeply nested array children are flattened', () => {
-    const vnode = lux_el('div', {}, [
+    const vnode = tova_el('div', {}, [
       [['a', 'b'], ['c']],
       'd',
     ]);
@@ -1649,7 +1649,7 @@ describe('flattenVNodes — deeply nested arrays', () => {
   });
 
   test('triple-nested arrays', () => {
-    const vnode = lux_el('div', {}, [
+    const vnode = tova_el('div', {}, [
       [[['deep']]]
     ]);
     const el = render(vnode);
@@ -1660,7 +1660,7 @@ describe('flattenVNodes — deeply nested arrays', () => {
 
 describe('flattenVNodes — mixed null/undefined/elements', () => {
   test('null and undefined are skipped during rendering', () => {
-    const vnode = lux_el('div', {}, [null, 'a', undefined, 'b', null]);
+    const vnode = tova_el('div', {}, [null, 'a', undefined, 'b', null]);
     const el = render(vnode);
     expect(el.children.length).toBe(2);
     expect(el.children[0].textContent).toBe('a');
@@ -1668,11 +1668,11 @@ describe('flattenVNodes — mixed null/undefined/elements', () => {
   });
 
   test('mixed types with null gaps', () => {
-    const vnode = lux_el('ul', {}, [
+    const vnode = tova_el('ul', {}, [
       null,
-      lux_el('li', {}, ['item1']),
+      tova_el('li', {}, ['item1']),
       undefined,
-      lux_el('li', {}, ['item2']),
+      tova_el('li', {}, ['item2']),
       null,
     ]);
     const el = render(vnode);
@@ -1682,13 +1682,13 @@ describe('flattenVNodes — mixed null/undefined/elements', () => {
   });
 
   test('array with all nulls renders no children', () => {
-    const vnode = lux_el('div', {}, [null, null, null]);
+    const vnode = tova_el('div', {}, [null, null, null]);
     const el = render(vnode);
     expect(el.children.length).toBe(0);
   });
 
   test('nested array with nulls', () => {
-    const vnode = lux_el('div', {}, [
+    const vnode = tova_el('div', {}, [
       [null, 'a'],
       [null, null],
       ['b', null],
@@ -2074,7 +2074,7 @@ describe('Integration — mount and dispose', () => {
     let effectRuns = 0;
 
     function App() {
-      return lux_el('div', {}, [() => {
+      return tova_el('div', {}, [() => {
         effectRuns++;
         return String(count());
       }]);
@@ -2094,15 +2094,15 @@ describe('Integration — mount and dispose', () => {
 
 describe('Integration — render with checked and value props', () => {
   test('checked prop is set as boolean', () => {
-    const el = render(lux_el('input', { type: 'checkbox', checked: true }, []));
+    const el = render(tova_el('input', { type: 'checkbox', checked: true }, []));
     expect(el.checked).toBe(true);
 
-    const el2 = render(lux_el('input', { type: 'checkbox', checked: false }, []));
+    const el2 = render(tova_el('input', { type: 'checkbox', checked: false }, []));
     expect(el2.checked).toBe(false);
   });
 
   test('value prop is set on element', () => {
-    const el = render(lux_el('input', { value: 'hello' }, []));
+    const el = render(tova_el('input', { value: 'hello' }, []));
     expect(el.value).toBe('hello');
   });
 });
@@ -2110,7 +2110,7 @@ describe('Integration — render with checked and value props', () => {
 describe('Integration — SSR renderPage with various options', () => {
   test('renderPage with head extra content', () => {
     const html = renderPage(
-      () => lux_el('div', {}, ['App']),
+      () => tova_el('div', {}, ['App']),
       { head: '<meta name="description" content="test">' }
     );
     expect(html).toContain('<meta name="description" content="test">');
@@ -2119,7 +2119,7 @@ describe('Integration — SSR renderPage with various options', () => {
 
   test('renderPage escapes title', () => {
     const html = renderPage(
-      () => lux_el('div', {}, ['App']),
+      () => tova_el('div', {}, ['App']),
       { title: 'My "App" & Co.' }
     );
     expect(html).toContain('My &quot;App&quot; &amp; Co.');

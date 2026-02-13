@@ -1,8 +1,8 @@
-# Lux Language: Full Production Readiness Roadmap
+# Tova Language: Full Production Readiness Roadmap
 
 ## Context
 
-Lux is a full-stack JS-transpiling language with 3,338 passing tests, reactive UI, server routing, pattern matching, Result/Option, and JSX. This plan covers all production blockers, quality gaps, and new language features — verified against the actual codebase.
+Tova is a full-stack JS-transpiling language with 3,338 passing tests, reactive UI, server routing, pattern matching, Result/Option, and JSX. This plan covers all production blockers, quality gaps, and new language features — verified against the actual codebase.
 
 **Already verified as working:** break/continue loop validation, propagate operator, named arguments (partial).
 
@@ -14,23 +14,23 @@ Lux is a full-stack JS-transpiling language with 3,338 passing tests, reactive U
 **Problem:** `src/stdlib/inline.js:67-86` defines 12 string methods on `String.prototype`, but `getStringProtoHelper()` is never called — the methods are dead code. They also use prototype pollution (anti-pattern).
 **Plan:**
 - Convert `.upper()`, `.lower()`, `.contains()`, etc. into standalone stdlib functions that take the string as first arg
-- In codegen, rewrite `str.upper()` calls to `__lux_upper(str)` or make them work via pipe: `str |> upper()`
+- In codegen, rewrite `str.upper()` calls to `__tova_upper(str)` or make them work via pipe: `str |> upper()`
 - Remove `String.prototype` modification entirely
 - Add the string functions to `BUILTINS` in inline.js
 - Add tests for all 12 string methods
 **Files:** `src/stdlib/inline.js`, `src/codegen/base-codegen.js`, `tests/`
 
 ### Step 2: Import Validation
-**Problem:** `import { Foo } from "./bar.lux"` succeeds even if `bar.lux` doesn't export `Foo`. Typos become silent runtime errors.
+**Problem:** `import { Foo } from "./bar.tova"` succeeds even if `bar.tova` doesn't export `Foo`. Typos become silent runtime errors.
 **Plan:**
-- In `compileWithImports()` (`bin/lux.js`), collect the export list from each compiled module's AST
+- In `compileWithImports()` (`bin/tova.js`), collect the export list from each compiled module's AST
 - Store exports in a module registry map
-- In the analyzer, when visiting import declarations for `.lux` files, check that each imported name exists in the target module's export list
-- Emit error: `"Module './bar.lux' does not export 'Foo'"`
-**Files:** `bin/lux.js`, `src/analyzer/analyzer.js`
+- In the analyzer, when visiting import declarations for `.tova` files, check that each imported name exists in the target module's export list
+- Emit error: `"Module './bar.tova' does not export 'Foo'"`
+**Files:** `bin/tova.js`, `src/analyzer/analyzer.js`
 
 ### Step 3: Propagate Operator Robustness
-**Problem:** `?` uses sentinel exceptions (`__lux_propagate` flag). If user code has a `try/catch` that catches all errors, it swallows the propagation sentinel.
+**Problem:** `?` uses sentinel exceptions (`__tova_propagate` flag). If user code has a `try/catch` that catches all errors, it swallows the propagation sentinel.
 **Plan:**
 - Replace exception-based flow with explicit early-return checks in codegen
 - Instead of `try { __propagate(val) } catch(e) { ... }`, generate:
@@ -95,7 +95,7 @@ Lux is a full-stack JS-transpiling language with 3,338 passing tests, reactive U
 - Function signatures remain explicit — do not infer function parameter/return types
 **Files:** `src/analyzer/analyzer.js`, potentially new `src/analyzer/type-inference.js`
 
-### Step 8: Code Formatter (`lux fmt`)
+### Step 8: Code Formatter (`tova fmt`)
 **Problem:** No formatter means inconsistent style across projects.
 **Plan:**
 - New `src/formatter/formatter.js`: Walk the AST, pretty-print with rules:
@@ -106,16 +106,16 @@ Lux is a full-stack JS-transpiling language with 3,338 passing tests, reactive U
   - Max line length ~100 chars with wrapping
 - Parse → format → output (preserves semantics via AST round-trip)
 - Challenge: Comments are discarded by lexer. Need to modify lexer to preserve comment tokens with locations, then reattach during formatting.
-- Add `lux fmt <file>` and `lux fmt --check` CLI commands
+- Add `tova fmt <file>` and `tova fmt --check` CLI commands
 - Wire into LSP `textDocument/formatting`
-**Files:** New `src/formatter/formatter.js`, `src/lexer/lexer.js` (comment preservation), `bin/lux.js`, `src/lsp/server.js`
+**Files:** New `src/formatter/formatter.js`, `src/lexer/lexer.js` (comment preservation), `bin/tova.js`, `src/lsp/server.js`
 
 ### Step 9: Trait System (evolve `interface`)
 **Problem:** `interface` only declares shapes. No default implementations, no ad-hoc polymorphism.
 **Plan:**
 - Add `TRAIT` token and keyword
 - Traits define method signatures with optional default implementations:
-  ```lux
+  ```tova
   trait Display {
     fn display(self) -> String          // required
     fn print(self) { print(self.display()) }  // default
@@ -207,23 +207,23 @@ Lux is a full-stack JS-transpiling language with 3,338 passing tests, reactive U
 - Add iterator helpers to stdlib: `take`, `drop`, `zip_lazy`, `chain`
 **Files:** `src/lexer/tokens.js`, `src/parser/parser.js`, `src/parser/ast.js`, `src/codegen/base-codegen.js`
 
-### Step 17: Test Runner (`lux test`)
+### Step 17: Test Runner (`tova test`)
 **Problem:** `test` blocks exist but no built-in runner with filtering, coverage, watch.
 **Plan:**
-- Add `lux test` CLI command that:
-  - Finds all `.lux` files with `test` blocks
+- Add `tova test` CLI command that:
+  - Finds all `.tova` files with `test` blocks
   - Compiles them to JS test files
   - Runs via Bun's test runner
 - Add `--filter "pattern"` for test name filtering
 - Add `--watch` for re-run on changes
 - Add assertion functions to stdlib: `assert_eq`, `assert_ne`, `assert_throws`
 - Add `--coverage` flag (delegates to Bun's coverage)
-**Files:** `bin/lux.js`, `src/stdlib/inline.js`
+**Files:** `bin/tova.js`, `src/stdlib/inline.js`
 
 ### Step 18: Nice-to-Have Polish
 **Regex literals:** Add `/pattern/flags` syntax to lexer/parser. Codegen: `new RegExp("pattern", "flags")`.
 **Raw strings:** `r"no\escapes"` syntax — lexer skips escape processing.
-**Package manager:** `lux add <pkg>` wraps npm/bun install + adds to project config.
+**Package manager:** `tova add <pkg>` wraps npm/bun install + adds to project config.
 **HMR:** WebSocket-based hot module replacement in dev server.
 
 ---
@@ -233,6 +233,6 @@ Lux is a full-stack JS-transpiling language with 3,338 passing tests, reactive U
 After each step:
 1. `bun test` — all existing tests must pass (currently 3,338)
 2. New tests added for each feature
-3. Manual test with sample `.lux` file exercising the feature
+3. Manual test with sample `.tova` file exercising the feature
 4. Check generated JS output is valid and runnable
 5. Verify LSP still works after parser/analyzer changes

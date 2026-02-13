@@ -4,15 +4,15 @@ title: Formatter
 
 # Formatter
 
-The Lux formatter (`lux fmt`) automatically formats `.lux` source files for consistent code style across your project.
+The Tova formatter (`tova fmt`) automatically formats `.tova` source files for consistent code style across your project.
 
 ## Usage
 
 Format one or more files:
 
 ```bash
-lux fmt src/app.lux
-lux fmt src/app.lux src/utils.lux src/models.lux
+tova fmt src/app.tova
+tova fmt src/app.tova src/utils.tova src/models.tova
 ```
 
 ## Check Mode
@@ -20,26 +20,26 @@ lux fmt src/app.lux src/utils.lux src/models.lux
 Use `--check` to verify formatting without modifying files. This is useful in CI pipelines:
 
 ```bash
-lux fmt src/app.lux --check
+tova fmt src/app.tova --check
 ```
 
 If the file is already formatted, you will see:
 
 ```
-Already formatted: src/app.lux
+Already formatted: src/app.tova
 ```
 
 If the file needs formatting, you will see:
 
 ```
-Would reformat: src/app.lux
+Would reformat: src/app.tova
 ```
 
 In check mode, the command exits with code 1 if any files need formatting, making it easy to integrate into CI:
 
 ```bash
 # In CI pipeline
-lux fmt src/*.lux --check || (echo "Run 'lux fmt' to fix formatting" && exit 1)
+tova fmt src/*.tova --check || (echo "Run 'tova fmt' to fix formatting" && exit 1)
 ```
 
 ## What It Formats
@@ -56,7 +56,7 @@ The formatter parses the source file into an AST and re-prints it with consisten
 
 Before formatting:
 
-```lux
+```tova
 server{
 fn get_users( )  {
 users=db.query("SELECT * FROM users")
@@ -66,9 +66,9 @@ users=db.query("SELECT * FROM users")
 }
 ```
 
-After `lux fmt`:
+After `tova fmt`:
 
-```lux
+```tova
 server {
   fn get_users() {
     users = db.query("SELECT * FROM users")

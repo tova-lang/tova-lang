@@ -1,6 +1,6 @@
 # Authentication
 
-Lux provides built-in support for JWT and API key authentication. Configuration is declarative, and helper functions handle the common tasks of password hashing, token generation, and route protection.
+Tova provides built-in support for JWT and API key authentication. Configuration is declarative, and helper functions handle the common tasks of password hashing, token generation, and route protection.
 
 ## JWT Authentication
 
@@ -8,7 +8,7 @@ Lux provides built-in support for JWT and API key authentication. Configuration 
 
 Enable JWT authentication with the `auth` block:
 
-```lux
+```tova
 server {
   auth {
     type: "jwt"
@@ -19,7 +19,7 @@ server {
 
 ::: tip
 Store your JWT secret in an environment variable rather than hardcoding it:
-```lux
+```tova
 env JWT_SECRET: String
 auth {
   type: "jwt"
@@ -32,13 +32,13 @@ auth {
 
 Use `sign_jwt` to create a JWT from a payload:
 
-```lux
+```tova
 token = sign_jwt({ user_id: 1, role: "admin" })
 ```
 
 Pass an explicit secret and options for more control:
 
-```lux
+```tova
 token = sign_jwt({ user_id: 1 }, "custom-secret", { expires_in: 3600 })
 ```
 
@@ -48,7 +48,7 @@ The `expires_in` option sets the token lifetime in seconds.
 
 Attach the `auth` guard to routes that require authentication:
 
-```lux
+```tova
 route GET "/profile" with auth => get_profile
 route PUT "/profile" with auth => update_profile
 ```
@@ -63,7 +63,7 @@ When a request hits a protected route, the `auth` middleware:
 
 Inside a protected handler, the decoded JWT payload is available on `req.user`:
 
-```lux
+```tova
 fn get_profile(req) {
   user_id = req.user.user_id
   user = UserModel.find(user_id)
@@ -73,7 +73,7 @@ fn get_profile(req) {
 
 ### Full Login Example
 
-```lux
+```tova
 server {
   auth {
     type: "jwt"
@@ -115,7 +115,7 @@ server {
 
 For service-to-service communication or simple API access, use API key authentication:
 
-```lux
+```tova
 server {
   auth {
     type: "api_key"
@@ -131,7 +131,7 @@ The `header` field specifies which HTTP header to read the key from (defaults to
 
 API key authentication uses the same `with auth` syntax as JWT:
 
-```lux
+```tova
 route GET "/api/data" with auth => get_data
 ```
 
@@ -141,9 +141,9 @@ The middleware checks the configured header for a valid key. If the key is missi
 
 ### Password Hashing
 
-Lux provides secure password hashing functions:
+Tova provides secure password hashing functions:
 
-```lux
+```tova
 // Hash a password (uses bcrypt under the hood)
 hashed = hash_password("my_password")
 
@@ -153,7 +153,7 @@ is_valid = verify_password("my_password", hashed)    // true or false
 
 Always store hashed passwords in your database, never plaintext:
 
-```lux
+```tova
 fn register(req) {
   let { name, email, password } = req.body
   hashed = hash_password(password)
@@ -166,7 +166,7 @@ fn register(req) {
 
 The `sign_jwt` function accepts up to three arguments:
 
-```lux
+```tova
 sign_jwt(payload)                              // uses configured secret, no expiration
 sign_jwt(payload, secret)                      // custom secret, no expiration
 sign_jwt(payload, secret, { expires_in: 3600 }) // custom secret, expires in 1 hour
@@ -182,7 +182,7 @@ sign_jwt(payload, secret, { expires_in: 3600 }) // custom secret, expires in 1 h
 
 Combine the `auth` guard with a `role` guard for fine-grained access control:
 
-```lux
+```tova
 fn role(required_role) {
   fn(req, next) {
     if req.user.role != required_role {

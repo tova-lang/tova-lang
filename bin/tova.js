@@ -22,25 +22,25 @@ const HELP = `
   A modern full-stack language that transpiles to JavaScript
 
 Usage:
-  lux <command> [options] [arguments]
+  tova <command> [options] [arguments]
 
 Commands:
-  run <file>       Compile and execute a .lux file
-  build [dir]      Compile .lux files to JavaScript (default: current dir)
+  run <file>       Compile and execute a .tova file
+  build [dir]      Compile .tova files to JavaScript (default: current dir)
   dev              Start development server with file watching
-  repl             Start interactive Lux REPL
+  repl             Start interactive Tova REPL
   lsp              Start Language Server Protocol server
-  new <name>       Create a new Lux project
-  fmt <file>      Format a .lux file (--check to verify only)
-  test [dir]      Run test blocks in .lux files (--filter, --watch)
+  new <name>       Create a new Tova project
+  fmt <file>      Format a .tova file (--check to verify only)
+  test [dir]      Run test blocks in .tova files (--filter, --watch)
   migrate:create <name>   Create a new migration file
-  migrate:up [file.lux]   Run pending migrations
-  migrate:status [file.lux] Show migration status
+  migrate:up [file.tova]   Run pending migrations
+  migrate:status [file.tova] Show migration status
 
 Options:
   --help, -h       Show this help message
   --version, -v    Show version
-  --output, -o     Output directory (default: .lux-out)
+  --output, -o     Output directory (default: .tova-out)
   --production     Production build (minify, bundle, hash)
   --watch          Watch for file changes
   --debug          Show verbose error output
@@ -55,7 +55,7 @@ async function main() {
   }
 
   if (args.includes('--version') || args.includes('-v')) {
-    console.log(`Lux v${VERSION}`);
+    console.log(`Tova v${VERSION}`);
     process.exit(0);
   }
 
@@ -96,7 +96,7 @@ async function main() {
       await migrateStatus(args.slice(1));
       break;
     default:
-      if (command.endsWith('.lux')) {
+      if (command.endsWith('.tova')) {
         await runFile(command);
       } else {
         console.error(`Unknown command: ${command}`);
@@ -106,9 +106,9 @@ async function main() {
   }
 }
 
-// ─── Compile a .lux source string ───────────────────────────
+// ─── Compile a .tova source string ───────────────────────────
 
-function compileLux(source, filename) {
+function compileTova(source, filename) {
   const lexer = new Lexer(source, filename);
   const tokens = lexer.tokenize();
 
@@ -137,7 +137,7 @@ function formatFile(args) {
 
   if (files.length === 0) {
     console.error('Error: No file specified');
-    console.error('Usage: lux fmt <file.lux> [--check]');
+    console.error('Usage: tova fmt <file.tova> [--check]');
     process.exit(1);
   }
 
@@ -185,11 +185,11 @@ async function runTests(args) {
   const watchMode = args.includes('--watch');
   const targetDir = args.find(a => !a.startsWith('--') && a !== filterPattern) || '.';
 
-  // Find all .lux files with test blocks
-  const luxFiles = findLuxFiles(resolve(targetDir));
+  // Find all .tova files with test blocks
+  const tovaFiles = findTovaFiles(resolve(targetDir));
   const testFiles = [];
 
-  for (const file of luxFiles) {
+  for (const file of tovaFiles) {
     const source = readFileSync(file, 'utf-8');
     // Quick check for test blocks
     if (/\btest\s+["'{]/m.test(source) || /\btest\s*\{/m.test(source)) {
@@ -205,7 +205,7 @@ async function runTests(args) {
   console.log(`Found ${testFiles.length} test file(s)\n`);
 
   // Compile test files to temp directory
-  const tmpDir = resolve('.lux-test-out');
+  const tmpDir = resolve('.tova-test-out');
   if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
 
   const compiledFiles = [];
@@ -222,7 +222,7 @@ async function runTests(args) {
       const result = codegen.generate();
 
       if (result.test) {
-        const relPath = relative(resolve(targetDir), file).replace(/\.lux$/, '.test.js');
+        const relPath = relative(resolve(targetDir), file).replace(/\.tova$/, '.test.js');
         const outPath = join(tmpDir, relPath);
         const outDir = dirname(outPath);
         if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
@@ -265,7 +265,7 @@ async function runTests(args) {
     console.log('\nWatching for changes... (Ctrl+C to stop)\n');
     const watched = resolve(targetDir);
     fsWatch(watched, { recursive: true }, async (event, filename) => {
-      if (filename && filename.endsWith('.lux')) {
+      if (filename && filename.endsWith('.tova')) {
         console.log(`\nFile changed: ${filename}\n`);
         // Recompile and re-run
         await runTests(args.filter(a => a !== '--watch'));
@@ -277,7 +277,7 @@ async function runTests(args) {
   }
 }
 
-function findLuxFiles(dir) {
+function findTovaFiles(dir) {
   const files = [];
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return files;
   for (const entry of readdirSync(dir)) {
@@ -285,8 +285,8 @@ function findLuxFiles(dir) {
     const full = join(dir, entry);
     const stat = statSync(full);
     if (stat.isDirectory()) {
-      files.push(...findLuxFiles(full));
-    } else if (entry.endsWith('.lux')) {
+      files.push(...findTovaFiles(full));
+    } else if (entry.endsWith('.tova')) {
       files.push(full);
     }
   }
@@ -298,7 +298,7 @@ function findLuxFiles(dir) {
 async function runFile(filePath) {
   if (!filePath) {
     console.error('Error: No file specified');
-    console.error('Usage: lux run <file.lux>');
+    console.error('Usage: tova run <file.tova>');
     process.exit(1);
   }
 
@@ -311,7 +311,7 @@ async function runFile(filePath) {
   const source = readFileSync(resolved, 'utf-8');
 
   try {
-    const output = compileLux(source, filePath);
+    const output = compileTova(source, filePath);
 
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
@@ -334,24 +334,24 @@ async function buildProject(args) {
   const isProduction = args.includes('--production');
   const srcDir = resolve(args.filter(a => !a.startsWith('--'))[0] || '.');
   const outIdx = args.indexOf('--output');
-  const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : '.lux-out');
+  const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : '.tova-out');
 
   // Production build uses a separate optimized pipeline
   if (isProduction) {
     return await productionBuild(srcDir, outDir);
   }
 
-  const luxFiles = findFiles(srcDir, '.lux');
-  if (luxFiles.length === 0) {
-    console.error('No .lux files found');
+  const tovaFiles = findFiles(srcDir, '.tova');
+  if (tovaFiles.length === 0) {
+    console.error('No .tova files found');
     process.exit(1);
   }
 
   mkdirSync(outDir, { recursive: true });
 
   // Copy runtime files to output directory
-  const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-  const runtimeSrc = join(luxRoot, 'src', 'runtime');
+  const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+  const runtimeSrc = join(tovaRoot, 'src', 'runtime');
   const runtimeDest = join(outDir, 'runtime');
   mkdirSync(runtimeDest, { recursive: true });
   for (const file of ['reactivity.js', 'rpc.js', 'router.js']) {
@@ -361,16 +361,16 @@ async function buildProject(args) {
     }
   }
 
-  console.log(`\n  Building ${luxFiles.length} file(s)...\n`);
+  console.log(`\n  Building ${tovaFiles.length} file(s)...\n`);
 
   let errorCount = 0;
   compilationCache.clear();
-  for (const file of luxFiles) {
+  for (const file of tovaFiles) {
     const rel = relative(srcDir, file);
     try {
       const source = readFileSync(file, 'utf-8');
       const output = compileWithImports(source, file, srcDir);
-      const baseName = basename(file, '.lux');
+      const baseName = basename(file, '.tova');
 
       // Generate source map if mappings available
       const generateSourceMap = (code, jsFile) => {
@@ -432,7 +432,7 @@ async function buildProject(args) {
     }
   }
 
-  console.log(`\n  Build complete. ${luxFiles.length - errorCount}/${luxFiles.length} succeeded.\n`);
+  console.log(`\n  Build complete. ${tovaFiles.length - errorCount}/${tovaFiles.length} succeeded.\n`);
   if (errorCount > 0) process.exit(1);
 }
 
@@ -442,21 +442,21 @@ async function devServer(args) {
   const srcDir = resolve(args[0] || '.');
   const basePort = parseInt(args.find((_, i, a) => a[i - 1] === '--port') || '3000');
 
-  const luxFiles = findFiles(srcDir, '.lux');
-  if (luxFiles.length === 0) {
-    console.error('No .lux files found');
+  const tovaFiles = findFiles(srcDir, '.tova');
+  if (tovaFiles.length === 0) {
+    console.error('No .tova files found');
     process.exit(1);
   }
 
-  console.log(`\n  Lux dev server starting...\n`);
+  console.log(`\n  Tova dev server starting...\n`);
 
   // Compile all files
-  const outDir = join(srcDir, '.lux-out');
+  const outDir = join(srcDir, '.tova-out');
   mkdirSync(outDir, { recursive: true });
 
   // Copy runtime files to output directory
-  const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-  const runtimeSrc = join(luxRoot, 'src', 'runtime');
+  const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+  const runtimeSrc = join(tovaRoot, 'src', 'runtime');
   const runtimeDest = join(outDir, 'runtime');
   mkdirSync(runtimeDest, { recursive: true });
   for (const file of ['reactivity.js', 'rpc.js', 'router.js']) {
@@ -469,11 +469,11 @@ async function devServer(args) {
   const serverFiles = [];
   let hasClient = false;
 
-  for (const file of luxFiles) {
+  for (const file of tovaFiles) {
     try {
       const source = readFileSync(file, 'utf-8');
-      const output = compileLux(source, file);
-      const baseName = basename(file, '.lux');
+      const output = compileTova(source, file);
+      const baseName = basename(file, '.tova');
 
       if (output.shared && output.shared.trim()) {
         writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
@@ -525,7 +525,7 @@ async function devServer(args) {
     }
   }
 
-  console.log(`  ✓ Compiled ${luxFiles.length} file(s)`);
+  console.log(`  ✓ Compiled ${tovaFiles.length} file(s)`);
   console.log(`  ✓ Output: ${relative('.', outDir)}/`);
 
   // Orchestrate: spawn each server block as a separate Bun process
@@ -570,13 +570,13 @@ async function devServer(args) {
     console.log('  Rebuilding...');
 
     // Recompile first — keep old processes alive until success
-    const currentFiles = findFiles(srcDir, '.lux');
+    const currentFiles = findFiles(srcDir, '.tova');
     const newServerFiles = [];
     try {
       for (const file of currentFiles) {
         const source = readFileSync(file, 'utf-8');
-        const output = compileLux(source, file);
-        const baseName = basename(file, '.lux');
+        const output = compileTova(source, file);
+        const baseName = basename(file, '.tova');
 
         if (output.shared && output.shared.trim()) {
           writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
@@ -646,9 +646,9 @@ async function devServer(args) {
 
 function generateDevHTML(clientCode) {
   // Read runtime files to inline them (no import needed)
-  const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-  const reactivityCode = readFileSync(join(luxRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8');
-  const rpcCode = readFileSync(join(luxRoot, 'src', 'runtime', 'rpc.js'), 'utf-8');
+  const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+  const reactivityCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8');
+  const rpcCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'rpc.js'), 'utf-8');
 
   // Strip import/export keywords from runtime code for inlining
   const inlineReactivity = reactivityCode.replace(/^export /gm, '');
@@ -664,7 +664,7 @@ function generateDevHTML(clientCode) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lux App</title>
+  <title>Tova App</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
@@ -708,10 +708,10 @@ function generateDevHTML(clientCode) {
 <body>
   <div id="app"></div>
   <script>
-// ── Lux Runtime: Reactivity ──
+// ── Tova Runtime: Reactivity ──
 ${inlineReactivity}
 
-// ── Lux Runtime: RPC ──
+// ── Tova Runtime: RPC ──
 ${inlineRpc}
 
 // ── App ──
@@ -726,7 +726,7 @@ ${inlineClient}
 function newProject(name) {
   if (!name) {
     console.error('Error: No project name specified');
-    console.error('Usage: lux new <project-name>');
+    console.error('Usage: tova new <project-name>');
     process.exit(1);
   }
 
@@ -736,7 +736,7 @@ function newProject(name) {
     process.exit(1);
   }
 
-  console.log(`\n  Creating new Lux project: ${name}\n`);
+  console.log(`\n  Creating new Tova project: ${name}\n`);
 
   mkdirSync(projectDir, { recursive: true });
   mkdirSync(join(projectDir, 'src'));
@@ -747,16 +747,16 @@ function newProject(name) {
     version: '0.1.0',
     type: 'module',
     scripts: {
-      dev: 'lux dev src',
-      build: 'lux build src',
+      dev: 'tova dev src',
+      build: 'tova build src',
     },
     dependencies: {
-      'lux-lang': '^0.1.0',
+      'tova-lang': '^0.1.0',
     },
   }, null, 2) + '\n');
 
   // Main app file
-  writeFileSync(join(projectDir, 'src', 'app.lux'), `// ${name} — Built with Lux
+  writeFileSync(join(projectDir, 'src', 'app.tova'), `// ${name} — Built with Tova
 
 shared {
   type Message {
@@ -766,7 +766,7 @@ shared {
 
 server {
   fn get_message() -> Message {
-    Message("Hello from Lux! 🌟")
+    Message("Hello from Tova! 🌟")
   }
 
   route GET "/api/message" => get_message
@@ -783,7 +783,7 @@ client {
   component App {
     <div class="app">
       <h1>"Welcome to {message}"</h1>
-      <p>"Edit src/app.lux to get started."</p>
+      <p>"Edit src/app.tova to get started."</p>
     </div>
   }
 }
@@ -792,7 +792,7 @@ client {
   // README
   writeFileSync(join(projectDir, 'README.md'), `# ${name}
 
-Built with [Lux](https://github.com/lux-lang/lux) — a modern full-stack language.
+Built with [Tova](https://github.com/tova-lang/tova) — a modern full-stack language.
 
 ## Development
 
@@ -809,7 +809,7 @@ bun run build
 `);
 
   console.log(`  ✓ Created ${name}/package.json`);
-  console.log(`  ✓ Created ${name}/src/app.lux`);
+  console.log(`  ✓ Created ${name}/src/app.tova`);
   console.log(`  ✓ Created ${name}/README.md`);
   console.log(`\n  Get started:\n`);
   console.log(`    cd ${name}`);
@@ -819,32 +819,32 @@ bun run build
 
 // ─── Migrations ─────────────────────────────────────────────
 
-function findLuxFile(arg) {
-  if (arg && arg.endsWith('.lux')) {
+function findTovaFile(arg) {
+  if (arg && arg.endsWith('.tova')) {
     const p = resolve(arg);
     if (existsSync(p)) return p;
     console.error(`Error: File not found: ${p}`);
     process.exit(1);
   }
-  for (const name of ['main.lux', 'app.lux']) {
+  for (const name of ['main.tova', 'app.tova']) {
     const p = resolve(name);
     if (existsSync(p)) return p;
   }
-  const luxFiles = findFiles(resolve('.'), '.lux');
-  if (luxFiles.length === 1) return luxFiles[0];
-  if (luxFiles.length === 0) {
-    console.error('Error: No .lux files found');
+  const tovaFiles = findFiles(resolve('.'), '.tova');
+  if (tovaFiles.length === 1) return tovaFiles[0];
+  if (tovaFiles.length === 0) {
+    console.error('Error: No .tova files found');
     process.exit(1);
   }
-  console.error('Error: Multiple .lux files found. Specify one explicitly.');
+  console.error('Error: Multiple .tova files found. Specify one explicitly.');
   process.exit(1);
 }
 
-function discoverDbConfig(luxFile) {
-  const source = readFileSync(luxFile, 'utf-8');
-  const lexer = new Lexer(source, luxFile);
+function discoverDbConfig(tovaFile) {
+  const source = readFileSync(tovaFile, 'utf-8');
+  const lexer = new Lexer(source, tovaFile);
   const tokens = lexer.tokenize();
-  const parser = new Parser(tokens, luxFile);
+  const parser = new Parser(tokens, tovaFile);
   const ast = parser.parse();
 
   for (const node of ast.body) {
@@ -903,7 +903,7 @@ async function connectDb(cfg) {
 function migrateCreate(name) {
   if (!name) {
     console.error('Error: No migration name specified');
-    console.error('Usage: lux migrate:create <name>');
+    console.error('Usage: tova migrate:create <name>');
     process.exit(1);
   }
 
@@ -937,8 +937,8 @@ export const down = \`
 }
 
 async function migrateUp(args) {
-  const luxFile = findLuxFile(args[0]);
-  const cfg = discoverDbConfig(luxFile);
+  const tovaFile = findTovaFile(args[0]);
+  const cfg = discoverDbConfig(tovaFile);
   const db = await connectDb(cfg);
 
   try {
@@ -991,8 +991,8 @@ async function migrateUp(args) {
 }
 
 async function migrateStatus(args) {
-  const luxFile = findLuxFile(args[0]);
-  const cfg = discoverDbConfig(luxFile);
+  const tovaFile = findTovaFile(args[0]);
+  const cfg = discoverDbConfig(tovaFile);
   const db = await connectDb(cfg);
 
   try {
@@ -1057,10 +1057,10 @@ async function startRepl() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: 'lux> ',
+    prompt: 'tova> ',
   });
 
-  console.log(`\n  Lux REPL v${VERSION}`);
+  console.log(`\n  Tova REPL v${VERSION}`);
   console.log('  Type expressions to evaluate. Use :quit to exit.\n');
 
   const context = {};
@@ -1131,7 +1131,7 @@ async function startRepl() {
     buffer = '';
 
     try {
-      const output = compileLux(input, '<repl>');
+      const output = compileTova(input, '<repl>');
       const code = output.shared || '';
       if (code.trim()) {
         // Try wrapping last expression statement as a return for value display
@@ -1182,7 +1182,7 @@ function startWatcher(srcDir, callback) {
   console.log(`  Watching for changes in ${srcDir}...`);
 
   const watcher = fsWatch(srcDir, { recursive: true }, (eventType, filename) => {
-    if (!filename || !filename.endsWith('.lux')) return;
+    if (!filename || !filename.endsWith('.tova')) return;
     // Debounce rapid file changes
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -1253,7 +1253,7 @@ class SourceMapBuilder {
 
     return JSON.stringify({
       version: 3,
-      file: this.sourceFile.replace('.lux', '.js'),
+      file: this.sourceFile.replace('.tova', '.js'),
       sources,
       sourcesContent: sourceContent ? [sourceContent] : undefined,
       names,
@@ -1284,9 +1284,9 @@ class SourceMapBuilder {
 // ─── Production Build ────────────────────────────────────────
 
 async function productionBuild(srcDir, outDir) {
-  const luxFiles = findFiles(srcDir, '.lux');
-  if (luxFiles.length === 0) {
-    console.error('No .lux files found');
+  const tovaFiles = findFiles(srcDir, '.tova');
+  if (tovaFiles.length === 0) {
+    console.error('No .tova files found');
     process.exit(1);
   }
 
@@ -1299,10 +1299,10 @@ async function productionBuild(srcDir, outDir) {
   let allSharedCode = '';
   let cssContent = '';
 
-  for (const file of luxFiles) {
+  for (const file of tovaFiles) {
     try {
       const source = readFileSync(file, 'utf-8');
-      const output = compileLux(source, file);
+      const output = compileTova(source, file);
 
       if (output.shared) allSharedCode += output.shared + '\n';
       if (output.server) allServerCode += output.server + '\n';
@@ -1332,9 +1332,9 @@ async function productionBuild(srcDir, outDir) {
 
   // Write client bundle
   if (allClientCode.trim()) {
-    const luxRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
-    const reactivityCode = readFileSync(join(luxRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8').replace(/^export /gm, '');
-    const rpcCode = readFileSync(join(luxRoot, 'src', 'runtime', 'rpc.js'), 'utf-8').replace(/^export /gm, '');
+    const tovaRoot = resolve(dirname(import.meta.url.replace('file://', '')), '..');
+    const reactivityCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'reactivity.js'), 'utf-8').replace(/^export /gm, '');
+    const rpcCode = readFileSync(join(tovaRoot, 'src', 'runtime', 'rpc.js'), 'utf-8').replace(/^export /gm, '');
 
     const clientBundle = reactivityCode + '\n' + rpcCode + '\n' + allSharedCode + '\n' +
       allClientCode.replace(/^import\s+\{[^}]+\}\s+from\s+'[^']+';?\s*$/gm, '').trim();
@@ -1350,7 +1350,7 @@ async function productionBuild(srcDir, outDir) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lux App</title>
+  <title>Tova App</title>
 </head>
 <body>
   <div id="app"></div>
@@ -1449,7 +1449,7 @@ function compileWithImports(source, filename, srcDir) {
   compilationInProgress.add(filename);
 
   try {
-    // Parse and find .lux imports
+    // Parse and find .tova imports
     const lexer = new Lexer(source, filename);
     const tokens = lexer.tokenize();
     const parser = new Parser(tokens, filename);
@@ -1458,9 +1458,9 @@ function compileWithImports(source, filename, srcDir) {
     // Collect this module's exports for validation
     collectExports(ast, filename);
 
-    // Resolve .lux imports first
+    // Resolve .tova imports first
     for (const node of ast.body) {
-      if (node.type === 'ImportDeclaration' && node.source.endsWith('.lux')) {
+      if (node.type === 'ImportDeclaration' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         if (compilationInProgress.has(importPath)) {
           throw new Error(`Circular import detected: ${filename} → ${importPath}`);
@@ -1482,9 +1482,9 @@ function compileWithImports(source, filename, srcDir) {
           }
         }
         // Rewrite the import path to .js
-        node.source = node.source.replace('.lux', '.shared.js');
+        node.source = node.source.replace('.tova', '.shared.js');
       }
-      if (node.type === 'ImportDefault' && node.source.endsWith('.lux')) {
+      if (node.type === 'ImportDefault' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         if (compilationInProgress.has(importPath)) {
           throw new Error(`Circular import detected: ${filename} → ${importPath}`);
@@ -1492,9 +1492,9 @@ function compileWithImports(source, filename, srcDir) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
         }
-        node.source = node.source.replace('.lux', '.shared.js');
+        node.source = node.source.replace('.tova', '.shared.js');
       }
-      if (node.type === 'ImportWildcard' && node.source.endsWith('.lux')) {
+      if (node.type === 'ImportWildcard' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         if (compilationInProgress.has(importPath)) {
           throw new Error(`Circular import detected: ${filename} → ${importPath}`);
@@ -1502,7 +1502,7 @@ function compileWithImports(source, filename, srcDir) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
         }
-        node.source = node.source.replace('.lux', '.shared.js');
+        node.source = node.source.replace('.tova', '.shared.js');
       }
     }
 

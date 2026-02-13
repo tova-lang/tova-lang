@@ -6,7 +6,7 @@ Computed values are derived reactive values that automatically recalculate when 
 
 Use `computed` to declare a value derived from one or more signals:
 
-```lux
+```tova
 client {
   state count = 0
   computed doubled = count * 2
@@ -21,7 +21,7 @@ A computed value automatically tracks which signals it reads. When any of those 
 
 Reading a computed value works exactly like reading a signal -- just use the variable name:
 
-```lux
+```tova
 client {
   state price = 100
   state tax_rate = 0.08
@@ -43,7 +43,7 @@ Computed values are **read-only**. You cannot assign to a computed value -- it i
 
 Computed values are memoized. The computation only re-runs when a dependency actually changes, not every time the value is read:
 
-```lux
+```tova
 client {
   state items = [1, 2, 3, 4, 5]
   state filter_text = ""
@@ -61,9 +61,9 @@ If `filtered_items` is read by multiple effects or components, the filtering com
 
 ## Glitch-Free Consistency
 
-Lux's computed values use a pull-based evaluation model that guarantees glitch-free reads. This means you never observe an inconsistent or stale intermediate state:
+Tova's computed values use a pull-based evaluation model that guarantees glitch-free reads. This means you never observe an inconsistent or stale intermediate state:
 
-```lux
+```tova
 client {
   state first = "Alice"
   state last = "Smith"
@@ -82,9 +82,9 @@ When a source signal changes, computed values are marked dirty synchronously (pr
 
 ## Computed with Expressions
 
-Computed values can use any Lux expression, including complex logic:
+Computed values can use any Tova expression, including complex logic:
 
-```lux
+```tova
 client {
   state items = []
   state show_completed = false
@@ -104,7 +104,7 @@ client {
 
 Pattern matching works inside computed declarations, providing a clean way to derive values from state:
 
-```lux
+```tova
 client {
   state score = 85
 
@@ -129,7 +129,7 @@ client {
 
 Computed values can depend on other computed values, forming a dependency chain:
 
-```lux
+```tova
 client {
   state cart_items = []
 
@@ -151,7 +151,7 @@ When `cart_items` changes, `subtotal` is marked dirty, which marks `tax`, `shipp
 
 Components can declare local computed values alongside local state:
 
-```lux
+```tova
 component SearchBar(items) {
   state query = ""
 
@@ -178,7 +178,7 @@ component SearchBar(items) {
 
 The `computed` keyword is syntactic sugar for `createComputed`. When you write:
 
-```lux
+```tova
 computed doubled = count * 2
 ```
 

@@ -671,7 +671,7 @@ fn test() {
     expect(defWarnings.length).toBe(0);
   });
 
-  test('does not warn on Lux builtins', () => {
+  test('does not warn on Tova builtins', () => {
     const result = analyze(`
 fn test() {
   x = len("hello")
@@ -1076,14 +1076,14 @@ describe('Circular Import Detection', () => {
 
   test('circular a→b→a does not infinite loop and emits warning', () => {
     // Create temp directory with circular imports
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lux-circular-'));
-    const aFile = path.join(tmpDir, 'a.lux');
-    const bFile = path.join(tmpDir, 'b.lux');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tova-circular-'));
+    const aFile = path.join(tmpDir, 'a.tova');
+    const bFile = path.join(tmpDir, 'b.tova');
 
-    fs.writeFileSync(aFile, 'import { y } from "./b.lux"\nx = 1');
-    fs.writeFileSync(bFile, 'import { x } from "./a.lux"\ny = 2');
+    fs.writeFileSync(aFile, 'import { y } from "./b.tova"\nx = 1');
+    fs.writeFileSync(bFile, 'import { x } from "./a.tova"\ny = 2');
 
-    // Dynamically import compileWithImports from bin/lux.js
+    // Dynamically import compileWithImports from bin/tova.js
     // Since compileWithImports is not exported, test the logic directly
     // by simulating what it does
     const warnings = [];
@@ -1095,14 +1095,14 @@ describe('Circular Import Detection', () => {
       const compilationCache = new Map();
       const compilationInProgress = new Set();
 
-      // Simulate: a.lux starts compiling
+      // Simulate: a.tova starts compiling
       compilationInProgress.add(aFile);
 
-      // While compiling a, it finds import of b.lux
+      // While compiling a, it finds import of b.tova
       // b starts compiling
       compilationInProgress.add(bFile);
 
-      // While compiling b, it finds import of a.lux
+      // While compiling b, it finds import of a.tova
       // a is already in progress — circular!
       expect(compilationInProgress.has(aFile)).toBe(true);
 
@@ -1113,7 +1113,7 @@ describe('Circular Import Detection', () => {
 
       expect(warnings.length).toBe(1);
       expect(warnings[0]).toContain('Circular import detected');
-      expect(warnings[0]).toContain('a.lux');
+      expect(warnings[0]).toContain('a.tova');
     } finally {
       console.warn = origWarn;
       // Cleanup
@@ -1126,17 +1126,17 @@ describe('Circular Import Detection', () => {
   test('compilationInProgress Set tracks in-flight files correctly', () => {
     const inProgress = new Set();
 
-    inProgress.add('/a.lux');
-    expect(inProgress.has('/a.lux')).toBe(true);
-    expect(inProgress.has('/b.lux')).toBe(false);
+    inProgress.add('/a.tova');
+    expect(inProgress.has('/a.tova')).toBe(true);
+    expect(inProgress.has('/b.tova')).toBe(false);
 
-    inProgress.add('/b.lux');
-    expect(inProgress.has('/b.lux')).toBe(true);
+    inProgress.add('/b.tova');
+    expect(inProgress.has('/b.tova')).toBe(true);
 
     // After compilation completes, file is removed
-    inProgress.delete('/a.lux');
-    expect(inProgress.has('/a.lux')).toBe(false);
-    expect(inProgress.has('/b.lux')).toBe(true);
+    inProgress.delete('/a.tova');
+    expect(inProgress.has('/a.tova')).toBe(false);
+    expect(inProgress.has('/b.tova')).toBe(true);
   });
 });
 
@@ -1352,9 +1352,9 @@ fn test() {
   });
 
   test('replace', () => {
-    const code = compileWithStdlib('fn test() { replace("hello world", "world", "lux") }');
+    const code = compileWithStdlib('fn test() { replace("hello world", "world", "tova") }');
     const fn = new Function(code + '\nreturn test();');
-    expect(fn()).toBe('hello lux');
+    expect(fn()).toBe('hello tova');
   });
 
   test('repeat', () => {

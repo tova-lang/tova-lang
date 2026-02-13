@@ -8,9 +8,9 @@ A server with JWT-based authentication including user registration, login, and p
 
 ## Full Code
 
-Create `auth.lux`:
+Create `auth.tova`:
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -316,14 +316,14 @@ client {
 Run it:
 
 ```bash
-lux dev .
+tova dev .
 ```
 
 ## Walkthrough
 
 ### Shared Auth Types
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -342,7 +342,7 @@ The shared types define the contract between server and client. Note that the sh
 
 ### Password Hashing
 
-```lux
+```tova
 fn hash_password(password) -> String {
   Bun.password.hashSync(password, { algorithm: "bcrypt", cost: 10 })
 }
@@ -356,7 +356,7 @@ Passwords are hashed using bcrypt via Bun's built-in password hashing. The cost 
 
 ### JWT Token Management
 
-```lux
+```tova
 fn create_token(user) -> String {
   payload = {
     sub: user.id,
@@ -376,7 +376,7 @@ The JWT secret should be loaded from an environment variable in production.
 
 ### Auth Middleware
 
-```lux
+```tova
 middleware auth(req, res) {
   header = req.headers["authorization"]
   guard header != nil else {
@@ -399,7 +399,7 @@ If any guard fails, the middleware returns a 401 response and the route handler 
 
 ### Registration with Validation
 
-```lux
+```tova
 fn register(email, password, name) -> AuthResponse {
   existing = User.find_by({ email: email })
   guard existing == nil else {
@@ -429,7 +429,7 @@ The function returns `Result` -- either `Ok(AuthResponse)` or `Err(message)`.
 
 ### Client-Side View Routing
 
-```lux
+```tova
 state view = "login"
 
 component App {
@@ -446,7 +446,7 @@ The client uses a `view` state variable to switch between login, registration, a
 
 ### Error Display Pattern
 
-```lux
+```tova
 {match error_msg {
   "" => <span />
   msg => <p class="error">{msg}</p>

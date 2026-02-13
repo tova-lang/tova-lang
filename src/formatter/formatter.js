@@ -1,5 +1,5 @@
-// Lux code formatter — AST-based pretty printer
-// Formats Lux source code with consistent style
+// Tova code formatter — AST-based pretty printer
+// Formats Tova source code with consistent style
 
 export class Formatter {
   constructor(options = {}) {

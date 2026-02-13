@@ -1,12 +1,12 @@
 # Architecture Overview
 
-Lux is a full-stack language where a single `.lux` file contains everything needed for both the server and the client. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
+Tova is a full-stack language where a single `.tova` file contains everything needed for both the server and the client. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
 
 ## The Three-Block Model
 
-Every Lux application is organized into three kinds of blocks:
+Every Tova application is organized into three kinds of blocks:
 
-```lux
+```tova
 shared {
   // Types, validation, constants -- available to BOTH client and server
 }
@@ -24,7 +24,7 @@ You write all three in the same file. The compiler separates them at build time.
 
 ### Shared Block
 
-The `shared` block defines data types, validation functions, and constants that must be identical on both sides. When the compiler processes a `.lux` file, the shared block is emitted as its own JavaScript module (e.g., `app.shared.js`) and imported by both the server and client outputs.
+The `shared` block defines data types, validation functions, and constants that must be identical on both sides. When the compiler processes a `.tova` file, the shared block is emitted as its own JavaScript module (e.g., `app.shared.js`) and imported by both the server and client outputs.
 
 **Runtime environment:** None (it is library code imported by both runtimes).
 
@@ -50,7 +50,7 @@ Typical contents:
 
 ### Client Block
 
-The `client` block contains everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Lux reactive runtime.
+The `client` block contains everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Tova reactive runtime.
 
 **Runtime environment:** Browser.
 
@@ -63,20 +63,20 @@ Typical contents:
 
 ## How Compilation Works
 
-When you run `lux build`, the compiler performs the following steps:
+When you run `tova build`, the compiler performs the following steps:
 
-1. **Parse** the `.lux` file into an AST
+1. **Parse** the `.tova` file into an AST
 2. **Separate** AST nodes by block type (shared, server, client)
 3. **Generate** JavaScript for each block using its specialized code generator
 4. **Wire** the RPC bridge -- server functions get HTTP endpoints, client code gets a `server` proxy
-5. **Output** separate files to the `.lux-out/` directory
+5. **Output** separate files to the `.tova-out/` directory
 
 ```
-                         lux build
+                         tova build
                             |
                             v
   +---------------------------------------------------------+
-  |                      app.lux                            |
+  |                      app.tova                            |
   |                                                         |
   |  shared { types, validation }                           |
   |  server { routes, db, functions }                       |
@@ -103,7 +103,7 @@ The server output imports `app.shared.js` for type definitions. The client outpu
 
 The most powerful part of the three-block model is the automatic RPC (Remote Procedure Call) bridge. Any function defined in a `server` block can be called from the `client` block using `server.function_name()`:
 
-```lux
+```tova
 server {
   fn get_users() -> [User] {
     UserModel.all()
@@ -138,7 +138,7 @@ The result is that you write `server.get_users()` and the compiler handles all t
 
 ## Architecture Diagram
 
-Here is the complete picture of how a Lux application runs:
+Here is the complete picture of how a Tova application runs:
 
 ```
   Browser                                    Server (Bun)
@@ -174,7 +174,7 @@ Here is the complete picture of how a Lux application runs:
 
 Only put data contracts and pure validation in `shared {}`. Business logic, database calls, and anything with side effects belongs in `server {}`. UI state and rendering belongs in `client {}`.
 
-```lux
+```tova
 // Good: shared contains only types and validation
 shared {
   type User { id: Int, name: String, email: String }
@@ -196,7 +196,7 @@ shared {
 
 Adding type annotations to server function parameters enables automatic request validation. The compiler generates validation code that checks types before executing the function:
 
-```lux
+```tova
 server {
   // With types: compiler auto-validates that name is String, age is Int
   fn create_user(name: String, age: Int) -> User {
@@ -211,7 +211,7 @@ If a client sends incorrect types, the RPC endpoint returns a 400 error with val
 
 Put validation functions in `shared {}` so the same logic runs on both the client (for instant UX feedback) and the server (for security):
 
-```lux
+```tova
 shared {
   fn validate_email(email: String) -> Bool {
     email.contains("@") && email.length() > 3
@@ -243,7 +243,7 @@ server {
 
 Use `server.function_name()` from client code instead of manually fetching API endpoints. The compiler generates efficient RPC endpoints automatically and handles serialization for you.
 
-```lux
+```tova
 // Preferred: let the compiler handle networking
 client {
   fn load_data() {

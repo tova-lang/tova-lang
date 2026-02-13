@@ -1,7 +1,7 @@
-// Client-side router for Lux — integrated with the signal system
+// Client-side router for Tova — integrated with the signal system
 // Route changes are reactive: components that read route() or params() auto-update.
 
-import { createSignal, lux_el } from './reactivity.js';
+import { createSignal, tova_el } from './reactivity.js';
 
 // ─── Route Signal ─────────────────────────────────────────
 // The route is a signal, so any component/effect that reads it
@@ -88,7 +88,7 @@ export function Router() {
 // Usage: <Link href="/about">"About"</Link>
 
 export function Link({ href, children, ...rest }) {
-  return lux_el('a', {
+  return tova_el('a', {
     href,
     onClick: (e) => {
       e.preventDefault();

@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Lux
+  name: Tova
   text: A Modern Full-Stack Language
   tagline: Write frontend and backend in one file. Transpiles to JavaScript with zero runtime overhead.
   actions:
@@ -11,13 +11,13 @@ hero:
       link: /getting-started/
     - theme: alt
       text: View on GitHub
-      link: https://github.com/luxlang/lux
+      link: https://github.com/tovalang/tova
 
 features:
   - title: Full-Stack in One File
-    details: Write server routes, database queries, and reactive UI in a single .lux file. The compiler splits code automatically.
+    details: Write server routes, database queries, and reactive UI in a single .tova file. The compiler splits code automatically.
   - title: Automatic RPC
-    details: Call server functions from the client as if they were local. Lux generates the HTTP bridge at compile time.
+    details: Call server functions from the client as if they were local. Tova generates the HTTP bridge at compile time.
   - title: Fine-Grained Reactivity
     details: Signals-based UI with automatic dependency tracking. No virtual DOM — only the exact DOM nodes that need updating change.
   - title: Pattern Matching
@@ -32,7 +32,7 @@ features:
 
 ## Quick Taste
 
-```lux
+```tova
 // A full-stack counter in one file
 
 shared {

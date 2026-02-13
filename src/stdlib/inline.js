@@ -1,6 +1,6 @@
-// Lux standard library — inline string versions for codegen
+// Tova standard library — inline string versions for codegen
 // Single source of truth for all inline stdlib code used in code generation.
-// Used by: base-codegen.js, client-codegen.js, bin/lux.js
+// Used by: base-codegen.js, client-codegen.js, bin/tova.js
 
 export const RESULT_OPTION = `function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { const r = fn(value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Ok/Err"); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; } }); }
 function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + (typeof error === "object" ? JSON.stringify(error) : error)); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; } }); }
@@ -8,8 +8,8 @@ function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { re
 const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });`;
 
 export const PROPAGATE = `function __propagate(val) {
-  if (val && val.__tag === "Err") throw { __lux_propagate: true, value: val };
-  if (val && val.__tag === "None") throw { __lux_propagate: true, value: val };
+  if (val && val.__tag === "Err") throw { __tova_propagate: true, value: val };
+  if (val && val.__tag === "None") throw { __tova_propagate: true, value: val };
   if (val && val.__tag === "Ok") return val.value;
   if (val && val.__tag === "Some") return val.value;
   return val;

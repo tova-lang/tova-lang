@@ -1449,16 +1449,16 @@ describe('Multiple errors accumulated', () => {
 
   test('error includes file, line, and column info', () => {
     const AST = require('../src/parser/ast.js');
-    const loc = { line: 5, column: 3, file: 'app.lux' };
+    const loc = { line: 5, column: 3, file: 'app.tova' };
     const node = new AST.StateDeclaration('count', null, new AST.NumberLiteral(0, loc), loc);
     const ast = new AST.Program([node]);
-    const analyzer = new Analyzer(ast, 'app.lux');
+    const analyzer = new Analyzer(ast, 'app.tova');
 
     try {
       analyzer.analyze();
       expect(true).toBe(false);
     } catch (e) {
-      expect(e.message).toContain('app.lux:5:3');
+      expect(e.message).toContain('app.tova:5:3');
     }
   });
 });

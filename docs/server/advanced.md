@@ -6,7 +6,7 @@ This page covers advanced server features including background jobs, scheduled t
 
 Background jobs let you offload work that does not need to complete before responding to a request. Declare a background function and dispatch it with `spawn_job`:
 
-```lux
+```tova
 server {
   background fn send_email(to, subject, body) {
     // Runs in the background, does not block the request
@@ -28,7 +28,7 @@ The `spawn_job` call returns immediately. The background function runs asynchron
 
 ### spawn_job
 
-```lux
+```tova
 spawn_job("function_name", arg1, arg2, ...)
 ```
 
@@ -41,7 +41,7 @@ spawn_job("function_name", arg1, arg2, ...)
 
 Run functions on a recurring schedule using cron expressions:
 
-```lux
+```tova
 server {
   schedule "*/5 * * * *" fn cleanup() {
     db.run("DELETE FROM sessions WHERE expires_at < ?", Date.now())
@@ -84,7 +84,7 @@ server {
 
 Run code when the server starts or stops:
 
-```lux
+```tova
 server {
   on_start fn() {
     print("Server started")
@@ -112,7 +112,7 @@ Runs when the server receives a shutdown signal (e.g., SIGTERM, SIGINT). Use it 
 
 Define a global error handler that catches unhandled errors in route handlers:
 
-```lux
+```tova
 server {
   on_error fn(err, req) {
     print("Error on {req.method} {req.url}: {err}")
@@ -128,9 +128,9 @@ The error handler receives the error object and the original request. Without a 
 
 ## Service Discovery
 
-In multi-server architectures (using named server blocks), `discover` lets one server call functions on another. Lux includes a built-in circuit breaker to protect against cascading failures:
+In multi-server architectures (using named server blocks), `discover` lets one server call functions on another. Tova includes a built-in circuit breaker to protect against cascading failures:
 
-```lux
+```tova
 server "api" {
   discover "events" at "http://localhost:3002"
   discover "auth" at "http://localhost:3003" with {
@@ -151,7 +151,7 @@ server "api" {
 
 Once a service is discovered, you can call its functions as if they were local:
 
-```lux
+```tova
 // Calls the "events" service's create_event function via RPC
 events.create_event({ type: "user_signup", user_id: user.id })
 ```
@@ -162,7 +162,7 @@ When the circuit is open, calls fail immediately without attempting the network 
 
 Named server blocks can communicate via an event bus. Use `subscribe` to listen for events and `publish` to emit them:
 
-```lux
+```tova
 server "api" {
   subscribe "user.created" fn(data) {
     print("New user created: {data.name}")
@@ -194,11 +194,11 @@ Events are delivered to all subscribers in the current server and to peer server
 
 ## Distributed Tracing
 
-Lux automatically generates and propagates request IDs across server boundaries. This makes it possible to trace a request through multiple services.
+Tova automatically generates and propagates request IDs across server boundaries. This makes it possible to trace a request through multiple services.
 
 ### Request ID Functions
 
-```lux
+```tova
 request_id = __getRequestId()     // get the current request's trace ID
 locals = __getLocals()            // get request-scoped storage (AsyncLocalStorage)
 ```
@@ -217,7 +217,7 @@ Client -> Server A (X-Request-Id: abc-123)
 
 Use the request ID in logging to correlate log entries across services:
 
-```lux
+```tova
 middleware fn trace_logger(req, next) {
   rid = __getRequestId()
   print("[{rid}] {req.method} {req.url}")
@@ -229,7 +229,7 @@ middleware fn trace_logger(req, next) {
 
 ## OpenAPI Auto-Generation
 
-Lux automatically generates OpenAPI 3.0 documentation from your routes and types. Two endpoints are available by default:
+Tova automatically generates OpenAPI 3.0 documentation from your routes and types. Two endpoints are available by default:
 
 | Endpoint | Description |
 |----------|-------------|
@@ -242,7 +242,7 @@ Route parameters, request bodies, and response types are derived from function s
 
 Given this server:
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -273,14 +273,14 @@ The generated OpenAPI spec includes the `/api/users` endpoints with the `User` s
 
 Fine-tune HTTP caching on individual responses:
 
-```lux
+```tova
 cache_control(response, 3600, { private: true })     // Cache-Control: private, max-age=3600
 etag(response, "hash123")                             // ETag: "hash123"
 ```
 
 ### cache_control
 
-```lux
+```tova
 cache_control(response, max_age)
 cache_control(response, max_age, options)
 ```
@@ -293,7 +293,7 @@ cache_control(response, max_age, options)
 
 ### etag
 
-```lux
+```tova
 etag(response, hash)
 ```
 
@@ -303,7 +303,7 @@ Sets the `ETag` header on a response. Clients can use this for conditional reque
 
 Here is a server combining several advanced features:
 
-```lux
+```tova
 server "api" {
   env PORT: Int = 3000
   db { path: "./data.db" }

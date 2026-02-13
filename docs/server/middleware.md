@@ -6,7 +6,7 @@ Middleware functions wrap request handling, letting you run logic before and aft
 
 Declare middleware at the server level with the `middleware` keyword. A middleware function receives the current request and a `next` function that passes control to the next middleware (or the route handler):
 
-```lux
+```tova
 server {
   middleware fn logger(req, next) {
     start = Date.now()
@@ -20,7 +20,7 @@ server {
 
 Global middleware applies to every route in the server. You can declare multiple global middleware functions, and they execute in the order they are defined:
 
-```lux
+```tova
 server {
   middleware fn request_id(req, next) {
     req.id = generate_id()
@@ -51,7 +51,7 @@ In this example, the execution order is: `request_id` -> `logger` -> `error_wrap
 
 Attach middleware to specific routes using the `with` keyword:
 
-```lux
+```tova
 route GET "/protected" with auth => handler
 ```
 
@@ -61,7 +61,7 @@ This runs the `auth` middleware before `handler`. Only this route is affected --
 
 Chain multiple middleware functions with commas. They execute left to right:
 
-```lux
+```tova
 route DELETE "/users/:id" with auth, role("admin") => delete_user
 route POST "/upload" with auth, validate_body, rate_limit(5) => upload_file
 ```
@@ -95,7 +95,7 @@ A middleware can:
 
 ### Modifying Requests
 
-```lux
+```tova
 middleware fn add_timestamp(req, next) {
   req.received_at = Date.now()
   next(req)
@@ -104,7 +104,7 @@ middleware fn add_timestamp(req, next) {
 
 ### Short-Circuiting
 
-```lux
+```tova
 fn auth(req, next) {
   token = req.headers["authorization"]
   if token == nil {
@@ -120,7 +120,7 @@ When `auth` returns a 401 response directly, `next` is never called and the rout
 
 ### Modifying Responses
 
-```lux
+```tova
 middleware fn add_cors_headers(req, next) {
   response = next(req)
   with_headers(response, {
@@ -134,7 +134,7 @@ middleware fn add_cors_headers(req, next) {
 
 Middleware that takes configuration returns a middleware function:
 
-```lux
+```tova
 fn role(required_role) {
   fn(req, next) {
     if req.user.role != required_role {

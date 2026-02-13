@@ -1,17 +1,17 @@
 ---
-title: Tour of Lux
-description: A rapid 10-minute walkthrough of every major Lux concept.
+title: Tour of Tova
+description: A rapid 10-minute walkthrough of every major Tova concept.
 ---
 
-# Tour of Lux
+# Tour of Tova
 
-This is a fast-paced tour of the Lux language. Each section introduces a concept with a short code example. By the end, you will have seen every major feature.
+This is a fast-paced tour of the Tova language. Each section introduces a concept with a short code example. By the end, you will have seen every major feature.
 
 ## 1. Variables
 
 Bindings are immutable by default. Use `var` for mutable variables. Use `let` for destructuring.
 
-```lux
+```tova
 x = 5                   // immutable
 var y = 10              // mutable
 y += 1                  // OK
@@ -24,7 +24,7 @@ let [first, ...rest] = items // destructure an array
 
 Functions are declared with `fn`. The last expression is the return value.
 
-```lux
+```tova
 fn greet(name) {
   "Hello, {name}!"
 }
@@ -34,13 +34,13 @@ greet("Alice")   // "Hello, Alice!"
 
 Lambdas use the same keyword without a name:
 
-```lux
+```tova
 double = fn(x) x * 2
 ```
 
 Functions can have default parameters:
 
-```lux
+```tova
 fn connect(host, port = 8080) {
   print("Connecting to {host}:{port}")
 }
@@ -51,9 +51,9 @@ connect("localhost", 3000)  // port is 3000
 
 ## 3. Control Flow
 
-Lux uses `if`/`elif`/`else` -- there is no `else if`:
+Tova uses `if`/`elif`/`else` -- there is no `else if`:
 
-```lux
+```tova
 fn classify(score) {
   if score >= 90 {
     "A"
@@ -69,7 +69,7 @@ fn classify(score) {
 
 Loops with `for` and `while`, plus `break` and `continue`:
 
-```lux
+```tova
 for item in items {
   if item == "skip" { continue }
   if item == "stop" { break }
@@ -85,7 +85,7 @@ while n <= 10 {
 
 Guard clauses for early exits:
 
-```lux
+```tova
 fn process(data) {
   guard data != nil else { return Err("no data") }
   guard len(data) > 0 else { return Err("empty") }
@@ -95,9 +95,9 @@ fn process(data) {
 
 ## 4. Pattern Matching
 
-`match` is one of the most powerful features in Lux. It supports literals, ranges, variant destructuring, wildcards, and guards.
+`match` is one of the most powerful features in Tova. It supports literals, ranges, variant destructuring, wildcards, and guards.
 
-```lux
+```tova
 fn describe(value) {
   match value {
     0          => "zero"
@@ -110,7 +110,7 @@ fn describe(value) {
 
 Match on custom type variants:
 
-```lux
+```tova
 fn area(shape) {
   match shape {
     Circle(r)       => 3.14159 * r * r
@@ -122,7 +122,7 @@ fn area(shape) {
 
 Match on arrays and strings:
 
-```lux
+```tova
 match list {
   []        => "empty"
   [x]       => "one element: {x}"
@@ -143,7 +143,7 @@ The compiler warns you if you forget to handle a case.
 
 Define record types and algebraic data types (ADTs):
 
-```lux
+```tova
 type User {
   id: Int
   name: String
@@ -156,7 +156,7 @@ print(user.name)   // "Alice"
 
 ADTs with variants:
 
-```lux
+```tova
 type Color {
   Red
   Green
@@ -169,7 +169,7 @@ bg = Custom(30, 60, 90)
 
 Generic types:
 
-```lux
+```tova
 type Option<T> {
   Some(T)
   None
@@ -185,7 +185,7 @@ type Result<T, E> {
 
 Arrays, objects, spread, slicing, and comprehensions:
 
-```lux
+```tova
 // Arrays
 nums = [1, 2, 3, 4, 5]
 first = nums[0]
@@ -204,9 +204,9 @@ squares = [x * x for x in range(10) if x > 0]
 
 ## 7. Error Handling
 
-Lux uses `Result` and `Option` types instead of exceptions:
+Tova uses `Result` and `Option` types instead of exceptions:
 
-```lux
+```tova
 fn divide(a, b) {
   if b == 0 {
     Err("division by zero")
@@ -225,7 +225,7 @@ match result {
 
 Chain operations with `.map()` and `.unwrap()`:
 
-```lux
+```tova
 value = divide(10, 2)
   |> Result.map(fn(x) x * 2)
   |> Result.unwrap()
@@ -235,7 +235,7 @@ print(value)   // 10
 
 Propagate errors with `!`:
 
-```lux
+```tova
 fn load_config(path) {
   content = read_file(path)!     // returns Err early if read fails
   parse_json(content)!           // returns Err early if parse fails
@@ -247,7 +247,7 @@ fn load_config(path) {
 
 The pipe operator `|>` chains function calls left to right:
 
-```lux
+```tova
 result = data
   |> filter(fn(x) x > 0)
   |> map(fn(x) x * 2)
@@ -258,7 +258,7 @@ result = data
 
 Use `_` as a placeholder when the value should not go in the first position:
 
-```lux
+```tova
 "hello" |> replace(_, "l", "r")   // "herro"
 ```
 
@@ -266,15 +266,15 @@ Use `_` as a placeholder when the value should not go in the first position:
 
 Import and export between files:
 
-```lux
-// math.lux
+```tova
+// math.tova
 export fn square(x) { x * x }
 export fn cube(x) { x * x * x }
 export PI = 3.14159
 ```
 
-```lux
-// app.lux
+```tova
+// app.tova
 import { square, cube, PI } from "./math"
 
 print(square(5))   // 25
@@ -283,16 +283,16 @@ print(PI)          // 3.14159
 
 Import npm packages the same way:
 
-```lux
+```tova
 import { z } from "zod"
 import dayjs from "dayjs"
 ```
 
 ## 10. Full-Stack
 
-Lux's defining feature is the three-block model. A single `.lux` file can contain `shared`, `server`, and `client` blocks:
+Tova's defining feature is the three-block model. A single `.tova` file can contain `shared`, `server`, and `client` blocks:
 
-```lux
+```tova
 shared {
   type Message {
     id: Int
@@ -361,9 +361,9 @@ Key concepts:
 
 ## 11. Async
 
-Lux supports `async` and `await` as first-class keywords:
+Tova supports `async` and `await` as first-class keywords:
 
-```lux
+```tova
 async fn fetch_data(url) {
   response = await fetch(url)
   data = await response.json()
@@ -383,7 +383,7 @@ async fn load_users() {
 
 Define shared behavior across types:
 
-```lux
+```tova
 interface Printable {
   fn to_string() -> String
 }
@@ -395,7 +395,7 @@ interface Comparable {
 
 Use `derive` to auto-implement common interfaces:
 
-```lux
+```tova
 type Point {
   x: Int
   y: Int
@@ -406,7 +406,7 @@ This generates equality checking, string representation, and JSON serialization 
 
 ---
 
-That covers the core of Lux. For deeper dives into each topic, continue to the language guide:
+That covers the core of Tova. For deeper dives into each topic, continue to the language guide:
 
 - [Variables](/guide/variables)
 - [Functions](/guide/functions)

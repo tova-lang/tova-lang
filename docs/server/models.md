@@ -1,12 +1,12 @@
 # Models
 
-The `model` declaration generates a full set of CRUD operations from a shared type definition. Instead of writing boilerplate database queries by hand, you declare a model and Lux generates a typed interface for creating, reading, updating, and deleting records.
+The `model` declaration generates a full set of CRUD operations from a shared type definition. Instead of writing boilerplate database queries by hand, you declare a model and Tova generates a typed interface for creating, reading, updating, and deleting records.
 
 ## Defining a Model
 
 Start with a type in the `shared` block, then declare a `model` in the `server` block:
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -41,7 +41,7 @@ Every model provides the following methods:
 
 Retrieve a single record by its primary key. Returns the record or `nil`:
 
-```lux
+```tova
 user = UserModel.find(1)
 ```
 
@@ -49,7 +49,7 @@ user = UserModel.find(1)
 
 Retrieve every record in the table:
 
-```lux
+```tova
 users = UserModel.all()
 ```
 
@@ -57,7 +57,7 @@ users = UserModel.all()
 
 Query records matching a set of conditions. Pass an object where keys are column names and values are the expected values:
 
-```lux
+```tova
 admins = UserModel.where({ role: "admin" })
 active_members = UserModel.where({ active: true, role: "member" })
 ```
@@ -66,7 +66,7 @@ active_members = UserModel.where({ active: true, role: "member" })
 
 Insert a new record and return it (including the generated `id`):
 
-```lux
+```tova
 user = UserModel.create({
   name: "Alice",
   email: "alice@example.com"
@@ -78,7 +78,7 @@ user = UserModel.create({
 
 Update a record by primary key. Pass the fields to change:
 
-```lux
+```tova
 UserModel.update(1, { name: "Alice Smith", email: "alice.smith@example.com" })
 ```
 
@@ -86,7 +86,7 @@ UserModel.update(1, { name: "Alice Smith", email: "alice.smith@example.com" })
 
 Remove a record by primary key:
 
-```lux
+```tova
 UserModel.delete(1)
 ```
 
@@ -94,7 +94,7 @@ UserModel.delete(1)
 
 Count records in the table. Optionally pass conditions to count a subset:
 
-```lux
+```tova
 total = UserModel.count()
 active_count = UserModel.count({ active: true })
 ```
@@ -103,7 +103,7 @@ active_count = UserModel.count({ active: true })
 
 Customize the model with a configuration block:
 
-```lux
+```tova
 model User {
   table: "my_users"           // custom table name (default: lowercase plural of type name)
   timestamps: true            // adds created_at and updated_at columns
@@ -116,7 +116,7 @@ model User {
 
 By default, the table name is the lowercase, pluralized version of the type name (e.g., `User` becomes `users`). Override this with the `table` option:
 
-```lux
+```tova
 model User {
   table: "app_users"
 }
@@ -124,9 +124,9 @@ model User {
 
 ### Timestamps
 
-When `timestamps: true` is set, Lux automatically adds `created_at` and `updated_at` columns. `created_at` is set on insert, and `updated_at` is refreshed on every update:
+When `timestamps: true` is set, Tova automatically adds `created_at` and `updated_at` columns. `created_at` is set on insert, and `updated_at` is refreshed on every update:
 
-```lux
+```tova
 model User {
   timestamps: true
 }
@@ -136,7 +136,7 @@ model User {
 
 Declare relationships between models using `belongs_to` and `has_many`:
 
-```lux
+```tova
 shared {
   type Company {
     id: Int
@@ -176,7 +176,7 @@ server {
 
 Relations generate accessor methods on the model:
 
-```lux
+```tova
 // Get the company a user belongs to
 company = UserModel.company(user.company_id)
 
@@ -191,7 +191,7 @@ users = CompanyModel.users(company.id)
 
 Models pair naturally with routes:
 
-```lux
+```tova
 server {
   db { path: "./data.db" }
   model User

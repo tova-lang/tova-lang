@@ -287,7 +287,7 @@ describe('Edge — Optional chaining', () => {
 describe('Edge — Null coalescing', () => {
   test('a ?? b generates NaN-safe coalescing', () => {
     const code = compileShared('x = a ?? "default"');
-    expect(code).toContain('__lux_v != null && __lux_v === __lux_v');
+    expect(code).toContain('__tova_v != null && __tova_v === __tova_v');
     expect(code).toContain('"default"');
   });
 });
@@ -337,7 +337,7 @@ describe('Edge — Propagate operator', () => {
   test('function with ? gets try/catch wrapper', () => {
     const code = compileShared('fn safe() { result? }');
     expect(code).toContain('try {');
-    expect(code).toContain('__lux_propagate');
+    expect(code).toContain('__tova_propagate');
     expect(code).toContain('catch (__e)');
   });
 
@@ -459,7 +459,7 @@ describe('Edge — Component with JSX generates render function', () => {
   test('basic component with JSX', () => {
     const result = compile('client { component App { <div>"Hello"</div> } }');
     expect(result.client).toContain('function App(');
-    expect(result.client).toContain('lux_el("div"');
+    expect(result.client).toContain('tova_el("div"');
     expect(result.client).toContain('return');
   });
 
@@ -480,9 +480,9 @@ describe('Edge — Component with style block generates scoped CSS', () => {
         <div class="card">"hello"</div>
       }
     }`);
-    expect(result.client).toContain('lux_inject_css(');
-    expect(result.client).toContain('.card[data-lux-');
-    expect(result.client).toContain('data-lux-');
+    expect(result.client).toContain('tova_inject_css(');
+    expect(result.client).toContain('.card[data-tova-');
+    expect(result.client).toContain('data-tova-');
   });
 });
 
@@ -529,7 +529,7 @@ describe('Edge — JSX with loop (for in)', () => {
     }`);
     expect(result.client).toContain('() => items().map(');
     expect(result.client).toContain('(item)');
-    expect(result.client).toContain('lux_el("li"');
+    expect(result.client).toContain('tova_el("li"');
   });
 });
 

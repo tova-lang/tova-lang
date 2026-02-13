@@ -1,12 +1,12 @@
 # Named Blocks
 
-For applications that outgrow a single server process, Lux supports **named blocks**. A named block is a `server` (or `client`) block with a string label. Each named block compiles to its own JavaScript file and runs as a separate process, letting you split your backend into multiple services within a single `.lux` file.
+For applications that outgrow a single server process, Tova supports **named blocks**. A named block is a `server` (or `client`) block with a string label. Each named block compiles to its own JavaScript file and runs as a separate process, letting you split your backend into multiple services within a single `.tova` file.
 
 ## Syntax
 
 A named block has a string after the `server` keyword:
 
-```lux
+```tova
 server "api" {
   // REST API server
   route GET "/api/users" => get_users
@@ -31,10 +31,10 @@ An unnamed `server { }` block is the "default" server. Named blocks are addition
 
 ## Output Structure
 
-Each named block compiles to its own JavaScript file. For an input file named `app.lux`:
+Each named block compiles to its own JavaScript file. For an input file named `app.tova`:
 
 ```
-.lux-out/
+.tova-out/
   app.shared.js               # shared block (one file, imported by all)
   app.server.js                # unnamed server { } block (default)
   app.server.api.js            # server "api" { }
@@ -51,7 +51,7 @@ Each named server file is a standalone Bun script. It imports `app.shared.js` fo
 
 ## Port Assignment
 
-Each server process needs its own port. Lux assigns ports automatically:
+Each server process needs its own port. Tova assigns ports automatically:
 
 | Block | Default Port | Environment Variable |
 |-------|-------------|---------------------|
@@ -73,7 +73,7 @@ The environment variable name is derived from the block name: uppercase, non-alp
 Use the `--port` flag to change the starting port:
 
 ```bash
-lux dev --port 8000
+tova dev --port 8000
 # default server -> 8000
 # server "api"  -> 8001
 # server "events" -> 8002
@@ -83,13 +83,13 @@ lux dev --port 8000
 
 ### Development
 
-`lux dev` automatically compiles all blocks, spawns each named server as a separate Bun child process, and reports their ports:
+`tova dev` automatically compiles all blocks, spawns each named server as a separate Bun child process, and reports their ports:
 
 ```
-  Lux dev server starting...
+  Tova dev server starting...
 
   Compiled 1 file(s)
-  Output: .lux-out/
+  Output: .tova-out/
   Starting server on port 3000
   Starting server:api on port 3001
   Starting server:events on port 3002
@@ -102,27 +102,27 @@ lux dev --port 8000
     -> server:worker: http://localhost:3003
 ```
 
-File watching rebuilds all blocks and restarts all processes when any `.lux` file changes.
+File watching rebuilds all blocks and restarts all processes when any `.tova` file changes.
 
 ### Production
 
-`lux build` generates the files. You run each one manually or with a process manager:
+`tova build` generates the files. You run each one manually or with a process manager:
 
 ```bash
-lux build
+tova build
 
 # Run each server
-PORT=3000 bun run .lux-out/app.server.js &
-PORT_API=3001 bun run .lux-out/app.server.api.js &
-PORT_EVENTS=3002 bun run .lux-out/app.server.events.js &
-PORT_WORKER=3003 bun run .lux-out/app.server.worker.js &
+PORT=3000 bun run .tova-out/app.server.js &
+PORT_API=3001 bun run .tova-out/app.server.api.js &
+PORT_EVENTS=3002 bun run .tova-out/app.server.events.js &
+PORT_WORKER=3003 bun run .tova-out/app.server.worker.js &
 ```
 
 ## Cross-Server Communication
 
 Named blocks can call functions defined in other named blocks using the `discover` directive. This sets up inter-service RPC:
 
-```lux
+```tova
 server "api" {
   discover "events" at "http://localhost:3002"
 
@@ -151,7 +151,7 @@ The `discover` directive tells the compiler that this server block needs to call
 2. A proxy object with methods for each function the peer exports
 3. HTTP fetch calls routed through the RPC endpoint pattern (`/rpc/<function_name>`)
 
-```lux
+```tova
 server "api" {
   discover "events" at "http://localhost:3002"
 }
@@ -180,7 +180,7 @@ The base URL can be overridden at runtime using an environment variable derived 
 
 ```bash
 # Override the events server URL
-PORT_EVENTS=4000 bun run .lux-out/app.server.api.js
+PORT_EVENTS=4000 bun run .tova-out/app.server.api.js
 ```
 
 If no `discover` directive provides a URL, the compiler falls back to `http://localhost:${process.env.PORT_<NAME>}`.
@@ -189,7 +189,7 @@ If no `discover` directive provides a URL, the compiler falls back to `http://lo
 
 Cross-server RPC calls include an automatic circuit breaker to handle failures gracefully. If a peer server is down or slow, the circuit breaker prevents cascading failures:
 
-```lux
+```tova
 server "api" {
   discover "events" at "http://localhost:3002" {
     threshold: 5          // Open circuit after 5 failures
@@ -235,7 +235,7 @@ headers: {
 
 Named blocks can subscribe to events published by other blocks:
 
-```lux
+```tova
 server "api" {
   discover "events" at "http://localhost:3002"
 
@@ -259,7 +259,7 @@ Events are delivered via a special `POST /rpc/__event` endpoint that the compile
 
 Here is a complete example with three named servers:
 
-```lux
+```tova
 shared {
   type User { id: Int, name: String, email: String }
   type Message { id: Int, sender_id: Int, text: String }
@@ -329,7 +329,7 @@ client {
 This produces:
 
 ```
-.lux-out/
+.tova-out/
   app.shared.js
   app.server.api.js       # Port 3000 (first named, no default)
   app.server.realtime.js   # Port 3001
@@ -353,7 +353,7 @@ Always configure circuit breaker settings for production deployments. The defaul
 
 ### Prefer Named Blocks Over Separate Files
 
-Lux named blocks give you the benefits of microservices (independent scaling, fault isolation) with the development experience of a monolith (single file, shared types, compiler-verified cross-service calls).
+Tova named blocks give you the benefits of microservices (independent scaling, fault isolation) with the development experience of a monolith (single file, shared types, compiler-verified cross-service calls).
 
 ## Related Pages
 

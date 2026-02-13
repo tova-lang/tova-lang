@@ -1,15 +1,15 @@
 ---
 title: Installation
-description: Install the Lux compiler and create your first project.
+description: Install the Tova compiler and create your first project.
 ---
 
 # Installation
 
-Get up and running with Lux in under five minutes.
+Get up and running with Tova in under five minutes.
 
 ## Prerequisites
 
-Lux uses [Bun](https://bun.sh/) as its runtime. If you do not have Bun installed, run:
+Tova uses [Bun](https://bun.sh/) as its runtime. If you do not have Bun installed, run:
 
 ```bash
 curl -fsSL https://bun.sh/install | bash
@@ -23,31 +23,31 @@ bun --version
 
 You need Bun 1.0 or later.
 
-## Install the Lux Compiler
+## Install the Tova Compiler
 
-Clone the repository and link the `lux` command globally:
+Clone the repository and link the `tova` command globally:
 
 ```bash
-git clone https://github.com/lux-lang/lux-lang.git
-cd lux-lang
+git clone https://github.com/tova-lang/tova-lang.git
+cd tova-lang
 bun install
 bun link
 ```
 
-This makes the `lux` command available system-wide. Verify the installation:
+This makes the `tova` command available system-wide. Verify the installation:
 
 ```bash
-lux --version
+tova --version
 ```
 
-You should see the current Lux version printed to the terminal.
+You should see the current Tova version printed to the terminal.
 
 ## Create a New Project
 
-Scaffold a new project with `lux new`:
+Scaffold a new project with `tova new`:
 
 ```bash
-lux new my-app
+tova new my-app
 cd my-app
 ```
 
@@ -56,56 +56,56 @@ This generates a ready-to-run project with the following structure:
 ```
 my-app/
 ├── src/
-│   └── app.lux            # Main application file
+│   └── app.tova            # Main application file
 ├── package.json
 └── README.md
 ```
 
-The `src/app.lux` file is where you write your application. A single `.lux` file can contain `shared`, `server`, and `client` blocks -- the compiler splits them automatically.
+The `src/app.tova` file is where you write your application. A single `.tova` file can contain `shared`, `server`, and `client` blocks -- the compiler splits them automatically.
 
 ## Run the Dev Server
 
 Start the development server with hot reloading:
 
 ```bash
-lux dev
+tova dev
 ```
 
-Open your browser to the URL printed in the terminal. Every time you save a `.lux` file, the server recompiles and reloads automatically.
+Open your browser to the URL printed in the terminal. Every time you save a `.tova` file, the server recompiles and reloads automatically.
 
 ## Build for Production
 
 When you are ready to deploy:
 
 ```bash
-lux build --production
+tova build --production
 ```
 
-This compiles all `.lux` files to JavaScript, bundles assets, adds content hashes for cache-busting, and minifies the output. Compiled files go to `.lux-out/`.
+This compiles all `.tova` files to JavaScript, bundles assets, adds content hashes for cache-busting, and minifies the output. Compiled files go to `.tova-out/`.
 
 ## CLI Quick Reference
 
 | Command | Description |
 |---------|-------------|
-| `lux new <name>` | Scaffold a new project |
-| `lux dev [dir]` | Start development server with hot reload |
-| `lux build [dir]` | Compile `.lux` files to JavaScript |
-| `lux run <file>` | Compile and execute a single `.lux` file |
-| `lux repl` | Start the interactive REPL |
-| `lux test [dir]` | Run tests |
-| `lux fmt [files]` | Format Lux source files |
-| `lux lsp` | Start the Language Server Protocol server |
-| `lux migrate:create <name>` | Create a new database migration |
-| `lux migrate:up [file]` | Run pending migrations |
-| `lux migrate:status [file]` | Show migration status |
+| `tova new <name>` | Scaffold a new project |
+| `tova dev [dir]` | Start development server with hot reload |
+| `tova build [dir]` | Compile `.tova` files to JavaScript |
+| `tova run <file>` | Compile and execute a single `.tova` file |
+| `tova repl` | Start the interactive REPL |
+| `tova test [dir]` | Run tests |
+| `tova fmt [files]` | Format Tova source files |
+| `tova lsp` | Start the Language Server Protocol server |
+| `tova migrate:create <name>` | Create a new database migration |
+| `tova migrate:up [file]` | Run pending migrations |
+| `tova migrate:status [file]` | Show migration status |
 
 For full details on every command and flag, see the [CLI Reference](/tooling/cli).
 
 ## Editor Support
 
-Lux ships with a VS Code extension that provides syntax highlighting, autocompletion, go-to-definition, and inline diagnostics. See [Editor Support](/editor/vscode) for setup instructions.
+Tova ships with a VS Code extension that provides syntax highlighting, autocompletion, go-to-definition, and inline diagnostics. See [Editor Support](/editor/vscode) for setup instructions.
 
 ## Next Steps
 
-- [Hello World](/getting-started/hello-world) -- write and run your first Lux program
-- [Tour of Lux](/getting-started/tour) -- a 10-minute walkthrough of every major feature
+- [Hello World](/getting-started/hello-world) -- write and run your first Tova program
+- [Tour of Tova](/getting-started/tour) -- a 10-minute walkthrough of every major feature

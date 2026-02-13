@@ -1,4 +1,4 @@
-// Lux Browser Test App — Interactive Counter with Notes
+// Tova Browser Test App — Interactive Counter with Notes
 
 shared {
   type Priority {
@@ -98,7 +98,7 @@ client {
       <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.1);">
 
         <header style="text-align: center; margin-bottom: 1.5rem;">
-          <h1 style="margin: 0; font-size: 1.8rem; color: #333;">"Lux Counter"</h1>
+          <h1 style="margin: 0; font-size: 1.8rem; color: #333;">"Tova Counter"</h1>
           <p style="margin: 0.25rem 0 0; color: #888; font-size: 0.85rem;">"Reactivity Test App"</p>
         </header>
 

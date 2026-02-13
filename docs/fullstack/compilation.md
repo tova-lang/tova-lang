@@ -1,27 +1,27 @@
 # Compilation
 
-This page explains what happens when you run `lux build` or `lux dev`, what files are generated, and how the production build pipeline works.
+This page explains what happens when you run `tova build` or `tova dev`, what files are generated, and how the production build pipeline works.
 
 ## Build Command
 
 ```bash
-lux build [src_dir] [--output dir] [--production]
+tova build [src_dir] [--output dir] [--production]
 ```
 
-By default, `lux build` compiles all `.lux` files in the current directory and writes output to `.lux-out/`.
+By default, `tova build` compiles all `.tova` files in the current directory and writes output to `.tova-out/`.
 
 | Flag | Description |
 |------|-------------|
-| `--output`, `-o` | Output directory (default: `.lux-out`) |
+| `--output`, `-o` | Output directory (default: `.tova-out`) |
 | `--production` | Production build with bundling, hashing, and minification |
 | `--watch` | Watch for file changes and rebuild |
 
 ## Output Structure
 
-For a file named `app.lux` with all three blocks:
+For a file named `app.tova` with all three blocks:
 
 ```
-.lux-out/
+.tova-out/
   app.shared.js             # Shared types and functions
   app.server.js             # Server code (Bun.serve)
   app.client.js             # Client code (reactive runtime)
@@ -34,7 +34,7 @@ For a file named `app.lux` with all three blocks:
 With named blocks, additional files are generated:
 
 ```
-.lux-out/
+.tova-out/
   app.shared.js
   app.server.js             # Default (unnamed) server
   app.server.api.js         # server "api" { }
@@ -82,13 +82,13 @@ Routes are matched in order of specificity: static paths first, then parameteriz
 
 ```bash
 # Direct execution
-bun run .lux-out/app.server.js
+bun run .tova-out/app.server.js
 
 # With custom port
-PORT=8080 bun run .lux-out/app.server.js
+PORT=8080 bun run .tova-out/app.server.js
 
 # Or use the dev server (recommended for development)
-lux dev
+tova dev
 ```
 
 ## Client Output
@@ -104,14 +104,14 @@ The client file (`app.client.js`) is a JavaScript module that gets embedded into
 7. **Computed values** -- `createComputed()` calls for each `computed` declaration
 8. **Functions** -- client-side functions and event handlers
 9. **Effects** -- `createEffect()` calls, auto-wrapped as `async` if they contain RPC calls
-10. **Components** -- component functions using the `lux_el()` virtual DOM helper
+10. **Components** -- component functions using the `tova_el()` virtual DOM helper
 11. **Mount call** -- `mount(App, document.getElementById("app"))` to start the application
 
 ### State Compilation
 
-Lux reactive state compiles to SolidJS-style signal pairs:
+Tova reactive state compiles to SolidJS-style signal pairs:
 
-```lux
+```tova
 state count = 0
 state name = "World"
 ```
@@ -130,7 +130,7 @@ In generated code:
 
 ### HTML Generation
 
-The client JS is embedded into an HTML page. During development, `lux dev` generates an HTML file like:
+The client JS is embedded into an HTML page. During development, `tova dev` generates an HTML file like:
 
 ```html
 <!DOCTYPE html>
@@ -138,7 +138,7 @@ The client JS is embedded into an HTML page. During development, `lux dev` gener
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lux App</title>
+  <title>Tova App</title>
 </head>
 <body>
   <div id="app"></div>
@@ -172,21 +172,21 @@ If the shared block is empty or absent, no `app.shared.js` file is generated.
 
 ## Dev Server
 
-`lux dev` provides a complete development experience:
+`tova dev` provides a complete development experience:
 
 ```bash
-lux dev [src_dir] [--port 3000]
+tova dev [src_dir] [--port 3000]
 ```
 
 The dev server performs the following steps:
 
 ### 1. Compile
 
-All `.lux` files in the source directory are compiled. Output goes to `.lux-out/` inside the source directory.
+All `.tova` files in the source directory are compiled. Output goes to `.tova-out/` inside the source directory.
 
 ### 2. Copy Runtime
 
-Runtime files (`reactivity.js`, `rpc.js`, `router.js`) are copied from the Lux installation to `.lux-out/runtime/`.
+Runtime files (`reactivity.js`, `rpc.js`, `router.js`) are copied from the Tova installation to `.tova-out/runtime/`.
 
 ### 3. Generate HTML
 
@@ -206,22 +206,22 @@ The default server serves the client HTML on `/` and handles all routes and RPC 
 
 ### 5. Watch for Changes
 
-The dev server watches for `.lux` file changes using a file watcher with debounce. When a file changes:
+The dev server watches for `.tova` file changes using a file watcher with debounce. When a file changes:
 
 1. All server processes are killed
-2. All `.lux` files are recompiled
+2. All `.tova` files are recompiled
 3. New server processes are spawned
 4. The page in the browser needs a manual refresh (no hot module replacement yet)
 
 ### Dev Server Output Example
 
 ```
-  Lux dev server starting...
+  Tova dev server starting...
 
   Compiled 1 file(s)
-  Output: .lux-out/
+  Output: .tova-out/
   Starting server on port 3000
-  Client: .lux-out/index.html
+  Client: .tova-out/index.html
 
   1 server process(es) running
     -> server: http://localhost:3000
@@ -229,15 +229,15 @@ The dev server watches for `.lux` file changes using a file watcher with debounc
 
 ## Production Build
 
-`lux build --production` generates optimized output for deployment:
+`tova build --production` generates optimized output for deployment:
 
 ```bash
-lux build --production
+tova build --production
 ```
 
 ### What Production Build Does
 
-1. **Compiles** all `.lux` files
+1. **Compiles** all `.tova` files
 2. **Bundles** all server code into a single file, all client code into a single file, all shared code into a single file
 3. **Inlines** the reactive runtime and RPC runtime into the client bundle (eliminating import statements)
 4. **Hashes** output filenames for cache busting: `server.<hash>.js`, `client.<hash>.js`
@@ -247,7 +247,7 @@ lux build --production
 ### Production Output Structure
 
 ```
-.lux-out/
+.tova-out/
   server.a1b2c3d4e5f6.js        # Bundled server (stdlib + shared + server code)
   client.f6e5d4c3b2a1.js        # Bundled client (runtime + shared + client code)
   client.f6e5d4c3b2a1.min.js    # Minified client
@@ -272,7 +272,7 @@ The generated `index.html` is minimal:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lux App</title>
+  <title>Tova App</title>
 </head>
 <body>
   <div id="app"></div>
@@ -285,10 +285,10 @@ The generated `index.html` is minimal:
 
 ```bash
 # Build
-lux build --production
+tova build --production
 
 # Run the server
-bun run .lux-out/server.<hash>.js
+bun run .tova-out/server.<hash>.js
 ```
 
 The production server is a standalone Bun script, same as development. It serves the client HTML and handles all routes and RPC endpoints.
@@ -298,32 +298,32 @@ The production server is a standalone Bun script, same as development. It serves
 The build pipeline generates source maps for debugging. When the compiler emits code, it tracks source-to-output line mappings and writes `.map` files alongside the JavaScript output:
 
 ```
-.lux-out/
+.tova-out/
   app.server.js
   app.server.js.map          # Source map for server
   app.client.js
   app.client.js.map          # Source map for client
 ```
 
-Source maps use the standard VLQ-encoded format and reference the original `.lux` file. The JavaScript output includes a `//# sourceMappingURL=` comment pointing to the map file.
+Source maps use the standard VLQ-encoded format and reference the original `.tova` file. The JavaScript output includes a `//# sourceMappingURL=` comment pointing to the map file.
 
-This means that when debugging in browser devtools or in a Bun error stack trace, line numbers point back to the original `.lux` source rather than the generated JavaScript.
+This means that when debugging in browser devtools or in a Bun error stack trace, line numbers point back to the original `.tova` source rather than the generated JavaScript.
 
 ### Source Map Structure
 
-The Lux compiler uses a `SourceMapBuilder` class that tracks `(sourceLine, sourceCol) -> (outputLine, outputCol)` mappings during code generation. Each code generator method (`genExpression`, `genStatement`, etc.) records these mappings via a `_sourceMappings` array in the base codegen.
+The Tova compiler uses a `SourceMapBuilder` class that tracks `(sourceLine, sourceCol) -> (outputLine, outputCol)` mappings during code generation. Each code generator method (`genExpression`, `genStatement`, etc.) records these mappings via a `_sourceMappings` array in the base codegen.
 
 ## Multi-File Projects
 
-For projects with multiple `.lux` files, `lux build` compiles each file independently. Import resolution connects them:
+For projects with multiple `.tova` files, `tova build` compiles each file independently. Import resolution connects them:
 
-```lux
-// models.lux
+```tova
+// models.tova
 shared {
   type User { id: Int, name: String }
 }
 
-// app.lux
+// app.tova
 import { User } from "./models"
 
 server {
@@ -331,12 +331,12 @@ server {
 }
 ```
 
-The `compileWithImports()` function resolves `.lux` imports, compiles dependencies, and rewrites import paths to point to the generated `.js` files. Circular imports are detected and reported as errors.
+The `compileWithImports()` function resolves `.tova` imports, compiles dependencies, and rewrites import paths to point to the generated `.js` files. Circular imports are detected and reported as errors.
 
 ### Output for Multi-File Projects
 
 ```
-.lux-out/
+.tova-out/
   models.shared.js
   app.shared.js
   app.server.js       # imports from models.shared.js
@@ -348,7 +348,7 @@ The `compileWithImports()` function resolves `.lux` imports, compiles dependenci
 ## Build Pipeline Summary
 
 ```
-  .lux source file(s)
+  .tova source file(s)
          |
          v
   +-------------+

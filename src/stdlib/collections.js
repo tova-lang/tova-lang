@@ -1,4 +1,4 @@
-// Lux standard library — collection helpers
+// Tova standard library — collection helpers
 
 export function map(arr, fn) {
   return arr.map(fn);

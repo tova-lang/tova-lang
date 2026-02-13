@@ -542,13 +542,13 @@ describe('Client Codegen — component bodies', () => {
   // Lines 198: component with function and JSX
   test('component with function and JSX', () => {
     const result = compile('client { component C { <div>"hello"</div> } }');
-    expect(result.client).toContain('lux_el("div"');
+    expect(result.client).toContain('tova_el("div"');
   });
 
   // Lines 204-206: multiple JSX root elements → fragment
   test('component with multiple JSX roots → fragment', () => {
     const result = compile('client { component C { <h1>"title"</h1>\n<p>"body"</p> } }');
-    expect(result.client).toContain('lux_fragment');
+    expect(result.client).toContain('tova_fragment');
   });
 
   // Line 269: JSXText with template literal
@@ -561,15 +561,15 @@ describe('Client Codegen — component bodies', () => {
 describe('Client Codegen — JSX for with multiple children', () => {
   test('JSX for with multiple child elements', () => {
     const result = compile('client { component C { <div> for x in items { <span>"a"</span>\n<span>"b"</span> } </div> } }');
-    expect(result.client).toContain('lux_fragment');
+    expect(result.client).toContain('tova_fragment');
   });
 });
 
 describe('Client Codegen — JSX if with multiple consequent elements', () => {
   test('JSX if with multiple then elements', () => {
     const result = compile('client { component C { <div> if show { <span>"a"</span>\n<span>"b"</span> } </div> } }');
-    // Multiple elements in consequent should produce lux_fragment
-    expect(result.client).toContain('lux_fragment');
+    // Multiple elements in consequent should produce tova_fragment
+    expect(result.client).toContain('tova_fragment');
   });
 });
 

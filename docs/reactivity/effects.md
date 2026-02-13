@@ -6,7 +6,7 @@ Effects are reactive side effects that automatically re-run when their dependenc
 
 Declare an effect with the `effect` keyword:
 
-```lux
+```tova
 client {
   state count = 0
 
@@ -20,9 +20,9 @@ The effect body runs immediately when created, and then re-runs every time any s
 
 ## Automatic Dependency Tracking
 
-Lux automatically tracks which signals an effect reads. You do not need to declare a dependency list -- the runtime figures it out at execution time:
+Tova automatically tracks which signals an effect reads. You do not need to declare a dependency list -- the runtime figures it out at execution time:
 
-```lux
+```tova
 client {
   state first = "Alice"
   state last = "Smith"
@@ -44,7 +44,7 @@ When `show_full` is `true`, the effect tracks `show_full`, `first`, and `last`. 
 
 Components can have their own local effects:
 
-```lux
+```tova
 component DocumentTitle(title) {
   effect {
     document.title = title
@@ -60,7 +60,7 @@ Component-scoped effects are automatically disposed when the component unmounts,
 
 Effects that call server functions (RPC) are automatically wrapped in an async context. The compiler detects `server.xxx()` calls and generates the appropriate async pattern:
 
-```lux
+```tova
 client {
   state users = []
 
@@ -82,7 +82,7 @@ createEffect(() => {
 
 A more complete example with loading and error state:
 
-```lux
+```tova
 component UserList {
   state users = []
   state loading = true
@@ -113,7 +113,7 @@ component UserList {
 
 Effects often need to clean up after themselves -- for example, clearing timers, removing event listeners, or cancelling subscriptions. Use `onCleanup` inside an effect to register a cleanup function:
 
-```lux
+```tova
 client {
   state interval_ms = 1000
   state ticks = 0
@@ -137,7 +137,7 @@ This ensures resources are always properly released.
 
 Effects can also return a cleanup function directly. If the effect body returns a function, it is used as the cleanup:
 
-```lux
+```tova
 effect {
   handler = fn(e) { print("Key: {e.key}") }
   document.addEventListener("keydown", handler)
@@ -153,7 +153,7 @@ Both `onCleanup` and the return-based approach work. Use `onCleanup` when you ha
 
 You can register multiple cleanup functions within a single effect:
 
-```lux
+```tova
 effect {
   // Set up a timer
   timer = setInterval(fn() { tick() }, 1000)
@@ -172,7 +172,7 @@ All registered cleanups run in reverse order when the effect re-executes or is d
 
 By default, each signal update triggers an immediate flush of pending effects. If you update multiple signals in sequence, each update flushes independently:
 
-```lux
+```tova
 // Without batching: effects may run up to 3 times
 count = 1      // flush
 name = "Alice" // flush
@@ -181,7 +181,7 @@ items = []     // flush
 
 Use `batch` to defer effect execution until all updates are complete:
 
-```lux
+```tova
 batch(fn() {
   count = 1
   name = "Alice"
@@ -196,7 +196,7 @@ Batching is useful when you need to update multiple related signals atomically. 
 
 Batches can be nested. The flush only happens when the outermost batch completes:
 
-```lux
+```tova
 batch(fn() {
   count = 1
   batch(fn() {
@@ -213,7 +213,7 @@ batch(fn() {
 
 Effects created inside a component or `createRoot` are tracked in the ownership tree. When the owner is disposed, all effects within it are automatically cleaned up:
 
-```lux
+```tova
 component Timer {
   state seconds = 0
 
@@ -233,7 +233,7 @@ You do not need to manually dispose effects in components -- the reactive system
 
 The `effect` keyword is syntactic sugar for `createEffect`. When you write:
 
-```lux
+```tova
 effect {
   print(count)
 }

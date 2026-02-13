@@ -1,12 +1,12 @@
 # Pipes
 
-The pipe operator `|>` is one of Lux's most ergonomic features. It lets you write data transformation chains that read left-to-right, top-to-bottom, eliminating deeply nested function calls.
+The pipe operator `|>` is one of Tova's most ergonomic features. It lets you write data transformation chains that read left-to-right, top-to-bottom, eliminating deeply nested function calls.
 
 ## Basic Pipe Operator
 
 The `|>` operator takes the value on the left and passes it as the **first argument** to the function on the right:
 
-```lux
+```tova
 // Without pipes:
 result = to_upper(trim("  hello  "))
 
@@ -18,7 +18,7 @@ Both produce `"HELLO"`, but the piped version reads in the order operations happ
 
 ### How It Works
 
-```lux
+```tova
 x |> f()
 // is equivalent to:
 f(x)
@@ -34,7 +34,7 @@ The left-hand value becomes the first argument of the right-hand function call.
 
 Pipes really shine when you chain several transformations:
 
-```lux
+```tova
 result = data
   |> filter(fn(x) x > 0)
   |> map(fn(x) x * 2)
@@ -44,7 +44,7 @@ result = data
 
 Compare this to the nested equivalent:
 
-```lux
+```tova
 // Nested calls -- reads inside-out
 result = take(sort(map(filter(data, fn(x) x > 0), fn(x) x * 2)), 5)
 ```
@@ -55,7 +55,7 @@ The piped version is far more readable because each step is on its own line and 
 
 Processing a list of users:
 
-```lux
+```tova
 active_emails = users
   |> filter(fn(u) u.active)
   |> map(fn(u) u.email)
@@ -65,7 +65,7 @@ active_emails = users
 
 Text processing pipeline:
 
-```lux
+```tova
 cleaned = raw_input
   |> trim()
   |> lower()
@@ -77,7 +77,7 @@ cleaned = raw_input
 
 Numerical computation:
 
-```lux
+```tova
 average = scores
   |> filter(fn(s) s > 0)
   |> map(fn(s) s / max_score * 100)
@@ -89,31 +89,31 @@ average = scores
 
 Sometimes you need to pass the piped value as something other than the first argument. Use `_` as a placeholder to specify exactly where it goes:
 
-```lux
+```tova
 10 |> add(5, _)
 // equivalent to: add(5, 10)
 ```
 
-```lux
+```tova
 items |> join(_, ", ")
 // equivalent to: join(items, ", ")
 ```
 
 ### Placeholder Examples
 
-```lux
+```tova
 name = "world"
   |> replace(_, "o", "0")
   |> "Hello, {_}!"
 ```
 
-```lux
+```tova
 // Insert the piped value at a specific position
 result = 42
   |> format("The answer is: {}", _)
 ```
 
-```lux
+```tova
 // Useful when the function takes the "data" argument second
 config |> merge(defaults, _)
 // equivalent to: merge(defaults, config)
@@ -123,23 +123,23 @@ config |> merge(defaults, _)
 
 The method pipe syntax `.method()` lets you call methods in a pipe chain. The piped value becomes the receiver:
 
-```lux
+```tova
 result = "  Hello, World!  "
   |> .trim()
   |> .lower()
-  |> .replace("world", "lux")
-// "hello, lux!"
+  |> .replace("world", "tova")
+// "hello, tova!"
 ```
 
 This is equivalent to:
 
-```lux
-result = "  Hello, World!  ".trim().lower().replace("world", "lux")
+```tova
+result = "  Hello, World!  ".trim().lower().replace("world", "tova")
 ```
 
 The method pipe gives you consistent left-to-right reading even when mixing function calls and method calls:
 
-```lux
+```tova
 text = raw_input
   |> .trim()
   |> split(_, ",")
@@ -152,7 +152,7 @@ text = raw_input
 
 You can pipe into anonymous functions for inline transformations:
 
-```lux
+```tova
 result = 42
   |> fn(x) x * 2
   |> fn(x) x + 1
@@ -168,7 +168,7 @@ Pipes encourage a functional, pipeline-oriented style. Here are some common patt
 
 ### Filter-Map-Reduce
 
-```lux
+```tova
 total_revenue = orders
   |> filter(fn(o) o.status == "completed")
   |> map(fn(o) o.total)
@@ -177,7 +177,7 @@ total_revenue = orders
 
 ### Extract-Transform-Load
 
-```lux
+```tova
 fn process_csv(raw_csv) {
   raw_csv
     |> trim()
@@ -194,7 +194,7 @@ fn process_csv(raw_csv) {
 
 ### Validation Chain
 
-```lux
+```tova
 fn validate_input(input) {
   input
     |> trim()
@@ -210,7 +210,7 @@ fn validate_input(input) {
 
 **One operation per line.** Put each pipe step on its own line for readability:
 
-```lux
+```tova
 // Good:
 result = data
   |> filter(fn(x) x > 0)
@@ -225,7 +225,7 @@ result = data |> filter(fn(x) x > 0) |> map(fn(x) x * 2) |> sum()
 
 **Method pipe for fluent APIs.** When working with objects that have method chains (like DOM elements or builders), `.method()` pipe keeps things consistent:
 
-```lux
+```tova
 query = builder
   |> .select("name", "email")
   |> .from("users")

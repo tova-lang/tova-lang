@@ -6,7 +6,7 @@ Generics let you write types and functions that work with any type, while still 
 
 Define a generic type by adding type parameters in angle brackets after the type name:
 
-```lux
+```tova
 type Box<T> {
   value: T
 }
@@ -14,7 +14,7 @@ type Box<T> {
 
 Now `Box` can hold any type of value:
 
-```lux
+```tova
 int_box = Box(42)
 str_box = Box("hello")
 bool_box = Box(true)
@@ -24,7 +24,7 @@ bool_box = Box(true)
 
 Types can have more than one type parameter:
 
-```lux
+```tova
 type Pair<A, B> {
   first: A
   second: B
@@ -35,7 +35,7 @@ print(pair.first)    // "Alice"
 print(pair.second)   // 30
 ```
 
-```lux
+```tova
 type Triple<A, B, C> {
   a: A
   b: B
@@ -47,20 +47,20 @@ t = Triple(1, "hello", true)
 
 ## Generic ADTs
 
-Generics combine naturally with algebraic data types. In fact, two of Lux's most important built-in types are generic ADTs:
+Generics combine naturally with algebraic data types. In fact, two of Tova's most important built-in types are generic ADTs:
 
 ### Option
 
 The `Option` type represents a value that may or may not exist:
 
-```lux
+```tova
 type Option<T> {
   Some(value: T)
   None
 }
 ```
 
-```lux
+```tova
 fn find_by_name(users, name) -> Option<User> {
   for user in users {
     if user.name == name {
@@ -80,14 +80,14 @@ match find_by_name(users, "Alice") {
 
 The `Result` type represents an operation that can succeed or fail:
 
-```lux
+```tova
 type Result<T, E> {
   Ok(value: T)
   Err(error: E)
 }
 ```
 
-```lux
+```tova
 fn parse_int(s: String) -> Result<Int, String> {
   // ...
   if valid {
@@ -109,7 +109,7 @@ Generics are ideal for building reusable data structures:
 
 ### Stack
 
-```lux
+```tova
 type Stack<T> {
   items: [T]
 }
@@ -136,7 +136,7 @@ fn pop(stack) -> Option<(T, Stack<T>)> {
 
 ### Tree
 
-```lux
+```tova
 type Tree<T> {
   Leaf(value: T)
   Branch(left: Tree<T>, right: Tree<T>)
@@ -158,7 +158,7 @@ doubled = tree_map(numbers, fn(x) x * 2)
 
 ### Linked List
 
-```lux
+```tova
 type List<T> {
   Cons(head: T, tail: List<T>)
   Nil
@@ -184,9 +184,9 @@ print(list_length(my_list))    // 3
 
 ## Combining Generics and Pattern Matching
 
-One of the strongest aspects of Lux's generics is how naturally they work with pattern matching:
+One of the strongest aspects of Tova's generics is how naturally they work with pattern matching:
 
-```lux
+```tova
 type Response<T> {
   Success(data: T, status: Int)
   Failure(error: String, status: Int)
@@ -210,7 +210,7 @@ fn handle_response(response) {
 
 **Start concrete, then generalize.** If you find yourself writing the same type structure for different inner types, that is a good signal to refactor into a generic:
 
-```lux
+```tova
 // You might start with:
 type IntResult {
   IntOk(value: Int)

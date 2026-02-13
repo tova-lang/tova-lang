@@ -686,11 +686,11 @@ describe('Lexer — Slash in JSX context', () => {
 describe('Lexer — Error message format', () => {
   test('error includes filename', () => {
     try {
-      const lexer = new Lexer('@', 'myfile.lux');
+      const lexer = new Lexer('@', 'myfile.tova');
       lexer.tokenize();
       expect(true).toBe(false); // should not reach
     } catch (e) {
-      expect(e.message).toContain('myfile.lux');
+      expect(e.message).toContain('myfile.tova');
     }
   });
 
@@ -1158,10 +1158,10 @@ describe('Lexer — JSX children with quotes', () => {
 describe('Lexer — Constructor and Token metadata', () => {
   test('custom filename propagates to errors', () => {
     try {
-      const lexer = new Lexer('@', 'custom/path.lux');
+      const lexer = new Lexer('@', 'custom/path.tova');
       lexer.tokenize();
     } catch (e) {
-      expect(e.message).toContain('custom/path.lux');
+      expect(e.message).toContain('custom/path.tova');
     }
   });
 

@@ -1,12 +1,12 @@
 # Modules
 
-Lux uses a module system based on `import` and `export`, similar to JavaScript ES modules. You can import from other `.lux` files, from npm packages, or from built-in modules.
+Tova uses a module system based on `import` and `export`, similar to JavaScript ES modules. You can import from other `.tova` files, from npm packages, or from built-in modules.
 
 ## Named Imports
 
 Import specific items from a module using curly braces:
 
-```lux
+```tova
 import { map, filter, reduce } from "collections"
 import { User, Post } from "./models"
 import { validate_email, validate_phone } from "./validators"
@@ -14,7 +14,7 @@ import { validate_email, validate_phone } from "./validators"
 
 Use the imported names directly:
 
-```lux
+```tova
 import { sqrt, abs, floor } from "math"
 
 result = sqrt(144)    // 12
@@ -25,12 +25,12 @@ rounded = floor(3.7)  // 3
 
 Import the default export of a module with a plain name (no braces):
 
-```lux
+```tova
 import express from "express"
 import dayjs from "dayjs"
 ```
 
-```lux
+```tova
 import Router from "./router"
 
 app = Router()
@@ -40,12 +40,12 @@ app = Router()
 
 Rename imports to avoid name collisions or for convenience:
 
-```lux
+```tova
 import { readFile as read, writeFile as write } from "fs"
 import { User as UserModel } from "./models"
 ```
 
-```lux
+```tova
 import { map as mapArray } from "array-utils"
 import { map as mapObject } from "object-utils"
 
@@ -58,14 +58,14 @@ mapped_obj = mapObject(data, fn(k, v) v.upper())
 
 Import everything from a module under a namespace:
 
-```lux
+```tova
 import * as math from "math"
 
 result = math.sqrt(16)
 pi = math.PI
 ```
 
-```lux
+```tova
 import * as utils from "./utils"
 
 formatted = utils.format_date(today)
@@ -78,7 +78,7 @@ cleaned = utils.sanitize(input)
 
 Mark functions as available to other modules with `export`:
 
-```lux
+```tova
 export fn add(a, b) {
   a + b
 }
@@ -97,7 +97,7 @@ fn helper(x) {
 
 Export type definitions so other modules can use them:
 
-```lux
+```tova
 export type User {
   id: Int
   name: String
@@ -113,7 +113,7 @@ export type Role {
 
 ### Export Variables
 
-```lux
+```tova
 export version = "1.0.0"
 export default_config = {
   host: "localhost",
@@ -121,9 +121,9 @@ export default_config = {
 }
 ```
 
-## Multi-file Lux Projects
+## Multi-file Tova Projects
 
-Lux's compiler resolves `.lux` imports automatically. When you import from a `.lux` file, the compiler compiles it and rewrites the import to point to the generated `.js` output.
+Tova's compiler resolves `.tova` imports automatically. When you import from a `.tova` file, the compiler compiles it and rewrites the import to point to the generated `.js` output.
 
 ### Project Structure
 
@@ -132,16 +132,16 @@ A typical multi-file project:
 ```
 my-app/
   src/
-    app.lux           # Main entry point
-    models.lux        # Type definitions
-    validators.lux    # Validation functions
-    utils.lux         # Utility functions
+    app.tova           # Main entry point
+    models.tova        # Type definitions
+    validators.tova    # Validation functions
+    utils.tova         # Utility functions
   package.json
 ```
 
-### models.lux
+### models.tova
 
-```lux
+```tova
 export type User {
   id: Int
   name: String
@@ -156,9 +156,9 @@ export type Post {
 } derive [JSON]
 ```
 
-### validators.lux
+### validators.tova
 
-```lux
+```tova
 import { User } from "./models"
 
 export fn validate_email(email: String) -> Result<String, String> {
@@ -179,9 +179,9 @@ export fn validate_user(user: User) -> Result<User, String> {
 }
 ```
 
-### app.lux
+### app.tova
 
-```lux
+```tova
 import { User, Post } from "./models"
 import { validate_user } from "./validators"
 
@@ -199,9 +199,9 @@ main()
 
 ## Using npm Packages
 
-Since Lux compiles to JavaScript, any npm package works out of the box. Install packages normally with `bun install` or `npm install`, then import them:
+Since Tova compiles to JavaScript, any npm package works out of the box. Install packages normally with `bun install` or `npm install`, then import them:
 
-```lux
+```tova
 import { z } from "zod"
 
 user_schema = z.object({
@@ -219,7 +219,7 @@ fn validate(data) {
 }
 ```
 
-```lux
+```tova
 import dayjs from "dayjs"
 
 fn format_date(date) {
@@ -231,7 +231,7 @@ fn time_ago(date) {
 }
 ```
 
-```lux
+```tova
 import chalk from "chalk"
 
 fn success(msg) {
@@ -245,23 +245,23 @@ fn error(msg) {
 
 ## Import Conventions
 
-Lux follows these conventions for resolving imports:
+Tova follows these conventions for resolving imports:
 
 | Import Path | Resolution |
 |-------------|-----------|
-| `"./file"` | Relative `.lux` file in same directory |
-| `"../file"` | Relative `.lux` file in parent directory |
-| `"./dir/file"` | Relative `.lux` file in subdirectory |
+| `"./file"` | Relative `.tova` file in same directory |
+| `"../file"` | Relative `.tova` file in parent directory |
+| `"./dir/file"` | Relative `.tova` file in subdirectory |
 | `"package"` | npm package from `node_modules` |
-| `"builtin"` | Built-in Lux module |
+| `"builtin"` | Built-in Tova module |
 
 ## Practical Tips
 
-**Keep modules focused.** Each `.lux` file should have a clear responsibility -- types, validation, utilities, etc. This makes imports self-documenting.
+**Keep modules focused.** Each `.tova` file should have a clear responsibility -- types, validation, utilities, etc. This makes imports self-documenting.
 
 **Export types alongside their functions.** If a module defines a `User` type, export the functions that operate on it from the same module:
 
-```lux
+```tova
 export type User {
   id: Int
   name: String
@@ -279,7 +279,7 @@ export fn display_user(user: User) -> String {
 
 **Use aliases to resolve naming conflicts.** When two modules export the same name, aliased imports keep things clear without renaming the source:
 
-```lux
+```tova
 import { parse as parse_json } from "json"
 import { parse as parse_yaml } from "yaml"
 ```

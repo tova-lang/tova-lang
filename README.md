@@ -1,4 +1,4 @@
-# Lux
+# Tova
 
 A modern programming language that transpiles to JavaScript, unifying frontend and backend development with clean, enjoyable syntax.
 
@@ -18,19 +18,19 @@ A modern programming language that transpiles to JavaScript, unifying frontend a
 
 ```bash
 # Install
-bun install -g lux-lang
+bun install -g tova-lang
 
 # Create a new project
-lux new my-app
+tova new my-app
 
 # Run development server
 cd my-app
-lux dev
+tova dev
 ```
 
 ## Example
 
-```lux
+```tova
 shared {
   type User {
     id: Int
@@ -67,9 +67,9 @@ client {
 
 ## Syntax Highlights
 
-```lux
+```tova
 // Immutable binding
-name = "Lux"
+name = "Tova"
 
 // Mutable binding
 var count = 0

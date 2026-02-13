@@ -1,6 +1,6 @@
 # Client Block
 
-The `client` block defines everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Lux reactive runtime. The client uses a fine-grained reactive system inspired by SolidJS, where signals, computed values, and effects automatically track dependencies and update the DOM with minimal overhead.
+The `client` block defines everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Tova reactive runtime. The client uses a fine-grained reactive system inspired by SolidJS, where signals, computed values, and effects automatically track dependencies and update the DOM with minimal overhead.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ The client block is where your application's UI lives:
 
 A `state` declaration creates a reactive signal. When its value changes, everything that depends on it updates automatically:
 
-```lux
+```tova
 client {
   state count = 0
   state name = "World"
@@ -30,7 +30,7 @@ client {
 
 Reading a signal returns its current value. Assigning to it updates it and triggers reactivity:
 
-```lux
+```tova
 client {
   state count = 0
 
@@ -56,7 +56,7 @@ Reading `count` in generated code calls `count()` (the getter). Writing `count =
 
 Computed values derive from other reactive values and update automatically when dependencies change:
 
-```lux
+```tova
 client {
   state price = 10
   state quantity = 2
@@ -78,7 +78,7 @@ const total = createComputed(() => price() * quantity());
 
 Effects are side-effect functions that re-execute whenever their reactive dependencies change:
 
-```lux
+```tova
 client {
   state users: [User] = []
 
@@ -96,7 +96,7 @@ Effects are the primary way to:
 - Log state changes
 - Synchronize with external systems
 
-```lux
+```tova
 client {
   state search_query = ""
   state results: [User] = []
@@ -115,11 +115,11 @@ When `search_query` changes (and is longer than 2 characters), the effect automa
 
 Components are reusable UI elements defined with JSX:
 
-```lux
+```tova
 client {
   component App {
     <div>
-      <h1>Hello, Lux!</h1>
+      <h1>Hello, Tova!</h1>
       <p>Count: {count}</p>
       <button @click={increment}>Increment</button>
     </div>
@@ -131,7 +131,7 @@ client {
 
 Components can accept props:
 
-```lux
+```tova
 client {
   component UserCard(user) {
     <div class="card">
@@ -154,7 +154,7 @@ client {
 
 Use `@event` syntax to bind event handlers:
 
-```lux
+```tova
 client {
   component App {
     <div>
@@ -172,7 +172,7 @@ client {
 
 Use `if`/`else` inside JSX:
 
-```lux
+```tova
 client {
   component App {
     <div>
@@ -194,7 +194,7 @@ client {
 
 Use `for` to iterate:
 
-```lux
+```tova
 client {
   component TodoList {
     <ul>
@@ -212,7 +212,7 @@ client {
 
 The client communicates with the server by calling functions through the `server` object. Every function defined in a `server` block is available as `server.function_name()`:
 
-```lux
+```tova
 server {
   fn get_users() -> [User] {
     UserModel.all()
@@ -255,7 +255,7 @@ All `server.fn_name()` calls are compiled to async RPC calls. Inside effects and
 
 For complex nested state, use stores:
 
-```lux
+```tova
 client {
   store app_state = {
     user: { name: "", email: "" }
@@ -270,7 +270,7 @@ Stores provide fine-grained reactivity for nested objects without requiring immu
 
 Components have lifecycle hooks:
 
-```lux
+```tova
 client {
   component Dashboard {
     onMount {
@@ -293,7 +293,7 @@ client {
 
 Components can include scoped styles:
 
-```lux
+```tova
 client {
   component StyledButton(label) {
     css {
@@ -314,7 +314,7 @@ client {
 
 Here is a complete client block for a simple todo application:
 
-```lux
+```tova
 shared {
   type Todo {
     id: Int

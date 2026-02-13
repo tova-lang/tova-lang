@@ -1,4 +1,4 @@
-// Lux string method extensions — bridges Lux method syntax to JavaScript
+// Tova string method extensions — bridges Tova method syntax to JavaScript
 // Allows: "hello".upper() instead of requiring upper("hello")
 
 const methods = {

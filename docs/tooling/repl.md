@@ -4,35 +4,35 @@ title: REPL
 
 # REPL
 
-The Lux REPL (Read-Eval-Print Loop) provides an interactive environment for experimenting with Lux code, testing expressions, and exploring the standard library.
+The Tova REPL (Read-Eval-Print Loop) provides an interactive environment for experimenting with Tova code, testing expressions, and exploring the standard library.
 
 ## Starting the REPL
 
 ```bash
-lux repl
+tova repl
 ```
 
 You will see:
 
 ```
-  Lux REPL v0.1.0
+  Tova REPL v0.1.0
   Type expressions to evaluate. Use :quit to exit.
 
-lux>
+tova>
 ```
 
 ## Evaluating Expressions
 
-Type any Lux expression and press Enter to see the result:
+Type any Tova expression and press Enter to see the result:
 
 ```
-lux> 1 + 2
+tova> 1 + 2
 3
 
-lux> "Hello" ++ " " ++ "World"
+tova> "Hello" ++ " " ++ "World"
 Hello World
 
-lux> [1, 2, 3] |> map(fn(x) x * 2)
+tova> [1, 2, 3] |> map(fn(x) x * 2)
 [2, 4, 6]
 ```
 
@@ -41,11 +41,11 @@ lux> [1, 2, 3] |> map(fn(x) x * 2)
 Define variables that persist across evaluations in the current session:
 
 ```
-lux> name = "Lux"
-Lux
+tova> name = "Tova"
+Tova
 
-lux> greeting = "Hello, {name}!"
-Hello, Lux!
+tova> greeting = "Hello, {name}!"
+Hello, Tova!
 ```
 
 ## Function Definitions
@@ -53,19 +53,19 @@ Hello, Lux!
 Define and call functions:
 
 ```
-lux> fn double(x) { x * 2 }
+tova> fn double(x) { x * 2 }
 
-lux> double(21)
+tova> double(21)
 42
 
-lux> fn factorial(n) {
+tova> fn factorial(n) {
 ...    match n {
 ...      0 => 1
 ...      n => n * factorial(n - 1)
 ...    }
 ...  }
 
-lux> factorial(10)
+tova> factorial(10)
 3628800
 ```
 
@@ -74,36 +74,36 @@ lux> factorial(10)
 The REPL automatically detects incomplete expressions by tracking open braces, brackets, and parentheses. When a line ends with an unclosed delimiter, the prompt changes to `...` and waits for more input:
 
 ```
-lux> fn greet(name) {
+tova> fn greet(name) {
 ...    message = "Hello, {name}!"
 ...    print(message)
 ...  }
 
-lux> greet("World")
+tova> greet("World")
 Hello, World!
 ```
 
 ## Standard Library
 
-The full Lux standard library is available in the REPL, including all built-in functions and `Result`/`Option` types:
+The full Tova standard library is available in the REPL, including all built-in functions and `Result`/`Option` types:
 
 ```
-lux> range(1, 6)
+tova> range(1, 6)
 [1, 2, 3, 4, 5]
 
-lux> [3, 1, 4, 1, 5] |> sorted()
+tova> [3, 1, 4, 1, 5] |> sorted()
 [1, 1, 3, 4, 5]
 
-lux> sum(range(1, 101))
+tova> sum(range(1, 101))
 5050
 
-lux> Ok(42) |> map(fn(x) x * 2)
+tova> Ok(42) |> map(fn(x) x * 2)
 Ok(84)
 
-lux> Some("hello") |> unwrap_or("default")
+tova> Some("hello") |> unwrap_or("default")
 hello
 
-lux> type_of([1, 2, 3])
+tova> type_of([1, 2, 3])
 Array
 ```
 

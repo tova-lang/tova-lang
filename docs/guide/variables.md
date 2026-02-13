@@ -1,12 +1,12 @@
 # Variables
 
-Lux takes a clear stance on mutability: variables are **immutable by default**. If you want a variable that can change, you opt in explicitly with `var`. This makes your code easier to reason about and helps prevent accidental mutations.
+Tova takes a clear stance on mutability: variables are **immutable by default**. If you want a variable that can change, you opt in explicitly with `var`. This makes your code easier to reason about and helps prevent accidental mutations.
 
 ## Immutable Variables
 
 A plain assignment creates an immutable binding. Once set, it cannot be reassigned:
 
-```lux
+```tova
 name = "Alice"
 age = 30
 pi = 3.14159
@@ -14,7 +14,7 @@ pi = 3.14159
 
 Attempting to reassign an immutable variable produces a compile-time error:
 
-```lux
+```tova
 name = "Alice"
 name = "Bob"    // Error: cannot reassign immutable variable 'name'
 ```
@@ -23,7 +23,7 @@ name = "Bob"    // Error: cannot reassign immutable variable 'name'
 
 Use `var` when you need a variable that can change over time:
 
-```lux
+```tova
 var count = 0
 count += 1        // OK
 count = count + 5 // OK
@@ -34,7 +34,7 @@ name = "Bob"      // OK — var allows reassignment
 
 Mutable variables support all compound assignment operators:
 
-```lux
+```tova
 var x = 10
 x += 5    // x is now 15
 x -= 3    // x is now 12
@@ -45,16 +45,16 @@ x %= 5    // x is now 1
 
 ## Multiple Assignment
 
-Lux supports assigning multiple variables in a single statement:
+Tova supports assigning multiple variables in a single statement:
 
-```lux
+```tova
 a, b = 1, 2
 x, y, z = "hello", true, 42
 ```
 
 This is particularly handy for swapping values without a temporary variable:
 
-```lux
+```tova
 var a = 1
 var b = 2
 a, b = b, a   // a is now 2, b is now 1
@@ -65,14 +65,14 @@ a, b = b, a   // a is now 2, b is now 1
 The `let` keyword is used specifically for destructuring -- pulling values out of objects and arrays into individual variables.
 
 ::: tip
-In Lux, `let` is **only** for destructuring. It is **not** used for variable declaration like in JavaScript. Use plain `x = 10` for immutable bindings or `var x = 10` for mutable ones.
+In Tova, `let` is **only** for destructuring. It is **not** used for variable declaration like in JavaScript. Use plain `x = 10` for immutable bindings or `var x = 10` for mutable ones.
 :::
 
 ### Object Destructuring
 
 Extract fields from an object by name:
 
-```lux
+```tova
 person = { name: "Alice", age: 30, email: "alice@example.com" }
 
 let { name, age } = person
@@ -82,7 +82,7 @@ print(age)    // 30
 
 You can rename the bindings:
 
-```lux
+```tova
 let { name: userName, age: userAge } = person
 print(userName)   // "Alice"
 print(userAge)    // 30
@@ -92,7 +92,7 @@ print(userAge)    // 30
 
 Pull elements out of arrays by position:
 
-```lux
+```tova
 coords = [10, 20, 30]
 
 let [x, y, z] = coords
@@ -104,7 +104,7 @@ print(y)   // 20
 
 Use the spread operator `...` to capture remaining elements:
 
-```lux
+```tova
 items = [1, 2, 3, 4, 5]
 
 let [first, ...rest] = items
@@ -121,7 +121,7 @@ print(tail)    // [3, 4, 5]
 
 Destructuring can go multiple levels deep:
 
-```lux
+```tova
 data = {
   user: { name: "Alice", scores: [95, 87, 92] }
 }
@@ -134,18 +134,18 @@ print(other_scores)  // [87, 92]
 
 ## Type Annotations
 
-You can optionally annotate variables with types. Lux uses the `: Type` syntax after the variable name:
+You can optionally annotate variables with types. Tova uses the `: Type` syntax after the variable name:
 
-```lux
+```tova
 x: Int = 42
 name: String = "Alice"
 is_active: Bool = true
 scores: [Int] = [90, 85, 92]
 ```
 
-Type annotations serve as documentation and enable better tooling support. Lux's type checker will warn you if the assigned value does not match the declared type.
+Type annotations serve as documentation and enable better tooling support. Tova's type checker will warn you if the assigned value does not match the declared type.
 
-```lux
+```tova
 var count: Int = 0
 count += 1     // OK — still an Int
 
@@ -159,14 +159,14 @@ ratio: Float = 22.0 / 7.0
 
 **Use destructuring to keep code clean.** Instead of accessing `response.data.user.name` repeatedly, destructure it once:
 
-```lux
+```tova
 let { data: { user: { name, email } } } = response
 // Now use 'name' and 'email' directly
 ```
 
 **Multiple assignment shines for swaps and coordinate work:**
 
-```lux
+```tova
 // Swap without a temp variable
 var left = "hello"
 var right = "world"
