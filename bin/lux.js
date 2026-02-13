@@ -1341,30 +1341,53 @@ const compilationInProgress = new Set();
 const moduleExports = new Map();
 
 function collectExports(ast, filename) {
-  const exports = new Set();
+  const publicExports = new Set();
+  const allNames = new Set();
   for (const node of ast.body) {
-    if (node.type === 'FunctionDeclaration') exports.add(node.name);
+    if (node.type === 'FunctionDeclaration') {
+      allNames.add(node.name);
+      if (node.isPublic) publicExports.add(node.name);
+    }
     if (node.type === 'Assignment' && node.targets) {
-      for (const t of node.targets) exports.add(t);
+      for (const t of node.targets) {
+        allNames.add(t);
+        if (node.isPublic) publicExports.add(t);
+      }
     }
     if (node.type === 'TypeDeclaration') {
-      exports.add(node.name);
+      allNames.add(node.name);
+      if (node.isPublic) publicExports.add(node.name);
       if (node.variants) {
         for (const v of node.variants) {
-          if (v.type === 'TypeVariant') exports.add(v.name);
+          if (v.type === 'TypeVariant') {
+            allNames.add(v.name);
+            if (node.isPublic) publicExports.add(v.name);
+          }
         }
       }
     }
     if (node.type === 'VarDeclaration' && node.targets) {
-      for (const t of node.targets) exports.add(t);
+      for (const t of node.targets) {
+        allNames.add(t);
+        if (node.isPublic) publicExports.add(t);
+      }
     }
-    if (node.type === 'InterfaceDeclaration') exports.add(node.name);
-    if (node.type === 'TraitDeclaration') exports.add(node.name);
-    if (node.type === 'TypeAlias') exports.add(node.name);
+    if (node.type === 'InterfaceDeclaration') {
+      allNames.add(node.name);
+      if (node.isPublic) publicExports.add(node.name);
+    }
+    if (node.type === 'TraitDeclaration') {
+      allNames.add(node.name);
+      if (node.isPublic) publicExports.add(node.name);
+    }
+    if (node.type === 'TypeAlias') {
+      allNames.add(node.name);
+      if (node.isPublic) publicExports.add(node.name);
+    }
     if (node.type === 'ImplDeclaration') { /* impl doesn't export a name */ }
   }
-  moduleExports.set(filename, exports);
-  return exports;
+  moduleExports.set(filename, { publicExports, allNames });
+  return { publicExports, allNames };
 }
 
 function compileWithImports(source, filename, srcDir) {
@@ -1388,17 +1411,21 @@ function compileWithImports(source, filename, srcDir) {
     if (node.type === 'ImportDeclaration' && node.source.endsWith('.lux')) {
       const importPath = resolve(dirname(filename), node.source);
       if (compilationInProgress.has(importPath)) {
-        console.warn(`Warning: Circular import detected: ${filename} → ${importPath}`);
+        throw new Error(`Circular import detected: ${filename} → ${importPath}`);
       } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
         const importSource = readFileSync(importPath, 'utf-8');
         compileWithImports(importSource, importPath, srcDir);
       }
-      // Validate imported names exist in target module
+      // Validate imported names exist in target module's public exports
       if (moduleExports.has(importPath)) {
-        const targetExports = moduleExports.get(importPath);
+        const { publicExports, allNames } = moduleExports.get(importPath);
         for (const spec of node.specifiers) {
-          if (!targetExports.has(spec.imported)) {
-            console.warn(`Warning: Module '${node.source}' does not export '${spec.imported}' (imported in ${filename})`);
+          if (!publicExports.has(spec.imported)) {
+            if (allNames.has(spec.imported)) {
+              throw new Error(`'${spec.imported}' is private in module '${node.source}'. Add 'pub' to export it.`);
+            } else {
+              throw new Error(`Module '${node.source}' does not export '${spec.imported}'`);
+            }
           }
         }
       }
@@ -1408,7 +1435,17 @@ function compileWithImports(source, filename, srcDir) {
     if (node.type === 'ImportDefault' && node.source.endsWith('.lux')) {
       const importPath = resolve(dirname(filename), node.source);
       if (compilationInProgress.has(importPath)) {
-        console.warn(`Warning: Circular import detected: ${filename} → ${importPath}`);
+        throw new Error(`Circular import detected: ${filename} → ${importPath}`);
+      } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
+        const importSource = readFileSync(importPath, 'utf-8');
+        compileWithImports(importSource, importPath, srcDir);
+      }
+      node.source = node.source.replace('.lux', '.shared.js');
+    }
+    if (node.type === 'ImportWildcard' && node.source.endsWith('.lux')) {
+      const importPath = resolve(dirname(filename), node.source);
+      if (compilationInProgress.has(importPath)) {
+        throw new Error(`Circular import detected: ${filename} → ${importPath}`);
       } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
         const importSource = readFileSync(importPath, 'utf-8');
         compileWithImports(importSource, importPath, srcDir);

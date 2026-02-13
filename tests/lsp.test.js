@@ -451,7 +451,7 @@ describe('LSP: Hover', () => {
   test('user-defined symbol hover info', () => {
     const { analyzer } = analyzeSource(`
 fn greet(name: String) -> String {
-  return "Hello " + name
+  return name
 }
 `);
     const sym = analyzer.globalScope.symbols.get('greet');

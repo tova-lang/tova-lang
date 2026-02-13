@@ -225,9 +225,59 @@ class LuxLanguageServer {
         });
       }
 
+      // Convert analyzer warnings to diagnostics (from analyzer errors that carry warnings)
+      if (err.warnings) {
+        for (const w of err.warnings) {
+          diagnostics.push({
+            range: {
+              start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
+              end: { line: (w.line || 1) - 1, character: (w.column || 1) + 10 },
+            },
+            severity: 2, // Warning
+            source: 'lux',
+            message: w.message,
+          });
+        }
+      }
+
       // Use partial AST for go-to-definition even when there are errors
-      if (err.partialAST) {
-        this._diagnosticsCache.set(uri, { ast: err.partialAST, text });
+      const partialAST = err.partialAST;
+      if (partialAST) {
+        // Try running analyzer in tolerant mode on partial AST for completions/hover
+        try {
+          const analyzer = new Analyzer(partialAST, filename, { tolerant: true });
+          const result = analyzer.analyze();
+          this._diagnosticsCache.set(uri, { ast: partialAST, analyzer, text });
+          // Add analyzer warnings as diagnostics
+          for (const w of result.warnings) {
+            diagnostics.push({
+              range: {
+                start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
+                end: { line: (w.line || 1) - 1, character: (w.column || 1) + 10 },
+              },
+              severity: 2, // Warning
+              source: 'lux',
+              message: w.message,
+            });
+          }
+          // Add analyzer errors (type errors) as diagnostics
+          if (result.errors) {
+            for (const e of result.errors) {
+              diagnostics.push({
+                range: {
+                  start: { line: (e.line || 1) - 1, character: (e.column || 1) - 1 },
+                  end: { line: (e.line || 1) - 1, character: (e.column || 1) + 10 },
+                },
+                severity: 1, // Error
+                source: 'lux',
+                message: e.message,
+              });
+            }
+          }
+        } catch (_) {
+          // Analyzer failed on partial AST — just cache the AST without analyzer
+          this._diagnosticsCache.set(uri, { ast: partialAST, text });
+        }
       }
     }
 

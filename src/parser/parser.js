@@ -94,11 +94,40 @@ export class Parser {
           tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
-          tok.type === TokenType.PUB || tok.type === TokenType.DEFER) {
+          tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
+          tok.type === TokenType.EXTERN) {
         return;
       }
       if (tok.type === TokenType.RBRACE) {
         this.advance();
+        return;
+      }
+      this.advance();
+    }
+  }
+
+  _synchronizeBlock() {
+    // Don't advance if already at } — that's the block closer we need
+    if (!this.isAtEnd() && this.current().type !== TokenType.RBRACE) {
+      this.advance(); // skip the problematic token
+    }
+    while (!this.isAtEnd()) {
+      const tok = this.current();
+      // Stop at } WITHOUT consuming — let the block close properly
+      if (tok.type === TokenType.RBRACE) return;
+      // Statement-starting keywords — safe to resume parsing here
+      if (tok.type === TokenType.FN || tok.type === TokenType.TYPE ||
+          tok.type === TokenType.IF || tok.type === TokenType.FOR ||
+          tok.type === TokenType.WHILE || tok.type === TokenType.RETURN ||
+          tok.type === TokenType.IMPORT || tok.type === TokenType.MATCH ||
+          tok.type === TokenType.TRY || tok.type === TokenType.SERVER ||
+          tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
+          tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
+          tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
+          tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
+          tok.type === TokenType.EXTERN || tok.type === TokenType.VAR ||
+          tok.type === TokenType.STATE || tok.type === TokenType.ROUTE ||
+          tok.type === TokenType.IDENTIFIER) {
         return;
       }
       this.advance();
@@ -177,7 +206,13 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' after test block name");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      body.push(this.parseStatement());
+      try {
+        const stmt = this.parseStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close test block");
     return new AST.TestBlock(name, body, l);
@@ -196,7 +231,13 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' after 'server'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      body.push(this.parseServerStatement());
+      try {
+        const stmt = this.parseServerStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close server block");
     return new AST.ServerBlock(body, l, name);
@@ -213,7 +254,13 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' after 'client'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      body.push(this.parseClientStatement());
+      try {
+        const stmt = this.parseClientStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close client block");
     return new AST.ClientBlock(body, l, name);
@@ -230,7 +277,13 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' after 'shared'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      body.push(this.parseStatement());
+      try {
+        const stmt = this.parseStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close shared block");
     return new AST.SharedBlock(body, l, name);
@@ -481,7 +534,13 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' after route group prefix");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      body.push(this.parseServerStatement());
+      try {
+        const stmt = this.parseServerStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close route group");
     return new AST.RouteGroupDeclaration(prefix, body, l);
@@ -1141,6 +1200,7 @@ export class Parser {
     if (this.check(TokenType.IMPL)) return this.parseImplDeclaration();
     if (this.check(TokenType.TRAIT)) return this.parseTraitDeclaration();
     if (this.check(TokenType.DEFER)) return this.parseDeferStatement();
+    if (this.check(TokenType.EXTERN)) return this.parseExternDeclaration();
 
     return this.parseExpressionOrAssignment();
   }
@@ -1231,6 +1291,25 @@ export class Parser {
       body = this.parseExpression();
     }
     return new AST.DeferStatement(body, l);
+  }
+
+  parseExternDeclaration() {
+    const l = this.loc();
+    this.expect(TokenType.EXTERN);
+
+    const isAsync = !!this.match(TokenType.ASYNC);
+    this.expect(TokenType.FN, "Expected 'fn' after 'extern'");
+    const name = this.expect(TokenType.IDENTIFIER, "Expected function name in extern declaration").value;
+    this.expect(TokenType.LPAREN, "Expected '(' after extern function name");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after extern parameters");
+
+    let returnType = null;
+    if (this.match(TokenType.THIN_ARROW)) {
+      returnType = this.parseTypeAnnotation();
+    }
+
+    return new AST.ExternDeclaration(name, params, returnType, l, isAsync);
   }
 
   parseFunctionDeclaration() {
@@ -1679,6 +1758,16 @@ export class Parser {
     const l = this.loc();
     this.expect(TokenType.IMPORT);
 
+    // import * as name from "module"
+    if (this.check(TokenType.STAR)) {
+      this.advance(); // consume *
+      this.expect(TokenType.AS, "Expected 'as' after '*' in wildcard import");
+      const name = this.expect(TokenType.IDENTIFIER, "Expected namespace name after 'as'").value;
+      this.expect(TokenType.FROM, "Expected 'from' in import");
+      const source = this.expect(TokenType.STRING, "Expected module path").value;
+      return new AST.ImportWildcard(name, source, l);
+    }
+
     // import { a, b } from "module"
     if (this.match(TokenType.LBRACE)) {
       const specifiers = [];
@@ -1709,7 +1798,13 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-      body.push(this.parseStatement());
+      try {
+        const stmt = this.parseStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
     }
     this.expect(TokenType.RBRACE, "Expected '}'");
     return new AST.BlockStatement(body, l);

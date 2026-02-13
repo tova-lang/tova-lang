@@ -974,12 +974,15 @@ describe('Shared — Helper inclusion based on flags', () => {
     expect(code).toContain('String methods are now standalone stdlib functions');
   });
 
-  test('shared code always includes Result/Option helper', () => {
-    const code = genShared('x = 1');
-    expect(code).toContain('function Ok(value)');
-    expect(code).toContain('function Err(error)');
-    expect(code).toContain('function Some(value)');
-    expect(code).toContain('const None = Object.freeze');
+  test('shared code includes Result/Option helper only when used', () => {
+    const codeWithout = genShared('x = 1');
+    expect(codeWithout).not.toContain('function Ok(value)');
+
+    const codeWith = genShared('x = Ok(42)');
+    expect(codeWith).toContain('function Ok(value)');
+    expect(codeWith).toContain('function Err(error)');
+    expect(codeWith).toContain('function Some(value)');
+    expect(codeWith).toContain('const None = Object.freeze');
   });
 
   test('__contains helper is included only when membership expression used', () => {

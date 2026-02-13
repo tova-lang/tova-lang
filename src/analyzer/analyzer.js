@@ -1,14 +1,16 @@
 import { Scope, Symbol } from './scope.js';
 
 export class Analyzer {
-  constructor(ast, filename = '<stdin>') {
+  constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
     this.filename = filename;
     this.errors = [];
     this.warnings = [];
+    this.tolerant = options.tolerant || false;
     this.globalScope = new Scope(null, 'module');
     this.currentScope = this.globalScope;
     this._allScopes = []; // Track all scopes for unused variable checking
+    this._functionReturnTypeStack = []; // Stack of expected return types for type checking
 
     // Register built-in types
     this.registerBuiltins();
@@ -97,8 +99,14 @@ export class Analyzer {
     this._checkUnusedSymbols();
 
     if (this.errors.length > 0) {
+      if (this.tolerant) {
+        return { warnings: this.warnings, errors: this.errors, scope: this.globalScope };
+      }
       const msgs = this.errors.map(e => `  ${e.file}:${e.line}:${e.column} — ${e.message}`);
-      throw new Error(`Analysis errors:\n${msgs.join('\n')}`);
+      const err = new Error(`Analysis errors:\n${msgs.join('\n')}`);
+      err.errors = this.errors;
+      err.warnings = this.warnings;
+      throw err;
     }
 
     return { warnings: this.warnings, scope: this.globalScope };
@@ -162,32 +170,151 @@ export class Analyzer {
       case 'CallExpression':
         if (expr.callee.type === 'Identifier') {
           const name = expr.callee.name;
-          if (name === 'Ok') return 'Result';
-          if (name === 'Err') return 'Result';
-          if (name === 'Some') return 'Option';
+          if (name === 'Ok') {
+            const innerType = expr.arguments.length > 0 ? this._inferType(expr.arguments[0]) : null;
+            return innerType ? `Result<${innerType}, _>` : 'Result';
+          }
+          if (name === 'Err') {
+            const innerType = expr.arguments.length > 0 ? this._inferType(expr.arguments[0]) : null;
+            return innerType ? `Result<_, ${innerType}>` : 'Result';
+          }
+          if (name === 'Some') {
+            const innerType = expr.arguments.length > 0 ? this._inferType(expr.arguments[0]) : null;
+            return innerType ? `Option<${innerType}>` : 'Option';
+          }
           if (name === 'len' || name === 'count') return 'Int';
           if (name === 'type_of') return 'String';
           if (name === 'random') return 'Float';
+          // Look up declared return type from function symbol
+          const fnSym = this.currentScope.lookup(name);
+          if (fnSym && fnSym.kind === 'function') {
+            if (fnSym._variantOf) return fnSym._variantOf;
+            if (fnSym.type) return this._typeAnnotationToString(fnSym.type);
+          }
         }
         return null;
       case 'Identifier':
-        if (expr.name === 'None') return 'Option';
+        if (expr.name === 'None') return 'Option<_>';
         if (expr.name === 'true' || expr.name === 'false') return 'Bool';
         // Look up stored type
         const sym = this.currentScope.lookup(expr.name);
         return sym ? sym.inferredType : null;
       case 'TupleExpression':
         return `(${expr.elements.map(e => this._inferType(e) || 'Any').join(', ')})`;
+      case 'BinaryExpression':
+        if (expr.operator === '++') return 'String';
+        if (['+', '-', '*', '/', '%', '**'].includes(expr.operator)) {
+          const lt = this._inferType(expr.left);
+          const rt = this._inferType(expr.right);
+          if (lt === 'Float' || rt === 'Float') return 'Float';
+          return 'Int';
+        }
+        if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) return 'Bool';
+        return null;
+      case 'UnaryExpression':
+        if (expr.operator === 'not' || expr.operator === '!') return 'Bool';
+        if (expr.operator === '-') return this._inferType(expr.operand);
+        return null;
+      case 'LogicalExpression':
+        return 'Bool';
       default:
         return null;
     }
+  }
+
+  _typeAnnotationToString(ann) {
+    if (!ann) return null;
+    if (typeof ann === 'string') return ann;
+    switch (ann.type) {
+      case 'TypeAnnotation':
+        if (ann.typeParams && ann.typeParams.length > 0) {
+          const params = ann.typeParams.map(p => this._typeAnnotationToString(p)).join(', ');
+          return `${ann.name}<${params}>`;
+        }
+        return ann.name;
+      case 'ArrayTypeAnnotation':
+        return `[${this._typeAnnotationToString(ann.elementType) || 'Any'}]`;
+      case 'TupleTypeAnnotation':
+        return `(${ann.elementTypes.map(t => this._typeAnnotationToString(t) || 'Any').join(', ')})`;
+      case 'FunctionTypeAnnotation':
+        return 'Function';
+      default:
+        return null;
+    }
+  }
+
+  _parseGenericType(typeStr) {
+    if (!typeStr) return { base: typeStr, params: [] };
+    const ltIdx = typeStr.indexOf('<');
+    if (ltIdx === -1) return { base: typeStr, params: [] };
+    const base = typeStr.slice(0, ltIdx);
+    const inner = typeStr.slice(ltIdx + 1, typeStr.lastIndexOf('>'));
+    // Split on top-level commas (respecting nested <>)
+    const params = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      if (inner[i] === '<') depth++;
+      else if (inner[i] === '>') depth--;
+      else if (inner[i] === ',' && depth === 0) {
+        params.push(inner.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    params.push(inner.slice(start).trim());
+    return { base, params };
+  }
+
+  _typesCompatible(expected, actual) {
+    // Unknown types are always compatible (gradual typing)
+    if (!expected || !actual) return true;
+    if (expected === 'Any' || actual === 'Any') return true;
+    if (expected === '_' || actual === '_') return true;
+    // Exact match
+    if (expected === actual) return true;
+    // Numeric compatibility: Int and Float are interchangeable
+    const numerics = new Set(['Int', 'Float']);
+    if (numerics.has(expected) && numerics.has(actual)) return true;
+    // Nil is compatible with Option
+    if (actual === 'Nil' && (expected === 'Option' || expected.startsWith('Option'))) return true;
+    if ((expected === 'Nil') && (actual === 'Option' || actual.startsWith('Option'))) return true;
+    // Array compatibility: check element types
+    if (expected.startsWith('[') && actual.startsWith('[')) {
+      const expEl = expected.slice(1, -1);
+      const actEl = actual.slice(1, -1);
+      return this._typesCompatible(expEl, actEl);
+    }
+    // Tuple compatibility: check element types pairwise
+    if (expected.startsWith('(') && actual.startsWith('(')) {
+      const expEls = expected.slice(1, -1).split(', ');
+      const actEls = actual.slice(1, -1).split(', ');
+      if (expEls.length !== actEls.length) return false;
+      return expEls.every((e, i) => this._typesCompatible(e, actEls[i]));
+    }
+    // Generic type compatibility: Result<Int, String> vs Result<String, Int>
+    const expG = this._parseGenericType(expected);
+    const actG = this._parseGenericType(actual);
+    if (expG.params.length > 0 || actG.params.length > 0) {
+      // Base types must match
+      if (expG.base !== actG.base) return false;
+      // If one has no params (plain `Result`), compatible with any parameterized version (gradual typing)
+      if (expG.params.length === 0 || actG.params.length === 0) return true;
+      // Compare params pairwise
+      if (expG.params.length !== actG.params.length) return false;
+      return expG.params.every((ep, i) => this._typesCompatible(ep, actG.params[i]));
+    }
+    return false;
   }
 
   // ─── Visitors ─────────────────────────────────────────────
 
   visitProgram(node) {
     for (const stmt of node.body) {
-      this.visitNode(stmt);
+      if (this.tolerant) {
+        try { this.visitNode(stmt); } catch (e) { /* skip nodes that crash in tolerant mode */ }
+      } else {
+        this.visitNode(stmt);
+      }
     }
   }
 
@@ -205,6 +332,7 @@ export class Analyzer {
       case 'TypeDeclaration': return this.visitTypeDeclaration(node);
       case 'ImportDeclaration': return this.visitImportDeclaration(node);
       case 'ImportDefault': return this.visitImportDefault(node);
+      case 'ImportWildcard': return this.visitImportWildcard(node);
       case 'IfStatement': return this.visitIfStatement(node);
       case 'ForStatement': return this.visitForStatement(node);
       case 'WhileStatement': return this.visitWhileStatement(node);
@@ -253,6 +381,7 @@ export class Analyzer {
       case 'TraitDeclaration': return this.visitTraitDeclaration(node);
       case 'TypeAlias': return this.visitTypeAlias(node);
       case 'DeferStatement': return this.visitDeferStatement(node);
+      case 'ExternDeclaration': return this.visitExternDeclaration(node);
       default:
         // Expression nodes
         this.visitExpression(node);
@@ -278,6 +407,7 @@ export class Analyzer {
       case 'BinaryExpression':
         this.visitExpression(node.left);
         this.visitExpression(node.right);
+        this._checkBinaryExprTypes(node);
         return;
       case 'UnaryExpression':
         this.visitExpression(node.operand);
@@ -308,8 +438,9 @@ export class Analyzer {
             }
           }
         }
-        // Argument count validation for known functions
+        // Argument count and type validation for known functions
         this._checkCallArgCount(node);
+        this._checkCallArgTypes(node);
         this.visitExpression(node.callee);
         for (const arg of node.arguments) {
           if (arg.type === 'NamedArgument') {
@@ -447,6 +578,13 @@ export class Analyzer {
         if (!existing.mutable) {
           this.error(`Cannot reassign immutable variable '${target}'. Use 'var' for mutable variables.`, node.loc);
         }
+        // Type check reassignment
+        if (existing.inferredType && i < node.values.length) {
+          const newType = this._inferType(node.values[i]);
+          if (!this._typesCompatible(existing.inferredType, newType)) {
+            this.warn(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc);
+          }
+        }
         existing.used = true;
       } else {
         // New binding — define in current scope with inferred type
@@ -463,16 +601,20 @@ export class Analyzer {
   }
 
   visitVarDeclaration(node) {
-    for (const target of node.targets) {
+    // Visit values first so type inference can work
+    for (const val of node.values) {
+      this.visitExpression(val);
+    }
+    for (let i = 0; i < node.targets.length; i++) {
+      const target = node.targets[i];
+      const inferredType = i < node.values.length ? this._inferType(node.values[i]) : null;
       try {
-        this.currentScope.define(target,
-          new Symbol(target, 'variable', null, true, node.loc));
+        const sym = new Symbol(target, 'variable', null, true, node.loc);
+        sym.inferredType = inferredType;
+        this.currentScope.define(target, sym);
       } catch (e) {
         this.error(e.message);
       }
-    }
-    for (const val of node.values) {
-      this.visitExpression(val);
     }
   }
 
@@ -508,6 +650,7 @@ export class Analyzer {
       sym._params = node.params.map(p => p.name);
       sym._totalParamCount = node.params.length;
       sym._requiredParamCount = node.params.filter(p => !p.defaultValue).length;
+      sym._paramTypes = node.params.map(p => p.typeAnnotation || null);
       this.currentScope.define(node.name, sym);
     } catch (e) {
       this.error(e.message);
@@ -516,13 +659,18 @@ export class Analyzer {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
 
+    // Push expected return type for return-statement checking
+    const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
+    this._functionReturnTypeStack.push(expectedReturn);
+
     for (const param of node.params) {
       if (param.destructure) {
         this._defineDestructureParams(param.destructure, param.loc);
       } else {
         try {
-          this.currentScope.define(param.name,
-            new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+          const paramSym = new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc);
+          paramSym.inferredType = param.typeAnnotation ? this._typeAnnotationToString(param.typeAnnotation) : null;
+          this.currentScope.define(param.name, paramSym);
         } catch (e) {
           this.error(e.message);
         }
@@ -533,7 +681,37 @@ export class Analyzer {
     }
 
     this.visitNode(node.body);
+
+    // Return path analysis: check that all paths return a value
+    if (expectedReturn && node.body.type === 'BlockStatement') {
+      if (!this._definitelyReturns(node.body)) {
+        this.warn(`Function '${node.name}' declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+      }
+    }
+
+    this._functionReturnTypeStack.pop();
     this.currentScope = prevScope;
+  }
+
+  visitExternDeclaration(node) {
+    const sym = new Symbol(node.name, 'function', node.returnType, false, node.loc);
+    sym._params = node.params.map(p => p.name || `arg${node.params.indexOf(p)}`);
+    sym._totalParamCount = node.params.length;
+    sym._requiredParamCount = node.params.filter(p => !p.defaultValue).length;
+    sym._paramTypes = node.params.map(p => p.typeAnnotation || null);
+    sym.extern = true;
+    sym.isAsync = node.isAsync;
+    // Extern declarations can override builtins (they provide more precise type info)
+    const existing = this.currentScope.lookupLocal(node.name);
+    if (existing && existing.kind === 'builtin') {
+      this.currentScope.symbols.set(node.name, sym);
+    } else {
+      try {
+        this.currentScope.define(node.name, sym);
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
   }
 
   _defineDestructureParams(pattern, loc) {
@@ -577,6 +755,8 @@ export class Analyzer {
           varSym._params = variant.fields.map(f => f.name);
           varSym._totalParamCount = variant.fields.length;
           varSym._requiredParamCount = variant.fields.length;
+          varSym._variantOf = node.name;
+          varSym._paramTypes = variant.fields.map(f => f.typeAnnotation || null);
           this.currentScope.define(variant.name, varSym);
         } catch (e) {
           this.error(e.message);
@@ -600,6 +780,15 @@ export class Analyzer {
     try {
       this.currentScope.define(node.local,
         new Symbol(node.local, 'variable', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+  }
+
+  visitImportWildcard(node) {
+    try {
+      this.currentScope.define(node.local,
+        new Symbol(node.local, 'module', null, false, node.loc));
     } catch (e) {
       this.error(e.message);
     }
@@ -691,6 +880,16 @@ export class Analyzer {
     if (node.value) {
       this.visitExpression(node.value);
     }
+    // Check return type against declared function return type
+    if (this._functionReturnTypeStack.length > 0) {
+      const expectedReturn = this._functionReturnTypeStack[this._functionReturnTypeStack.length - 1];
+      if (expectedReturn) {
+        const actualType = node.value ? this._inferType(node.value) : 'Nil';
+        if (!this._typesCompatible(expectedReturn, actualType)) {
+          this.error(`Type mismatch: function expects return type ${expectedReturn}, but got ${actualType}`, node.loc);
+        }
+      }
+    }
   }
 
   visitCompoundAssignment(node) {
@@ -699,6 +898,33 @@ export class Analyzer {
       const sym = this.currentScope.lookup(node.target.name);
       if (sym && !sym.mutable && sym.kind !== 'builtin') {
         this.error(`Cannot use '${node.operator}' on immutable variable '${node.target.name}'`, node.loc);
+      }
+      // Type check compound assignment
+      if (sym && sym.inferredType) {
+        const op = node.operator;
+        const numerics = new Set(['Int', 'Float']);
+        if (['-=', '*=', '/='].includes(op)) {
+          if (!numerics.has(sym.inferredType) && sym.inferredType !== 'Any') {
+            this.warn(`Type mismatch: '${op}' requires numeric type, but '${node.target.name}' is ${sym.inferredType}`, node.loc);
+          }
+          const valType = this._inferType(node.value);
+          if (valType && !numerics.has(valType) && valType !== 'Any') {
+            this.warn(`Type mismatch: '${op}' requires numeric value, but got ${valType}`, node.loc);
+          }
+        } else if (op === '+=') {
+          // += on numerics requires numeric value, on strings requires string
+          if (numerics.has(sym.inferredType)) {
+            const valType = this._inferType(node.value);
+            if (valType && !numerics.has(valType) && valType !== 'Any') {
+              this.warn(`Type mismatch: '${op}' on numeric variable requires numeric value, but got ${valType}`, node.loc);
+            }
+          } else if (sym.inferredType === 'String') {
+            const valType = this._inferType(node.value);
+            if (valType && valType !== 'String' && valType !== 'Any') {
+              this.warn(`Type mismatch: '${op}' on String variable requires String value, but got ${valType}`, node.loc);
+            }
+          }
+        }
       }
     }
     this.visitExpression(node.target);
@@ -1220,19 +1446,30 @@ export class Analyzer {
   visitLambda(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
+
+    const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
+    this._functionReturnTypeStack.push(expectedReturn);
+
     for (const param of node.params) {
       try {
-        this.currentScope.define(param.name,
-          new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc));
+        const paramSym = new Symbol(param.name, 'parameter', param.typeAnnotation, false, param.loc);
+        paramSym.inferredType = param.typeAnnotation ? this._typeAnnotationToString(param.typeAnnotation) : null;
+        this.currentScope.define(param.name, paramSym);
       } catch (e) {
         this.error(e.message);
       }
     }
     if (node.body.type === 'BlockStatement') {
       this.visitNode(node.body);
+      // Return path analysis for lambdas with block bodies and declared return types
+      if (expectedReturn && !this._definitelyReturns(node.body)) {
+        this.warn(`Lambda declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+      }
     } else {
+      // Single-expression body — always returns implicitly
       this.visitExpression(node.body);
     }
+    this._functionReturnTypeStack.pop();
     this.currentScope = prevScope;
   }
 
@@ -1462,6 +1699,42 @@ export class Analyzer {
     }
   }
 
+  _definitelyReturns(node) {
+    if (!node) return false;
+    switch (node.type) {
+      case 'ReturnStatement':
+        return true;
+      case 'BlockStatement':
+        if (node.body.length === 0) return false;
+        return this._definitelyReturns(node.body[node.body.length - 1]);
+      case 'IfStatement':
+        if (!node.elseBody) return false;
+        const consequentReturns = this._definitelyReturns(node.consequent);
+        const elseReturns = this._definitelyReturns(node.elseBody);
+        const allAlternatesReturn = (node.alternates || []).every(alt => this._definitelyReturns(alt.body));
+        return consequentReturns && elseReturns && allAlternatesReturn;
+      case 'MatchExpression': {
+        const hasWildcard = node.arms.some(arm =>
+          arm.pattern.type === 'WildcardPattern' ||
+          (arm.pattern.type === 'BindingPattern' && !arm.guard)
+        );
+        if (!hasWildcard) return false;
+        return node.arms.every(arm => this._definitelyReturns(arm.body));
+      }
+      case 'TryCatchStatement': {
+        const tryReturns = node.tryBody.length > 0 &&
+          this._definitelyReturns(node.tryBody[node.tryBody.length - 1]);
+        const catchReturns = !node.catchBody || (node.catchBody.length > 0 &&
+          this._definitelyReturns(node.catchBody[node.catchBody.length - 1]));
+        return tryReturns && catchReturns;
+      }
+      case 'ExpressionStatement':
+        return this._definitelyReturns(node.expression);
+      default:
+        return false;
+    }
+  }
+
   _checkCallArgCount(node) {
     if (node.callee.type !== 'Identifier') return;
     const fnSym = this.currentScope.lookup(node.callee.name);
@@ -1481,6 +1754,62 @@ export class Analyzer {
     }
   }
 
+  _checkCallArgTypes(node) {
+    if (node.callee.type !== 'Identifier') return;
+    const fnSym = this.currentScope.lookup(node.callee.name);
+    if (!fnSym || fnSym.kind === 'builtin' || !fnSym._paramTypes) return;
+
+    const hasSpread = node.arguments.some(a => a.type === 'SpreadExpression');
+    if (hasSpread) return;
+
+    for (let i = 0; i < node.arguments.length && i < fnSym._paramTypes.length; i++) {
+      const arg = node.arguments[i];
+      if (arg.type === 'NamedArgument' || arg.type === 'SpreadExpression') continue;
+      const paramTypeAnn = fnSym._paramTypes[i];
+      if (!paramTypeAnn) continue;
+      const expectedType = this._typeAnnotationToString(paramTypeAnn);
+      const actualType = this._inferType(arg);
+      if (!this._typesCompatible(expectedType, actualType)) {
+        const paramName = fnSym._params ? fnSym._params[i] : `argument ${i + 1}`;
+        this.error(`Type mismatch: '${paramName}' expects ${expectedType}, but got ${actualType}`, arg.loc || node.loc);
+      }
+    }
+  }
+
+  _checkBinaryExprTypes(node) {
+    const op = node.operator;
+    const leftType = this._inferType(node.left);
+    const rightType = this._inferType(node.right);
+
+    if (op === '++') {
+      // String concatenation: both sides should be String
+      if (leftType && leftType !== 'String' && leftType !== 'Any') {
+        this.warn(`Type mismatch: '++' expects String on left side, but got ${leftType}`, node.loc);
+      }
+      if (rightType && rightType !== 'String' && rightType !== 'Any') {
+        this.warn(`Type mismatch: '++' expects String on right side, but got ${rightType}`, node.loc);
+      }
+    } else if (['-', '*', '/', '%', '**'].includes(op)) {
+      // Arithmetic: both sides must be numeric
+      const numerics = new Set(['Int', 'Float']);
+      if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
+        this.warn(`Type mismatch: '${op}' expects numeric type, but got ${leftType}`, node.loc);
+      }
+      if (rightType && !numerics.has(rightType) && rightType !== 'Any') {
+        this.warn(`Type mismatch: '${op}' expects numeric type, but got ${rightType}`, node.loc);
+      }
+    } else if (op === '+') {
+      // Addition: both sides must be numeric (Lux uses ++ for strings)
+      const numerics = new Set(['Int', 'Float']);
+      if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
+        this.warn(`Type mismatch: '+' expects numeric type, but got ${leftType}`, node.loc);
+      }
+      if (rightType && !numerics.has(rightType) && rightType !== 'Any') {
+        this.warn(`Type mismatch: '+' expects numeric type, but got ${rightType}`, node.loc);
+      }
+    }
+  }
+
   // Search for a variable from current scope up to the nearest function/module boundary.
   // This ensures `x = 20` inside an if/for block finds `x = 10` from the enclosing function,
   // preventing silent shadowing of immutable bindings within the same function.
@@ -1497,6 +1826,14 @@ export class Analyzer {
       scope = scope.parent;
     }
     return null;
+  }
+
+  pushScope(context) {
+    this.currentScope = this.currentScope.child(context);
+  }
+
+  popScope() {
+    this.currentScope = this.currentScope.parent;
   }
 
   _isInsideLoop() {

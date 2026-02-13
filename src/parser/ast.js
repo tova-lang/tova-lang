@@ -154,6 +154,15 @@ export class ImportDefault {
   }
 }
 
+export class ImportWildcard {
+  constructor(local, source, loc) {
+    this.type = 'ImportWildcard';
+    this.local = local;    // namespace binding name
+    this.source = source;
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Statements
 // ============================================================
@@ -980,6 +989,21 @@ export class TestBlock {
     this.type = 'TestBlock';
     this.name = name;       // optional string name
     this.body = body;       // Array of statements
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Extern declarations
+// ============================================================
+
+export class ExternDeclaration {
+  constructor(name, params, returnType, loc, isAsync = false) {
+    this.type = 'ExternDeclaration';
+    this.name = name;
+    this.params = params;     // Array of Parameter nodes (types only, names optional)
+    this.returnType = returnType; // TypeAnnotation or null
+    this.isAsync = isAsync;
     this.loc = loc;
   }
 }

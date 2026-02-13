@@ -1,5 +1,5 @@
 // Base code generation utilities shared across all codegen targets
-import { RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
+import { RESULT_OPTION, PROPAGATE, BUILTIN_NAMES } from '../stdlib/inline.js';
 
 export class BaseCodegen {
   constructor() {
@@ -8,6 +8,8 @@ export class BaseCodegen {
     this._scopes = [new Set()]; // scope stack for tracking declared variables
     this._needsContainsHelper = false; // track if __contains helper is needed
     this._needsPropagateHelper = false; // track if __propagate helper is needed
+    this._usedBuiltins = new Set(); // track which stdlib builtins are actually used
+    this._needsResultOption = false; // track if Ok/Err/Some/None are used
     this._variantFields = { 'Ok': ['value'], 'Err': ['error'], 'Some': ['value'] }; // map variant name -> [field names] for pattern destructuring
     // Source map tracking
     this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol}
@@ -60,6 +62,10 @@ export class BaseCodegen {
   // Get collected source mappings
   getSourceMappings() {
     return this._sourceMappings;
+  }
+
+  getUsedBuiltins() {
+    return this._usedBuiltins;
   }
 
   getContainsHelper() {
@@ -122,6 +128,7 @@ export class BaseCodegen {
       case 'TypeDeclaration': result = this.genTypeDeclaration(node); break;
       case 'ImportDeclaration': result = this.genImport(node); break;
       case 'ImportDefault': result = this.genImportDefault(node); break;
+      case 'ImportWildcard': result = this.genImportWildcard(node); break;
       case 'IfStatement': result = this.genIfStatement(node); break;
       case 'ForStatement': result = this.genForStatement(node); break;
       case 'WhileStatement': result = this.genWhileStatement(node); break;
@@ -138,6 +145,7 @@ export class BaseCodegen {
       case 'TraitDeclaration': result = this.genTraitDeclaration(node); break;
       case 'TypeAlias': result = this.genTypeAlias(node); break;
       case 'DeferStatement': result = this.genDeferStatement(node); break;
+      case 'ExternDeclaration': result = `${this.i()}// extern: ${node.name}`; break;
       default:
         result = `${this.i()}${this.genExpression(node)};`;
     }
@@ -155,7 +163,15 @@ export class BaseCodegen {
     if (!node) return 'undefined';
 
     switch (node.type) {
-      case 'Identifier': return node.name === '_' ? '_' : node.name;
+      case 'Identifier':
+        // Track builtin identifier usage (e.g., None used without call)
+        if (BUILTIN_NAMES.has(node.name)) {
+          this._usedBuiltins.add(node.name);
+        }
+        if (node.name === 'Ok' || node.name === 'Err' || node.name === 'Some' || node.name === 'None') {
+          this._needsResultOption = true;
+        }
+        return node.name === '_' ? '_' : node.name;
       case 'NumberLiteral': return String(node.value);
       case 'StringLiteral': return JSON.stringify(node.value);
       case 'BooleanLiteral': return String(node.value);
@@ -194,6 +210,7 @@ export class BaseCodegen {
   // ─── Statements ───────────────────────────────────────────
 
   genAssignment(node) {
+    const exportPrefix = node.isPublic ? 'export ' : '';
     if (node.targets.length === 1 && node.values.length === 1) {
       const target = node.targets[0];
       if (target === '_') {
@@ -204,7 +221,7 @@ export class BaseCodegen {
         return `${this.i()}${target} = ${this.genExpression(node.values[0])};`;
       }
       this.declareVar(target);
-      return `${this.i()}const ${target} = ${this.genExpression(node.values[0])};`;
+      return `${this.i()}${exportPrefix}const ${target} = ${this.genExpression(node.values[0])};`;
     }
 
     // Multiple assignment: a, b = 1, 2 (uses destructuring for atomicity)
@@ -218,19 +235,20 @@ export class BaseCodegen {
 
     // New declarations: const [a, b] = [v1, v2]
     for (const t of node.targets) this.declareVar(t);
-    return `${this.i()}const [${node.targets.join(', ')}] = [${vals.join(', ')}];`;
+    return `${this.i()}${exportPrefix}const [${node.targets.join(', ')}] = [${vals.join(', ')}];`;
   }
 
   genVarDeclaration(node) {
+    const exportPrefix = node.isPublic ? 'export ' : '';
     if (node.targets.length === 1 && node.values.length === 1) {
       this.declareVar(node.targets[0]);
-      return `${this.i()}let ${node.targets[0]} = ${this.genExpression(node.values[0])};`;
+      return `${this.i()}${exportPrefix}let ${node.targets[0]} = ${this.genExpression(node.values[0])};`;
     }
     const lines = [];
     for (let idx = 0; idx < node.targets.length; idx++) {
       this.declareVar(node.targets[idx]);
       const val = idx < node.values.length ? node.values[idx] : node.values[node.values.length - 1];
-      lines.push(`${this.i()}let ${node.targets[idx]} = ${this.genExpression(val)};`);
+      lines.push(`${this.i()}${exportPrefix}let ${node.targets[idx]} = ${this.genExpression(val)};`);
     }
     return lines.join('\n');
   }
@@ -258,6 +276,7 @@ export class BaseCodegen {
     const params = this.genParams(node.params);
     const hasPropagate = this._containsPropagate(node.body);
     const isGenerator = this._containsYield(node.body);
+    const exportPrefix = node.isPublic ? 'export ' : '';
     const asyncPrefix = node.isAsync ? 'async ' : '';
     const genStar = isGenerator ? '*' : '';
     this.pushScope();
@@ -271,9 +290,9 @@ export class BaseCodegen {
     const body = this.genBlockBody(node.body);
     this.popScope();
     if (hasPropagate) {
-      return `${this.i()}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__lux_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
     }
-    return `${this.i()}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
+    return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
   }
 
   genParams(params) {
@@ -311,6 +330,11 @@ export class BaseCodegen {
   genImportDefault(node) {
     this.declareVar(node.local);
     return `${this.i()}import ${node.local} from ${JSON.stringify(node.source)};`;
+  }
+
+  genImportWildcard(node) {
+    this.declareVar(node.local);
+    return `${this.i()}import * as ${node.local} from ${JSON.stringify(node.source)};`;
   }
 
   genIfStatement(node) {
@@ -660,6 +684,16 @@ export class BaseCodegen {
       const obj = this.genExpression(node.callee.object);
       const args = node.arguments.map(a => this.genExpression(a)).join(', ');
       return `new ${obj}(${args})`;
+    }
+
+    // Track builtin usage for tree-shaking
+    if (node.callee.type === 'Identifier') {
+      if (BUILTIN_NAMES.has(node.callee.name)) {
+        this._usedBuiltins.add(node.callee.name);
+      }
+      if (node.callee.name === 'Ok' || node.callee.name === 'Err' || node.callee.name === 'Some') {
+        this._needsResultOption = true;
+      }
     }
 
     const callee = this.genExpression(node.callee);
@@ -1061,6 +1095,7 @@ export class BaseCodegen {
 
   genInterfaceDeclaration(node) {
     // Interfaces are compile-time only — generate as a documentation comment
+    const exportStr = node.isPublic ? 'export ' : '';
     const methods = node.methods.map(m => {
       const params = m.params.map(p => {
         let s = p.name;
@@ -1070,11 +1105,12 @@ export class BaseCodegen {
       const ret = m.returnType ? ` -> ${m.returnType.name || 'any'}` : '';
       return `${this.i()} *   fn ${m.name}(${params})${ret}`;
     }).join('\n');
-    return `${this.i()}/* interface ${node.name} {\n${methods}\n${this.i()} * } */`;
+    return `${this.i()}/* ${exportStr}interface ${node.name} {\n${methods}\n${this.i()} * } */`;
   }
 
   genTypeDeclaration(node) {
     const lines = [];
+    const exportPrefix = node.isPublic ? 'export ' : '';
 
     const hasVariants = node.variants.some(v => v.type === 'TypeVariant');
 
@@ -1085,11 +1121,11 @@ export class BaseCodegen {
           const fieldNames = variant.fields.map(f => f.name);
           this._variantFields[variant.name] = fieldNames;
           if (variant.fields.length === 0) {
-            lines.push(`${this.i()}const ${variant.name} = Object.freeze({ __tag: "${variant.name}" });`);
+            lines.push(`${this.i()}${exportPrefix}const ${variant.name} = Object.freeze({ __tag: "${variant.name}" });`);
           } else {
             const params = fieldNames.join(', ');
             const obj = fieldNames.map(f => `${f}`).join(', ');
-            lines.push(`${this.i()}function ${variant.name}(${params}) { return Object.freeze({ __tag: "${variant.name}", ${obj} }); }`);
+            lines.push(`${this.i()}${exportPrefix}function ${variant.name}(${params}) { return Object.freeze({ __tag: "${variant.name}", ${obj} }); }`);
           }
         }
       }
@@ -1098,7 +1134,7 @@ export class BaseCodegen {
       const fieldNames = node.variants.map(f => f.name);
       const params = fieldNames.join(', ');
       const obj = fieldNames.map(f => `${f}`).join(', ');
-      lines.push(`${this.i()}function ${node.name}(${params}) { return { ${obj} }; }`);
+      lines.push(`${this.i()}${exportPrefix}function ${node.name}(${params}) { return { ${obj} }; }`);
     }
 
     // Derive clause: generate methods
@@ -1189,8 +1225,9 @@ export class BaseCodegen {
 
   genTypeAlias(node) {
     // Type aliases are compile-time only
+    const exportStr = node.isPublic ? 'export ' : '';
     const typeStr = node.typeExpr.name || 'any';
-    return `${this.i()}/* type alias: ${node.name} = ${typeStr} */`;
+    return `${this.i()}/* ${exportStr}type alias: ${node.name} = ${typeStr} */`;
   }
 
   genDeferStatement(node) {

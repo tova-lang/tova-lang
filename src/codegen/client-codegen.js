@@ -1,5 +1,5 @@
 import { BaseCodegen } from './base-codegen.js';
-import { getClientStdlib } from '../stdlib/inline.js';
+import { getClientStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 
 export class ClientCodegen extends BaseCodegen {
   constructor() {
@@ -797,7 +797,15 @@ export class ClientCodegen extends BaseCodegen {
   }
 
   getStdlibCore() {
-    return getClientStdlib();
+    const parts = [];
+    // Only include used builtin functions (tree-shaking)
+    const selectiveStdlib = buildSelectiveStdlib(this._usedBuiltins);
+    if (selectiveStdlib) parts.push(selectiveStdlib);
+    // Include Result/Option if Ok/Err/Some/None are used
+    if (this._needsResultOption) parts.push(RESULT_OPTION);
+    // Include propagate if needed
+    if (this._needsPropagateHelper) parts.push(PROPAGATE);
+    return parts.join('\n');
   }
 }
 

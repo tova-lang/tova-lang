@@ -67,6 +67,9 @@ export const TokenType = {
   // Generators
   YIELD: 'YIELD',
 
+  // Extern
+  EXTERN: 'EXTERN',
+
   // Full-stack keywords
   SERVER: 'SERVER',
   CLIENT: 'CLIENT',
@@ -184,6 +187,7 @@ export const Keywords = {
   'trait': TokenType.TRAIT,
   'defer': TokenType.DEFER,
   'yield': TokenType.YIELD,
+  'extern': TokenType.EXTERN,
   'server': TokenType.SERVER,
   'client': TokenType.CLIENT,
   'shared': TokenType.SHARED,
