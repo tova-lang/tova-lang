@@ -1,3 +1,45 @@
+<script setup>
+const functionsCode = `fn add(a, b) {
+  a + b
+}
+
+fn greet(name, greeting = "Hello") {
+  "{greeting}, {name}!"
+}
+
+print(add(3, 4))
+print(greet("Alice"))
+print(greet("Bob", "Hey"))`
+
+const lambdasCode = `double = fn(x) x * 2
+
+numbers = [1, 2, 3, 4, 5]
+doubled = numbers.map(fn(x) x * 2)
+evens = numbers.filter(fn(x) x % 2 == 0)
+
+print("doubled: {doubled}")
+print("evens: {evens}")`
+
+const recursionCode = `fn factorial(n) {
+  if n <= 1 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+fn fibonacci(n) {
+  match n {
+    0 => 0
+    1 => 1
+    n => fibonacci(n - 1) + fibonacci(n - 2)
+  }
+}
+
+print("5! = {factorial(5)}")
+print("fib(10) = {fibonacci(10)}")`
+</script>
+
 # Functions
 
 Functions are the primary building blocks in Tova. They are declared with the `fn` keyword and feature implicit returns, optional type annotations, and flexible parameter styles.
@@ -96,6 +138,8 @@ create_user("Bob", "admin")              // { name: "Bob", role: "admin", active
 create_user("Carol", "editor", false)    // { name: "Carol", role: "editor", active: false }
 ```
 
+<TryInPlayground :code="functionsCode" label="Functions & Defaults" />
+
 ## Type Annotations
 
 Add type annotations to parameters and return types for documentation and type checking:
@@ -153,6 +197,8 @@ process = fn(item) {
   validated
 }
 ```
+
+<TryInPlayground :code="lambdasCode" label="Lambdas" />
 
 ### Arrow Syntax
 
@@ -278,6 +324,8 @@ fn fibonacci(n) {
   }
 }
 ```
+
+<TryInPlayground :code="recursionCode" label="Recursion" />
 
 ## Practical Tips
 

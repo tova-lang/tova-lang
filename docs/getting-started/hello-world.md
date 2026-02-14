@@ -3,6 +3,31 @@ title: Hello World
 description: Write and run your first Tova program.
 ---
 
+<script setup>
+const helloCode = `name = "World"
+print("Hello, {name}!")
+
+fn add(a, b) {
+  a + b
+}
+
+result = add(1, 2)
+print("1 + 2 = {result}")`
+
+const fizzbuzzCode = `fn fizzbuzz(n) {
+  for i in range(1, n + 1) {
+    match [i % 3, i % 5] {
+      [0, 0] => print("FizzBuzz")
+      [0, _] => print("Fizz")
+      [_, 0] => print("Buzz")
+      _      => print("{i}")
+    }
+  }
+}
+
+fizzbuzz(20)`
+</script>
+
 # Hello World
 
 This page walks you through writing, running, and understanding your first Tova program.
@@ -79,6 +104,8 @@ Hello, World!
 
 Functions are declared with `fn`. The body is a block delimited by curly braces, and the last expression is returned implicitly. There are no semicolons in Tova.
 
+<TryInPlayground :code="helloCode" label="Hello World" />
+
 ## Lambdas
 
 Anonymous functions use the same `fn` keyword without a name:
@@ -142,6 +169,8 @@ fizzbuzz(20)
 ```
 
 This shows `for` loops, `range`, pattern matching on arrays, and wildcard patterns -- all concepts covered in the [Tour of Tova](/getting-started/tour).
+
+<TryInPlayground :code="fizzbuzzCode" label="FizzBuzz" />
 
 ## Next Steps
 

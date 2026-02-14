@@ -32,3 +32,60 @@
 .VPFeatures .VPFeature:hover {
   border-color: var(--vp-c-brand-1);
 }
+
+/*
+ * Playground page — full-bleed iframe, no scrollbar, no footer.
+ *
+ * DOM structure (actual VitePress output):
+ *   div.Layout.playground-page
+ *     VPNav                          (fixed, height = --vp-nav-height)
+ *     div.VPContent
+ *       div.VPPage
+ *         div                        (VitePress page wrapper)
+ *           div                      (VitePress content wrapper)
+ *             div.tov-playground-wrapper  (our component)
+ *               iframe
+ *     VPFooter
+ */
+.playground-page {
+  overflow: hidden;           /* no page-level scrollbar */
+}
+
+.playground-page .VPFooter {
+  display: none;              /* hide footer on playground */
+}
+
+.playground-page .VPContent {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  /* Fill from below the nav to the bottom of the viewport */
+  height: 100vh;
+  padding-top: var(--vp-nav-height) !important;
+  box-sizing: border-box;
+}
+
+.playground-page .VPPage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;              /* allow flex child to shrink */
+}
+
+/* VitePress inserts anonymous wrapper divs between VPPage and our component.
+   Make every div in the chain a flex-growing column so the iframe fills the space. */
+.playground-page .VPPage > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.playground-page .VPPage > div > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}

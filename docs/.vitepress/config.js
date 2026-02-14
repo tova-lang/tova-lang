@@ -33,6 +33,7 @@ export default defineConfig({
       { text: 'Stdlib', link: '/stdlib/' },
       { text: 'Tooling', link: '/tooling/cli' },
       { text: 'Examples', link: '/examples/' },
+      { text: 'Playground', link: '/playground' },
     ],
 
     sidebar: {

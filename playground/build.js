@@ -16,6 +16,7 @@ const SOURCE_FILES = [
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/analyzer.js',
+  'src/stdlib/inline.js',
   'src/codegen/base-codegen.js',
   'src/codegen/shared-codegen.js',
   'src/codegen/server-codegen.js',
@@ -1818,31 +1819,33 @@ ${"</"}script>
 <script type="importmap">
 {
   "imports": {
-    "@codemirror/state": "https://esm.sh/@codemirror/state@6.4.1",
-    "@codemirror/view": "https://esm.sh/@codemirror/view@6.26.0",
-    "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.1",
-    "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.3.3",
-    "@codemirror/search": "https://esm.sh/@codemirror/search@6.5.5",
-    "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6.12.0",
-    "@codemirror/lint": "https://esm.sh/@codemirror/lint@6.5.0",
-    "@lezer/common": "https://esm.sh/@lezer/common@1.2.1",
-    "@lezer/highlight": "https://esm.sh/@lezer/highlight@1.2.0",
-    "@lezer/lr": "https://esm.sh/@lezer/lr@1.4.0",
-    "crelt": "https://esm.sh/crelt@1.0.6",
-    "style-mod": "https://esm.sh/style-mod@4.1.2",
-    "w3c-keyname": "https://esm.sh/w3c-keyname@2.2.8"
+    "codemirror": "https://esm.sh/*codemirror@6.0.1",
+    "@codemirror/state": "https://esm.sh/*@codemirror/state@6.4.1",
+    "@codemirror/view": "https://esm.sh/*@codemirror/view@6.26.0",
+    "@codemirror/language": "https://esm.sh/*@codemirror/language@6.10.1",
+    "@codemirror/commands": "https://esm.sh/*@codemirror/commands@6.3.3",
+    "@codemirror/search": "https://esm.sh/*@codemirror/search@6.5.5",
+    "@codemirror/autocomplete": "https://esm.sh/*@codemirror/autocomplete@6.12.0",
+    "@codemirror/lint": "https://esm.sh/*@codemirror/lint@6.5.0",
+    "@codemirror/theme-one-dark": "https://esm.sh/*@codemirror/theme-one-dark@6.1.2",
+    "@lezer/common": "https://esm.sh/*@lezer/common@1.2.1",
+    "@lezer/highlight": "https://esm.sh/*@lezer/highlight@1.2.0",
+    "@lezer/lr": "https://esm.sh/*@lezer/lr@1.4.0",
+    "crelt": "https://esm.sh/*crelt@1.0.6",
+    "style-mod": "https://esm.sh/*style-mod@4.1.2",
+    "w3c-keyname": "https://esm.sh/*w3c-keyname@2.2.8"
   }
 }
 ${"</"}script>
 
 <!-- ─── CodeMirror & App ─────────────────────────── -->
 <script type="module">
-import {EditorView, basicSetup} from 'https://esm.sh/*@codemirror/basic-setup@0.20.0';
-import {EditorState, StateField, StateEffect} from 'https://esm.sh/*@codemirror/state@6.4.1';
-import {keymap, Decoration} from 'https://esm.sh/*@codemirror/view@6.26.0';
-import {StreamLanguage} from 'https://esm.sh/*@codemirror/language@6.10.1';
-import {oneDark} from 'https://esm.sh/*@codemirror/theme-one-dark@6.1.2';
-import {autocompletion} from 'https://esm.sh/*@codemirror/autocomplete@6.12.0';
+import {basicSetup} from 'codemirror';
+import {EditorState, StateField, StateEffect} from '@codemirror/state';
+import {EditorView, keymap, Decoration} from '@codemirror/view';
+import {StreamLanguage} from '@codemirror/language';
+import {oneDark} from '@codemirror/theme-one-dark';
+import {autocompletion} from '@codemirror/autocomplete';
 
 // ─── Tova Syntax Highlighting ────────────────────────
 const tovaLanguage = StreamLanguage.define({
@@ -2032,6 +2035,9 @@ let sidebarMode = null; // 'reference' | 'tutorial' | null
 let tutorialStep = 0;
 let compileTimer = null;
 
+// ─── Early embed mode detection ─────────────────────
+const __isEmbed = new URLSearchParams(location.search).get('embed') === 'true';
+
 // ─── Restore settings from localStorage ─────────────
 try {
   const saved = JSON.parse(localStorage.getItem('tova-playground-settings') || '{}');
@@ -2054,12 +2060,14 @@ function saveSettings() {
 // ─── Editor Setup ───────────────────────────────────
 const statusCursor = document.getElementById('status-cursor');
 
-// Restore last code or use first example
+// Restore last code or use first example (skip localStorage in embed mode)
 let initialCode = EXAMPLES[0].code;
-try {
-  const lastCode = localStorage.getItem('tova-playground-code');
-  if (lastCode && lastCode.trim()) initialCode = lastCode;
-} catch(e) {}
+if (!__isEmbed) {
+  try {
+    const lastCode = localStorage.getItem('tova-playground-code');
+    if (lastCode && lastCode.trim()) initialCode = lastCode;
+  } catch(e) {}
+}
 
 const editor = new EditorView({
   state: EditorState.create({
@@ -2407,66 +2415,52 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
       .replace(/import\\s+.*from\\s+['"].*['"];?/g, '')
       .replace(/import\\s+['"].*['"];?/g, '');
 
-    const previewHTML = \`<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; color: #333; }
-  button { cursor: pointer; padding: 8px 16px; margin: 4px; border-radius: 6px; border: 1px solid #ddd; background: #f5f5f5; font-size: 14px; transition: all 0.15s; }
-  button:hover { background: #e8e8e8; border-color: #ccc; }
-  button:active { transform: scale(0.97); }
-  input[type="text"], input[type="number"] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; margin: 4px; font-size: 14px; outline: none; }
-  input[type="text"]:focus, input[type="number"]:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
-  input[type="range"] { width: 200px; margin: 8px 0; }
-  input[type="checkbox"] { margin: 4px 8px 4px 0; }
-  ul { list-style: none; } li { padding: 6px 0; }
-  h1 { margin-bottom: 16px; font-size: 24px; } h2 { margin-bottom: 12px; font-size: 20px; }
-  p { margin: 6px 0; line-height: 1.5; }
-  .status { color: #666; font-size: 14px; margin-top: 12px; }
-  .counter-app, .todo-app, .converter, .stopwatch { max-width: 400px; }
-  .count { font-size: 48px; font-weight: 700; color: #7c3aed; }
-  .buttons { display: flex; gap: 4px; margin-top: 8px; }
-  .input-row { display: flex; gap: 4px; margin-bottom: 12px; }
-  .input-row input { flex: 1; }
-  .todo-item { display: flex; align-items: center; gap: 8px; }
-  .todo-text { flex: 1; }
-  .input-group { margin: 12px 0; }
-  .input-group label { display: block; font-weight: 600; margin-bottom: 4px; }
-  .value { font-size: 18px; font-weight: 600; color: #7c3aed; margin-left: 8px; }
-  .desc { font-style: italic; color: #666; }
-  .time { font-size: 48px; font-weight: 700; color: #7c3aed; margin: 16px 0; }
-  .controls { display: flex; gap: 4px; flex-wrap: wrap; }
-  .hint { color: #999; font-size: 12px; margin-top: 12px; }
-</style>
-</head><body>
-<div id="app"></div>
-<script>
-\${RUNTIME_CODE}
-\${STDLIB_CODE}
-\${STRING_PROTO_CODE}
+    const previewCSS = '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }' +
+      'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; color: #333; }' +
+      'button { cursor: pointer; padding: 8px 16px; margin: 4px; border-radius: 6px; border: 1px solid #ddd; background: #f5f5f5; font-size: 14px; transition: all 0.15s; }' +
+      'button:hover { background: #e8e8e8; border-color: #ccc; }' +
+      'button:active { transform: scale(0.97); }' +
+      'input[type="text"], input[type="number"] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; margin: 4px; font-size: 14px; outline: none; }' +
+      'input[type="text"]:focus, input[type="number"]:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }' +
+      'input[type="range"] { width: 200px; margin: 8px 0; }' +
+      'input[type="checkbox"] { margin: 4px 8px 4px 0; }' +
+      'ul { list-style: none; } li { padding: 6px 0; }' +
+      'h1 { margin-bottom: 16px; font-size: 24px; } h2 { margin-bottom: 12px; font-size: 20px; }' +
+      'p { margin: 6px 0; line-height: 1.5; }' +
+      '.status { color: #666; font-size: 14px; margin-top: 12px; }' +
+      '.counter-app, .todo-app, .converter, .stopwatch { max-width: 400px; }' +
+      '.count { font-size: 48px; font-weight: 700; color: #7c3aed; }' +
+      '.buttons { display: flex; gap: 4px; margin-top: 8px; }' +
+      '.input-row { display: flex; gap: 4px; margin-bottom: 12px; }' +
+      '.input-row input { flex: 1; }' +
+      '.todo-item { display: flex; align-items: center; gap: 8px; }' +
+      '.todo-text { flex: 1; }' +
+      '.input-group { margin: 12px 0; }' +
+      '.input-group label { display: block; font-weight: 600; margin-bottom: 4px; }' +
+      '.value { font-size: 18px; font-weight: 600; color: #7c3aed; margin-left: 8px; }' +
+      '.desc { font-style: italic; color: #666; }' +
+      '.time { font-size: 48px; font-weight: 700; color: #7c3aed; margin: 16px 0; }' +
+      '.controls { display: flex; gap: 4px; flex-wrap: wrap; }' +
+      '.hint { color: #999; font-size: 12px; margin-top: 12px; }';
 
-const server = new Proxy({}, {
-  get(_, method) {
-    return async (...args) => {
-      console.warn('[Playground] RPC server.' + method + '() is not available in playground mode');
-      return null;
-    };
-  }
-});
+    const sharedCode = (result.shared || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '');
 
-\${(result.shared || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '')}
-\${clientCode}
-
-if (typeof App === 'function') {
-  document.addEventListener('DOMContentLoaded', () => {
-    mount(App, document.getElementById('app'));
-  });
-  if (document.readyState !== 'loading') {
-    mount(App, document.getElementById('app'));
-  }
-}
-<\\/script>
-</body></html>\`;
+    // Build preview HTML using string concatenation — NOT a template literal.
+    // Generated client code may contain backticks (JS template strings from
+    // string interpolation) which would break a template-literal wrapper.
+    const previewHTML = '<!DOCTYPE html>\\n<html><head><meta charset="UTF-8">\\n<style>' + previewCSS + '</style>\\n</head><body>\\n' +
+      '<div id="app"></div>\\n<script>\\n' +
+      RUNTIME_CODE + '\\n' +
+      STDLIB_CODE + '\\n' +
+      STRING_PROTO_CODE + '\\n' +
+      'function rpc(name, args) { console.warn("[Playground] server." + name + "() is not available in playground mode"); return Promise.resolve(null); }\\n' +
+      sharedCode + '\\n' +
+      clientCode + '\\n' +
+      'if (typeof App === "function") {' +
+      '  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", function() { mount(App, document.getElementById("app")); }); }' +
+      '  else { mount(App, document.getElementById("app")); }' +
+      '}\\n' +
+      '<\\/script>\\n</body></html>';
     previewFrame.srcdoc = previewHTML;
     // Auto-switch to preview when there's a client block
     switchTab('preview');
@@ -2910,9 +2904,34 @@ function exportAsHTML() {
 document.getElementById('btn-export').addEventListener('click', exportAsHTML);
 
 // ─── Embed Mode ─────────────────────────────────────
-if (new URLSearchParams(location.search).get('embed') === 'true') {
+if (__isEmbed) {
   document.body.classList.add('embed-mode');
 }
+
+// ─── Theme query param override ─────────────────────
+const __themeParam = new URLSearchParams(location.search).get('theme');
+if (__themeParam === 'light' || __themeParam === 'dark') {
+  lightTheme = __themeParam === 'light';
+  applyTheme();
+}
+
+// ─── postMessage listener for parent integration ────
+window.addEventListener('message', function(e) {
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type === 'tova-playground-theme') {
+    const t = e.data.theme;
+    if (t === 'light' || t === 'dark') {
+      lightTheme = t === 'light';
+      applyTheme();
+    }
+  } else if (e.data.type === 'tova-playground-set-code') {
+    if (typeof e.data.code === 'string') {
+      editor.dispatch({
+        changes: { from: 0, to: editor.state.doc.length, insert: e.data.code }
+      });
+    }
+  }
+});
 
 // ─── Reference Search & Runnable Snippets ───────────
 function renderReference() {

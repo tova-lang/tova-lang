@@ -3,6 +3,105 @@ title: Tour of Tova
 description: A rapid 10-minute walkthrough of every major Tova concept.
 ---
 
+<script setup>
+const variablesCode = `x = 5
+var y = 10
+y += 1
+print("x = {x}, y = {y}")`
+
+const functionsCode = `fn greet(name) {
+  "Hello, {name}!"
+}
+
+print(greet("Alice"))
+
+double = fn(x) x * 2
+print("double(5) = {double(5)}")
+
+fn connect(host, port = 8080) {
+  print("Connecting to {host}:{port}")
+}
+
+connect("localhost")
+connect("localhost", 3000)`
+
+const controlFlowCode = `fn classify(score) {
+  if score >= 90 {
+    "A"
+  } elif score >= 80 {
+    "B"
+  } elif score >= 70 {
+    "C"
+  } else {
+    "F"
+  }
+}
+
+for s in [95, 82, 71, 55] {
+  print("{s} => {classify(s)}")
+}`
+
+const patternMatchCode = `fn describe(value) {
+  match value {
+    0          => "zero"
+    1..10      => "small"
+    n if n > 100 => "big: {n}"
+    _          => "other"
+  }
+}
+
+print(describe(0))
+print(describe(7))
+print(describe(200))
+print(describe(50))`
+
+const typesCode = `type Color {
+  Red
+  Green
+  Blue
+  Custom(r: Int, g: Int, b: Int)
+}
+
+type User {
+  id: Int
+  name: String
+  email: String
+}
+
+user = User(1, "Alice", "alice@example.com")
+print(user.name)
+
+bg = Custom(30, 60, 90)
+print(bg)`
+
+const errorHandlingCode = `fn divide(a, b) {
+  if b == 0 {
+    Err("division by zero")
+  } else {
+    Ok(a / b)
+  }
+}
+
+match divide(10, 3) {
+  Ok(value) => print("Result: {value}")
+  Err(msg)  => print("Error: {msg}")
+}
+
+match divide(5, 0) {
+  Ok(value) => print("Result: {value}")
+  Err(msg)  => print("Error: {msg}")
+}`
+
+const pipesCode = `data = [3, -1, 4, -2, 5, 0]
+
+result = data
+  |> filter(fn(x) x > 0)
+  |> map(fn(x) x * 2)
+  |> sum()
+
+print("Result: {result}")`
+</script>
+
 # Tour of Tova
 
 This is a fast-paced tour of the Tova language. Each section introduces a concept with a short code example. By the end, you will have seen every major feature.
@@ -19,6 +118,8 @@ y += 1                  // OK
 let { name, age } = user    // destructure an object
 let [first, ...rest] = items // destructure an array
 ```
+
+<TryInPlayground :code="variablesCode" label="Variables" />
 
 ## 2. Functions
 
@@ -48,6 +149,8 @@ fn connect(host, port = 8080) {
 connect("localhost")        // port defaults to 8080
 connect("localhost", 3000)  // port is 3000
 ```
+
+<TryInPlayground :code="functionsCode" label="Functions" />
 
 ## 3. Control Flow
 
@@ -92,6 +195,8 @@ fn process(data) {
   Ok(transform(data))
 }
 ```
+
+<TryInPlayground :code="controlFlowCode" label="Control Flow" />
 
 ## 4. Pattern Matching
 
@@ -139,6 +244,8 @@ match url {
 
 The compiler warns you if you forget to handle a case.
 
+<TryInPlayground :code="patternMatchCode" label="Pattern Matching" />
+
 ## 5. Types
 
 Define record types and algebraic data types (ADTs):
@@ -180,6 +287,8 @@ type Result<T, E> {
   Err(E)
 }
 ```
+
+<TryInPlayground :code="typesCode" label="Types" />
 
 ## 6. Collections
 
@@ -243,6 +352,8 @@ fn load_config(path) {
 }
 ```
 
+<TryInPlayground :code="errorHandlingCode" label="Error Handling" />
+
 ## 8. Pipes
 
 The pipe operator `|>` chains function calls left to right:
@@ -261,6 +372,8 @@ Use `_` as a placeholder when the value should not go in the first position:
 ```tova
 "hello" |> replace(_, "l", "r")   // "herro"
 ```
+
+<TryInPlayground :code="pipesCode" label="Pipes" />
 
 ## 9. Modules
 

@@ -1,3 +1,50 @@
+<script setup>
+const basicMatchCode = `fn describe(x) {
+  match x {
+    0 => "zero"
+    1 => "one"
+    2 => "two"
+    _ => "something else"
+  }
+}
+
+print(describe(0))
+print(describe(1))
+print(describe(42))`
+
+const rangeMatchCode = `fn grade_letter(score) {
+  match score {
+    90..=100 => "A"
+    80..90 => "B"
+    70..80 => "C"
+    60..70 => "D"
+    _ => "F"
+  }
+}
+
+for s in [95, 85, 75, 65, 50] {
+  print("{s} => {grade_letter(s)}")
+}`
+
+const variantMatchCode = `type Shape {
+  Circle(radius: Float)
+  Rectangle(width: Float, height: Float)
+  Triangle(base: Float, height: Float)
+}
+
+fn area(shape) {
+  match shape {
+    Circle(r) => 3.14159 * r * r
+    Rectangle(w, h) => w * h
+    Triangle(b, h) => 0.5 * b * h
+  }
+}
+
+print("Circle: {area(Circle(5))}")
+print("Rectangle: {area(Rectangle(4, 6))}")
+print("Triangle: {area(Triangle(3, 8))}")`
+</script>
+
 # Pattern Matching
 
 Pattern matching is one of Tova's most powerful features. The `match` expression lets you compare a value against multiple patterns and execute the corresponding branch. The compiler also performs exhaustive checking, warning you if you miss any cases.
@@ -18,6 +65,8 @@ fn describe(x) {
 ```
 
 The `_` wildcard matches anything and is typically used as the final catch-all pattern.
+
+<TryInPlayground :code="basicMatchCode" label="Basic Match" />
 
 ## Literal Patterns
 
@@ -74,6 +123,8 @@ fn grade_letter(score) {
   }
 }
 ```
+
+<TryInPlayground :code="rangeMatchCode" label="Range Patterns" />
 
 ## Binding Patterns
 
@@ -134,6 +185,8 @@ fn to_hex(color) {
   }
 }
 ```
+
+<TryInPlayground :code="variantMatchCode" label="Variant Patterns" />
 
 ## Array Patterns
 

@@ -1,3 +1,25 @@
+<script setup>
+const basicPipesCode = `numbers = [5, -2, 8, -1, 3, 0, 7, -4, 6]
+
+result = numbers
+  |> filter(fn(x) x > 0)
+  |> map(fn(x) x * 2)
+  |> sorted()
+
+print("Result: {result}")
+print("Sum: {sum(result)}")`
+
+const pipelinePatternsCode = `// Filter-Map-Reduce pattern
+scores = [85, 92, 78, 95, 60, 88, 73, 91]
+
+passing = scores
+  |> filter(fn(s) s >= 70)
+  |> map(fn(s) s / 100.0 * 4.0)
+
+print("Passing GPAs: {passing}")
+print("Count: {len(passing)}")`
+</script>
+
 # Pipes
 
 The pipe operator `|>` is one of Tova's most ergonomic features. It lets you write data transformation chains that read left-to-right, top-to-bottom, eliminating deeply nested function calls.
@@ -84,6 +106,8 @@ average = scores
   |> sum()
   |> fn(total) total / len(scores)
 ```
+
+<TryInPlayground :code="basicPipesCode" label="Pipe Chains" />
 
 ## Placeholder `_`
 
@@ -203,6 +227,8 @@ fn validate_input(input) {
     |> .flatMap(fn(s) if s.contains("<") { Err("No HTML allowed") } else { Ok(s) })
 }
 ```
+
+<TryInPlayground :code="pipelinePatternsCode" label="Pipeline Patterns" />
 
 ## Practical Tips
 

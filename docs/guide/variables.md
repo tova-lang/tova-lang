@@ -1,3 +1,28 @@
+<script setup>
+const variablesCode = `name = "Alice"
+age = 30
+pi = 3.14159
+print("name={name}, age={age}, pi={pi}")
+
+var counter = 0
+counter += 1
+print("counter={counter}")
+
+var x = 10
+x += 5
+x -= 3
+x *= 2
+print("x={x}")`
+
+const destructuringCode = `person = { name: "Alice", age: 30, email: "alice@example.com" }
+let { name, age } = person
+print("{name} is {age} years old")
+
+items = [1, 2, 3, 4, 5]
+let [first, ...rest] = items
+print("first={first}, rest={rest}")`
+</script>
+
 # Variables
 
 Tova takes a clear stance on mutability: variables are **immutable by default**. If you want a variable that can change, you opt in explicitly with `var`. This makes your code easier to reason about and helps prevent accidental mutations.
@@ -42,6 +67,8 @@ x *= 2    // x is now 24
 x /= 4    // x is now 6
 x %= 5    // x is now 1
 ```
+
+<TryInPlayground :code="variablesCode" label="Variables" />
 
 ## Multiple Assignment
 
@@ -131,6 +158,8 @@ print(name)          // "Alice"
 print(first_score)   // 95
 print(other_scores)  // [87, 92]
 ```
+
+<TryInPlayground :code="destructuringCode" label="Destructuring" />
 
 ## Type Annotations
 

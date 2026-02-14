@@ -1937,8 +1937,8 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  const html = `<!DOCTYPE html><html><head><title>API Docs</title>');
       lines.push('    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"></head>');
       lines.push('    <body><div id="swagger-ui"></div>');
-      lines.push('    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>');
-      lines.push('    <script>SwaggerUIBundle({ url: "/openapi.json", dom_id: "#swagger-ui" });</script>');
+      lines.push('    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"><\\/script>');
+      lines.push('    <script>SwaggerUIBundle({ url: "/openapi.json", dom_id: "#swagger-ui" });<\\/script>');
       lines.push('    </body></html>`;');
       lines.push('  return new Response(html, { headers: { "Content-Type": "text/html" } });');
       lines.push('});');

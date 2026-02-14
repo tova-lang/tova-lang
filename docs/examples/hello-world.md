@@ -2,6 +2,45 @@
 title: Hello World
 ---
 
+<script setup>
+const helloCode = `print("Hello, World!")
+
+name = "Tova"
+version = 1
+print("Welcome to {name}!")
+print("{name} version {version} is ready.")`
+
+const functionsCode = `fn greet(name) {
+  "Hello, {name}!"
+}
+
+print(greet("World"))
+print(greet("Tova"))`
+
+const fizzbuzzCode = `fn fizzbuzz(n) {
+  match [n % 3, n % 5] {
+    [0, 0] => "FizzBuzz"
+    [0, _] => "Fizz"
+    [_, 0] => "Buzz"
+    _      => "{n}"
+  }
+}
+
+for n in range(1, 21) {
+  print(fizzbuzz(n))
+}`
+
+const collectionsCode = `numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+evens = numbers |> filter(fn(n) n % 2 == 0)
+doubled = evens |> map(fn(n) n * 2)
+total = doubled |> sum()
+
+print("Evens: {evens}")
+print("Doubled: {doubled}")
+print("Sum: {total}")`
+</script>
+
 # Hello World
 
 The simplest Tova program is a single `print` call.
@@ -45,6 +84,8 @@ Welcome to Tova!
 Tova version 1 is ready.
 ```
 
+<TryInPlayground :code="helloCode" label="Hello World" />
+
 ## Defining Functions
 
 Use `fn` to define functions. The last expression in a function body is the return value:
@@ -65,6 +106,8 @@ Hello, World!
 Hello, Tova!
 ```
 
+<TryInPlayground :code="functionsCode" label="Functions" />
+
 ## Functions with Logic
 
 Combine functions with `match` expressions and the pipe operator:
@@ -83,6 +126,8 @@ range(1, 21) |> each(fn(n) {
   print(fizzbuzz(n))
 })
 ```
+
+<TryInPlayground :code="fizzbuzzCode" label="FizzBuzz" />
 
 ## Working with Collections
 
@@ -108,6 +153,8 @@ Evens: [2, 4, 6, 8, 10]
 Doubled: [4, 8, 12, 16, 20]
 Sum: 60
 ```
+
+<TryInPlayground :code="collectionsCode" label="Collections" />
 
 ## Error Handling with Result
 
