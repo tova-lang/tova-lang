@@ -126,6 +126,8 @@ export default defineConfig({
             { text: 'Stores', link: '/reactivity/stores' },
             { text: 'Lifecycle', link: '/reactivity/lifecycle' },
             { text: 'Advanced', link: '/reactivity/advanced' },
+            { text: 'SSR', link: '/reactivity/ssr' },
+            { text: 'DevTools', link: '/reactivity/devtools' },
             { text: 'Router', link: '/reactivity/router' },
           ],
         },

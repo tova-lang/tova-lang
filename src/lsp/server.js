@@ -7,6 +7,7 @@ import { Parser } from '../parser/parser.js';
 import { Analyzer } from '../analyzer/analyzer.js';
 import { TokenType } from '../lexer/tokens.js';
 import { Formatter } from '../formatter/formatter.js';
+import { TypeRegistry } from '../analyzer/type-registry.js';
 
 class TovaLanguageServer {
   static MAX_CACHE_SIZE = 100; // max cached diagnostics entries
@@ -14,7 +15,7 @@ class TovaLanguageServer {
   constructor() {
     this._buffer = '';
     this._documents = new Map(); // uri -> { text, version }
-    this._diagnosticsCache = new Map(); // uri -> { ast, analyzer, errors }
+    this._diagnosticsCache = new Map(); // uri -> { ast, analyzer, errors, typeRegistry }
     this._initialized = false;
     this._shutdownReceived = false;
     this._capabilities = {};
@@ -144,7 +145,7 @@ class TovaLanguageServer {
           save: { includeText: true },
         },
         completionProvider: {
-          triggerCharacters: ['.', '"', "'", '/', '<'],
+          triggerCharacters: ['.', '"', "'", '/', '<', ':'],
           resolveProvider: false,
         },
         definitionProvider: true,
@@ -210,35 +211,43 @@ class TovaLanguageServer {
       const parser = new Parser(tokens, filename);
       const ast = parser.parse();
 
-      const analyzer = new Analyzer(ast, filename);
-      const { warnings } = analyzer.analyze();
+      // LSP always runs with strict: true for better diagnostics
+      const analyzer = new Analyzer(ast, filename, { strict: true });
+      const result = analyzer.analyze();
+      const { warnings } = result;
+      const typeRegistry = TypeRegistry.fromAnalyzer(analyzer);
 
       // Cache for go-to-definition (with LRU eviction)
-      this._diagnosticsCache.set(uri, { ast, analyzer, text });
+      this._diagnosticsCache.set(uri, { ast, analyzer, text, typeRegistry });
       if (this._diagnosticsCache.size > TovaLanguageServer.MAX_CACHE_SIZE) {
-        // Evict oldest entries (first inserted in Map iteration order)
         const toEvict = this._diagnosticsCache.size - TovaLanguageServer.MAX_CACHE_SIZE;
         let evicted = 0;
         for (const key of this._diagnosticsCache.keys()) {
           if (evicted >= toEvict) break;
-          if (!this._documents.has(key)) { // only evict closed documents
+          if (!this._documents.has(key)) {
             this._diagnosticsCache.delete(key);
             evicted++;
           }
         }
       }
 
-      // Convert warnings to diagnostics
+      // Convert warnings to diagnostics with refined severity
       for (const w of warnings) {
-        diagnostics.push({
+        const severity = this._getDiagnosticSeverity(w);
+        const diag = {
           range: {
             start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
             end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
           },
-          severity: 2, // Warning
+          severity,
           source: 'tova',
           message: w.message,
-        });
+        };
+        // Add unnecessary tag for unused variables
+        if (w.message.includes('declared but never used')) {
+          diag.tags = [1]; // Unnecessary
+        }
+        diagnostics.push(diag);
       }
     } catch (err) {
       // Multi-error support from parser recovery
@@ -248,7 +257,7 @@ class TovaLanguageServer {
         diagnostics.push({
           range: {
             start: { line: (loc?.line || 1) - 1, character: (loc?.column || 1) - 1 },
-            end: { line: (loc?.line || 1) - 1, character: 1000 },
+            end: { line: (loc?.line || 1) - 1, character: (loc?.column || 1) - 1 + (loc?.length || 20) },
           },
           severity: 1, // Error
           source: 'tova',
@@ -259,12 +268,13 @@ class TovaLanguageServer {
       // Convert analyzer warnings to diagnostics (from analyzer errors that carry warnings)
       if (err.warnings) {
         for (const w of err.warnings) {
+          const severity = this._getDiagnosticSeverity(w);
           diagnostics.push({
             range: {
               start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
               end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
             },
-            severity: 2, // Warning
+            severity,
             source: 'tova',
             message: w.message,
           });
@@ -274,24 +284,22 @@ class TovaLanguageServer {
       // Use partial AST for go-to-definition even when there are errors
       const partialAST = err.partialAST;
       if (partialAST) {
-        // Try running analyzer in tolerant mode on partial AST for completions/hover
         try {
-          const analyzer = new Analyzer(partialAST, filename, { tolerant: true });
+          const analyzer = new Analyzer(partialAST, filename, { tolerant: true, strict: true });
           const result = analyzer.analyze();
-          this._diagnosticsCache.set(uri, { ast: partialAST, analyzer, text });
-          // Add analyzer warnings as diagnostics
+          const typeRegistry = TypeRegistry.fromAnalyzer(analyzer);
+          this._diagnosticsCache.set(uri, { ast: partialAST, analyzer, text, typeRegistry });
           for (const w of result.warnings) {
             diagnostics.push({
               range: {
                 start: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 },
                 end: { line: (w.line || 1) - 1, character: (w.column || 1) - 1 + (w.length || 10) },
               },
-              severity: 2, // Warning
+              severity: 2,
               source: 'tova',
               message: w.message,
             });
           }
-          // Add analyzer errors (type errors) as diagnostics
           if (result.errors) {
             for (const e of result.errors) {
               diagnostics.push({
@@ -299,20 +307,33 @@ class TovaLanguageServer {
                   start: { line: (e.line || 1) - 1, character: (e.column || 1) - 1 },
                   end: { line: (e.line || 1) - 1, character: (e.column || 1) + 10 },
                 },
-                severity: 1, // Error
+                severity: 1,
                 source: 'tova',
                 message: e.message,
               });
             }
           }
         } catch (_) {
-          // Analyzer failed on partial AST — just cache the AST without analyzer
           this._diagnosticsCache.set(uri, { ast: partialAST, text });
         }
       }
     }
 
     this._notify('textDocument/publishDiagnostics', { uri, diagnostics });
+  }
+
+  _getDiagnosticSeverity(diagnostic) {
+    const msg = diagnostic.message || '';
+    // Unused variables → Hint (4)
+    if (msg.includes('declared but never used')) return 4;
+    // Variable shadowing → Information (3)
+    if (msg.includes('shadows a binding')) return 3;
+    // Non-exhaustive match → Warning (2)
+    if (msg.includes('Non-exhaustive match')) return 2;
+    // Type mismatches in strict mode → Error (1)
+    if (msg.includes('Type mismatch')) return 1;
+    // Default → Warning (2)
+    return 2;
   }
 
   _extractErrorLocation(message, filename) {
@@ -341,7 +362,55 @@ class TovaLanguageServer {
 
     const items = [];
     const line = doc.text.split('\n')[position.line] || '';
-    const prefix = line.slice(0, position.character).split(/[^a-zA-Z0-9_]/).pop() || '';
+    const before = line.slice(0, position.character);
+
+    // CASE 1: Dot completion — "expr."
+    const dotMatch = before.match(/(\w+)\.\s*(\w*)$/);
+    if (dotMatch) {
+      const objectName = dotMatch[1];
+      const partial = dotMatch[2] || '';
+      const dotItems = this._getDotCompletions(textDocument.uri, objectName, partial);
+      if (dotItems.length > 0) {
+        return this._respond(msg.id, dotItems.slice(0, 50));
+      }
+    }
+
+    // CASE 2: Type annotation — after ":"
+    const typeMatch = before.match(/:\s*(\w*)$/);
+    if (typeMatch) {
+      const partial = typeMatch[1] || '';
+      const typeNames = ['Int', 'Float', 'String', 'Bool', 'Nil', 'Any',
+        'Result', 'Option', 'Function'];
+      // Add user-defined types
+      const cached = this._diagnosticsCache.get(textDocument.uri);
+      if (cached?.analyzer) {
+        const symbols = this._collectSymbols(cached.analyzer);
+        for (const sym of symbols) {
+          if (sym.kind === 'type' && !typeNames.includes(sym.name)) {
+            typeNames.push(sym.name);
+          }
+        }
+      }
+      for (const name of typeNames) {
+        if (name.toLowerCase().startsWith(partial.toLowerCase())) {
+          items.push({
+            label: name,
+            kind: 22, // Struct
+            detail: 'type',
+          });
+        }
+      }
+      return this._respond(msg.id, items.slice(0, 50));
+    }
+
+    // CASE 3: Match arm — detect if we're inside a match block
+    const matchItems = this._getMatchCompletions(textDocument.uri, doc.text, position);
+    if (matchItems.length > 0) {
+      return this._respond(msg.id, matchItems.slice(0, 50));
+    }
+
+    // CASE 4: Default — keywords + builtins + symbols
+    const prefix = before.split(/[^a-zA-Z0-9_]/).pop() || '';
 
     // Keywords
     const keywords = [
@@ -387,6 +456,122 @@ class TovaLanguageServer {
     this._respond(msg.id, items.slice(0, 50)); // Limit results
   }
 
+  _getDotCompletions(uri, objectName, partial) {
+    const items = [];
+    const cached = this._diagnosticsCache.get(uri);
+    if (!cached?.analyzer) return items;
+
+    // Look up the object's type
+    const sym = this._findSymbolInScopes(cached.analyzer, objectName);
+    if (!sym) return items;
+
+    // Determine the type name
+    let typeName = null;
+    if (sym.inferredType) {
+      typeName = sym.inferredType;
+    } else if (sym._variantOf) {
+      typeName = sym._variantOf;
+    } else if (sym.kind === 'type' && sym._typeStructure) {
+      typeName = sym.name;
+    }
+
+    if (!typeName) return items;
+
+    // Get members from type registry
+    const typeRegistry = cached.typeRegistry;
+    if (typeRegistry) {
+      const members = typeRegistry.getMembers(typeName);
+
+      // Add fields
+      for (const [fieldName, fieldType] of members.fields) {
+        if (!partial || fieldName.startsWith(partial)) {
+          items.push({
+            label: fieldName,
+            kind: 5, // Field
+            detail: fieldType ? fieldType.toString() : 'field',
+            sortText: `0${fieldName}`, // Fields first
+          });
+        }
+      }
+
+      // Add impl methods
+      for (const method of members.methods) {
+        if (!partial || method.name.startsWith(partial)) {
+          const paramStr = (method.params || []).filter(p => p !== 'self').join(', ');
+          const retStr = method.returnType ? ` -> ${method.returnType}` : '';
+          items.push({
+            label: method.name,
+            kind: 2, // Method
+            detail: `fn(${paramStr})${retStr}`,
+            sortText: `1${method.name}`, // Methods after fields
+          });
+        }
+      }
+    }
+
+    return items;
+  }
+
+  _getMatchCompletions(uri, text, position) {
+    const items = [];
+    const lines = text.split('\n');
+
+    // Walk backwards from cursor to find if we're inside a match block
+    let matchSubject = null;
+    let braceDepth = 0;
+    for (let i = position.line; i >= 0; i--) {
+      const lineText = lines[i] || '';
+      for (let j = (i === position.line ? position.character : lineText.length) - 1; j >= 0; j--) {
+        if (lineText[j] === '}') braceDepth++;
+        if (lineText[j] === '{') {
+          braceDepth--;
+          if (braceDepth < 0) {
+            // Found the opening brace — check if preceding text is a match expression
+            const beforeBrace = lineText.slice(0, j).trim();
+            const matchExpr = beforeBrace.match(/match\s+(\w+)\s*$/);
+            if (matchExpr) {
+              matchSubject = matchExpr[1];
+            }
+            break;
+          }
+        }
+      }
+      if (matchSubject || braceDepth < 0) break;
+    }
+
+    if (!matchSubject) return items;
+
+    const cached = this._diagnosticsCache.get(uri);
+    if (!cached?.analyzer) return items;
+
+    // Look up subject type
+    const sym = this._findSymbolInScopes(cached.analyzer, matchSubject);
+    let typeName = sym?.inferredType || sym?._variantOf;
+
+    if (typeName && cached.typeRegistry) {
+      const variants = cached.typeRegistry.getVariantNames(typeName);
+      for (const variant of variants) {
+        items.push({
+          label: variant,
+          kind: 20, // EnumMember
+          detail: `variant of ${typeName}`,
+        });
+      }
+    }
+
+    // Also suggest built-in variants if subject type is Result or Option
+    if (typeName === 'Result' || (typeName && typeName.startsWith('Result<'))) {
+      if (!items.some(i => i.label === 'Ok')) items.push({ label: 'Ok', kind: 20, detail: 'Result variant' });
+      if (!items.some(i => i.label === 'Err')) items.push({ label: 'Err', kind: 20, detail: 'Result variant' });
+    }
+    if (typeName === 'Option' || (typeName && typeName.startsWith('Option<'))) {
+      if (!items.some(i => i.label === 'Some')) items.push({ label: 'Some', kind: 20, detail: 'Option variant' });
+      if (!items.some(i => i.label === 'None')) items.push({ label: 'None', kind: 20, detail: 'Option variant' });
+    }
+
+    return items;
+  }
+
   // ─── Go to Definition ────────────────────────────────────
 
   _onDefinition(msg) {
@@ -402,8 +587,9 @@ class TovaLanguageServer {
     const word = this._getWordAt(line, position.character);
     if (!word) return this._respond(msg.id, null);
 
-    // Look up in symbol table
-    const symbol = this._findSymbolInScopes(cached.analyzer, word);
+    // Look up in symbol table — try scope-aware lookup first
+    const symbol = this._findSymbolAtPosition(cached.analyzer, word, position) ||
+                   this._findSymbolInScopes(cached.analyzer, word);
     if (symbol?.loc) {
       this._respond(msg.id, {
         uri: textDocument.uri,
@@ -457,14 +643,61 @@ class TovaLanguageServer {
     }
 
     // Check user-defined symbols
-    const symbol = this._findSymbolInScopes(cached.analyzer, word);
+    const symbol = this._findSymbolAtPosition(cached.analyzer, word, position) ||
+                   this._findSymbolInScopes(cached.analyzer, word);
     if (symbol) {
-      let doc = `**${word}**`;
-      if (symbol.kind) doc += ` *(${symbol.kind})*`;
-      if (symbol.typeAnnotation) doc += `\n\nType: \`${symbol.typeAnnotation}\``;
-      if (symbol.params) doc += `\n\nParameters: ${symbol.params.join(', ')}`;
+      let hoverText = `**${word}**`;
+      if (symbol.kind) hoverText += ` *(${symbol.kind})*`;
+
+      // Show inferred type for variables
+      if (symbol.inferredType) {
+        hoverText += `\n\nType: \`${symbol.inferredType}\``;
+      }
+
+      // Show declared type annotation
+      if (symbol.typeAnnotation) {
+        hoverText += `\n\nType: \`${symbol.typeAnnotation}\``;
+      } else if (symbol.type && typeof symbol.type === 'object' && symbol.type.type === 'TypeAnnotation') {
+        hoverText += `\n\nReturn type: \`${symbol.type.name}\``;
+      }
+
+      // Show full function signature
+      if (symbol._params) {
+        const params = symbol._params.map((p, i) => {
+          const paramType = symbol._paramTypes && symbol._paramTypes[i];
+          if (paramType) {
+            const typeStr = typeof paramType === 'string' ? paramType :
+              (paramType.name || paramType.type || '');
+            return typeStr ? `${p}: ${typeStr}` : p;
+          }
+          return p;
+        });
+        const retType = symbol.type ? ` -> ${symbol.type.name || symbol.type}` : '';
+        hoverText += `\n\nSignature: \`fn ${word}(${params.join(', ')})${retType}\``;
+      }
+
+      // Show type structure for type symbols
+      if (symbol.kind === 'type' && symbol._typeStructure) {
+        const structure = symbol._typeStructure;
+        if (structure.variants && structure.variants.size > 0) {
+          const variantStrs = [];
+          for (const [vName, fields] of structure.variants) {
+            if (fields.size > 0) {
+              const fieldStrs = [];
+              for (const [fName, fType] of fields) {
+                fieldStrs.push(`${fName}: ${fType}`);
+              }
+              variantStrs.push(`  ${vName}(${fieldStrs.join(', ')})`);
+            } else {
+              variantStrs.push(`  ${vName}`);
+            }
+          }
+          hoverText += `\n\n\`\`\`\ntype ${word} {\n${variantStrs.join('\n')}\n}\n\`\`\``;
+        }
+      }
+
       return this._respond(msg.id, {
-        contents: { kind: 'markdown', value: doc },
+        contents: { kind: 'markdown', value: hoverText },
       });
     }
 
@@ -697,6 +930,11 @@ class TovaLanguageServer {
             loc: sym.loc,
             typeAnnotation: sym.typeAnnotation,
             params: sym._params,
+            inferredType: sym.inferredType,
+            _paramTypes: sym._paramTypes,
+            _typeStructure: sym._typeStructure,
+            _variantOf: sym._variantOf,
+            type: sym.type,
           });
         }
       }
@@ -729,6 +967,22 @@ class TovaLanguageServer {
 
     if (analyzer.globalScope) return walkScope(analyzer.globalScope);
     if (analyzer.currentScope) return walkScope(analyzer.currentScope);
+    return null;
+  }
+
+  /**
+   * Scope-aware symbol lookup using positional information.
+   * Finds the narrowest scope containing the cursor position, then walks up.
+   */
+  _findSymbolAtPosition(analyzer, name, position) {
+    if (!analyzer.globalScope) return null;
+    const line = position.line + 1; // LSP is 0-based, our scopes are 1-based
+    const column = position.character + 1;
+
+    const scope = analyzer.globalScope.findScopeAtPosition(line, column);
+    if (scope) {
+      return scope.lookup(name);
+    }
     return null;
   }
 }

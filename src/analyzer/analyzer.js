@@ -1,5 +1,12 @@
 import { Scope, Symbol } from './scope.js';
 import { PIPE_TARGET } from '../parser/ast.js';
+import {
+  Type, PrimitiveType, NilType, AnyType, UnknownType,
+  ArrayType, TupleType, FunctionType, RecordType, ADTType,
+  GenericType, TypeVariable, UnionType,
+  typeAnnotationToType, typeFromString, typesCompatible,
+  isNumericType, isFloatNarrowing,
+} from './types.js';
 
 export class Analyzer {
   constructor(ast, filename = '<stdin>', options = {}) {
@@ -8,11 +15,19 @@ export class Analyzer {
     this.errors = [];
     this.warnings = [];
     this.tolerant = options.tolerant || false;
+    this.strict = options.strict || false;
     this.globalScope = new Scope(null, 'module');
     this.currentScope = this.globalScope;
     this._allScopes = []; // Track all scopes for unused variable checking
     this._functionReturnTypeStack = []; // Stack of expected return types for type checking
     this._asyncDepth = 0; // Track nesting inside async functions for await validation
+
+    // Type registry for LSP
+    this.typeRegistry = {
+      types: new Map(),   // type name → ADTType | RecordType
+      impls: new Map(),   // type name → [{ name, params, returnType }]
+      traits: new Map(),  // trait name → [{ name, paramTypes, returnType }]
+    };
 
     // Register built-in types
     this.registerBuiltins();
@@ -69,6 +84,14 @@ export class Analyzer {
     });
   }
 
+  strictError(message, loc) {
+    if (this.strict) {
+      this.error(message, loc);
+    } else {
+      this.warn(message, loc);
+    }
+  }
+
   analyze() {
     // Pre-pass: collect named server block functions for inter-server RPC validation
     this.serverBlockFunctions = new Map(); // blockName -> [functionName, ...]
@@ -102,7 +125,7 @@ export class Analyzer {
 
     if (this.errors.length > 0) {
       if (this.tolerant) {
-        return { warnings: this.warnings, errors: this.errors, scope: this.globalScope };
+        return { warnings: this.warnings, errors: this.errors, scope: this.globalScope, typeRegistry: this.typeRegistry };
       }
       const msgs = this.errors.map(e => `  ${e.file}:${e.line}:${e.column} — ${e.message}`);
       const err = new Error(`Analysis errors:\n${msgs.join('\n')}`);
@@ -111,7 +134,7 @@ export class Analyzer {
       throw err;
     }
 
-    return { warnings: this.warnings, scope: this.globalScope };
+    return { warnings: this.warnings, scope: this.globalScope, typeRegistry: this.typeRegistry };
   }
 
   _checkUnusedSymbols() {
@@ -596,7 +619,11 @@ export class Analyzer {
         if (existing.inferredType && i < node.values.length) {
           const newType = this._inferType(node.values[i]);
           if (!this._typesCompatible(existing.inferredType, newType)) {
-            this.warn(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc);
+            this.strictError(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc);
+          }
+          // Float narrowing warning in strict mode
+          if (this.strict && newType === 'Float' && existing.inferredType === 'Int') {
+            this.warn(`Potential data loss: assigning Float to Int variable '${target}'`, node.loc);
           }
         }
         existing.used = true;
@@ -676,6 +703,9 @@ export class Analyzer {
 
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
+    if (node.loc) {
+      this.currentScope.startLoc = { line: node.loc.line, column: node.loc.column };
+    }
 
     // Push expected return type for return-statement checking
     const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
@@ -761,10 +791,28 @@ export class Analyzer {
   }
 
   visitTypeDeclaration(node) {
+    // Build ADT type structure
+    const variants = new Map();
+    for (const variant of node.variants) {
+      if (variant.type === 'TypeVariant') {
+        const fields = new Map();
+        for (const f of variant.fields) {
+          const fieldType = f.typeAnnotation ? typeAnnotationToType(f.typeAnnotation) : Type.ANY;
+          fields.set(f.name, fieldType || Type.ANY);
+        }
+        variants.set(variant.name, fields);
+      }
+    }
+    const adtType = new ADTType(node.name, node.typeParams || [], variants);
+
     try {
       const typeSym = new Symbol(node.name, 'type', null, false, node.loc);
       typeSym._typeParams = node.typeParams || [];
+      typeSym._typeStructure = adtType;
       this.currentScope.define(node.name, typeSym);
+
+      // Register in type registry for LSP
+      this.typeRegistry.types.set(node.name, adtType);
     } catch (e) {
       this.error(e.message);
     }
@@ -821,11 +869,17 @@ export class Analyzer {
   visitBlock(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
+    if (node.loc) {
+      this.currentScope.startLoc = { line: node.loc.line, column: node.loc.column };
+    }
     try {
       for (const stmt of node.body) {
         this.visitNode(stmt);
       }
     } finally {
+      if (node.loc) {
+        this.currentScope.endLoc = { line: node.endLoc?.line || node.loc.line + 100, column: node.endLoc?.column || 0 };
+      }
       this.currentScope = prevScope;
     }
   }
@@ -949,23 +1003,23 @@ export class Analyzer {
         const numerics = new Set(['Int', 'Float']);
         if (['-=', '*=', '/='].includes(op)) {
           if (!numerics.has(sym.inferredType) && sym.inferredType !== 'Any') {
-            this.warn(`Type mismatch: '${op}' requires numeric type, but '${node.target.name}' is ${sym.inferredType}`, node.loc);
+            this.strictError(`Type mismatch: '${op}' requires numeric type, but '${node.target.name}' is ${sym.inferredType}`, node.loc);
           }
           const valType = this._inferType(node.value);
           if (valType && !numerics.has(valType) && valType !== 'Any') {
-            this.warn(`Type mismatch: '${op}' requires numeric value, but got ${valType}`, node.loc);
+            this.strictError(`Type mismatch: '${op}' requires numeric value, but got ${valType}`, node.loc);
           }
         } else if (op === '+=') {
           // += on numerics requires numeric value, on strings requires string
           if (numerics.has(sym.inferredType)) {
             const valType = this._inferType(node.value);
             if (valType && !numerics.has(valType) && valType !== 'Any') {
-              this.warn(`Type mismatch: '${op}' on numeric variable requires numeric value, but got ${valType}`, node.loc);
+              this.strictError(`Type mismatch: '${op}' on numeric variable requires numeric value, but got ${valType}`, node.loc);
             }
           } else if (sym.inferredType === 'String') {
             const valType = this._inferType(node.value);
             if (valType && valType !== 'String' && valType !== 'Any') {
-              this.warn(`Type mismatch: '${op}' on String variable requires String value, but got ${valType}`, node.loc);
+              this.strictError(`Type mismatch: '${op}' on String variable requires String value, but got ${valType}`, node.loc);
             }
           }
         }
@@ -1554,7 +1608,29 @@ export class Analyzer {
     );
     if (hasWildcard) return; // Catch-all exists, always exhaustive
 
-    // If subject is an identifier, try to find its type for variant checking
+    // Try to resolve the subject type for better checking
+    let subjectType = null;
+    if (node.subject) {
+      const subjectTypeStr = this._inferType(node.subject);
+      if (subjectTypeStr) {
+        // Look up type structure from type registry
+        const typeStructure = this.typeRegistry.types.get(subjectTypeStr);
+        if (typeStructure instanceof ADTType) {
+          subjectType = typeStructure;
+        }
+      }
+      // Also try to find type from identifier
+      if (!subjectType && node.subject.type === 'Identifier') {
+        const sym = this.currentScope.lookup(node.subject.name);
+        if (sym && sym.inferredType) {
+          const typeStructure = this.typeRegistry.types.get(sym.inferredType);
+          if (typeStructure instanceof ADTType) {
+            subjectType = typeStructure;
+          }
+        }
+      }
+    }
+
     const variantNames = new Set();
     const coveredVariants = new Set();
 
@@ -1567,6 +1643,17 @@ export class Analyzer {
 
     // If we have variant patterns, check if all known variants are covered
     if (coveredVariants.size > 0) {
+      // If we have the ADT type structure, use it for precise checking
+      if (subjectType) {
+        const allVariants = subjectType.getVariantNames();
+        for (const v of allVariants) {
+          if (!coveredVariants.has(v)) {
+            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${subjectType.name}'`, node.loc);
+          }
+        }
+        return; // Done — used precise ADT checking
+      }
+
       // Check built-in Result/Option types
       if (coveredVariants.has('Ok') || coveredVariants.has('Err')) {
         if (!coveredVariants.has('Ok')) {
@@ -1829,9 +1916,9 @@ export class Analyzer {
     const name = node.callee.name;
 
     if (actualCount > fnSym._totalParamCount) {
-      this.warn(`'${name}' expects ${fnSym._totalParamCount} argument${fnSym._totalParamCount !== 1 ? 's' : ''}, but got ${actualCount}`, node.loc);
+      this.strictError(`'${name}' expects ${fnSym._totalParamCount} argument${fnSym._totalParamCount !== 1 ? 's' : ''}, but got ${actualCount}`, node.loc);
     } else if (actualCount < fnSym._requiredParamCount) {
-      this.warn(`'${name}' expects at least ${fnSym._requiredParamCount} argument${fnSym._requiredParamCount !== 1 ? 's' : ''}, but got ${actualCount}`, node.loc);
+      this.strictError(`'${name}' expects at least ${fnSym._requiredParamCount} argument${fnSym._requiredParamCount !== 1 ? 's' : ''}, but got ${actualCount}`, node.loc);
     }
   }
 
@@ -1865,28 +1952,28 @@ export class Analyzer {
     if (op === '++') {
       // String concatenation: both sides should be String
       if (leftType && leftType !== 'String' && leftType !== 'Any') {
-        this.warn(`Type mismatch: '++' expects String on left side, but got ${leftType}`, node.loc);
+        this.strictError(`Type mismatch: '++' expects String on left side, but got ${leftType}`, node.loc);
       }
       if (rightType && rightType !== 'String' && rightType !== 'Any') {
-        this.warn(`Type mismatch: '++' expects String on right side, but got ${rightType}`, node.loc);
+        this.strictError(`Type mismatch: '++' expects String on right side, but got ${rightType}`, node.loc);
       }
     } else if (['-', '*', '/', '%', '**'].includes(op)) {
       // Arithmetic: both sides must be numeric
       const numerics = new Set(['Int', 'Float']);
       if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
-        this.warn(`Type mismatch: '${op}' expects numeric type, but got ${leftType}`, node.loc);
+        this.strictError(`Type mismatch: '${op}' expects numeric type, but got ${leftType}`, node.loc);
       }
       if (rightType && !numerics.has(rightType) && rightType !== 'Any') {
-        this.warn(`Type mismatch: '${op}' expects numeric type, but got ${rightType}`, node.loc);
+        this.strictError(`Type mismatch: '${op}' expects numeric type, but got ${rightType}`, node.loc);
       }
     } else if (op === '+') {
       // Addition: both sides must be numeric (Tova uses ++ for strings)
       const numerics = new Set(['Int', 'Float']);
       if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
-        this.warn(`Type mismatch: '+' expects numeric type, but got ${leftType}`, node.loc);
+        this.strictError(`Type mismatch: '+' expects numeric type, but got ${leftType}`, node.loc);
       }
       if (rightType && !numerics.has(rightType) && rightType !== 'Any') {
-        this.warn(`Type mismatch: '+' expects numeric type, but got ${rightType}`, node.loc);
+        this.strictError(`Type mismatch: '+' expects numeric type, but got ${rightType}`, node.loc);
       }
     }
   }
@@ -1957,14 +2044,72 @@ export class Analyzer {
 
   visitInterfaceDeclaration(node) {
     try {
-      this.currentScope.define(node.name,
-        new Symbol(node.name, 'type', null, false, node.loc));
+      const sym = new Symbol(node.name, 'type', null, false, node.loc);
+      // Store method signatures for conformance checking
+      sym._interfaceMethods = (node.methods || []).map(m => ({
+        name: m.name,
+        paramTypes: (m.params || []).map(p => typeAnnotationToType(p.typeAnnotation)),
+        returnType: typeAnnotationToType(m.returnType),
+        paramCount: (m.params || []).length,
+      }));
+      this.currentScope.define(node.name, sym);
+
+      // Register in type registry for LSP
+      this.typeRegistry.traits.set(node.name, sym._interfaceMethods);
     } catch (e) {
       this.error(e.message);
     }
   }
 
   visitImplDeclaration(node) {
+    // Collect provided method names for conformance checking
+    const providedMethods = new Map();
+    for (const method of node.methods) {
+      providedMethods.set(method.name, {
+        paramCount: (method.params || []).filter(p => p.name !== 'self').length,
+        returnType: method.returnType ? typeAnnotationToType(method.returnType) : null,
+      });
+    }
+
+    // Register impl methods in type registry for LSP
+    const typeName = node.typeName || node.target;
+    if (typeName) {
+      const existingImpls = this.typeRegistry.impls.get(typeName) || [];
+      for (const method of node.methods) {
+        existingImpls.push({
+          name: method.name,
+          params: (method.params || []).map(p => p.name),
+          paramTypes: (method.params || []).map(p => typeAnnotationToType(p.typeAnnotation)),
+          returnType: typeAnnotationToType(method.returnType),
+        });
+      }
+      this.typeRegistry.impls.set(typeName, existingImpls);
+    }
+
+    // Trait/interface conformance checking
+    if (node.traitName) {
+      const traitSym = this.currentScope.lookup(node.traitName);
+      if (traitSym && traitSym._interfaceMethods) {
+        for (const required of traitSym._interfaceMethods) {
+          const provided = providedMethods.get(required.name);
+          if (!provided) {
+            this.warn(`Impl for '${typeName || 'type'}' missing required method '${required.name}' from trait '${node.traitName}'`, node.loc);
+          } else {
+            // Check parameter count matches (excluding self)
+            if (required.paramCount > 0 && provided.paramCount !== required.paramCount) {
+              this.warn(`Method '${required.name}' in impl for '${typeName}' has ${provided.paramCount} parameters, but trait '${node.traitName}' expects ${required.paramCount}`, node.loc);
+            }
+            // Check return type matches if both are annotated
+            if (required.returnType && provided.returnType) {
+              if (!provided.returnType.isAssignableTo(required.returnType)) {
+                this.warn(`Method '${required.name}' return type mismatch in impl for '${typeName}': expected ${required.returnType}, got ${provided.returnType}`, node.loc);
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Validate that methods reference the type
     for (const method of node.methods) {
       this.pushScope('function');
@@ -1993,8 +2138,18 @@ export class Analyzer {
 
   visitTraitDeclaration(node) {
     try {
-      this.currentScope.define(node.name,
-        new Symbol(node.name, 'type', null, false, node.loc));
+      const sym = new Symbol(node.name, 'type', null, false, node.loc);
+      // Store method signatures for conformance checking
+      sym._interfaceMethods = (node.methods || []).map(m => ({
+        name: m.name,
+        paramTypes: (m.params || []).map(p => typeAnnotationToType(p.typeAnnotation)),
+        returnType: typeAnnotationToType(m.returnType),
+        paramCount: (m.params || []).filter(p => p.name !== 'self').length,
+      }));
+      this.currentScope.define(node.name, sym);
+
+      // Register in type registry for LSP
+      this.typeRegistry.traits.set(node.name, sym._interfaceMethods);
     } catch (e) {
       this.error(e.message);
     }

@@ -232,18 +232,29 @@ effect {
 
 ## Error Boundaries
 
-Error boundaries catch errors in reactive code and display fallback UI instead of crashing the entire application.
+Error boundaries catch errors in reactive code and display fallback UI instead of crashing the entire application. Boundaries can be nested -- an inner boundary catches errors first, and only if it doesn't handle them (or its fallback throws) does the error propagate to outer boundaries.
 
 ### createErrorBoundary
 
-`createErrorBoundary()` returns an object with:
+`createErrorBoundary(options?)` returns an object with:
 - **error** -- a signal getter that returns the current error (or `null` if no error)
 - **run(fn)** -- executes a function within the error boundary; if it throws, the error signal is set
 - **reset()** -- clears the error signal, allowing recovery
 
+Options (all optional):
+- **onError({ error, componentStack })** -- called when an error is caught. `componentStack` is an array of component names from inner to outer.
+- **onReset()** -- called when the error is cleared via `reset()`
+
 ```tova
 component SafeWidget {
-  boundary = createErrorBoundary()
+  boundary = createErrorBoundary({
+    onError: fn(info) {
+      log_error(info.error, info.componentStack)
+    },
+    onReset: fn() {
+      print("Error cleared")
+    }
+  })
 
   onMount(fn() {
     boundary.run(fn() {
@@ -263,6 +274,10 @@ component SafeWidget {
 }
 ```
 
+The `onError` callback receives the error object with a `__tovaComponentStack` property attached (an array of component names from the point of error outward).
+
+Calling with no options works the same as before -- `createErrorBoundary()` is fully backward-compatible.
+
 ### ErrorBoundary Component
 
 `ErrorBoundary` is a built-in component that wraps children in an error boundary. It accepts a `fallback` prop -- either a vnode or a function that receives `{ error, reset }`:
@@ -281,6 +296,45 @@ component App {
 ```
 
 When an error occurs in a reactive effect within the `ErrorBoundary`'s children, the fallback UI is displayed instead. Calling `reset` clears the error and re-renders the children.
+
+#### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `fallback` | vnode or function | required | UI to show on error. Functions receive `{ error, reset }` |
+| `onError` | function | `undefined` | Called with `{ error, componentStack }` when error is caught |
+| `onReset` | function | `undefined` | Called when the error is cleared |
+| `retry` | number | `0` | Number of times to re-attempt rendering before showing fallback |
+
+#### Retry
+
+The `retry` prop lets you automatically re-attempt rendering when a transient error occurs (e.g., a race condition during initialization):
+
+```tova
+component App {
+  <ErrorBoundary retry={3} fallback={fn(props) {
+    <p>Failed after 3 retries: {props.error}</p>
+  }}>
+    <UnstableComponent />
+  </ErrorBoundary>
+}
+```
+
+The component will re-render up to 3 times before showing the fallback.
+
+#### Nested Boundaries
+
+Error boundaries can be nested. The innermost boundary catches the error first. If a fallback itself throws, the error propagates to the parent boundary:
+
+```tova
+component App {
+  <ErrorBoundary fallback={fn(props) <p>Outer caught: {props.error}</p>}>
+    <ErrorBoundary fallback={fn(props) <p>Inner caught: {props.error}</p>}>
+      <RiskyComponent />
+    </ErrorBoundary>
+  </ErrorBoundary>
+}
+```
 
 ## Dynamic Component
 
@@ -397,7 +451,7 @@ dispose()
 ```
 
 ::: tip
-If you define a component named `App`, Tova automatically generates a `DOMContentLoaded` handler that calls `mount(App, document.getElementById("app") || document.body)`. You typically do not need to call `mount` yourself.
+If you define a component named `App`, Tova automatically detects whether the container already has server-rendered content. If it does, `hydrate` is called instead of `mount`. You typically do not need to call either yourself.
 :::
 
 ## hydrate
@@ -413,8 +467,66 @@ hydrate(App, document.getElementById("app"))
 2. Calls the component function to produce the vnode tree
 3. Walks the existing DOM nodes alongside the vnode tree, attaching event handlers, reactive props, and effects to the existing elements
 4. For dynamic blocks (conditionals, loops), inserts comment-node markers and sets up reactive effects
+5. Dispatches a `tova:hydrated` event on the container when complete
 
 Hydration is used for server-side rendering (SSR) -- the server renders static HTML, and the client hydrates it to make it interactive without a full re-render.
+
+### SSR Marker-Aware Hydration
+
+When SSR output includes hydration markers (`<!--tova-s:ID-->...<!--/tova-s:ID-->`), the hydrator recognizes and consumes them, replacing marker pairs with reactive comment-node markers. This enables correct hydration of dynamic content (error boundaries, conditionals, loops) rendered by `renderToString` or `renderToReadableStream`.
+
+### Hydration Completion Event
+
+After hydration completes, a `tova:hydrated` CustomEvent is dispatched on the container element with timing information:
+
+```js
+document.getElementById("app").addEventListener("tova:hydrated", (e) => {
+  console.log(`Hydration completed in ${e.detail.duration}ms`);
+});
+```
+
+### Dev-Mode Mismatch Warnings
+
+In development mode (`NODE_ENV !== 'production'`), Tova warns in the console when the server-rendered HTML doesn't match the client-side vnode tree. Warnings are emitted for:
+- **Class mismatch** -- server-rendered `class` attribute differs from expected
+- **Attribute mismatch** -- other attribute values differ
+- **Text mismatch** -- text content differs
+- **Tag mismatch** -- element tag doesn't match (triggers full re-render of that subtree)
+
+These warnings help catch SSR/client rendering inconsistencies during development without affecting production performance.
+
+### Auto-Detect SSR
+
+When an `App` component is defined, the generated client code automatically chooses between `mount` and `hydrate`:
+
+```js
+const container = document.getElementById("app") || document.body;
+if (container.children.length > 0) {
+  hydrate(App, container);   // SSR content exists
+} else {
+  mount(App, container);     // Fresh client render
+}
+```
+
+## hydrateWhenVisible
+
+`hydrateWhenVisible` defers hydration of a component until it scrolls into view. This is useful for below-the-fold content where you want to avoid hydrating off-screen components on page load:
+
+```js
+import { hydrateWhenVisible } from './runtime/reactivity.js';
+
+hydrateWhenVisible(HeavyComponent, document.getElementById("heavy-section"));
+```
+
+It uses `IntersectionObserver` with a 200px root margin (so hydration starts slightly before the element becomes visible). Falls back to immediate hydration in environments without `IntersectionObserver` support.
+
+Returns a cleanup function to disconnect the observer:
+
+```js
+const stop = hydrateWhenVisible(Widget, container);
+// Later, cancel observation
+stop();
+```
 
 ## createRoot
 
@@ -461,11 +573,12 @@ Disposing the top-level root disposes everything: Component B's Effect 3 and Com
 | `inject(ctx)` | Retrieve the nearest context value |
 | `watch(getter, cb, opts?)` | Watch a reactive expression with old/new values |
 | `untrack(fn)` | Read signals without tracking dependencies |
-| `createErrorBoundary()` | Programmatic error boundary (`error`, `run`, `reset`) |
-| `ErrorBoundary({ fallback })` | Component-based error boundary |
+| `createErrorBoundary(opts?)` | Programmatic error boundary (`error`, `run`, `reset`, `onError`, `onReset`) |
+| `ErrorBoundary({ fallback, onError?, onReset?, retry? })` | Component-based error boundary with retry support |
 | `Dynamic({ component })` | Render a dynamically-selected component |
 | `Portal({ target })` | Render children into a different DOM node |
 | `lazy(loader)` | Async component loading for code splitting |
 | `mount(component, container)` | Render and mount a component to the DOM |
-| `hydrate(component, container)` | Attach reactivity to server-rendered HTML |
+| `hydrate(component, container)` | Attach reactivity to server-rendered HTML, dispatches `tova:hydrated` event |
+| `hydrateWhenVisible(component, node)` | Defer hydration until element is visible in viewport |
 | `createRoot(fn)` | Create an ownership root for manual control |

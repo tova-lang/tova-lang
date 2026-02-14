@@ -29,6 +29,7 @@ For a file named `app.tova` with all three blocks:
     reactivity.js           # Reactive runtime (signals, effects, DOM)
     rpc.js                  # RPC bridge client
     router.js               # Client-side router
+    devtools.js             # DevTools (opt-in, development only)
 ```
 
 With named blocks, additional files are generated:

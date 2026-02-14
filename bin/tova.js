@@ -48,6 +48,7 @@ Options:
   --production     Production build (minify, bundle, hash)
   --watch          Watch for file changes
   --debug          Show verbose error output
+  --strict         Enable strict type checking
 `;
 
 async function main() {
@@ -65,9 +66,10 @@ async function main() {
 
   const command = args[0];
 
+  const isStrict = args.includes('--strict');
   switch (command) {
     case 'run':
-      await runFile(args[1]);
+      await runFile(args.filter(a => a !== '--strict')[1], { strict: isStrict });
       break;
     case 'build':
       buildProject(args.slice(1));
@@ -101,7 +103,7 @@ async function main() {
       break;
     default:
       if (command.endsWith('.tova')) {
-        await runFile(command);
+        await runFile(command, { strict: isStrict });
       } else {
         console.error(`Unknown command: ${command}`);
         console.log(HELP);
@@ -112,14 +114,14 @@ async function main() {
 
 // ─── Compile a .tova source string ───────────────────────────
 
-function compileTova(source, filename) {
+function compileTova(source, filename, options = {}) {
   const lexer = new Lexer(source, filename);
   const tokens = lexer.tokenize();
 
   const parser = new Parser(tokens, filename);
   const ast = parser.parse();
 
-  const analyzer = new Analyzer(ast, filename);
+  const analyzer = new Analyzer(ast, filename, { strict: options.strict || false });
   const { warnings } = analyzer.analyze();
 
   if (warnings.length > 0) {
@@ -299,7 +301,7 @@ function findTovaFiles(dir) {
 
 // ─── Run ────────────────────────────────────────────────────
 
-async function runFile(filePath) {
+async function runFile(filePath, options = {}) {
   if (!filePath) {
     console.error('Error: No file specified');
     console.error('Usage: tova run <file.tova>');
@@ -315,7 +317,7 @@ async function runFile(filePath) {
   const source = readFileSync(resolved, 'utf-8');
 
   try {
-    const output = compileTova(source, filePath);
+    const output = compileTova(source, filePath, { strict: options.strict });
 
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
@@ -336,6 +338,7 @@ async function runFile(filePath) {
 
 async function buildProject(args) {
   const isProduction = args.includes('--production');
+  const buildStrict = args.includes('--strict');
   const srcDir = resolve(args.filter(a => !a.startsWith('--'))[0] || '.');
   const outIdx = args.indexOf('--output');
   const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : '.tova-out');
@@ -466,7 +469,7 @@ async function devServer(args) {
   for (const file of tovaFiles) {
     try {
       const source = readFileSync(file, 'utf-8');
-      const output = compileTova(source, file);
+      const output = compileTova(source, file, { strict: buildStrict });
       const baseName = basename(file, '.tova');
 
       if (output.shared && output.shared.trim()) {
