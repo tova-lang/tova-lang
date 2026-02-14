@@ -1,5 +1,13 @@
 // Fine-grained reactivity system for Tova (signals-based)
 
+const __DEV__ = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
+
+// ─── DevTools hooks (zero-cost when disabled) ────────────
+let __devtools_hooks = null;
+export function __enableDevTools(hooks) {
+  __devtools_hooks = hooks;
+}
+
 let currentEffect = null;
 const effectStack = [];
 
@@ -106,9 +114,18 @@ function trackDep(subscriber, subscriberSet) {
 
 // ─── Signals ─────────────────────────────────────────────
 
-export function createSignal(initialValue) {
+export function createSignal(initialValue, name) {
   let value = initialValue;
   const subscribers = new Set();
+  let signalId = null;
+
+  if (__devtools_hooks) {
+    signalId = __devtools_hooks.onSignalCreate(
+      () => value,
+      (v) => setter(v),
+      name,
+    );
+  }
 
   function getter() {
     if (currentEffect) {
@@ -122,7 +139,11 @@ export function createSignal(initialValue) {
       newValue = newValue(value);
     }
     if (value !== newValue) {
+      const oldValue = value;
       value = newValue;
+      if (__devtools_hooks && signalId != null) {
+        __devtools_hooks.onSignalUpdate(signalId, oldValue, newValue);
+      }
       for (const sub of [...subscribers]) {
         if (sub._isComputed) {
           sub(); // propagate dirty flags synchronously through computed graph
@@ -168,6 +189,7 @@ export function createEffect(fn) {
 
     effectStack.push(effect);
     currentEffect = effect;
+    const startTime = __devtools_hooks && typeof performance !== 'undefined' ? performance.now() : 0;
     try {
       const result = fn();
       // If effect returns a function, use as cleanup
@@ -180,6 +202,10 @@ export function createEffect(fn) {
         currentErrorHandler(e);
       }
     } finally {
+      if (__devtools_hooks) {
+        const duration = typeof performance !== 'undefined' ? performance.now() - startTime : 0;
+        __devtools_hooks.onEffectRun(effect, duration);
+      }
       effectStack.pop();
       currentEffect = effectStack[effectStack.length - 1] || null;
       effect._running = false;
@@ -192,6 +218,10 @@ export function createEffect(fn) {
   effect._cleanup = null;
   effect._cleanups = [];
   effect._owner = currentOwner;
+
+  if (__devtools_hooks) {
+    __devtools_hooks.onEffectCreate(effect);
+  }
 
   if (currentOwner && !currentOwner._disposed) {
     currentOwner._children.push(effect);
@@ -357,58 +387,124 @@ export function createRef(initialValue) {
 
 // ─── Error Boundaries ────────────────────────────────────
 
+// Stack-based error handler for correct nested boundary propagation
+const errorHandlerStack = [];
 let currentErrorHandler = null;
 
-export function createErrorBoundary() {
+function pushErrorHandler(handler) {
+  errorHandlerStack.push(currentErrorHandler);
+  currentErrorHandler = handler;
+}
+
+function popErrorHandler() {
+  currentErrorHandler = errorHandlerStack.pop() || null;
+}
+
+// Component name tracking for stack traces
+const componentNameStack = [];
+
+export function pushComponentName(name) {
+  componentNameStack.push(name);
+}
+
+export function popComponentName() {
+  componentNameStack.pop();
+}
+
+function buildComponentStack() {
+  return [...componentNameStack].reverse();
+}
+
+export function createErrorBoundary(options = {}) {
+  const { onError, onReset } = options;
   const [error, setError] = createSignal(null);
 
   function run(fn) {
-    const prev = currentErrorHandler;
-    currentErrorHandler = (e) => setError(e);
+    pushErrorHandler((e) => {
+      const stack = buildComponentStack();
+      if (e && typeof e === 'object') e.__tovaComponentStack = stack;
+      setError(e);
+      if (onError) onError({ error: e, componentStack: stack });
+    });
     try {
       return fn();
     } catch (e) {
+      const stack = buildComponentStack();
+      if (e && typeof e === 'object') e.__tovaComponentStack = stack;
       setError(e);
+      if (onError) onError({ error: e, componentStack: stack });
       return null;
     } finally {
-      currentErrorHandler = prev;
+      popErrorHandler();
     }
   }
 
   function reset() {
     setError(null);
+    if (onReset) onReset();
   }
 
   return { error, run, reset };
 }
 
-export function ErrorBoundary({ fallback, children }) {
+export function ErrorBoundary({ fallback, children, onError, onReset, retry = 0 }) {
   const [error, setError] = createSignal(null);
+  const [retryCount, setRetryCount] = createSignal(0);
 
-  const prev = currentErrorHandler;
-  currentErrorHandler = (e) => setError(e);
+  function handleError(e) {
+    const stack = buildComponentStack();
+    if (e && typeof e === 'object') e.__tovaComponentStack = stack;
+    if (retryCount() < retry) {
+      setRetryCount(c => c + 1);
+      setError(null); // clear to re-trigger render
+      return;
+    }
+    setError(e);
+    if (onError) onError({ error: e, componentStack: stack });
+  }
+
+  pushErrorHandler(handleError);
 
   // Return a reactive wrapper that switches between children and fallback
-  // The __tova_dynamic marker tells the renderer to create an effect for this node
   const childContent = children && children.length === 1 ? children[0] : tova_fragment(children || []);
 
-  currentErrorHandler = prev;
+  popErrorHandler();
 
-  return {
+  const vnode = {
     __tova: true,
     tag: '__dynamic',
     props: {},
     children: [],
+    _fallback: fallback,
+    _componentName: 'ErrorBoundary',
     compute: () => {
       const err = error();
       if (err) {
-        return typeof fallback === 'function'
-          ? fallback({ error: err, reset: () => setError(null) })
-          : fallback;
+        // Render fallback — if fallback itself throws, propagate to parent boundary
+        try {
+          return typeof fallback === 'function'
+            ? fallback({
+                error: err,
+                reset: () => {
+                  setRetryCount(0);
+                  setError(null);
+                  if (onReset) onReset();
+                },
+              })
+            : fallback;
+        } catch (fallbackError) {
+          // Fallback threw — propagate to parent error boundary
+          if (currentErrorHandler) {
+            currentErrorHandler(fallbackError);
+          }
+          return null;
+        }
       }
       return childContent;
     },
   };
+
+  return vnode;
 }
 
 // ─── Dynamic Component ──────────────────────────────────
@@ -806,6 +902,14 @@ export function render(vnode) {
   // Element
   const el = document.createElement(vnode.tag);
   applyReactiveProps(el, vnode.props);
+
+  // Set data-tova-component attribute for DevTools
+  if (vnode._componentName) {
+    el.setAttribute('data-tova-component', vnode._componentName);
+    if (__devtools_hooks && __devtools_hooks.onComponentRender) {
+      __devtools_hooks.onComponentRender(vnode._componentName, el, 0);
+    }
+  }
 
   // Render children
   for (const child of flattenVNodes(vnode.children)) {
@@ -1228,6 +1332,59 @@ function patchSingle(parent, existing, newVNode) {
 // SSR renders flat HTML without markers. Hydration attaches reactivity
 // to existing DOM nodes and inserts markers for dynamic blocks.
 
+// Dev-mode hydration mismatch detection
+function checkHydrationMismatch(domNode, vnode) {
+  if (!__DEV__) return;
+  if (!domNode || !vnode || !vnode.__tova) return;
+
+  const props = vnode.props || {};
+
+  // Check className
+  if (props.className !== undefined) {
+    const expected = typeof props.className === 'function' ? props.className() : props.className;
+    const actual = domNode.className || '';
+    if (expected && actual !== expected) {
+      console.warn(`Tova hydration mismatch: <${vnode.tag}> class expected "${expected}" but got "${actual}"`);
+    }
+  }
+
+  // Check attributes
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'key' || key === 'ref' || key === 'className' || key.startsWith('on')) continue;
+    if (typeof value === 'function') continue; // reactive props — skip static check
+
+    if (domNode.getAttribute) {
+      const attrName = key === 'className' ? 'class' : key;
+      const actual = domNode.getAttribute(attrName);
+      const expected = String(value);
+      if (actual !== null && actual !== expected) {
+        console.warn(`Tova hydration mismatch: <${vnode.tag}> attribute "${key}" expected "${expected}" but got "${actual}"`);
+      }
+    }
+  }
+}
+
+// Check if a DOM node is an SSR marker comment (<!--tova-s:ID-->)
+function isSSRMarker(node) {
+  return node && node.nodeType === 8 && typeof node.data === 'string' && node.data.startsWith('tova-s:');
+}
+
+// Find the closing SSR marker and collect content nodes between them
+function collectSSRMarkerContent(startMarker) {
+  const id = startMarker.data.replace('tova-s:', '');
+  const closingText = `/tova-s:${id}`;
+  const content = [];
+  let cursor = startMarker.nextSibling;
+  while (cursor) {
+    if (cursor.nodeType === 8 && cursor.data === closingText) {
+      return { content, endMarker: cursor };
+    }
+    content.push(cursor);
+    cursor = cursor.nextSibling;
+  }
+  return { content, endMarker: null };
+}
+
 function hydrateVNode(domNode, vnode) {
   if (!domNode) return null;
   if (vnode === null || vnode === undefined) return domNode;
@@ -1235,6 +1392,14 @@ function hydrateVNode(domNode, vnode) {
   // Function vnode (reactive text, JSXIf, JSXFor)
   if (typeof vnode === 'function') {
     if (domNode.nodeType === 3) {
+      // Dev-mode: warn if text content differs
+      if (__DEV__) {
+        const val = vnode();
+        const expected = val == null ? '' : String(val);
+        if (domNode.textContent !== expected) {
+          console.warn(`Tova hydration mismatch: text expected "${expected}" but got "${domNode.textContent}"`);
+        }
+      }
       // Reactive text: attach effect to existing text node
       domNode.__tovaReactive = true;
       createEffect(() => {
@@ -1249,13 +1414,17 @@ function hydrateVNode(domNode, vnode) {
     const next = domNode.nextSibling;
     const rendered = render(vnode);
     parent.replaceChild(rendered, domNode);
-    // rendered is a DocumentFragment — its children are now in parent
-    // Find the next unprocessed node
     return next;
   }
 
   // Primitive text — already correct from SSR
   if (typeof vnode === 'string' || typeof vnode === 'number' || typeof vnode === 'boolean') {
+    if (__DEV__ && domNode.nodeType === 3) {
+      const expected = String(vnode);
+      if (domNode.textContent !== expected) {
+        console.warn(`Tova hydration mismatch: text expected "${expected}" but got "${domNode.textContent}"`);
+      }
+    }
     return domNode.nextSibling;
   }
 
@@ -1282,8 +1451,26 @@ function hydrateVNode(domNode, vnode) {
     return cursor;
   }
 
-  // Dynamic node — replace SSR content with reactive marker
+  // Dynamic node — SSR marker-aware hydration
   if (vnode.tag === '__dynamic' && typeof vnode.compute === 'function') {
+    // Check if current domNode is an SSR marker (<!--tova-s:ID-->)
+    if (isSSRMarker(domNode)) {
+      const { content, endMarker } = collectSSRMarkerContent(domNode);
+      const parent = domNode.parentNode;
+
+      // Remove SSR markers and content, replace with reactive marker
+      const afterEnd = endMarker ? endMarker.nextSibling : null;
+      for (const node of content) {
+        if (node.parentNode === parent) parent.removeChild(node);
+      }
+      if (endMarker && endMarker.parentNode === parent) parent.removeChild(endMarker);
+
+      const rendered = render(vnode);
+      parent.replaceChild(rendered, domNode);
+      return afterEnd;
+    }
+
+    // No SSR marker — fall back to standard behavior
     const parent = domNode.parentNode;
     const next = domNode.nextSibling;
     const rendered = render(vnode);
@@ -1293,6 +1480,7 @@ function hydrateVNode(domNode, vnode) {
 
   // Element — attach event handlers, reactive props, refs
   if (domNode.nodeType === 1 && domNode.tagName.toLowerCase() === vnode.tag.toLowerCase()) {
+    if (__DEV__) checkHydrationMismatch(domNode, vnode);
     hydrateProps(domNode, vnode.props);
     domNode.__vnode = vnode;
 
@@ -1306,6 +1494,11 @@ function hydrateVNode(domNode, vnode) {
   }
 
   // Tag mismatch — fall back to full render
+  if (__DEV__) {
+    const expectedTag = vnode.tag || '(unknown)';
+    const actualTag = domNode.tagName ? domNode.tagName.toLowerCase() : `nodeType:${domNode.nodeType}`;
+    console.warn(`Tova hydration mismatch: expected <${expectedTag}> but got <${actualTag}>, falling back to full render`);
+  }
   const parent = domNode.parentNode;
   const next = domNode.nextSibling;
   const rendered = render(vnode);
@@ -1343,12 +1536,26 @@ export function hydrate(component, container) {
     return;
   }
 
-  return createRoot(() => {
+  const startTime = typeof performance !== 'undefined' ? performance.now() : 0;
+
+  const result = createRoot(() => {
     const vnode = typeof component === 'function' ? component() : component;
     if (container.firstChild) {
       hydrateVNode(container.firstChild, vnode);
     }
   });
+
+  // Dispatch hydration completion event
+  const duration = typeof performance !== 'undefined' ? performance.now() - startTime : 0;
+  if (typeof CustomEvent !== 'undefined' && typeof container.dispatchEvent === 'function') {
+    container.dispatchEvent(new CustomEvent('tova:hydrated', { detail: { duration }, bubbles: true }));
+  }
+
+  if (__devtools_hooks && __devtools_hooks.onHydrate) {
+    __devtools_hooks.onHydrate({ duration });
+  }
+
+  return result;
 }
 
 export function mount(component, container) {
@@ -1357,10 +1564,48 @@ export function mount(component, container) {
     return;
   }
 
-  return createRoot((dispose) => {
+  const result = createRoot((dispose) => {
     const vnode = typeof component === 'function' ? component() : component;
     container.innerHTML = '';
     container.appendChild(render(vnode));
     return dispose;
   });
+
+  if (__devtools_hooks && __devtools_hooks.onMount) {
+    __devtools_hooks.onMount();
+  }
+
+  return result;
+}
+
+// ─── Progressive Hydration ──────────────────────────────────
+// Hydrate a component only when it becomes visible in the viewport.
+
+export function hydrateWhenVisible(component, domNode, options = {}) {
+  if (typeof IntersectionObserver === 'undefined') {
+    // Fallback: hydrate immediately
+    return hydrate(component, domNode);
+  }
+
+  const { rootMargin = '200px' } = options;
+  let hydrated = false;
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && !hydrated) {
+          hydrated = true;
+          observer.disconnect();
+          hydrate(component, domNode);
+        }
+      }
+    },
+    { rootMargin },
+  );
+
+  observer.observe(domNode);
+
+  return () => {
+    observer.disconnect();
+  };
 }

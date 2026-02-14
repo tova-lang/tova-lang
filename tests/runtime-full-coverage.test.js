@@ -934,7 +934,9 @@ describe('SSR — renderToString edge cases', () => {
       compute: () => tova_el('b', {}, ['bold']),
     };
     const result = renderToString(dyn);
-    expect(result).toBe('<b>bold</b>');
+    expect(result).toContain('<b>bold</b>');
+    expect(result).toMatch(/<!--tova-s:\d+-->/);
+    expect(result).toMatch(/<!--\/tova-s:\d+-->/);
   });
 
   test('renders void elements as self-closing', () => {

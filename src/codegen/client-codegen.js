@@ -178,12 +178,34 @@ export class ClientCodegen extends BaseCodegen {
     // Runtime imports
     lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
     lines.push(`import { rpc } from './runtime/rpc.js';`);
+
+    // Hoist import lines from shared code to the top of the module
+    let sharedRest = sharedCode;
+    if (sharedCode.trim()) {
+      const sharedLines = sharedCode.split('\n');
+      const importLines = [];
+      const nonImportLines = [];
+      for (const line of sharedLines) {
+        if (/^\s*import\s+/.test(line)) {
+          importLines.push(line);
+        } else {
+          nonImportLines.push(line);
+        }
+      }
+      if (importLines.length > 0) {
+        for (const imp of importLines) {
+          lines.push(imp);
+        }
+      }
+      sharedRest = nonImportLines.join('\n');
+    }
+
     lines.push('');
 
-    // Shared code
-    if (sharedCode.trim()) {
+    // Shared code (non-import lines)
+    if (sharedRest.trim()) {
       lines.push('// ── Shared ──');
-      lines.push(sharedCode);
+      lines.push(sharedRest);
       lines.push('');
     }
 
@@ -206,6 +228,7 @@ export class ClientCodegen extends BaseCodegen {
     const effects = [];
     const components = [];
     const stores = [];
+    const imports = [];
     const other = [];
 
     for (const block of clientBlocks) {
@@ -216,9 +239,21 @@ export class ClientCodegen extends BaseCodegen {
           case 'EffectDeclaration': effects.push(stmt); break;
           case 'ComponentDeclaration': components.push(stmt); break;
           case 'StoreDeclaration': stores.push(stmt); break;
+          case 'ImportDeclaration': imports.push(stmt); break;
+          case 'ImportDefault': imports.push(stmt); break;
+          case 'ImportWildcard': imports.push(stmt); break;
           default: other.push(stmt); break;
         }
       }
+    }
+
+    // Generate client block imports (hoisted after runtime imports)
+    if (imports.length > 0) {
+      lines.push('// ── Client Imports ──');
+      for (const stmt of imports) {
+        lines.push(this.generateStatement(stmt));
+      }
+      lines.push('');
     }
 
     // Register state names for setter transforms
@@ -301,11 +336,17 @@ export class ClientCodegen extends BaseCodegen {
     }
 
     // Auto-mount the App component if it exists
+    // Auto-detect SSR: if the container already has children, hydrate instead of mount
     const hasApp = components.some(c => c.name === 'App');
     if (hasApp) {
       lines.push('// ── Mount ──');
       lines.push('document.addEventListener("DOMContentLoaded", () => {');
-      lines.push('  mount(App, document.getElementById("app") || document.body);');
+      lines.push('  const container = document.getElementById("app") || document.body;');
+      lines.push('  if (container.children.length > 0) {');
+      lines.push('    hydrate(App, container);');
+      lines.push('  } else {');
+      lines.push('    mount(App, container);');
+      lines.push('  }');
       lines.push('});');
     }
 
@@ -751,7 +792,7 @@ export class ClientCodegen extends BaseCodegen {
           propsStr = `{${propParts.join(', ')}}`;
         }
       }
-      return `${node.tag}(${propsStr})`;
+      return `(() => { const __v = ${node.tag}(${propsStr}); if (__v && __v.__tova) __v._componentName = "${node.tag}"; return __v; })()`;
     }
 
     const tag = JSON.stringify(node.tag);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { resolve, basename, dirname, join, relative } from 'path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, watch as fsWatch } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
@@ -478,7 +478,7 @@ async function devServer(args) {
       if (output.client) {
         const p = join(outDir, `${baseName}.client.js`);
         writeFileSync(p, output.client);
-        clientHTML = generateDevHTML(output.client);
+        clientHTML = await generateDevHTML(output.client, srcDir);
         writeFileSync(join(outDir, 'index.html'), clientHTML);
         hasClient = true;
       }
@@ -577,13 +577,13 @@ async function devServer(args) {
         }
         if (output.client) {
           writeFileSync(join(outDir, `${baseName}.client.js`), output.client);
-          const html = generateDevHTML(output.client);
+          const html = await generateDevHTML(output.client, srcDir);
           writeFileSync(join(outDir, 'index.html'), html);
         }
         if (output.server) {
           let serverCode = output.server;
           if (output.client) {
-            const html = generateDevHTML(output.client);
+            const html = await generateDevHTML(output.client, srcDir);
             serverCode = `const __clientHTML = ${JSON.stringify(html)};\n` + serverCode;
           }
           const p = join(outDir, `${baseName}.server.js`);
@@ -638,14 +638,51 @@ async function devServer(args) {
   await new Promise(() => {});
 }
 
-function generateDevHTML(clientCode) {
+async function generateDevHTML(clientCode, srcDir) {
+  // Check if client code uses npm packages — if so, bundle with Bun.build
+  if (srcDir && hasNpmImports(clientCode)) {
+    const bundled = await bundleClientCode(clientCode, srcDir);
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tova App</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+    #app { max-width: 520px; margin: 0 auto; padding: 2rem 1rem; }
+    .app { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+    header { text-align: center; margin-bottom: 1.5rem; }
+    h1 { font-size: 2rem; margin-bottom: 0.25rem; color: #333; }
+    h2 { font-size: 1.2rem; margin-bottom: 0.75rem; color: #555; }
+    .subtitle { font-size: 0.9rem; color: #888; letter-spacing: 0.1em; text-transform: uppercase; }
+    button { cursor: pointer; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 8px; background: white; font-size: 0.9rem; transition: all 0.15s; }
+    button:hover { background: #f0f0f0; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    input[type="text"] { padding: 0.6rem 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; width: 100%; outline: none; transition: border-color 0.2s; }
+    input[type="text"]:focus { border-color: #667eea; }
+    ul { list-style: none; }
+    .done { text-decoration: line-through; opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+${bundled}
+  </script>
+</body>
+</html>`;
+  }
+
+  // Original path: no npm imports — inline runtime, no bundling overhead
   // Use embedded runtime sources (no disk reads needed)
   const inlineReactivity = REACTIVITY_SOURCE.replace(/^export /gm, '');
   const inlineRpc = RPC_SOURCE.replace(/^export /gm, '');
 
-  // Strip import lines from client code (we inline the runtime instead)
+  // Strip all import lines from client code (we inline the runtime instead)
   const inlineClient = clientCode
-    .replace(/^import\s+\{[^}]+\}\s+from\s+'[^']+';?\s*$/gm, '')
+    .replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '')
     .trim();
 
   return `<!DOCTYPE html>
@@ -1026,10 +1063,75 @@ async function migrateStatus(args) {
 
 function getStdlibForRuntime() {
   return getFullStdlib();  // Full stdlib for REPL
-}  
+}
 function getRunStdlib() { // Excludes RESULT_OPTION (emitted by codegen)
   return `${BUILTINS}
 ${PROPAGATE}`;
+}
+
+// ─── npm Interop Utilities ───────────────────────────────────
+
+function hasNpmImports(code) {
+  // Match import statements with bare specifiers (not relative paths or runtime imports)
+  const importRegex = /^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"];?\s*$/gm;
+  let match;
+  while ((match = importRegex.exec(code)) !== null) {
+    const source = match[1];
+    // Skip relative imports and runtime imports
+    if (source.startsWith('./') || source.startsWith('../') || source.startsWith('/') || source.startsWith('./runtime/')) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+async function bundleClientCode(clientCode, srcDir) {
+  const tmpDir = join(srcDir, '.tova-out', '.tmp-bundle');
+  try {
+    mkdirSync(tmpDir, { recursive: true });
+    mkdirSync(join(tmpDir, 'runtime'), { recursive: true });
+
+    // Write runtime files so Bun.build can resolve ./runtime/ imports
+    writeFileSync(join(tmpDir, 'runtime', 'reactivity.js'), REACTIVITY_SOURCE);
+    writeFileSync(join(tmpDir, 'runtime', 'rpc.js'), RPC_SOURCE);
+    writeFileSync(join(tmpDir, 'runtime', 'router.js'), ROUTER_SOURCE);
+
+    // Write client code as entrypoint
+    const entryPath = join(tmpDir, '__entry.js');
+    writeFileSync(entryPath, clientCode);
+
+    const result = await Bun.build({
+      entrypoints: [entryPath],
+      bundle: true,
+      format: 'esm',
+      target: 'browser',
+    });
+
+    if (!result.success) {
+      const errors = result.logs.filter(l => l.level === 'error').map(l => l.message);
+      // Check for missing package errors and provide actionable message
+      const missingPkgs = errors
+        .map(e => {
+          const m = e.match(/Could not resolve ["']([^"']+)["']/);
+          return m ? m[1] : null;
+        })
+        .filter(Boolean);
+      if (missingPkgs.length > 0) {
+        throw new Error(`Missing npm packages in client block. Run: bun install ${missingPkgs.join(' ')}`);
+      }
+      throw new Error(`Client bundling failed:\n${errors.join('\n')}`);
+    }
+
+    // Read the bundled output
+    const bundled = await result.outputs[0].text();
+    return bundled;
+  } finally {
+    // Clean up temp files
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
+  }
 }
 
 // ─── LSP Server ──────────────────────────────────────────────
@@ -1317,11 +1419,22 @@ async function productionBuild(srcDir, outDir) {
 
   // Write client bundle
   if (allClientCode.trim()) {
-    const reactivityCode = REACTIVITY_SOURCE.replace(/^export /gm, '');
-    const rpcCode = RPC_SOURCE.replace(/^export /gm, '');
+    const fullClientModule = allSharedCode + '\n' + allClientCode;
 
-    const clientBundle = reactivityCode + '\n' + rpcCode + '\n' + allSharedCode + '\n' +
-      allClientCode.replace(/^import\s+\{[^}]+\}\s+from\s+'[^']+';?\s*$/gm, '').trim();
+    let clientBundle;
+    let useModule = false;
+
+    if (hasNpmImports(fullClientModule)) {
+      // npm imports detected — bundle with Bun.build to resolve bare specifiers
+      clientBundle = await bundleClientCode(fullClientModule, srcDir);
+      useModule = true;
+    } else {
+      // No npm imports — inline runtime, strip all imports
+      const reactivityCode = REACTIVITY_SOURCE.replace(/^export /gm, '');
+      const rpcCode = RPC_SOURCE.replace(/^export /gm, '');
+      clientBundle = reactivityCode + '\n' + rpcCode + '\n' + allSharedCode + '\n' +
+        allClientCode.replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '').trim();
+    }
 
     const hash = hashCode(clientBundle);
     const clientPath = join(outDir, `client.${hash}.js`);
@@ -1329,6 +1442,9 @@ async function productionBuild(srcDir, outDir) {
     console.log(`  client.${hash}.js`);
 
     // Generate production HTML
+    const scriptTag = useModule
+      ? `<script type="module" src="client.${hash}.js"></script>`
+      : `<script src="client.${hash}.js"></script>`;
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1338,7 +1454,7 @@ async function productionBuild(srcDir, outDir) {
 </head>
 <body>
   <div id="app"></div>
-  <script src="client.${hash}.js"></script>
+  ${scriptTag}
 </body>
 </html>`;
     writeFileSync(join(outDir, 'index.html'), html);

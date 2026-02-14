@@ -774,7 +774,10 @@ describe('SSR — renderToString', () => {
       __tova: true, tag: '__dynamic', props: {}, children: [],
       compute: () => tova_el('span', {}, ['dynamic']),
     };
-    expect(renderToString(vnode)).toBe('<span>dynamic</span>');
+    const result = renderToString(vnode);
+    expect(result).toContain('<span>dynamic</span>');
+    expect(result).toMatch(/<!--tova-s:\d+-->/);
+    expect(result).toMatch(/<!--\/tova-s:\d+-->/);
   });
 
   test('escapes HTML in attribute values', () => {
