@@ -61,9 +61,9 @@
   padding: 0 !important;
   margin: 0 !important;
   max-width: 100% !important;
-  /* Fill from below the nav to the bottom of the viewport */
-  height: 100vh;
-  padding-top: var(--vp-nav-height) !important;
+  /* VPNav is in normal flow (position: relative, 64px tall) so VPContent
+     already sits below it.  Only claim the remaining viewport height. */
+  height: calc(100vh - var(--vp-nav-height));
   box-sizing: border-box;
 }
 

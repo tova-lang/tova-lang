@@ -130,10 +130,10 @@ is_active = true
 nothing = nil
 
 // Mutable bindings
-var count = 0
-count += 1
-count += 1
-print("count = {count}")
+var counter = 0
+counter += 1
+counter += 1
+print("counter = {counter}")
 
 // Multiple assignment
 a, b, c = 1, 2, 3
@@ -240,8 +240,8 @@ double_then_add = compose(add_one, double)
 print("double_then_add(5) = {double_then_add(5)}")
 
 // Sorting with key function
-words = ["banana", "apple", "cherry", "date"]
-by_length = sorted(words, fn(w) len(w))
+fruit_names = ["banana", "apple", "cherry", "date"]
+by_length = sorted(fruit_names, fn(w) len(w))
 print("By length: {by_length}")
 
 // Checking conditions
@@ -305,9 +305,9 @@ print("nums[4:]  = {nums[4:]}")
 print("nums[::-1] = {nums[::-1]}")
 ` },
     { category: 'Data Structures', name: 'Spread & Destructuring', code: `// Array spread
-first = [1, 2, 3]
-second = [4, 5, 6]
-combined = [...first, ...second]
+list_a = [1, 2, 3]
+list_b = [4, 5, 6]
+combined = [...list_a, ...list_b]
 print("Combined: {combined}")
 
 // Object literals
@@ -581,9 +581,9 @@ for pair in enumerate(fruits) {
 }
 
 // zip — combine arrays
-keys = ["name", "age", "city"]
+labels = ["name", "age", "city"]
 vals = ["Alice", 30, "NYC"]
-print("zipped: {zip(keys, vals)}")
+print("zipped: {zip(labels, vals)}")
 
 // type_of — runtime type checking
 print("type_of(42): {type_of(42)}")
@@ -735,8 +735,8 @@ for target in [23, 72, 15, 2, 91] {
 }
 
 // Sorting + searching
-words = ["banana", "apple", "cherry", "date", "elderberry", "fig"]
-sorted_words = sorted(words)
+word_list = ["banana", "apple", "cherry", "date", "elderberry", "fig"]
+sorted_words = sorted(word_list)
 print("\\nSorted: {sorted_words}")
 print("Index of 'cherry': {binary_search(sorted_words, "cherry")}")
 ` },
@@ -804,18 +804,18 @@ fn make_grid(rows, cols) {
 fn count_neighbors(grid, r, c) {
   rows = len(grid)
   cols = len(grid[0])
-  var count = 0
+  var total = 0
   for dr in [-1, 0, 1] {
     for dc in [-1, 0, 1] {
       if dr == 0 and dc == 0 { }
       else {
         nr = (r + dr + rows) % rows
         nc = (c + dc + cols) % cols
-        count = count + grid[nr][nc]
+        total = total + grid[nr][nc]
       }
     }
   }
-  count
+  total
 }
 
 fn step(grid) {
@@ -964,9 +964,9 @@ name = "Developer"
 print("Hello, {name}!")
 
 // Use 'var' for mutable variables
-var count = 0
-count += 1
-print("Count: {count}")`,
+var counter = 0
+counter += 1
+print("Counter: {counter}")`,
     },
     {
       title: 'Functions',
@@ -1081,9 +1081,9 @@ for age in [25, -5, 200, 42] {
       description: 'Tova has built-in reactivity for building UIs. State changes automatically update the DOM!',
       code: `// Switch to the "Preview" tab to see this in action!
 client {
-  state count = 0
-  computed doubled = count * 2
-  computed emoji = match count {
+  state clicks = 0
+  computed doubled = clicks * 2
+  computed emoji = match clicks {
     0 => "Start clicking!"
     c if c < 5 => "Getting started..."
     c if c < 10 => "Nice!"
@@ -1093,12 +1093,12 @@ client {
   component App {
     <div style="text-align: center; padding: 20px;">
       <h1>"Tova Reactive Demo"</h1>
-      <p style="font-size: 48px;">"{count}"</p>
+      <p style="font-size: 48px;">"{clicks}"</p>
       <p>"Doubled: {doubled}"</p>
       <p>"{emoji}"</p>
-      <button on:click={fn() count += 1}>"+ Add"</button>
-      <button on:click={fn() count -= 1}>"- Sub"</button>
-      <button on:click={fn() count = 0}>"Reset"</button>
+      <button on:click={fn() clicks += 1}>"+ Add"</button>
+      <button on:click={fn() clicks -= 1}>"- Sub"</button>
+      <button on:click={fn() clicks = 0}>"Reset"</button>
     </div>
   }
 }`,

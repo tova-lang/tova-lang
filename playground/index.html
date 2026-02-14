@@ -12935,7 +12935,7 @@ const EXAMPLES = [
   {
     "category": "Getting Started",
     "name": "Variables & Types",
-    "code": "// Immutable bindings (default)\nname = \"Alice\"\nage = 30\npi = 3.14159\nis_active = true\nnothing = nil\n\n// Mutable bindings\nvar count = 0\ncount += 1\ncount += 1\nprint(\"count = {count}\")\n\n// Multiple assignment\na, b, c = 1, 2, 3\nprint(\"a={a}, b={b}, c={c}\")\n\n// Swap\nvar x = 10\nvar y = 20\nx, y = y, x\nprint(\"After swap: x={x}, y={y}\")\n\n// Type checking\nprint(type_of(42))\nprint(type_of(\"hello\"))\nprint(type_of(true))\nprint(type_of([1, 2, 3]))\nprint(type_of(nil))\n"
+    "code": "// Immutable bindings (default)\nname = \"Alice\"\nage = 30\npi = 3.14159\nis_active = true\nnothing = nil\n\n// Mutable bindings\nvar counter = 0\ncounter += 1\ncounter += 1\nprint(\"counter = {counter}\")\n\n// Multiple assignment\na, b, c = 1, 2, 3\nprint(\"a={a}, b={b}, c={c}\")\n\n// Swap\nvar x = 10\nvar y = 20\nx, y = y, x\nprint(\"After swap: x={x}, y={y}\")\n\n// Type checking\nprint(type_of(42))\nprint(type_of(\"hello\"))\nprint(type_of(true))\nprint(type_of([1, 2, 3]))\nprint(type_of(nil))\n"
   },
   {
     "category": "Getting Started",
@@ -12950,7 +12950,7 @@ const EXAMPLES = [
   {
     "category": "Functions",
     "name": "Higher-Order Functions",
-    "code": "// Map, filter, and reduce with lambdas\nnumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n\ndoubled = map(numbers, fn(x) x * 2)\nprint(\"Doubled: {doubled}\")\n\nevens = filter(numbers, fn(x) x % 2 == 0)\nprint(\"Evens: {evens}\")\n\ntotal = sum(numbers)\nprint(\"Sum: {total}\")\n\n// Composition\nfn compose(f, g) {\n  fn(x) f(g(x))\n}\n\ndouble = fn(x) x * 2\nadd_one = fn(x) x + 1\ndouble_then_add = compose(add_one, double)\nprint(\"double_then_add(5) = {double_then_add(5)}\")\n\n// Sorting with key function\nwords = [\"banana\", \"apple\", \"cherry\", \"date\"]\nby_length = sorted(words, fn(w) len(w))\nprint(\"By length: {by_length}\")\n\n// Checking conditions\nhas_negative = any([-1, 2, 3], fn(x) x < 0)\nall_positive = all([1, 2, 3], fn(x) x > 0)\nprint(\"Has negative: {has_negative}\")\nprint(\"All positive: {all_positive}\")\n"
+    "code": "// Map, filter, and reduce with lambdas\nnumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n\ndoubled = map(numbers, fn(x) x * 2)\nprint(\"Doubled: {doubled}\")\n\nevens = filter(numbers, fn(x) x % 2 == 0)\nprint(\"Evens: {evens}\")\n\ntotal = sum(numbers)\nprint(\"Sum: {total}\")\n\n// Composition\nfn compose(f, g) {\n  fn(x) f(g(x))\n}\n\ndouble = fn(x) x * 2\nadd_one = fn(x) x + 1\ndouble_then_add = compose(add_one, double)\nprint(\"double_then_add(5) = {double_then_add(5)}\")\n\n// Sorting with key function\nfruit_names = [\"banana\", \"apple\", \"cherry\", \"date\"]\nby_length = sorted(fruit_names, fn(w) len(w))\nprint(\"By length: {by_length}\")\n\n// Checking conditions\nhas_negative = any([-1, 2, 3], fn(x) x < 0)\nall_positive = all([1, 2, 3], fn(x) x > 0)\nprint(\"Has negative: {has_negative}\")\nprint(\"All positive: {all_positive}\")\n"
   },
   {
     "category": "Functions",
@@ -12965,7 +12965,7 @@ const EXAMPLES = [
   {
     "category": "Data Structures",
     "name": "Spread & Destructuring",
-    "code": "// Array spread\nfirst = [1, 2, 3]\nsecond = [4, 5, 6]\ncombined = [...first, ...second]\nprint(\"Combined: {combined}\")\n\n// Object literals\nconfig = {\n  color: \"blue\",\n  size: \"medium\",\n  bold: false,\n  count: 42\n}\nprint(\"Config: {config}\")\n\n// Destructuring objects\nlet {color, size, bold} = config\nprint(\"Color: {color}\")\nprint(\"Size: {size}\")\n\n// Destructuring arrays\nlet [a, b, c] = [10, 20, 30]\nprint(\"a={a}, b={b}, c={c}\")\n\n// Membership testing\nfruits = [\"apple\", \"banana\", \"cherry\"]\nif \"banana\" in fruits {\n  print(\"We have bananas!\")\n}\nif \"grape\" not in fruits {\n  print(\"No grapes available\")\n}\n"
+    "code": "// Array spread\nlist_a = [1, 2, 3]\nlist_b = [4, 5, 6]\ncombined = [...list_a, ...list_b]\nprint(\"Combined: {combined}\")\n\n// Object literals\nconfig = {\n  color: \"blue\",\n  size: \"medium\",\n  bold: false,\n  count: 42\n}\nprint(\"Config: {config}\")\n\n// Destructuring objects\nlet {color, size, bold} = config\nprint(\"Color: {color}\")\nprint(\"Size: {size}\")\n\n// Destructuring arrays\nlet [a, b, c] = [10, 20, 30]\nprint(\"a={a}, b={b}, c={c}\")\n\n// Membership testing\nfruits = [\"apple\", \"banana\", \"cherry\"]\nif \"banana\" in fruits {\n  print(\"We have bananas!\")\n}\nif \"grape\" not in fruits {\n  print(\"No grapes available\")\n}\n"
   },
   {
     "category": "Control Flow",
@@ -12995,7 +12995,7 @@ const EXAMPLES = [
   {
     "category": "Standard Library",
     "name": "Built-in Functions",
-    "code": "// Tova comes with useful built-in functions\n\n// range(start?, end, step?)\nprint(\"range(5): {range(5)}\")\nprint(\"range(2,8): {range(2, 8)}\")\nprint(\"range(0,20,3): {range(0, 20, 3)}\")\n\n// len — works on strings, arrays, objects\nprint(\"len('hello'): {len(\"hello\")}\")\nprint(\"len([1,2,3]): {len([1, 2, 3])}\")\n\n// sum, min, max\nnums = [4, 2, 7, 1, 9, 3]\nprint(\"sum: {sum(nums)}\")\nprint(\"min: {min(nums)}\")\nprint(\"max: {max(nums)}\")\n\n// sorted, reversed\nprint(\"sorted: {sorted(nums)}\")\nprint(\"reversed: {reversed(nums)}\")\n\n// enumerate — get index,value pairs\nfruits = [\"apple\", \"banana\", \"cherry\"]\nfor pair in enumerate(fruits) {\n  print(\"  [{pair[0]}] {pair[1]}\")\n}\n\n// zip — combine arrays\nkeys = [\"name\", \"age\", \"city\"]\nvals = [\"Alice\", 30, \"NYC\"]\nprint(\"zipped: {zip(keys, vals)}\")\n\n// type_of — runtime type checking\nprint(\"type_of(42): {type_of(42)}\")\nprint(\"type_of(3.14): {type_of(3.14)}\")\nprint(\"type_of('hi'): {type_of(\"hi\")}\")\nprint(\"type_of(true): {type_of(true)}\")\nprint(\"type_of(nil): {type_of(nil)}\")\nprint(\"type_of([1]): {type_of([1, 2])}\")\n"
+    "code": "// Tova comes with useful built-in functions\n\n// range(start?, end, step?)\nprint(\"range(5): {range(5)}\")\nprint(\"range(2,8): {range(2, 8)}\")\nprint(\"range(0,20,3): {range(0, 20, 3)}\")\n\n// len — works on strings, arrays, objects\nprint(\"len('hello'): {len(\"hello\")}\")\nprint(\"len([1,2,3]): {len([1, 2, 3])}\")\n\n// sum, min, max\nnums = [4, 2, 7, 1, 9, 3]\nprint(\"sum: {sum(nums)}\")\nprint(\"min: {min(nums)}\")\nprint(\"max: {max(nums)}\")\n\n// sorted, reversed\nprint(\"sorted: {sorted(nums)}\")\nprint(\"reversed: {reversed(nums)}\")\n\n// enumerate — get index,value pairs\nfruits = [\"apple\", \"banana\", \"cherry\"]\nfor pair in enumerate(fruits) {\n  print(\"  [{pair[0]}] {pair[1]}\")\n}\n\n// zip — combine arrays\nlabels = [\"name\", \"age\", \"city\"]\nvals = [\"Alice\", 30, \"NYC\"]\nprint(\"zipped: {zip(labels, vals)}\")\n\n// type_of — runtime type checking\nprint(\"type_of(42): {type_of(42)}\")\nprint(\"type_of(3.14): {type_of(3.14)}\")\nprint(\"type_of('hi'): {type_of(\"hi\")}\")\nprint(\"type_of(true): {type_of(true)}\")\nprint(\"type_of(nil): {type_of(nil)}\")\nprint(\"type_of([1]): {type_of([1, 2])}\")\n"
   },
   {
     "category": "Reactive UI",
@@ -13025,7 +13025,7 @@ const EXAMPLES = [
   {
     "category": "Algorithms",
     "name": "Binary Search",
-    "code": "// Binary search on sorted array\nfn binary_search(arr, target) {\n  var lo = 0\n  var hi = len(arr) - 1\n  while lo <= hi {\n    mid = (lo + hi) / 2\n    if arr[mid] == target {\n      return mid\n    } elif arr[mid] < target {\n      lo = mid + 1\n    } else {\n      hi = mid - 1\n    }\n  }\n  -1\n}\n\n// Test it\nnums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]\nprint(\"Array: {nums}\")\n\nfor target in [23, 72, 15, 2, 91] {\n  idx = binary_search(nums, target)\n  if idx >= 0 {\n    print(\"Found {target} at index {idx}\")\n  } else {\n    print(\"{target} not found\")\n  }\n}\n\n// Sorting + searching\nwords = [\"banana\", \"apple\", \"cherry\", \"date\", \"elderberry\", \"fig\"]\nsorted_words = sorted(words)\nprint(\"\\nSorted: {sorted_words}\")\nprint(\"Index of 'cherry': {binary_search(sorted_words, \"cherry\")}\")\n"
+    "code": "// Binary search on sorted array\nfn binary_search(arr, target) {\n  var lo = 0\n  var hi = len(arr) - 1\n  while lo <= hi {\n    mid = (lo + hi) / 2\n    if arr[mid] == target {\n      return mid\n    } elif arr[mid] < target {\n      lo = mid + 1\n    } else {\n      hi = mid - 1\n    }\n  }\n  -1\n}\n\n// Test it\nnums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]\nprint(\"Array: {nums}\")\n\nfor target in [23, 72, 15, 2, 91] {\n  idx = binary_search(nums, target)\n  if idx >= 0 {\n    print(\"Found {target} at index {idx}\")\n  } else {\n    print(\"{target} not found\")\n  }\n}\n\n// Sorting + searching\nword_list = [\"banana\", \"apple\", \"cherry\", \"date\", \"elderberry\", \"fig\"]\nsorted_words = sorted(word_list)\nprint(\"\\nSorted: {sorted_words}\")\nprint(\"Index of 'cherry': {binary_search(sorted_words, \"cherry\")}\")\n"
   },
   {
     "category": "Algorithms",
@@ -13035,7 +13035,7 @@ const EXAMPLES = [
   {
     "category": "Algorithms",
     "name": "Game of Life",
-    "code": "// Conway's Game of Life — one generation step\n\nfn make_grid(rows, cols) {\n  [[0 for c in range(cols)] for r in range(rows)]\n}\n\nfn count_neighbors(grid, r, c) {\n  rows = len(grid)\n  cols = len(grid[0])\n  var count = 0\n  for dr in [-1, 0, 1] {\n    for dc in [-1, 0, 1] {\n      if dr == 0 and dc == 0 { }\n      else {\n        nr = (r + dr + rows) % rows\n        nc = (c + dc + cols) % cols\n        count = count + grid[nr][nc]\n      }\n    }\n  }\n  count\n}\n\nfn step(grid) {\n  rows = len(grid)\n  cols = len(grid[0])\n  [\n    [\n      match [grid[r][c], count_neighbors(grid, r, c)] {\n        [1, n] if n < 2 => 0\n        [1, n] if n > 3 => 0\n        [1, _] => 1\n        [0, 3] => 3\n        _ => grid[r][c]\n      }\n    for c in range(cols)]\n  for r in range(rows)]\n}\n\nfn display(grid) {\n  for row in grid {\n    line = [match cell { 0 => \".\" _ => \"#\" } for cell in row]\n    print(line)\n  }\n}\n\n// Glider pattern\ngrid = make_grid(8, 8)\ngrid[1][2] = 1\ngrid[2][3] = 1\ngrid[3][1] = 1\ngrid[3][2] = 1\ngrid[3][3] = 1\n\nprint(\"Generation 0:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 1:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 2:\")\ndisplay(grid)\n"
+    "code": "// Conway's Game of Life — one generation step\n\nfn make_grid(rows, cols) {\n  [[0 for c in range(cols)] for r in range(rows)]\n}\n\nfn count_neighbors(grid, r, c) {\n  rows = len(grid)\n  cols = len(grid[0])\n  var total = 0\n  for dr in [-1, 0, 1] {\n    for dc in [-1, 0, 1] {\n      if dr == 0 and dc == 0 { }\n      else {\n        nr = (r + dr + rows) % rows\n        nc = (c + dc + cols) % cols\n        total = total + grid[nr][nc]\n      }\n    }\n  }\n  total\n}\n\nfn step(grid) {\n  rows = len(grid)\n  cols = len(grid[0])\n  [\n    [\n      match [grid[r][c], count_neighbors(grid, r, c)] {\n        [1, n] if n < 2 => 0\n        [1, n] if n > 3 => 0\n        [1, _] => 1\n        [0, 3] => 3\n        _ => grid[r][c]\n      }\n    for c in range(cols)]\n  for r in range(rows)]\n}\n\nfn display(grid) {\n  for row in grid {\n    line = [match cell { 0 => \".\" _ => \"#\" } for cell in row]\n    print(line)\n  }\n}\n\n// Glider pattern\ngrid = make_grid(8, 8)\ngrid[1][2] = 1\ngrid[2][3] = 1\ngrid[3][1] = 1\ngrid[3][2] = 1\ngrid[3][3] = 1\n\nprint(\"Generation 0:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 1:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 2:\")\ndisplay(grid)\n"
   }
 ];
 const REFERENCE = [
@@ -13327,7 +13327,7 @@ const TUTORIAL = [
   {
     "title": "Welcome to Tova",
     "description": "Tova is a modern language that compiles to JavaScript. It combines Python's readability with ML-style pattern matching and built-in reactivity.",
-    "code": "// Try running this! Press Cmd/Ctrl+Enter or click Run.\nprint(\"Welcome to Tova!\")\n\n// Variables are immutable by default\nname = \"Developer\"\nprint(\"Hello, {name}!\")\n\n// Use 'var' for mutable variables\nvar count = 0\ncount += 1\nprint(\"Count: {count}\")"
+    "code": "// Try running this! Press Cmd/Ctrl+Enter or click Run.\nprint(\"Welcome to Tova!\")\n\n// Variables are immutable by default\nname = \"Developer\"\nprint(\"Hello, {name}!\")\n\n// Use 'var' for mutable variables\nvar counter = 0\ncounter += 1\nprint(\"Counter: {counter}\")"
   },
   {
     "title": "Functions",
@@ -13352,7 +13352,7 @@ const TUTORIAL = [
   {
     "title": "Reactive UI",
     "description": "Tova has built-in reactivity for building UIs. State changes automatically update the DOM!",
-    "code": "// Switch to the \"Preview\" tab to see this in action!\nclient {\n  state count = 0\n  computed doubled = count * 2\n  computed emoji = match count {\n    0 => \"Start clicking!\"\n    c if c < 5 => \"Getting started...\"\n    c if c < 10 => \"Nice!\"\n    _ => \"On fire!\"\n  }\n\n  component App {\n    <div style=\"text-align: center; padding: 20px;\">\n      <h1>\"Tova Reactive Demo\"</h1>\n      <p style=\"font-size: 48px;\">\"{count}\"</p>\n      <p>\"Doubled: {doubled}\"</p>\n      <p>\"{emoji}\"</p>\n      <button on:click={fn() count += 1}>\"+ Add\"</button>\n      <button on:click={fn() count -= 1}>\"- Sub\"</button>\n      <button on:click={fn() count = 0}>\"Reset\"</button>\n    </div>\n  }\n}"
+    "code": "// Switch to the \"Preview\" tab to see this in action!\nclient {\n  state clicks = 0\n  computed doubled = clicks * 2\n  computed emoji = match clicks {\n    0 => \"Start clicking!\"\n    c if c < 5 => \"Getting started...\"\n    c if c < 10 => \"Nice!\"\n    _ => \"On fire!\"\n  }\n\n  component App {\n    <div style=\"text-align: center; padding: 20px;\">\n      <h1>\"Tova Reactive Demo\"</h1>\n      <p style=\"font-size: 48px;\">\"{clicks}\"</p>\n      <p>\"Doubled: {doubled}\"</p>\n      <p>\"{emoji}\"</p>\n      <button on:click={fn() clicks += 1}>\"+ Add\"</button>\n      <button on:click={fn() clicks -= 1}>\"- Sub\"</button>\n      <button on:click={fn() clicks = 0}>\"Reset\"</button>\n    </div>\n  }\n}"
   },
   {
     "title": "Strings & Interpolation",
