@@ -2,13 +2,17 @@
 
 Tova is a full-stack language where a single `.tova` file contains everything needed for both the server and the client. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
 
-## The Three-Block Model
+## The Four-Block Model
 
-Every Tova application is organized into three kinds of blocks:
+Every Tova application is organized into four kinds of blocks:
 
 ```tova
 shared {
   // Types, validation, constants -- available to BOTH client and server
+}
+
+data {
+  // Data sources, pipelines, validation, refresh policies
 }
 
 server {
@@ -20,7 +24,7 @@ client {
 }
 ```
 
-You write all three in the same file. The compiler separates them at build time.
+You write all four in the same file. The compiler separates them at build time.
 
 ### Shared Block
 
@@ -33,6 +37,20 @@ Typical contents:
 - Validation functions (`fn validate_email(email) { ... }`)
 - Constants and enums
 - Shared utility functions
+
+### Data Block
+
+The `data` block declares data sources, reusable transform pipelines, validation rules, and refresh policies. It centralizes your data layer so that server functions can reference named pipelines directly.
+
+**Runtime environment:** Server (data block code runs alongside server code).
+
+Typical contents:
+- Source declarations (`source users = read("users.csv")`)
+- Named pipelines (`pipeline clean = users |> drop_nil(.email)`)
+- Validation rules (`validate User { .email |> contains("@") }`)
+- Refresh policies (`refresh users every 15.minutes`)
+
+See [Data Block](./data-block) for full documentation.
 
 ### Server Block
 
@@ -79,7 +97,8 @@ When you run `tova build`, the compiler performs the following steps:
   |                      app.tova                            |
   |                                                         |
   |  shared { types, validation }                           |
-  |  server { routes, db, functions }                       |
+  |  data   { sources, pipelines, validation, refresh }     |
+  |  server { routes, db, AI, functions }                   |
   |  client { state, components, effects }                  |
   +---------------------------------------------------------+
                             |
@@ -89,7 +108,9 @@ When you run `tova build`, the compiler performs the following steps:
         app.shared.js  app.server.js  app.client.js
         (types, utils) (Bun.serve,   (reactive runtime,
                         RPC endpoints, signals, effects,
-                        routes, db)    components, RPC proxy)
+                        data layer,    components, RPC proxy)
+                        routes, db,
+                        AI clients)
                             |             |
                             +------+------+
                                    |
@@ -263,6 +284,7 @@ client {
 ## Next Steps
 
 - [Shared Block](./shared-block) -- deep dive into shared types and validation
+- [Data Block](./data-block) -- sources, pipelines, validation, and refresh policies
 - [Server Block](./server-block) -- routes, database, and server functions
 - [Client Block](./client-block) -- reactive UI and components
 - [RPC Bridge](./rpc) -- how the automatic RPC system works

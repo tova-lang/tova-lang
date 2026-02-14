@@ -6,6 +6,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 
 | Keyword | Description |
 |---------|-------------|
+| [`ai`](#ai) | Declare an AI provider configuration |
 | [`and`](#and) | Logical AND (keyword form) |
 | [`as`](#as) | Alias in imports |
 | [`async`](#async) | Mark a function as asynchronous |
@@ -16,6 +17,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`component`](#component) | Declare a reactive UI component |
 | [`computed`](#computed) | Declare a derived reactive value |
 | [`continue`](#continue) | Skip to the next loop iteration |
+| [`data`](#data) | Define a data block for sources, pipelines, and validation |
 | [`defer`](#defer) | Schedule code to run at scope exit |
 | [`derive`](#derive) | Auto-derive trait implementations for a type |
 | [`effect`](#effect) | Declare a reactive side effect |
@@ -39,17 +41,21 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`nil`](#nil) | The absence-of-value literal |
 | [`not`](#not) | Logical NOT (keyword form) |
 | [`or`](#or) | Logical OR (keyword form) |
+| [`pipeline`](#pipeline) | Declare a named transform chain in a data block |
 | [`pub`](#pub) | Mark a declaration as public |
+| [`refresh`](#refresh) | Set a refresh policy for a data source |
 | [`return`](#return) | Explicit early return from a function |
 | [`route`](#route) | Define an HTTP route in a server block |
 | [`server`](#server) | Define a server-side block |
 | [`shared`](#shared) | Define a block shared between server and client |
+| [`source`](#source) | Declare a data source in a data block |
 | [`state`](#state) | Declare a reactive state variable |
 | [`store`](#store) | Declare a reactive store |
 | [`trait`](#trait) | Define a named set of behaviors |
 | [`true`](#true) | Boolean true literal |
 | [`try`](#try) | Begin an error-handling block |
 | [`type`](#type) | Declare a custom type (struct or ADT) |
+| [`validate`](#validate) | Declare validation rules for a type in a data block |
 | [`var`](#var) | Declare a mutable variable |
 | [`while`](#while) | Loop while a condition is true |
 | [`yield`](#yield) | Yield a value from a generator |
@@ -69,6 +75,29 @@ These identifiers are reserved only within `server` blocks for route declaration
 ---
 
 ## Keyword Details
+
+### `ai`
+
+Declares an AI provider configuration inside a `server` block. Can be unnamed (default) or named for multiple providers.
+
+```tova
+server {
+  ai {
+    provider: "anthropic"
+    model: "claude-sonnet-4-20250514"
+    api_key: env("ANTHROPIC_API_KEY")
+  }
+
+  ai "gpt" {
+    provider: "openai"
+    model: "gpt-4o"
+    api_key: env("OPENAI_API_KEY")
+  }
+
+  answer = ai.ask("Hello")
+  other = gpt.ask("Hello")
+}
+```
 
 ### `and`
 
@@ -173,6 +202,19 @@ for i in 0..100 {
     continue
   }
   print(i)
+}
+```
+
+### `data`
+
+Opens a data block for declaring sources, pipelines, validation rules, and refresh policies. The `data {}` block is a top-level block alongside `shared`, `server`, and `client`.
+
+```tova
+data {
+  source users = read("users.csv")
+  pipeline active = users |> where(.active)
+  validate User { .email |> contains("@") }
+  refresh users every 15.minutes
 }
 ```
 
@@ -431,6 +473,18 @@ Logical OR operator. Short-circuits: the right operand is not evaluated if the l
 name = input or "default"
 ```
 
+### `pipeline`
+
+Declares a named transform chain inside a `data {}` block. Pipelines can reference sources and other pipelines.
+
+```tova
+data {
+  source users = read("users.csv")
+  pipeline active = users |> where(.active)
+  pipeline summary = active |> group_by(.role) |> agg(count: count())
+}
+```
+
 ### `pub`
 
 Marks a declaration as publicly visible.
@@ -438,6 +492,20 @@ Marks a declaration as publicly visible.
 ```tova
 pub fn api_handler(req) {
   respond(200, "ok")
+}
+```
+
+### `refresh`
+
+Sets a refresh policy for a data source inside a `data {}` block. Supports interval-based or on-demand refresh.
+
+```tova
+data {
+  source rates = read("https://api.example.com/rates")
+  refresh rates every 1.hour
+
+  source orders = read("orders.csv")
+  refresh orders on_demand
 }
 ```
 
@@ -490,6 +558,18 @@ shared {
     name: String
     email: String
   }
+}
+```
+
+### `source`
+
+Declares a named data source inside a `data {}` block. Sources are lazily loaded and cached.
+
+```tova
+data {
+  source users = read("users.csv")
+  source config = read("config.json")
+  source users: Table<User> = read("users.csv")  // with type annotation
 }
 ```
 
@@ -561,6 +641,20 @@ type Point {
 type Shape {
   Circle(radius: Float)
   Rectangle(width: Float, height: Float)
+}
+```
+
+### `validate`
+
+Declares validation rules for a type inside a `data {}` block. Each rule is a column predicate.
+
+```tova
+data {
+  validate User {
+    .email |> contains("@"),
+    .name |> len() > 0,
+    .age >= 0
+  }
 }
 ```
 

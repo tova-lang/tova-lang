@@ -25,3 +25,7 @@ Learn Tova through practical, annotated examples that progressively introduce la
 - **[Authentication Flow](./auth-flow.md)** -- JWT-based authentication with registration, login, and protected endpoints. Covers password hashing, middleware, and token management.
 
 - **[Database & Models](./database.md)** -- Database configuration, model definitions, CRUD routes, and query patterns using Tova's built-in ORM.
+
+## Data Layer
+
+- **[Data Dashboard](./data-dashboard.md)** -- A full-stack analytics dashboard. Demonstrates CSV reading, data pipelines, AI enrichment, and reactive client-side filtering.

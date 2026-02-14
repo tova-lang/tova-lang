@@ -17,9 +17,11 @@ shared {
     name: String
     email: String
   }
+}
 
+shared {
   type Event {
-    type: String
+    kind: String
     payload: String
     timestamp: String
   }
@@ -37,35 +39,29 @@ server "api" {
   }
 
   // CORS middleware for API
-  middleware cors(req, res) {
+  middleware fn cors(req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*")
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
   }
 
   // Authentication middleware
-  middleware auth(req, res) {
+  middleware fn auth(req, res) {
     token = req.headers["authorization"]
-    guard token != nil else {
+    if token == nil {
       res.status(401)
-      return { error: "Unauthorized" }
     }
-    req.user = verify_token(token)
   }
 
   // Rate limiting middleware
-  mut request_counts = {}
+  var request_count = 0
 
-  middleware rate_limit(req, res) {
-    ip = req.headers["x-forwarded-for"] || req.connection.remoteAddress
-    count = request_counts[ip] || 0
-
-    guard count < 100 else {
+  middleware fn rate_limit(req, res) {
+    if request_count >= 100 {
       res.status(429)
-      return { error: "Too many requests" }
     }
 
-    request_counts[ip] = count + 1
+    request_count = request_count + 1
   }
 
   fn list_users() -> [User] {
@@ -86,10 +82,10 @@ server "api" {
 }
 
 server "events" {
-  mut connections = []
+  var connections = []
 
   fn ws_connect(ws) {
-    connections = connections ++ [ws]
+    connections = [...connections, ws]
 
     ws.on("close", fn() {
       connections = connections |> filter(fn(c) c != ws)
@@ -115,7 +111,9 @@ server "events" {
     }
   }
 
-  route WS "/ws" => ws_connect
+  // WebSocket route: ws_connect handles upgrade at "/ws"
+  // WebSocket support uses a different pattern than HTTP routes
+  route GET "/ws" => ws_connect
 }
 
 client {
@@ -139,7 +137,7 @@ client {
 
     ws.onmessage = fn(e) {
       event = JSON.parse(e.data)
-      events = [event] ++ events
+      events = [event, ...events]
     }
 
     ws.onclose = fn() {
@@ -147,15 +145,21 @@ client {
     }
   }
 
+  component UserItem(user) {
+    <li>"{user.name} ({user.email})"</li>
+  }
+
   component UserList {
     <div class="user-list">
       <h2>"Users"</h2>
       <ul>
-        {users |> map(fn(user) {
-          <li>"{user.name} ({user.email})"</li>
-        })}
+        {users |> map(fn(user) UserItem(user))}
       </ul>
     </div>
+  }
+
+  component EventItem(event) {
+    <li>"[{event.kind}] {event.payload}"</li>
   }
 
   component EventFeed {
@@ -168,9 +172,7 @@ client {
         }}
       </p>
       <ul>
-        {events |> map(fn(event) {
-          <li>"[{event.type}] {event.payload}"</li>
-        })}
+        {events |> map(fn(event) EventItem(event))}
       </ul>
     </div>
   }
@@ -182,8 +184,8 @@ client {
       </header>
 
       <div class="grid">
-        <UserList />
-        <EventFeed />
+        {UserList()}
+        {EventFeed()}
       </div>
     </div>
   }
@@ -267,25 +269,24 @@ The `db` block configures the database connection. The `model` keyword defines a
 ### Middleware Stack
 
 ```tova
-middleware cors(req, res) { ... }
-middleware auth(req, res) { ... }
-middleware rate_limit(req, res) { ... }
+middleware fn cors(req, res) { ... }
+middleware fn auth(req, res) { ... }
+middleware fn rate_limit(req, res) { ... }
 ```
 
 Middleware functions run before route handlers. They can:
 - Modify the request/response (`res.setHeader(...)`)
-- Short-circuit with an error (`res.status(401); return { error: "..." }`)
-- Attach data to the request (`req.user = ...`)
-- Use `guard` clauses for validation
+- Short-circuit with an error (`res.status(401)`)
+- Validate request data using `if` checks
 
 ### WebSocket Server
 
 ```tova
 server "events" {
-  mut connections = []
+  var connections = []
 
   fn ws_connect(ws) {
-    connections = connections ++ [ws]
+    connections = [...connections, ws]
 
     ws.on("close", fn() {
       connections = connections |> filter(fn(c) c != ws)
@@ -302,15 +303,16 @@ server "events" {
     })
   }
 
-  route WS "/ws" => ws_connect
+  // WebSocket route: ws_connect handles upgrade at "/ws"
+  route GET "/ws" => ws_connect
 }
 ```
 
 The events server manages WebSocket connections:
-- New connections are tracked in the `connections` list
-- Disconnected clients are removed
-- Messages from one client are broadcast to all other clients
-- The `WS` route type handles WebSocket upgrades
+- New connections are tracked in the `connections` list using spread syntax
+- Disconnected connections are removed via `filter`
+- Messages from one connection are broadcast to all other connections
+- The WebSocket upgrade is handled by the `ws_connect` function
 
 ### Client Connecting to Multiple Servers
 
@@ -327,7 +329,7 @@ client {
     ws = WebSocket.new("ws://localhost:3001/ws")
     ws.onmessage = fn(e) {
       event = JSON.parse(e.data)
-      events = [event] ++ events
+      events = [event, ...events]
     }
   }
 }

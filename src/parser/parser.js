@@ -189,6 +189,10 @@ export class Parser {
     if (this.check(TokenType.CLIENT)) return this.parseClientBlock();
     if (this.check(TokenType.SHARED)) return this.parseSharedBlock();
     if (this.check(TokenType.IMPORT)) return this.parseImport();
+    // data block: data { ... }
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'data' && this.peek(1).type === TokenType.LBRACE) {
+      return this.parseDataBlock();
+    }
     // test block: test "name" { ... } or test { ... }
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'test') {
       const next = this.peek(1);
@@ -292,6 +296,124 @@ export class Parser {
     return new AST.SharedBlock(body, l, name);
   }
 
+  // ─── Data block ────────────────────────────────────────────
+
+  parseDataBlock() {
+    const l = this.loc();
+    this.advance(); // consume 'data'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'data'");
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseDataStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close data block");
+    return new AST.DataBlock(body, l);
+  }
+
+  parseDataStatement() {
+    if (!this.check(TokenType.IDENTIFIER)) {
+      return this.parseStatement();
+    }
+
+    const val = this.current().value;
+
+    // source customers: Table<Customer> = read("customers.csv")
+    if (val === 'source') {
+      return this.parseSourceDeclaration();
+    }
+
+    // pipeline clean_customers = customers |> where(...)
+    if (val === 'pipeline') {
+      return this.parsePipelineDeclaration();
+    }
+
+    // validate Customer { .email |> contains("@"), ... }
+    if (val === 'validate') {
+      return this.parseValidateBlock();
+    }
+
+    // refresh customers every 15.minutes
+    // refresh orders on_demand
+    if (val === 'refresh') {
+      return this.parseRefreshPolicy();
+    }
+
+    return this.parseStatement();
+  }
+
+  parseSourceDeclaration() {
+    const l = this.loc();
+    this.advance(); // consume 'source'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected source name").value;
+
+    // Optional type annotation: source customers: Table<Customer>
+    let typeAnnotation = null;
+    if (this.match(TokenType.COLON)) {
+      typeAnnotation = this.parseTypeAnnotation();
+    }
+
+    this.expect(TokenType.ASSIGN, "Expected '=' after source name");
+    const expression = this.parseExpression();
+
+    return new AST.SourceDeclaration(name, typeAnnotation, expression, l);
+  }
+
+  parsePipelineDeclaration() {
+    const l = this.loc();
+    this.advance(); // consume 'pipeline'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected pipeline name").value;
+    this.expect(TokenType.ASSIGN, "Expected '=' after pipeline name");
+    const expression = this.parseExpression();
+    return new AST.PipelineDeclaration(name, expression, l);
+  }
+
+  parseValidateBlock() {
+    const l = this.loc();
+    this.advance(); // consume 'validate'
+    const typeName = this.expect(TokenType.IDENTIFIER, "Expected type name after 'validate'").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after validate type name");
+
+    const rules = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const rule = this.parseExpression();
+      rules.push(rule);
+      this.match(TokenType.COMMA); // optional comma separator
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close validate block");
+    return new AST.ValidateBlock(typeName, rules, l);
+  }
+
+  parseRefreshPolicy() {
+    const l = this.loc();
+    this.advance(); // consume 'refresh'
+    const sourceName = this.expect(TokenType.IDENTIFIER, "Expected source name after 'refresh'").value;
+
+    // refresh X every N.unit  OR  refresh X on_demand
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'on_demand') {
+      this.advance();
+      return new AST.RefreshPolicy(sourceName, 'on_demand', l);
+    }
+
+    // expect 'every'
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'every') {
+      this.advance(); // consume 'every'
+    }
+
+    // Parse interval: N.unit (e.g., 15.minutes, 1.hour)
+    const value = this.expect(TokenType.NUMBER, "Expected interval value").value;
+    this.expect(TokenType.DOT, "Expected '.' after interval value");
+    const unit = this.expect(TokenType.IDENTIFIER, "Expected time unit (minutes, hours, seconds)").value;
+
+    return new AST.RefreshPolicy(sourceName, { value, unit }, l);
+  }
+
   // ─── Server-specific statements ───────────────────────────
 
   parseServerStatement() {
@@ -374,6 +496,10 @@ export class Parser {
       }
       if (val === 'model' && this.peek(1).type === TokenType.IDENTIFIER) {
         return this.parseModelDeclaration();
+      }
+      // ai { ... } or ai "name" { ... }
+      if (val === 'ai' && (this.peek(1).type === TokenType.LBRACE || this.peek(1).type === TokenType.STRING)) {
+        return this.parseAiConfig();
       }
     }
 
@@ -647,6 +773,29 @@ export class Parser {
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close session config");
     return new AST.SessionDeclaration(config, l);
+  }
+
+  parseAiConfig() {
+    const l = this.loc();
+    this.advance(); // consume 'ai'
+
+    // Optional name: ai "claude" { ... }
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' after 'ai'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected ai config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after ai config key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close ai config");
+    return new AST.AiConfigDeclaration(name, config, l);
   }
 
   parseDbConfig() {
@@ -1514,8 +1663,32 @@ export class Parser {
     }
 
     // Type alias: type Name = TypeExpr
+    // OR Refinement type: type Name = TypeExpr where { ... }
     if (this.match(TokenType.ASSIGN)) {
       const typeExpr = this.parseTypeAnnotation();
+
+      // Check for refinement type: type Email = String where { ... }
+      if (this.check(TokenType.IDENTIFIER) && this.current().value === 'where') {
+        this.advance(); // consume 'where'
+        this.expect(TokenType.LBRACE, "Expected '{' after 'where'");
+
+        // Parse predicate block — uses 'it' as implicit parameter
+        const predicates = [];
+        while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+          predicates.push(this.parseExpression());
+          this.match(TokenType.COMMA); // optional comma between predicates
+        }
+        this.expect(TokenType.RBRACE, "Expected '}' to close where block");
+
+        // Combine predicates with 'and'
+        let predicate = predicates[0];
+        for (let i = 1; i < predicates.length; i++) {
+          predicate = new AST.LogicalExpression('and', predicate, predicates[i], l);
+        }
+
+        return new AST.RefinementType(name, typeExpr, predicate, l);
+      }
+
       return new AST.TypeAlias(name, typeExpr, l);
     }
 
@@ -2123,6 +2296,14 @@ export class Parser {
       const operand = this.parseUnary();
       return new AST.YieldExpression(operand, delegate, l);
     }
+    // Negated column expression: -.column (for select exclusion)
+    if (this.check(TokenType.MINUS) && this.peek(1).type === TokenType.DOT && this.peek(2).type === TokenType.IDENTIFIER) {
+      const l = this.loc();
+      this.advance(); // consume -
+      this.advance(); // consume .
+      const name = this.advance().value;
+      return new AST.NegatedColumnExpression(name, l);
+    }
     if (this.check(TokenType.MINUS)) {
       const l = this.loc();
       this.advance();
@@ -2343,13 +2524,32 @@ export class Parser {
       return this.parseObjectOrDictComprehension();
     }
 
+    // Column expression: .column (for table operations)
+    // Appears at expression-start when DOT followed by IDENTIFIER
+    // but NOT when preceded by an expression (which would be member access)
+    if (this.check(TokenType.DOT) && this.peek(1).type === TokenType.IDENTIFIER) {
+      // Check this isn't inside a method pipe (|> .method) — that's handled in parsePipe
+      // Column expressions appear in function arguments and assignments
+      this.advance(); // consume .
+      const name = this.advance().value; // consume identifier
+
+      // Check for column assignment: .col = expr (used in derive)
+      if (this.check(TokenType.ASSIGN)) {
+        this.advance(); // consume =
+        const expr = this.parseExpression();
+        return new AST.ColumnAssignment(name, expr, l);
+      }
+
+      return new AST.ColumnExpression(name, l);
+    }
+
     // Parenthesized expression or arrow lambda
     if (this.check(TokenType.LPAREN)) {
       return this.parseParenOrArrowLambda();
     }
 
-    // server/client/shared as identifiers in expression position (for RPC: server.get_users())
-    if (this.check(TokenType.SERVER) || this.check(TokenType.CLIENT) || this.check(TokenType.SHARED)) {
+    // Keywords that can appear as identifiers in expression position
+    if (this.check(TokenType.SERVER) || this.check(TokenType.CLIENT) || this.check(TokenType.SHARED) || this.check(TokenType.DERIVE)) {
       const name = this.advance().value;
       return new AST.Identifier(name, l);
     }

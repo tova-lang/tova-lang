@@ -58,6 +58,7 @@ tova app.tova
 | Flag | Description |
 |------|-------------|
 | `--debug` | Show verbose error output with full stack traces |
+| `--strict` | Enable strict type checking (type mismatches and argument errors become hard errors) |
 
 ### `tova build [dir]`
 
@@ -86,6 +87,7 @@ tova build src --production
 |------|-------------|
 | `--output`, `-o` | Output directory (default: `.tova-out`) |
 | `--production` | Production build with bundling, content hashing, and minification |
+| `--strict` | Enable strict type checking |
 | `--debug` | Verbose error output |
 
 ### `tova dev [dir]`
@@ -210,6 +212,7 @@ Displays each migration file with its status (`applied` with timestamp, or `pend
 | `--help`, `-h` | Show help message |
 | `--version`, `-v` | Show Tova version |
 | `--debug` | Verbose error output (available on most commands) |
+| `--strict` | Enable strict type checking (available on `run` and `build`) |
 
 ## Environment Variables
 

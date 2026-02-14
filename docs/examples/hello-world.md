@@ -122,9 +122,9 @@ fn fizzbuzz(n) {
   }
 }
 
-range(1, 21) |> each(fn(n) {
+for n in range(1, 21) {
   print(fizzbuzz(n))
-})
+}
 ```
 
 <TryInPlayground :code="fizzbuzzCode" label="FizzBuzz" />
@@ -149,8 +149,8 @@ print("Sum: {total}")
 Output:
 
 ```
-Evens: [2, 4, 6, 8, 10]
-Doubled: [4, 8, 12, 16, 20]
+Evens: 2,4,6,8,10
+Doubled: 4,8,12,16,20
 Sum: 60
 ```
 

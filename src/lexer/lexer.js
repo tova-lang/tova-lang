@@ -380,8 +380,8 @@ export class Lexer {
       if (ch !== '_') value += ch;
     }
 
-    // Decimal point
-    if (this.peek() === '.' && this.peek(1) !== '.') {
+    // Decimal point — only consume if followed by a digit or underscore (not e.g. 15.minutes)
+    if (this.peek() === '.' && this.peek(1) !== '.' && (this.isDigit(this.peek(1)) || this.peek(1) === '_')) {
       value += this.advance(); // .
       while (this.pos < this.length && (this.isDigit(this.peek()) || this.peek() === '_')) {
         const ch = this.advance();

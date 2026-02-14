@@ -20,8 +20,8 @@ shared {
 }
 
 server {
-  mut messages = []
-  mut clients = []
+  var messages = []
+  var connections = []
 
   fn get_messages() -> [ChatMessage] {
     messages
@@ -29,11 +29,11 @@ server {
 
   fn send_message(username, text) -> ChatMessage {
     msg = ChatMessage(username, text, Date.new().toISOString())
-    messages = messages ++ [msg]
+    messages = [...messages, msg]
 
     // Broadcast to all connected SSE clients
-    for client in clients {
-      client.send(JSON.stringify(msg))
+    for conn in connections {
+      conn.send(JSON.stringify(msg))
     }
 
     msg
@@ -46,11 +46,11 @@ server {
       "Connection": "keep-alive"
     })
 
-    client = { send: fn(data) res.write("data: {data}\n\n") }
-    clients = clients ++ [client]
+    handler = { send: fn(data) res.write("data: {data}\n\n") }
+    connections = [...connections, handler]
 
     req.on("close", fn() {
-      clients = clients |> filter(fn(c) c != client)
+      connections = connections |> filter(fn(c) c != handler)
     })
   }
 
@@ -77,7 +77,7 @@ client {
 
     source.onmessage = fn(event) {
       msg = JSON.parse(event.data)
-      messages = messages ++ [msg]
+      messages = [...messages, msg]
     }
 
     source.onopen = fn() {
@@ -175,14 +175,14 @@ The `ChatMessage` type is shared between server and client, ensuring both sides 
 
 ```tova
 server {
-  mut messages = []
-  mut clients = []
+  var messages = []
+  var connections = []
 }
 ```
 
 The server maintains two mutable arrays:
 - `messages` stores all chat messages for history
-- `clients` tracks connected SSE clients for broadcasting
+- `connections` tracks connected SSE clients for broadcasting
 
 ### Server-Sent Events Endpoint
 
@@ -194,31 +194,31 @@ fn sse_connect(req, res) {
     "Connection": "keep-alive"
   })
 
-  client = { send: fn(data) res.write("data: {data}\n\n") }
-  clients = clients ++ [client]
+  handler = { send: fn(data) res.write("data: {data}\n\n") }
+  connections = [...connections, handler]
 
   req.on("close", fn() {
-    clients = clients |> filter(fn(c) c != client)
+    connections = connections |> filter(fn(c) c != handler)
   })
 }
 ```
 
 The SSE endpoint:
 1. Sets the appropriate headers for an event stream
-2. Creates a `client` object with a `send` function that writes SSE-formatted data
-3. Adds the client to the `clients` list
-4. Removes the client when the connection closes
+2. Creates a `handler` object with a `send` function that writes SSE-formatted data
+3. Adds the handler to the `connections` list
+4. Removes the handler when the connection closes
 
 ### Broadcasting Messages
 
 ```tova
 fn send_message(username, text) -> ChatMessage {
   msg = ChatMessage(username, text, Date.new().toISOString())
-  messages = messages ++ [msg]
+  messages = [...messages, msg]
 
   // Broadcast to all connected SSE clients
-  for client in clients {
-    client.send(JSON.stringify(msg))
+  for conn in connections {
+    conn.send(JSON.stringify(msg))
   }
 
   msg
@@ -242,7 +242,7 @@ effect {
 
   source.onmessage = fn(event) {
     msg = JSON.parse(event.data)
-    messages = messages ++ [msg]
+    messages = [...messages, msg]
   }
 }
 ```

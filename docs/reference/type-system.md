@@ -354,6 +354,160 @@ impl Printable for Point {
 }
 ```
 
+## Strict Mode
+
+By default, Tova uses gradual typing — type mismatches produce warnings but don't prevent compilation. Strict mode upgrades these warnings to hard errors, catching more bugs at compile time.
+
+### Enabling Strict Mode
+
+```bash
+tova run app.tova --strict
+tova build src --strict
+```
+
+### What Strict Mode Enforces
+
+In strict mode, the following produce **errors** instead of warnings:
+
+| Check | Example | Default | Strict |
+|-------|---------|---------|--------|
+| Binary operator type mismatch | `"hello" - 5` | warning | error |
+| Variable reassignment type mismatch | `var x = 10; x = "hello"` | warning | error |
+| Compound assignment type mismatch | `var s = "hi"; s -= 1` | warning | error |
+| Function argument count mismatch | `add(1, 2, 3)` when `fn add(a, b)` | warning | error |
+
+Strict mode also warns about potential data loss from **float narrowing**:
+
+```tova
+var count: Int = 10
+count = 3.14  // warning: Potential data loss: assigning Float to Int variable
+```
+
+### Trait Conformance
+
+When implementing a trait or interface via `impl`, the compiler checks that all required methods are provided:
+
+```tova
+interface Printable {
+  fn to_string(self) -> String
+}
+
+impl Printable for Point {
+  // Missing to_string → warning: Impl for 'Point' missing required method 'to_string' from trait 'Printable'
+}
+```
+
+The compiler also validates that parameter counts and return types match the trait definition.
+
+### Match Exhaustiveness
+
+The compiler checks `match` expressions against the known variants of a type:
+
+```tova
+type Shape {
+  Circle(radius: Float)
+  Rectangle(width: Float, height: Float)
+}
+
+fn area(s: Shape) -> Float {
+  match s {
+    Circle(r) => 3.14 * r ** 2
+    // warning: Non-exhaustive match: missing 'Rectangle' variant from type 'Shape'
+  }
+}
+```
+
+Add a wildcard `_` or binding pattern as a catch-all to suppress the warning:
+
+```tova
+match s {
+  Circle(r) => 3.14 * r ** 2
+  _ => 0.0
+}
+```
+
+::: tip
+The LSP server always runs with strict mode enabled, so you'll see all type issues as diagnostics in your editor regardless of how you compile.
+:::
+
+## Refinement Types
+
+Refinement types add runtime constraints to existing types using a `where` clause. They let you express invariants like "a string that contains @" or "an integer between 0 and 150" directly in the type system.
+
+### Syntax
+
+```tova
+type Email = String where {
+  it |> contains("@")
+  it |> contains(".")
+}
+
+type Age = Int where {
+  0 <= it and it <= 150
+}
+
+type NonEmpty = String where {
+  it |> len() > 0
+}
+```
+
+The `it` keyword refers to the value being validated. Each line in the `where` block is a predicate that must return `true`.
+
+### Multiple Predicates
+
+A refinement type can have multiple predicates. All must hold for a value to be valid:
+
+```tova
+type StrongPassword = String where {
+  it |> len() >= 8
+  it |> contains_upper()
+  it |> contains_digit()
+}
+```
+
+### Using Refinement Types
+
+Refinement types work anywhere a regular type does -- in function parameters, variable annotations, and struct fields:
+
+```tova
+type User {
+  name: NonEmpty
+  email: Email
+  age: Age
+}
+
+fn send_email(to: Email, subject: String) {
+  // 'to' is guaranteed to contain "@" and "."
+}
+```
+
+### How They Compile
+
+Each refinement type compiles to a validator function. When a value is annotated with a refinement type, the validator runs at the boundary:
+
+```tova
+// type Email = String where { it |> contains("@") }
+// compiles roughly to:
+// function __validate_Email(it) {
+//   if (!(it.includes("@"))) return false;
+//   return true;
+// }
+```
+
+### Alongside Regular Types
+
+Refinement types and regular type aliases can coexist in the same file:
+
+```tova
+type UserId = Int
+type Email = String where { it |> contains("@") }
+
+type User {
+  id: UserId
+  email: Email
+}
+```
+
 ## Common Type Patterns
 
 ### Option for Nullable Values

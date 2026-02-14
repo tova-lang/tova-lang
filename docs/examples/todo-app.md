@@ -20,8 +20,8 @@ shared {
 }
 
 server {
-  mut todos = []
-  mut next_id = 1
+  var todos = []
+  var next_id = 1
 
   fn list_todos() -> [Todo] {
     todos
@@ -30,7 +30,7 @@ server {
   fn add_todo(title) -> Todo {
     todo = Todo(next_id, title, false)
     next_id = next_id + 1
-    todos = todos ++ [todo]
+    todos = [...todos, todo]
     todo
   }
 
@@ -77,7 +77,7 @@ client {
   fn handle_add() {
     guard new_title != "" else { return }
     todo = server.add_todo(new_title)
-    todos = todos ++ [todo]
+    todos = [...todos, todo]
     new_title = ""
   }
 
@@ -169,13 +169,13 @@ The `shared` block defines types available to both server and client. The `Todo`
 
 ```tova
 server {
-  mut todos = []
-  mut next_id = 1
+  var todos = []
+  var next_id = 1
 
   fn add_todo(title) -> Todo {
     todo = Todo(next_id, title, false)
     next_id = next_id + 1
-    todos = todos ++ [todo]
+    todos = [...todos, todo]
     todo
   }
 
@@ -185,7 +185,7 @@ server {
 
 Key concepts:
 
-- **`mut`** declares mutable server state that persists across requests
+- **`var`** declares mutable server state that persists across requests
 - **Functions** contain the business logic. `add_todo` creates a new `Todo`, appends it to the list, and returns it
 - **`route`** maps HTTP methods and paths to handler functions. Parameters in the URL (like `:id`) are extracted and passed to the handler
 
@@ -229,7 +229,7 @@ An `effect` block runs after the component mounts. This is where you perform sid
 fn handle_add() {
   guard new_title != "" else { return }
   todo = server.add_todo(new_title)
-  todos = todos ++ [todo]
+  todos = [...todos, todo]
   new_title = ""
 }
 ```

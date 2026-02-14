@@ -78,31 +78,26 @@ server {
 
   // ── Auth Middleware ─────────────────────────────────────────
 
-  middleware auth(req, res) {
+  middleware fn auth(req, res) {
     header = req.headers["authorization"]
-    guard header != nil else {
+    if header == nil {
       res.status(401)
-      return { error: "Missing authorization header" }
     }
 
     token = header.replace("Bearer ", "")
-    guard token != "" else {
+    if token == "" {
       res.status(401)
-      return { error: "Invalid token format" }
     }
 
     user = verify_token(token)
-    guard user != nil else {
+    if user == nil {
       res.status(401)
-      return { error: "Invalid or expired token" }
     }
-
-    req.user = user
   }
 
   // ── Registration ────────────────────────────────────────────
 
-  fn register(email, password, name) -> AuthResponse {
+  fn register(email, password, name) {
     // Check if user already exists
     existing = User.find_by({ email: email })
     guard existing == nil else {
@@ -133,7 +128,7 @@ server {
 
   // ── Login ───────────────────────────────────────────────────
 
-  fn login(email, password) -> AuthResponse {
+  fn login(email, password) {
     user = User.find_by({ email: email })
     guard user != nil else {
       return Err("Invalid email or password")
@@ -230,10 +225,9 @@ client {
   component LoginForm {
     <div class="form">
       <h2>"Login"</h2>
-      {match error_msg {
-        "" => <span />
-        msg => <p class="error">{msg}</p>
-      }}
+      if error_msg != "" {
+        <p class="error">{error_msg}</p>
+      }
       <input
         type="text"
         placeholder="Email"
@@ -257,10 +251,9 @@ client {
   component RegisterForm {
     <div class="form">
       <h2>"Register"</h2>
-      {match error_msg {
-        "" => <span />
-        msg => <p class="error">{msg}</p>
-      }}
+      if error_msg != "" {
+        <p class="error">{error_msg}</p>
+      }
       <input
         type="text"
         placeholder="Name"
@@ -377,30 +370,35 @@ The JWT secret should be loaded from an environment variable in production.
 ### Auth Middleware
 
 ```tova
-middleware auth(req, res) {
+middleware fn auth(req, res) {
   header = req.headers["authorization"]
-  guard header != nil else {
+  if header == nil {
     res.status(401)
-    return { error: "Missing authorization header" }
   }
 
   token = header.replace("Bearer ", "")
-  req.user = verify_token(token)
+  if token == "" {
+    res.status(401)
+  }
+
+  user = verify_token(token)
+  if user == nil {
+    res.status(401)
+  }
 }
 ```
 
-The `auth` middleware uses chained `guard` clauses to validate the request:
+The `auth` middleware uses `if` checks to validate the request:
 1. Check that the `Authorization` header exists
 2. Extract and validate the token format
 3. Verify the token and load the user
-4. Attach the user to the request for route handlers
 
-If any guard fails, the middleware returns a 401 response and the route handler is never called.
+If any check fails, the middleware sets a 401 status and the route handler is never called. Note the `fn` keyword after `middleware` -- this is required by the parser.
 
 ### Registration with Validation
 
 ```tova
-fn register(email, password, name) -> AuthResponse {
+fn register(email, password, name) {
   existing = User.find_by({ email: email })
   guard existing == nil else {
     return Err("Email already registered")
@@ -447,13 +445,12 @@ The client uses a `view` state variable to switch between login, registration, a
 ### Error Display Pattern
 
 ```tova
-{match error_msg {
-  "" => <span />
-  msg => <p class="error">{msg}</p>
-}}
+if error_msg != "" {
+  <p class="error">{error_msg}</p>
+}
 ```
 
-Error messages from the server are displayed conditionally. When `error_msg` is empty, an invisible element is rendered. When an error exists, it displays in a styled paragraph.
+Error messages from the server are displayed conditionally using an `if` block inside JSX. When `error_msg` is empty, nothing is rendered. When an error exists, it displays in a styled paragraph. This pattern avoids using `match` with JSX elements in match arms, which is not supported since JSX elements are not valid in expression position.
 
 ## Security Considerations
 
@@ -461,7 +458,7 @@ Error messages from the server are displayed conditionally. When `error_msg` is 
 - JWT tokens expire after 24 hours
 - The shared `User` type excludes `password_hash`
 - Auth middleware validates every protected request
-- Guard clauses ensure early rejection of invalid requests
+- Guard clauses in functions and `if` checks in middleware ensure early rejection of invalid requests
 - In production, load `JWT_SECRET` from environment variables
 
 ## What's Next

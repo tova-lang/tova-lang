@@ -58,6 +58,25 @@ export class Analyzer {
       'snake_case', 'camel_case',
       // Math extras
       'min', 'max',
+      // Table operations
+      'Table', 'table_where', 'table_select', 'table_derive',
+      'table_group_by', 'table_agg', 'table_sort_by', 'table_limit',
+      'table_join', 'table_pivot', 'table_unpivot', 'table_explode',
+      'table_union', 'table_drop_duplicates', 'table_rename',
+      // Table aggregation helpers
+      'agg_sum', 'agg_count', 'agg_mean', 'agg_median', 'agg_min', 'agg_max',
+      // Data exploration
+      'peek', 'describe', 'schema_of',
+      // Data cleaning
+      'cast', 'drop_nil', 'fill_nil', 'filter_ok', 'filter_err',
+      // I/O
+      'read', 'write', 'stream',
+      // CSV/JSONL helpers
+      '__parseCSV', '__parseJSONL',
+      // Table operation aliases (short names)
+      'where', 'select', 'derive', 'agg', 'sort_by', 'limit',
+      'pivot', 'unpivot', 'explode', 'union', 'drop_duplicates', 'rename',
+      'mean', 'median',
     ];
     for (const name of builtins) {
       this.globalScope.define(name, new Symbol(name, 'builtin', null, false, { line: 0, column: 0, file: '<builtin>' }));
@@ -400,6 +419,13 @@ export class Analyzer {
       case 'CacheDeclaration': return this.visitCacheDeclaration(node);
       case 'SseDeclaration': return this.visitSseDeclaration(node);
       case 'ModelDeclaration': return this.visitModelDeclaration(node);
+      case 'AiConfigDeclaration': return; // handled at block level
+      case 'DataBlock': return this.visitDataBlock(node);
+      case 'SourceDeclaration': return;
+      case 'PipelineDeclaration': return;
+      case 'ValidateBlock': return;
+      case 'RefreshPolicy': return;
+      case 'RefinementType': return;
       case 'TestBlock': return this.visitTestBlock(node);
       case 'ComponentStyleBlock': return; // raw CSS — no analysis needed
       case 'ImplDeclaration': return this.visitImplDeclaration(node);
@@ -540,6 +566,14 @@ export class Analyzer {
         return;
       case 'JSXElement':
         return this.visitJSXElement(node);
+      // Column expressions (for table operations) — no semantic analysis needed
+      case 'ColumnExpression':
+        return;
+      case 'ColumnAssignment':
+        this.visitExpression(node.expression);
+        return;
+      case 'NegatedColumnExpression':
+        return;
     }
   }
 
@@ -566,12 +600,44 @@ export class Analyzer {
         }
       }
 
+      // Register AI provider names as variables (named: claude, gpt, etc.; default: ai)
+      for (const stmt of node.body) {
+        if (stmt.type === 'AiConfigDeclaration') {
+          const aiName = stmt.name || 'ai';
+          try {
+            this.currentScope.define(aiName,
+              new Symbol(aiName, 'builtin', null, false, stmt.loc));
+          } catch (e) {
+            // Ignore if already defined
+          }
+        }
+      }
+
       for (const stmt of node.body) {
         this.visitNode(stmt);
       }
     } finally {
       this.currentScope = prevScope;
       this._currentServerBlockName = prevServerBlockName;
+    }
+  }
+
+  visitDataBlock(node) {
+    // Register source and pipeline names in global scope
+    for (const stmt of node.body) {
+      if (stmt.type === 'SourceDeclaration') {
+        try {
+          this.currentScope.define(stmt.name,
+            new Symbol(stmt.name, 'variable', null, false, stmt.loc));
+        } catch (e) { /* already defined */ }
+        if (stmt.expression) this.visitExpression(stmt.expression);
+      } else if (stmt.type === 'PipelineDeclaration') {
+        try {
+          this.currentScope.define(stmt.name,
+            new Symbol(stmt.name, 'variable', null, false, stmt.loc));
+        } catch (e) { /* already defined */ }
+        if (stmt.expression) this.visitExpression(stmt.expression);
+      }
     }
   }
 

@@ -1133,3 +1133,108 @@ export class TupleTypeAnnotation {
     this.loc = loc;
   }
 }
+
+// ============================================================
+// Column expressions (for table operations)
+// ============================================================
+
+export class ColumnExpression {
+  constructor(name, loc) {
+    this.type = 'ColumnExpression';
+    this.name = name;  // column name, e.g. "age" for .age
+    this.loc = loc;
+  }
+}
+
+export class ColumnAssignment {
+  constructor(target, expression, loc) {
+    this.type = 'ColumnAssignment';
+    this.target = target;       // column name to assign to
+    this.expression = expression; // expression computing the value
+    this.loc = loc;
+  }
+}
+
+export class NegatedColumnExpression {
+  constructor(name, loc) {
+    this.type = 'NegatedColumnExpression';
+    this.name = name;  // column name for exclusion, e.g. "password" for -.password
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Data block nodes
+// ============================================================
+
+export class DataBlock {
+  constructor(body, loc) {
+    this.type = 'DataBlock';
+    this.body = body;  // Array of SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy
+    this.loc = loc;
+  }
+}
+
+export class SourceDeclaration {
+  constructor(name, typeAnnotation, expression, loc) {
+    this.type = 'SourceDeclaration';
+    this.name = name;
+    this.typeAnnotation = typeAnnotation;
+    this.expression = expression;
+    this.loc = loc;
+  }
+}
+
+export class PipelineDeclaration {
+  constructor(name, expression, loc) {
+    this.type = 'PipelineDeclaration';
+    this.name = name;
+    this.expression = expression;
+    this.loc = loc;
+  }
+}
+
+export class ValidateBlock {
+  constructor(typeName, rules, loc) {
+    this.type = 'ValidateBlock';
+    this.typeName = typeName;
+    this.rules = rules;  // Array of expression predicates
+    this.loc = loc;
+  }
+}
+
+export class RefreshPolicy {
+  constructor(sourceName, interval, loc) {
+    this.type = 'RefreshPolicy';
+    this.sourceName = sourceName;
+    this.interval = interval;  // { value, unit } or "on_demand"
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// AI configuration
+// ============================================================
+
+export class AiConfigDeclaration {
+  constructor(name, config, loc) {
+    this.type = 'AiConfigDeclaration';
+    this.name = name;    // optional string name (null for default)
+    this.config = config; // key-value config object
+    this.loc = loc;
+  }
+}
+
+// ============================================================
+// Refinement types
+// ============================================================
+
+export class RefinementType {
+  constructor(name, baseType, predicate, loc) {
+    this.type = 'RefinementType';
+    this.name = name;
+    this.baseType = baseType;      // TypeAnnotation
+    this.predicate = predicate;    // Expression (body of where block, uses 'it')
+    this.loc = loc;
+  }
+}

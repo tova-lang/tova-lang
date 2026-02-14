@@ -24,6 +24,12 @@ export class Scope {
 
   define(name, symbol) {
     if (this.symbols.has(name)) {
+      const existing = this.symbols.get(name);
+      // Allow user code to shadow builtins
+      if (existing.kind === 'builtin') {
+        this.symbols.set(name, symbol);
+        return;
+      }
       throw new Error(
         `${symbol.loc.file}:${symbol.loc.line}:${symbol.loc.column} — '${name}' is already defined in this scope`
       );

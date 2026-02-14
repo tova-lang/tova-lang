@@ -157,6 +157,14 @@ export class BaseCodegen {
       case 'TypeAlias': result = this.genTypeAlias(node); break;
       case 'DeferStatement': result = this.genDeferStatement(node); break;
       case 'ExternDeclaration': result = `${this.i()}// extern: ${node.name}`; break;
+      // Config declarations handled at block level — emit nothing in statement context
+      case 'AiConfigDeclaration': result = ''; break;
+      case 'DataBlock': result = ''; break;
+      case 'SourceDeclaration': result = ''; break;
+      case 'PipelineDeclaration': result = ''; break;
+      case 'ValidateBlock': result = ''; break;
+      case 'RefreshPolicy': result = ''; break;
+      case 'RefinementType': result = this.genRefinementType(node); break;
       default:
         result = `${this.i()}${this.genExpression(node)};`;
     }
@@ -213,6 +221,10 @@ export class BaseCodegen {
       case 'AwaitExpression': return `(await ${this.genExpression(node.argument)})`;
       case 'YieldExpression': return node.delegate ? `(yield* ${this.genExpression(node.argument)})` : `(yield ${this.genExpression(node.argument)})`;
       case 'TupleExpression': return `[${node.elements.map(e => this.genExpression(e)).join(', ')}]`;
+      // Column expressions (for table operations)
+      case 'ColumnExpression': return this.genColumnExpression(node);
+      case 'ColumnAssignment': return this.genColumnAssignment(node);
+      case 'NegatedColumnExpression': return `{ __exclude: ${JSON.stringify(node.name)} }`;
       default:
         throw new Error(`Codegen: unknown expression type '${node.type}'`);
     }
@@ -756,6 +768,16 @@ export class BaseCodegen {
       }
     }
 
+    // Check for table operation calls with column expressions
+    const hasColumnExprs = node.arguments.some(a => this._containsColumnExpr(a));
+    if (hasColumnExprs || (node.callee.type === 'Identifier' && ['agg', 'table_agg'].includes(node.callee.name))) {
+      const tableArgs = this._genTableCallArgs(node);
+      if (tableArgs) {
+        const callee = this.genExpression(node.callee);
+        return `${callee}(${tableArgs.join(', ')})`;
+      }
+    }
+
     const callee = this.genExpression(node.callee);
     const hasNamedArgs = node.arguments.some(a => a.type === 'NamedArgument');
 
@@ -814,6 +836,20 @@ export class BaseCodegen {
 
     // If right is a call expression, check for placeholder _ or insert as first arg
     if (right.type === 'CallExpression') {
+      // Check for table operations with column expressions
+      const hasColumnExprs = right.arguments.some(a => this._containsColumnExpr(a));
+      if (hasColumnExprs || (right.callee.type === 'Identifier' && ['agg', 'table_agg'].includes(right.callee.name))) {
+        const tableArgs = this._genTableCallArgs(right);
+        if (tableArgs) {
+          const callee = this.genExpression(right.callee);
+          // Track builtin usage
+          if (right.callee.type === 'Identifier' && BUILTIN_NAMES.has(right.callee.name)) {
+            this._usedBuiltins.add(right.callee.name);
+          }
+          return `${callee}(${[left, ...tableArgs].join(', ')})`;
+        }
+      }
+
       const placeholderCount = right.arguments.filter(a => a.type === 'Identifier' && a.name === '_').length;
       if (placeholderCount > 0) {
         const callee = this.genExpression(right.callee);
@@ -847,6 +883,250 @@ export class BaseCodegen {
     }
     // Fallback
     return `(${this.genExpression(right)})(${left})`;
+  }
+
+  // ─── Column expressions ──────────────────────────────────
+
+  // Context flag for whether we're inside a select() call argument list
+  _columnAsString = false;
+
+  genColumnExpression(node) {
+    // Inside select(), column expressions compile to string names
+    if (this._columnAsString) {
+      return JSON.stringify(node.name);
+    }
+    // Default: compile to row lambda
+    return `(__row) => __row.${node.name}`;
+  }
+
+  genColumnAssignment(node) {
+    // Compile to object entry for derive(): { colName: (row) => expr }
+    // The expression inside the assignment may reference other columns
+    const expr = this._genColumnBody(node.expression);
+    return `${JSON.stringify(node.target)}: (__row) => ${expr}`;
+  }
+
+  // Generate an expression body that wraps column references as __row.col
+  _genColumnBody(node) {
+    if (!node) return 'undefined';
+    if (node.type === 'ColumnExpression') {
+      return `__row.${node.name}`;
+    }
+    if (node.type === 'BinaryExpression') {
+      return `(${this._genColumnBody(node.left)} ${node.operator} ${this._genColumnBody(node.right)})`;
+    }
+    if (node.type === 'LogicalExpression') {
+      const op = node.operator === 'and' ? '&&' : node.operator === 'or' ? '||' : node.operator;
+      return `(${this._genColumnBody(node.left)} ${op} ${this._genColumnBody(node.right)})`;
+    }
+    if (node.type === 'UnaryExpression') {
+      return `${node.operator}${this._genColumnBody(node.operand)}`;
+    }
+    if (node.type === 'CallExpression') {
+      // Check if callee is a builtin used as pipe target
+      const callee = this.genExpression(node.callee);
+      const args = node.arguments.map(a => this._genColumnBody(a)).join(', ');
+      return `${callee}(${args})`;
+    }
+    if (node.type === 'PipeExpression') {
+      const left = this._genColumnBody(node.left);
+      const right = node.right;
+      if (right.type === 'CallExpression') {
+        const callee = this.genExpression(right.callee);
+        const args = [left, ...right.arguments.map(a => this._genColumnBody(a))].join(', ');
+        return `${callee}(${args})`;
+      }
+      if (right.type === 'Identifier') {
+        return `${right.name}(${left})`;
+      }
+      return `(${this._genColumnBody(right)})(${left})`;
+    }
+    if (node.type === 'TemplateLiteral') {
+      // Template literal with column references
+      const parts = node.parts.map(p => {
+        if (p.type === 'text') return p.value;
+        return `\${${this._genColumnBody(p.value)}}`;
+      });
+      return '`' + parts.join('') + '`';
+    }
+    if (node.type === 'ConditionalExpression' || node.type === 'IfExpression') {
+      const cond = this._genColumnBody(node.condition);
+      const cons = this._genColumnBody(node.consequent);
+      const alt = node.alternate || node.elseBody;
+      const altCode = alt ? this._genColumnBody(alt) : 'undefined';
+      return `(${cond} ? ${cons} : ${altCode})`;
+    }
+    if (node.type === 'MatchExpression') {
+      // Match on column value
+      const subject = this._genColumnBody(node.subject);
+      const tmp = `__match_${this._uid()}`;
+      let code = `((__m) => { `;
+      for (const arm of node.arms) {
+        if (arm.pattern.type === 'WildcardPattern') {
+          const body = this._genColumnBody(arm.body);
+          code += `return ${body}; `;
+        } else if (arm.pattern.type === 'RangePattern') {
+          const start = this.genExpression(arm.pattern.start);
+          const end = this.genExpression(arm.pattern.end);
+          const op = arm.pattern.inclusive ? '<=' : '<';
+          code += `if (__m >= ${start} && __m ${op} ${end}) return ${this._genColumnBody(arm.body)}; `;
+        } else {
+          const pat = this.genExpression(arm.pattern.value || arm.pattern);
+          code += `if (__m === ${pat}) return ${this._genColumnBody(arm.body)}; `;
+        }
+      }
+      code += `})(${subject})`;
+      return code;
+    }
+    if (node.type === 'MemberExpression') {
+      const obj = this._genColumnBody(node.object);
+      if (node.computed) {
+        return `${obj}[${this._genColumnBody(node.property)}]`;
+      }
+      return `${obj}.${node.property}`;
+    }
+    // Fallback to normal expression generation for constants, strings, etc.
+    return this.genExpression(node);
+  }
+
+  // Override genCallExpression to handle table operations with column expressions
+  _genTableCallArgs(node) {
+    const calleeName = node.callee.type === 'Identifier' ? node.callee.name : null;
+
+    // select() — column expressions should compile to strings
+    if (calleeName === 'select' || calleeName === 'table_select') {
+      this._columnAsString = true;
+      const args = node.arguments.map(a => this.genExpression(a));
+      this._columnAsString = false;
+      return args;
+    }
+
+    // where() — column expressions compile to row lambdas
+    if (calleeName === 'where' || calleeName === 'table_where') {
+      return node.arguments.map(a => {
+        if (this._containsColumnExpr(a)) {
+          return `(__row) => ${this._genColumnBody(a)}`;
+        }
+        return this.genExpression(a);
+      });
+    }
+
+    // sort_by() — column expression compiles to row lambda
+    if (calleeName === 'sort_by' || calleeName === 'table_sort_by') {
+      return node.arguments.map(a => {
+        if (this._containsColumnExpr(a)) {
+          return `(__row) => ${this._genColumnBody(a)}`;
+        }
+        return this.genExpression(a);
+      });
+    }
+
+    // group_by() — column expression compiles to row lambda
+    if (calleeName === 'group_by' || calleeName === 'table_group_by') {
+      return node.arguments.map(a => {
+        if (this._containsColumnExpr(a)) {
+          return `(__row) => ${this._genColumnBody(a)}`;
+        }
+        return this.genExpression(a);
+      });
+    }
+
+    // derive() — column assignments compile to { name: (row) => expr }
+    if (calleeName === 'derive' || calleeName === 'table_derive') {
+      const parts = [];
+      for (const a of node.arguments) {
+        if (a.type === 'ColumnAssignment') {
+          parts.push(this.genColumnAssignment(a));
+        } else {
+          parts.push(this.genExpression(a));
+        }
+      }
+      // Wrap column assignments in an object
+      const hasAssignments = node.arguments.some(a => a.type === 'ColumnAssignment');
+      if (hasAssignments) {
+        return [`{ ${parts.join(', ')} }`];
+      }
+      return parts;
+    }
+
+    // agg() — named arguments with aggregation functions
+    if (calleeName === 'agg' || calleeName === 'table_agg') {
+      const parts = [];
+      for (const a of node.arguments) {
+        if (a.type === 'NamedArgument') {
+          // Named agg: total: sum(.amount) → total: agg_sum((__row) => __row.amount)
+          const val = a.value;
+          if (val.type === 'CallExpression' && val.callee.type === 'Identifier') {
+            const aggName = val.callee.name;
+            const aggFn = `agg_${aggName}`;
+            if (['sum', 'count', 'mean', 'median', 'min', 'max'].includes(aggName)) {
+              this._usedBuiltins.add(aggFn);
+              if (val.arguments.length === 0) {
+                // count() with no args
+                parts.push(`${a.name}: ${aggFn}()`);
+              } else {
+                const inner = val.arguments[0];
+                if (this._containsColumnExpr(inner)) {
+                  parts.push(`${a.name}: ${aggFn}((__row) => ${this._genColumnBody(inner)})`);
+                } else {
+                  parts.push(`${a.name}: ${aggFn}(${this.genExpression(inner)})`);
+                }
+              }
+              continue;
+            }
+          }
+          parts.push(`${a.name}: ${this.genExpression(a.value)}`);
+        } else {
+          parts.push(this.genExpression(a));
+        }
+      }
+      const hasNamed = node.arguments.some(a => a.type === 'NamedArgument');
+      if (hasNamed) {
+        return [`{ ${parts.join(', ')} }`];
+      }
+      return parts;
+    }
+
+    // drop_nil/fill_nil — column expression compiles to string or lambda
+    if (calleeName === 'drop_nil' || calleeName === 'fill_nil') {
+      return node.arguments.map(a => {
+        if (a.type === 'ColumnExpression') {
+          return JSON.stringify(a.name);
+        }
+        return this.genExpression(a);
+      });
+    }
+
+    // join() — handle left/right column expressions
+    if (calleeName === 'join' || calleeName === 'table_join') {
+      return node.arguments.map(a => {
+        if (a.type === 'NamedArgument') {
+          if ((a.name === 'left' || a.name === 'right') && a.value.type === 'ColumnExpression') {
+            return this.genExpression(a); // NamedArgument genExpression handles it
+          }
+        }
+        return this.genExpression(a);
+      });
+    }
+
+    return null; // No special handling needed
+  }
+
+  _containsColumnExpr(node) {
+    if (!node) return false;
+    if (node.type === 'ColumnExpression' || node.type === 'ColumnAssignment' || node.type === 'NegatedColumnExpression') return true;
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue;
+      const val = node[key];
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          if (item && typeof item === 'object' && this._containsColumnExpr(item)) return true;
+        }
+      } else if (val && typeof val === 'object' && val.type) {
+        if (this._containsColumnExpr(val)) return true;
+      }
+    }
+    return false;
   }
 
   genLambdaExpression(node) {
@@ -1321,6 +1601,14 @@ export class BaseCodegen {
     const exportStr = node.isPublic ? 'export ' : '';
     const typeStr = node.typeExpr.name || 'any';
     return `${this.i()}/* ${exportStr}type alias: ${node.name} = ${typeStr} */`;
+  }
+
+  genRefinementType(node) {
+    // Refinement types compile to validator functions
+    // type Email = String where { it |> contains("@") }
+    // → function __validate_Email(it) { return it.includes("@"); }
+    const predExpr = this.genExpression(node.predicate);
+    return `${this.i()}function __validate_${node.name}(it) {\n${this.i()}  if (!(${predExpr})) throw new Error("Refinement type ${node.name} validation failed");\n${this.i()}  return it;\n${this.i()}}`;
   }
 
   genDeferStatement(node) {

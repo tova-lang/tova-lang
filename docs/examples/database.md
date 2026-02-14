@@ -72,7 +72,7 @@ server {
     Post.where({ published: true })
   }
 
-  fn get_post(id) -> PostWithAuthor {
+  fn get_post(id) {
     post = Post.find(id)
     guard post != nil else {
       return Err("Post not found")
@@ -93,7 +93,7 @@ server {
     })
   }
 
-  fn update_post(req, id, title, body) -> Post {
+  fn update_post(req, id, title, body) {
     post = Post.find(id)
     guard post != nil else {
       return Err("Post not found")
@@ -108,7 +108,7 @@ server {
     Post.find(id)
   }
 
-  fn publish_post(req, id) -> Post {
+  fn publish_post(req, id) {
     post = Post.find(id)
     guard post != nil else {
       return Err("Post not found")
@@ -122,7 +122,7 @@ server {
     Post.find(id)
   }
 
-  fn delete_post(req, id) -> Bool {
+  fn delete_post(req, id) {
     post = Post.find(id)
     guard post != nil else {
       return Err("Post not found")
@@ -178,7 +178,7 @@ client {
   state posts = []
   state current_post = nil
   state search_query = ""
-  state view = "list"  // "list" | "detail" | "search"
+  state view = "list"  // "list" | "detail"
 
   computed filtered_posts = match search_query {
     "" => posts
@@ -215,6 +215,12 @@ client {
     </div>
   }
 
+  component PostList {
+    <div class="post-list">
+      {filtered_posts |> map(fn(post) PostCard(post))}
+    </div>
+  }
+
   component PostDetail {
     <div class="post-detail">
       <button onclick={fn() view = "list"}>"Back"</button>
@@ -222,6 +228,10 @@ client {
       <p class="author">"By {current_post.author.name}"</p>
       <div class="body">{current_post.post.body}</div>
     </div>
+  }
+
+  component Loading {
+    <p>"Loading..."</p>
   }
 
   component App {
@@ -237,11 +247,9 @@ client {
       </header>
 
       {match view {
-        "list" => <div class="post-list">
-          {filtered_posts |> map(fn(post) PostCard(post))}
-        </div>
+        "list" => PostList()
         "detail" => PostDetail()
-        _ => <p>"Loading..."</p>
+        _ => Loading()
       }}
     </div>
   }
@@ -380,7 +388,7 @@ fn get_post(id) -> PostWithAuthor {
 ### Authorization Guards
 
 ```tova
-fn update_post(req, id, title, body) -> Post {
+fn update_post(req, id, title, body) {
   post = Post.find(id)
   guard post != nil else {
     return Err("Post not found")

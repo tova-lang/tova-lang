@@ -24,25 +24,79 @@ bun run src/lsp/server.js
 
 ### Diagnostics
 
-The server analyzes `.tova` files on every change and reports errors and warnings in real time:
+The server analyzes `.tova` files on every change and reports errors and warnings in real time. The LSP always runs with strict type checking enabled, so you see the full range of type issues as you edit.
 
 - **Syntax errors** -- Invalid tokens, unexpected characters, malformed expressions
 - **Parse errors** -- Missing braces, incorrect block structure, invalid patterns
-- **Type warnings** -- Undefined identifiers, unused variables (in function scopes)
+- **Type errors** -- Type mismatches in assignments, operators, and function calls
 - **Exhaustive match warnings** -- Uncovered Result/Option/custom type variants
+- **Trait conformance** -- Missing methods in `impl` blocks
+- **Unused variables** -- Shown as faded/dimmed text (hint severity)
+- **Variable shadowing** -- Informational diagnostics for shadowed bindings
+
+Diagnostics are categorized by severity:
+
+| Finding | Severity |
+|---------|----------|
+| Parse errors | Error |
+| Type mismatches | Error |
+| Non-exhaustive match | Warning |
+| Variable shadowing | Information |
+| Unused variables | Hint (with "unnecessary" tag) |
 
 Diagnostics use Tova's rich error message system with precise source locations. The server supports parser error recovery, providing diagnostics for multiple errors in a single file rather than stopping at the first one.
 
 ### Completion
 
-Triggered by typing or by pressing `Ctrl+Space`, completion provides suggestions for:
+Triggered by typing or by pressing `Ctrl+Space`, completion is context-aware and provides different suggestions depending on what you're typing:
+
+#### Dot completion
+
+Type a variable name followed by `.` to see its fields and methods:
+
+```tova
+type User {
+  Create(name: String, age: Int)
+}
+
+impl User {
+  fn greet(self) -> String { "Hi, {self.name}" }
+}
+
+u = Create("Alice", 30)
+u.   // suggests: name (field), age (field), greet (method)
+```
+
+Fields are listed first, followed by methods from `impl` blocks.
+
+#### Type annotation completion
+
+After a `:` in a type position, the server suggests type names:
+
+```tova
+fn process(input:   // suggests: Int, Float, String, Bool, Result, Option, and user-defined types
+```
+
+#### Match variant completion
+
+Inside a `match` block, the server suggests the variants of the matched type:
+
+```tova
+match shape {
+  // suggests: Circle, Rectangle, Triangle (variants of Shape)
+}
+```
+
+#### General completion
+
+In all other contexts, completion provides:
 
 - **Keywords** -- `fn`, `let`, `if`, `elif`, `else`, `for`, `while`, `match`, `type`, `import`, `server`, `client`, `shared`, `pub`, `mut`, `async`, `await`, `guard`, `interface`, `derive`, `route`, `model`, `db`, and more
 - **Built-in functions** -- `print`, `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`
 - **Result/Option constructors** -- `Ok`, `Err`, `Some`, `None`
 - **User-defined symbols** -- Functions, types, and variables defined in the current file
 
-Trigger characters: `.`, `"`, `'`, `/`, `<`
+Trigger characters: `.`, `"`, `'`, `/`, `<`, `:`
 
 Results are limited to 50 items for performance.
 
@@ -65,7 +119,23 @@ Hover over any identifier to see information about it:
   fn len(value) -- Get length of string, array, or object
   ```
 
-- **User-defined symbols** show their kind (function, variable, type), type annotations if present, and parameter lists for functions.
+- **Variables** show their inferred type:
+  ```
+  count (variable) — Type: Int
+  ```
+
+- **Functions** show their full signature with parameter types and return type:
+  ```
+  fn add(a: Int, b: Int) -> Int
+  ```
+
+- **Type declarations** show their full structure with variants and fields:
+  ```tova
+  type Shape {
+    Circle(radius: Float)
+    Rectangle(width: Float, height: Float)
+  }
+  ```
 
 ### Signature Help
 

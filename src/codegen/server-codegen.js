@@ -154,6 +154,7 @@ export class ServerCodegen extends BaseCodegen {
     let cacheConfig = null;
     const sseDecls = [];
     const modelDecls = [];
+    const aiConfigs = []; // { name: string|null, config: object }
 
     const collectFromBody = (stmts, groupPrefix = null, groupMiddlewares = []) => {
       for (const stmt of stmts) {
@@ -225,6 +226,8 @@ export class ServerCodegen extends BaseCodegen {
           sseDecls.push(stmt);
         } else if (stmt.type === 'ModelDeclaration') {
           modelDecls.push(stmt);
+        } else if (stmt.type === 'AiConfigDeclaration') {
+          aiConfigs.push(stmt);
         } else {
           otherStatements.push(stmt);
         }
@@ -459,6 +462,32 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('  },');
         lines.push('  close() { __db.close(); },');
         lines.push('};');
+      }
+      lines.push('');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 3b. AI Client Initialization
+    // ════════════════════════════════════════════════════════════
+    if (aiConfigs.length > 0) {
+      lines.push('// ── AI Clients ──');
+      lines.push(this._getAiRuntime());
+      lines.push('');
+
+      for (const aiConf of aiConfigs) {
+        const configParts = [];
+        for (const [key, valueNode] of Object.entries(aiConf.config)) {
+          configParts.push(`  ${key}: ${this.genExpression(valueNode)}`);
+        }
+        const configStr = `{\n${configParts.join(',\n')}\n}`;
+
+        if (aiConf.name) {
+          // Named provider: ai "claude" { ... } → const claude = __createAI({...})
+          lines.push(`const ${aiConf.name} = __createAI(${configStr});`);
+        } else {
+          // Default provider: ai { ... } → const ai = __createAI({...})
+          lines.push(`const ai = __createAI(${configStr});`);
+        }
       }
       lines.push('');
     }
@@ -2502,5 +2531,134 @@ export class ServerCodegen extends BaseCodegen {
     }
 
     return lines.join('\n');
+  }
+
+  _getAiRuntime() {
+    return `// AI Client Runtime
+function __createAI(config) {
+  const providerName = config.provider || 'custom';
+  async function __aiRequest(method, args, callOpts = {}) {
+    const cfg = { ...config, ...callOpts };
+    const baseUrl = cfg.base_url || (providerName === 'anthropic' ? 'https://api.anthropic.com' : providerName === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com');
+    const headers = { 'Content-Type': 'application/json', ...(cfg.headers || {}) };
+    if (providerName === 'anthropic') {
+      headers['x-api-key'] = cfg.api_key;
+      headers['anthropic-version'] = '2023-06-01';
+    } else if (cfg.api_key) {
+      headers['Authorization'] = 'Bearer ' + cfg.api_key;
+    }
+    const timeout = cfg.timeout || 60000;
+
+    if (method === 'ask') {
+      const [prompt, opts] = args;
+      let body, url;
+      if (providerName === 'anthropic') {
+        body = { model: cfg.model, max_tokens: opts?.max_tokens || cfg.max_tokens || 4096, messages: [{ role: 'user', content: prompt }] };
+        if (opts?.temperature ?? cfg.temperature) body.temperature = opts?.temperature ?? cfg.temperature;
+        if (opts?.tools) body.tools = opts.tools.map(t => ({ name: t.name, description: t.description, input_schema: { type: 'object', properties: t.params ? Object.fromEntries(Object.entries(t.params).map(([k, v]) => [k, { type: typeof v === 'string' ? v.toLowerCase() : 'string' }])) : {} } }));
+        url = baseUrl + '/v1/messages';
+      } else if (providerName === 'ollama') {
+        body = { model: cfg.model, messages: [{ role: 'user', content: prompt }], stream: false };
+        url = baseUrl + '/api/chat';
+      } else {
+        body = { model: cfg.model, messages: [{ role: 'user', content: prompt }] };
+        if (opts?.max_tokens || cfg.max_tokens) body.max_tokens = opts?.max_tokens || cfg.max_tokens;
+        if (opts?.temperature ?? cfg.temperature) body.temperature = opts?.temperature ?? cfg.temperature;
+        if (opts?.tools) body.tools = opts.tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: { type: 'object', properties: t.params ? Object.fromEntries(Object.entries(t.params).map(([k, v]) => [k, { type: typeof v === 'string' ? v.toLowerCase() : 'string' }])) : {} } } }));
+        url = baseUrl + '/v1/chat/completions';
+      }
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+      if (!res.ok) throw new Error(providerName + ' API error ' + res.status + ': ' + (await res.text()));
+      const data = await res.json();
+      if (providerName === 'anthropic') {
+        if (opts?.tools && data.content?.some(c => c.type === 'tool_use')) return { text: data.content.filter(c => c.type === 'text').map(c => c.text).join(''), tool_calls: data.content.filter(c => c.type === 'tool_use') };
+        return data.content.map(c => c.text).join('');
+      }
+      if (providerName === 'ollama') return data.message.content;
+      const choice = data.choices[0];
+      if (opts?.tools && choice.message.tool_calls) return { text: choice.message.content || '', tool_calls: choice.message.tool_calls };
+      return choice.message.content;
+    }
+
+    if (method === 'chat') {
+      const [messages, opts] = args;
+      let body, url;
+      if (providerName === 'anthropic') {
+        const sys = messages.filter(m => m.role === 'system');
+        const msgs = messages.filter(m => m.role !== 'system');
+        body = { model: cfg.model, max_tokens: opts?.max_tokens || cfg.max_tokens || 4096, messages: msgs };
+        if (sys.length > 0) body.system = sys.map(m => m.content).join('\\n');
+        url = baseUrl + '/v1/messages';
+      } else if (providerName === 'ollama') {
+        body = { model: cfg.model, messages, stream: false };
+        url = baseUrl + '/api/chat';
+      } else {
+        body = { model: cfg.model, messages };
+        if (opts?.max_tokens || cfg.max_tokens) body.max_tokens = opts?.max_tokens || cfg.max_tokens;
+        url = baseUrl + '/v1/chat/completions';
+      }
+      if (opts?.temperature ?? cfg.temperature) body.temperature = opts?.temperature ?? cfg.temperature;
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+      if (!res.ok) throw new Error(providerName + ' API error ' + res.status + ': ' + (await res.text()));
+      const data = await res.json();
+      if (providerName === 'anthropic') return data.content.map(c => c.text).join('');
+      if (providerName === 'ollama') return data.message.content;
+      return data.choices[0].message.content;
+    }
+
+    if (method === 'embed') {
+      const [input, opts] = args;
+      let body, url;
+      if (providerName === 'ollama') {
+        url = baseUrl + '/api/embeddings';
+        if (Array.isArray(input)) {
+          const results = [];
+          for (const text of input) {
+            const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: cfg.model, prompt: text }) });
+            results.push((await r.json()).embedding);
+          }
+          return results;
+        }
+        body = { model: cfg.model, prompt: input };
+      } else {
+        body = { model: cfg.model || 'text-embedding-3-small', input };
+        url = baseUrl + '/v1/embeddings';
+      }
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+      if (!res.ok) throw new Error(providerName + ' API error ' + res.status + ': ' + (await res.text()));
+      const data = await res.json();
+      if (providerName === 'ollama') return data.embedding;
+      if (Array.isArray(input)) return data.data.map(d => d.embedding);
+      return data.data[0].embedding;
+    }
+
+    if (method === 'extract') {
+      const [prompt, schema, opts] = args;
+      const extractPrompt = prompt + '\\n\\nRespond with a JSON object matching this schema: ' + JSON.stringify(schema);
+      const text = await __aiRequest('ask', [extractPrompt, opts]);
+      try { return JSON.parse(text); } catch { return JSON.parse(text.match(/\\{[\\s\\S]*\\}/)?.[0] || '{}'); }
+    }
+
+    if (method === 'classify') {
+      const [text, categories, opts] = args;
+      const catList = Array.isArray(categories) ? categories : Object.keys(categories);
+      const classifyPrompt = 'Classify into one of: ' + catList.join(', ') + '\\n\\nText: "' + text + '"\\n\\nRespond with only the category name.';
+      const result = (await __aiRequest('ask', [classifyPrompt, { ...opts, max_tokens: 100 }])).trim();
+      return catList.find(c => c.toLowerCase() === result.toLowerCase()) || result;
+    }
+
+    throw new Error('Unknown AI method: ' + method);
+  }
+
+  return {
+    ask(prompt, opts) { return __aiRequest('ask', [prompt, opts || {}], opts); },
+    chat(messages, opts) { return __aiRequest('chat', [messages, opts || {}], opts); },
+    embed(input, opts) { return __aiRequest('embed', [input, opts || {}], opts); },
+    extract(prompt, schema, opts) { return __aiRequest('extract', [prompt, schema, opts || {}], opts); },
+    classify(text, categories, opts) { return __aiRequest('classify', [text, categories, opts || {}], opts); },
+  };
+}
+// Default AI object for one-off calls (no config block required)
+const ai = typeof ai === 'undefined' ? __createAI({}) : ai;`;
   }
 }

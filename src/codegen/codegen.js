@@ -30,6 +30,7 @@ export class CodeGenerator {
     const topLevel = [];
 
     const testBlocks = [];
+    const dataBlocks = [];
 
     for (const node of this.ast.body) {
       switch (node.type) {
@@ -37,6 +38,7 @@ export class CodeGenerator {
         case 'ServerBlock': serverBlocks.push(node); break;
         case 'ClientBlock': clientBlocks.push(node); break;
         case 'TestBlock': testBlocks.push(node); break;
+        case 'DataBlock': dataBlocks.push(node); break;
         default: topLevel.push(node); break;
       }
     }
@@ -47,7 +49,11 @@ export class CodeGenerator {
     const sharedCode = sharedBlocks.map(b => sharedGen.generate(b)).join('\n');
     const topLevelCode = topLevel.map(s => sharedGen.generateStatement(s)).join('\n');
     const helpers = sharedGen.generateHelpers();
-    const combinedShared = [helpers, sharedCode, topLevelCode].filter(s => s.trim()).join('\n').trim();
+
+    // Generate data block code (sources, pipelines, validators, refresh)
+    const dataCode = dataBlocks.map(b => this._genDataBlock(b, sharedGen)).join('\n');
+
+    const combinedShared = [helpers, sharedCode, topLevelCode, dataCode].filter(s => s.trim()).join('\n').trim();
 
     // Group server and client blocks by name
     const serverGroups = this._groupByName(serverBlocks);
@@ -144,5 +150,78 @@ export class CodeGenerator {
     };
     if (testCode) result.test = testCode;
     return result;
+  }
+
+  _genDataBlock(node, gen) {
+    const lines = [];
+    lines.push('// ── Data Block ──');
+
+    for (const stmt of node.body) {
+      switch (stmt.type) {
+        case 'SourceDeclaration': {
+          // Source: lazy cached getter
+          const expr = gen.genExpression(stmt.expression);
+          lines.push(`let __data_${stmt.name}_cache = null;`);
+          lines.push(`async function __data_${stmt.name}_load() {`);
+          lines.push(`  if (__data_${stmt.name}_cache === null) {`);
+          lines.push(`    __data_${stmt.name}_cache = await ${expr};`);
+          lines.push(`  }`);
+          lines.push(`  return __data_${stmt.name}_cache;`);
+          lines.push(`}`);
+          // Also expose as a simple getter variable via lazy init
+          lines.push(`let ${stmt.name} = null;`);
+          lines.push(`Object.defineProperty(globalThis, ${JSON.stringify(stmt.name)}, {`);
+          lines.push(`  get() { if (${stmt.name} === null) { ${stmt.name} = __data_${stmt.name}_load(); } return ${stmt.name}; },`);
+          lines.push(`  configurable: true,`);
+          lines.push(`});`);
+          break;
+        }
+        case 'PipelineDeclaration': {
+          // Pipeline: function that chains transforms
+          const expr = gen.genExpression(stmt.expression);
+          lines.push(`async function __pipeline_${stmt.name}() {`);
+          lines.push(`  return ${expr};`);
+          lines.push(`}`);
+          lines.push(`let ${stmt.name} = null;`);
+          lines.push(`Object.defineProperty(globalThis, ${JSON.stringify(stmt.name)}, {`);
+          lines.push(`  get() { if (${stmt.name} === null) { ${stmt.name} = __pipeline_${stmt.name}(); } return ${stmt.name}; },`);
+          lines.push(`  configurable: true,`);
+          lines.push(`});`);
+          break;
+        }
+        case 'ValidateBlock': {
+          // Validate: validator function
+          const rules = stmt.rules.map(r => gen.genExpression(r));
+          lines.push(`function __validate_${stmt.typeName}(it) {`);
+          lines.push(`  const errors = [];`);
+          for (let i = 0; i < rules.length; i++) {
+            lines.push(`  if (!(${rules[i]})) errors.push("Validation rule ${i + 1} failed for ${stmt.typeName}");`);
+          }
+          lines.push(`  return errors.length === 0 ? { valid: true, errors: [] } : { valid: false, errors };`);
+          lines.push(`}`);
+          break;
+        }
+        case 'RefreshPolicy': {
+          // Refresh: interval cache invalidation
+          if (stmt.interval === 'on_demand') {
+            lines.push(`function refresh_${stmt.sourceName}() { __data_${stmt.sourceName}_cache = null; ${stmt.sourceName} = null; }`);
+          } else {
+            const { value, unit } = stmt.interval;
+            let ms;
+            switch (unit) {
+              case 'seconds': case 'second': ms = value * 1000; break;
+              case 'minutes': case 'minute': ms = value * 60 * 1000; break;
+              case 'hours': case 'hour': ms = value * 60 * 60 * 1000; break;
+              case 'days': case 'day': ms = value * 24 * 60 * 60 * 1000; break;
+              default: ms = value * 60 * 1000; // default to minutes
+            }
+            lines.push(`setInterval(() => { __data_${stmt.sourceName}_cache = null; ${stmt.sourceName} = null; }, ${ms});`);
+          }
+          break;
+        }
+      }
+    }
+
+    return lines.join('\n');
   }
 }
