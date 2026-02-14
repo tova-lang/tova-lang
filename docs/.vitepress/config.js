@@ -33,6 +33,7 @@ export default defineConfig({
       { text: 'Stdlib', link: '/stdlib/' },
       { text: 'Tooling', link: '/tooling/cli' },
       { text: 'Examples', link: '/examples/' },
+      { text: 'Architecture', link: '/architecture/patterns' },
       { text: 'Playground', link: '/playground' },
     ],
 
@@ -178,17 +179,63 @@ export default defineConfig({
 
       '/examples/': [
         {
-          text: 'Examples',
+          text: 'Getting Started',
           items: [
             { text: 'Overview', link: '/examples/' },
             { text: 'Hello World', link: '/examples/hello-world' },
             { text: 'Counter App', link: '/examples/counter' },
+          ],
+        },
+        {
+          text: 'Full-Stack Applications',
+          items: [
             { text: 'Todo App', link: '/examples/todo-app' },
             { text: 'Chat App', link: '/examples/chat' },
+            { text: 'E-Commerce Store', link: '/examples/e-commerce' },
+          ],
+        },
+        {
+          text: 'Data & AI',
+          items: [
+            { text: 'Data Dashboard', link: '/examples/data-dashboard' },
+            { text: 'ETL Pipeline', link: '/examples/etl-pipeline' },
+            { text: 'AI Assistant', link: '/examples/ai-assistant' },
+            { text: 'Content Platform', link: '/examples/content-platform' },
+          ],
+        },
+        {
+          text: 'Server Patterns',
+          items: [
             { text: 'Multi-Server', link: '/examples/multi-server' },
             { text: 'Auth Flow', link: '/examples/auth-flow' },
             { text: 'Database', link: '/examples/database' },
-            { text: 'Data Dashboard', link: '/examples/data-dashboard' },
+            { text: 'API Gateway', link: '/examples/api-gateway' },
+            { text: 'Monitoring Service', link: '/examples/monitoring-service' },
+            { text: 'Real-Time Dashboard', link: '/examples/real-time-dashboard' },
+          ],
+        },
+        {
+          text: 'Scripting',
+          items: [
+            { text: 'CLI Tool', link: '/examples/cli-tool' },
+            { text: 'Task Queue', link: '/examples/task-queue' },
+          ],
+        },
+        {
+          text: 'Language Deep Dives',
+          items: [
+            { text: 'Type-Driven Design', link: '/examples/type-driven' },
+          ],
+        },
+      ],
+
+      '/architecture/': [
+        {
+          text: 'Architecture',
+          items: [
+            { text: 'Design Patterns', link: '/architecture/patterns' },
+            { text: 'Scaling Applications', link: '/architecture/scaling' },
+            { text: 'Data Engineering', link: '/architecture/data-engineering' },
           ],
         },
       ],
