@@ -61,10 +61,17 @@
   padding: 0 !important;
   margin: 0 !important;
   max-width: 100% !important;
-  /* VPNav is in normal flow (position: relative, 64px tall) so VPContent
-     already sits below it.  Only claim the remaining viewport height. */
+  flex: none !important;          /* prevent flex-grow from overriding height */
   height: calc(100vh - var(--vp-nav-height));
   box-sizing: border-box;
+}
+
+/* At >=960px VitePress switches VPNav to position:fixed (out of flow),
+   so VPContent needs an explicit top offset to sit below the nav. */
+@media (min-width: 960px) {
+  .playground-page .VPContent {
+    margin-top: var(--vp-nav-height) !important;
+  }
 }
 
 .playground-page .VPPage {

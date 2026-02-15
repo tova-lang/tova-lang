@@ -1,6 +1,6 @@
 # Standard Library Overview
 
-Tova provides **60+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
+Tova provides **100+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
 
 ## Availability
 
@@ -23,9 +23,10 @@ Tova's standard library follows a few guiding principles:
 
 | Category | Functions | Page |
 |---|---|---|
-| **Collections** | `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print` | [Collections](./collections) |
-| **Strings** | `trim`, `split`, `join`, `replace`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `capitalize`, `title_case`, `snake_case`, `camel_case` | [Strings](./strings) |
-| **Math** | `abs`, `floor`, `ceil`, `round`, `clamp`, `sqrt`, `pow`, `random`, `sleep` | [Math](./math) |
+| **Collections** | `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `find_index`, `includes`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print` | [Collections](./collections) |
+| **Strings** | `trim`, `trim_start`, `trim_end`, `split`, `join`, `replace`, `replace_first`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `char_at`, `pad_start`, `pad_end`, `capitalize`, `title_case`, `snake_case`, `camel_case` | [Strings](./strings) |
+| **Math** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `log`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep` | [Math](./math) |
+| **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
 | **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone` | [Objects & Utilities](./objects) |
 | **Result & Option** | `Ok`, `Err`, `Some`, `None`, `!` (propagation) | [Result & Option](./result-option) |
 | **Assertions** | `assert`, `assert_eq`, `assert_ne` | [Assertions](./assertions) |

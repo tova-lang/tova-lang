@@ -59,6 +59,30 @@ trim("  hello  ")       // "hello"
 trim("\n\thello\n")     // "hello"
 ```
 
+### trim_start
+
+```tova
+trim_start(s) -> String
+```
+
+Removes whitespace from the beginning of a string.
+
+```tova
+trim_start("  hello  ")    // "hello  "
+```
+
+### trim_end
+
+```tova
+trim_end(s) -> String
+```
+
+Removes whitespace from the end of a string.
+
+```tova
+trim_end("  hello  ")      // "  hello"
+```
+
 ### split
 
 ```tova
@@ -195,6 +219,19 @@ replace("aabbcc", "b", "x")
 // "aaxxcc"
 ```
 
+### replace_first
+
+```tova
+replace_first(s, from, to) -> String
+```
+
+Replaces only the first occurrence of `from` with `to`.
+
+```tova
+replace_first("aabb", "a", "x")    // "xabb"
+replace_first("hello hello", "hello", "hi")  // "hi hello"
+```
+
 ### repeat
 
 ```tova
@@ -207,6 +244,55 @@ Repeats a string `n` times.
 repeat("ha", 3)         // "hahaha"
 repeat("-", 20)          // "--------------------"
 repeat("ab", 0)          // ""
+```
+
+---
+
+## Padding
+
+### pad_start
+
+```tova
+pad_start(s, n, fill?) -> String
+```
+
+Pads the beginning of a string to reach length `n`. Uses spaces by default, or the optional `fill` character.
+
+```tova
+pad_start("5", 3, "0")       // "005"
+pad_start("hi", 5)            // "   hi"
+pad_start("42", 5, ".")       // "...42"
+```
+
+### pad_end
+
+```tova
+pad_end(s, n, fill?) -> String
+```
+
+Pads the end of a string to reach length `n`.
+
+```tova
+pad_end("5", 3, "0")         // "500"
+pad_end("hi", 5)              // "hi   "
+```
+
+---
+
+## Character Access
+
+### char_at
+
+```tova
+char_at(s, i) -> String | Nil
+```
+
+Returns the character at position `i`, or `nil` if out of bounds.
+
+```tova
+char_at("hello", 0)    // "h"
+char_at("hello", 4)    // "o"
+char_at("hello", 10)   // nil
 ```
 
 ---

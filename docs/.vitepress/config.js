@@ -149,6 +149,7 @@ export default defineConfig({
             { text: 'Math', link: '/stdlib/math' },
             { text: 'Objects & Utilities', link: '/stdlib/objects' },
             { text: 'Result & Option', link: '/stdlib/result-option' },
+            { text: 'Type Conversion', link: '/stdlib/conversion' },
             { text: 'Assertions', link: '/stdlib/assertions' },
           ],
         },

@@ -315,6 +315,39 @@ find([1, 2, 3], fn(x) x > 10)
 // null
 ```
 
+### find_index
+
+```tova
+find_index(arr, fn) -> Int | Nil
+```
+
+Returns the index of the first element where the function returns `true`. Returns `null` if no element matches.
+
+```tova
+find_index([10, 20, 30], fn(x) x > 15)
+// 1
+
+find_index(["a", "b", "c"], fn(s) s == "b")
+// 1
+
+find_index([1, 2, 3], fn(x) x > 10)
+// null
+```
+
+### includes
+
+```tova
+includes(arr, value) -> Bool
+```
+
+Returns `true` if the array contains the given value.
+
+```tova
+includes([1, 2, 3], 2)        // true
+includes([1, 2, 3], 5)        // false
+includes(["a", "b"], "a")     // true
+```
+
 ### any
 
 ```tova

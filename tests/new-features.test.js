@@ -1831,7 +1831,8 @@ describe('String Stdlib Functions', () => {
   test('upper function available in stdlib', () => {
     const code = compileWithStdlib(`x = upper("hello")`);
     expect(code).toContain('function upper(s)');
-    expect(code).toContain('upper("hello")');
+    // upper() is inlined to .toUpperCase() by codegen
+    expect(code).toContain('.toUpperCase()');
   });
 
   test('lower function available in stdlib', () => {

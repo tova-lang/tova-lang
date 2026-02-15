@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useData } from 'vitepress'
+import { useData, withBase } from 'vitepress'
 
 const props = defineProps({
   code: { type: String, default: '' },
@@ -18,7 +18,7 @@ const iframeSrc = ref('')
 onMounted(async () => {
   const params = new URLSearchParams({ theme: theme.value })
   if (props.embed) params.set('embed', 'true')
-  let src = `/playground-app/index.html?${params}`
+  let src = `${withBase('/playground-app/index.html')}?${params}`
   if (props.code) {
     const LZString = (await import('lz-string')).default
     const compressed = LZString.compressToEncodedURIComponent(props.code.trim())

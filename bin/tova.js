@@ -11,7 +11,7 @@ import { Analyzer } from '../src/analyzer/analyzer.js';
 import { Program } from '../src/parser/ast.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { richError, formatDiagnostics, DiagnosticFormatter } from '../src/diagnostics/formatter.js';
-import { getFullStdlib, BUILTINS, PROPAGATE } from '../src/stdlib/inline.js';
+import { getFullStdlib, buildSelectiveStdlib, BUILTIN_NAMES, PROPAGATE } from '../src/stdlib/inline.js';
 import { Formatter } from '../src/formatter/formatter.js';
 import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
@@ -1093,9 +1093,8 @@ async function migrateStatus(args) {
 function getStdlibForRuntime() {
   return getFullStdlib();  // Full stdlib for REPL
 }
-function getRunStdlib() { // Excludes RESULT_OPTION (emitted by codegen)
-  return `${BUILTINS}
-${PROPAGATE}`;
+function getRunStdlib() { // Only PROPAGATE — codegen tree-shakes stdlib into output.shared
+  return PROPAGATE;
 }
 
 // ─── npm Interop Utilities ───────────────────────────────────
@@ -1185,14 +1184,8 @@ async function startRepl() {
 
   const context = {};
   const stdlib = getStdlibForRuntime();
-  // Initialize stdlib in context — dynamically extract all function names
-  const fnNameRegex = /\bfunction\s+([a-zA-Z_]\w*)/g;
-  const stdlibNames = [];
-  let fnMatch;
-  while ((fnMatch = fnNameRegex.exec(stdlib)) !== null) stdlibNames.push(fnMatch[1]);
-  // Also include const bindings (Ok, Err, Some, None, __propagate)
-  const constRegex = /\bconst\s+([a-zA-Z_]\w*)/g;
-  while ((fnMatch = constRegex.exec(stdlib)) !== null) stdlibNames.push(fnMatch[1]);
+  // Use authoritative BUILTIN_NAMES + runtime names (Ok, Err, Some, None, __propagate)
+  const stdlibNames = [...BUILTIN_NAMES, 'Ok', 'Err', 'Some', 'None', '__propagate'];
   const initFn = new Function(stdlib + '\nObject.assign(this, {' + stdlibNames.join(',') + '});');
   initFn.call(context);
 
@@ -1267,8 +1260,12 @@ async function startRepl() {
           evalCode = allButLast + (allButLast ? '\n' : '') + `return (${returnExpr});`;
         }
         try {
-          const keys = Object.keys(context);
-          const destructure = keys.length > 0 ? `const {${keys.join(',')}} = __ctx;` : '';
+          // Extract function/const names from compiled code to avoid shadowing conflicts
+          const declaredInCode = new Set();
+          for (const m of evalCode.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+          for (const m of evalCode.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+          const ctxKeys = Object.keys(context).filter(k => !declaredInCode.has(k));
+          const destructure = ctxKeys.length > 0 ? `const {${ctxKeys.join(',')}} = __ctx;` : '';
           const fn = new Function('__ctx', `${destructure}\n${evalCode}`);
           const result = fn(context);
           if (result !== undefined) {
@@ -1276,8 +1273,11 @@ async function startRepl() {
           }
         } catch (e) {
           // If return-wrapping fails, fall back to plain execution
-          const keys = Object.keys(context);
-          const destructure = keys.length > 0 ? `const {${keys.join(',')}} = __ctx;` : '';
+          const declaredInCode = new Set();
+          for (const m of code.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+          for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+          const ctxKeys = Object.keys(context).filter(k => !declaredInCode.has(k));
+          const destructure = ctxKeys.length > 0 ? `const {${ctxKeys.join(',')}} = __ctx;` : '';
           const fn = new Function('__ctx', `${destructure}\n${code}`);
           fn(context);
         }

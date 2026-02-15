@@ -15,71 +15,6 @@ export const PROPAGATE = `function __propagate(val) {
   return val;
 }`;
 
-export const BUILTINS = `function print(...args) { console.log(...args); }
-function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
-function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; if (st === 0) return []; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }
-function enumerate(a) { return a.map((v, i) => [i, v]); }
-function sum(a) { return a.reduce((x, y) => x + y, 0); }
-function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }
-function reversed(a) { return [...a].reverse(); }
-function zip(...as) { if (as.length === 0) return []; const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
-function min(a) { return a.length === 0 ? null : Math.min(...a); }
-function max(a) { return a.length === 0 ? null : Math.max(...a); }
-function type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }
-function filter(arr, fn) { return arr.filter(fn); }
-function map(arr, fn) { return arr.map(fn); }
-function find(arr, fn) { return arr.find(fn) ?? null; }
-function any(arr, fn) { return arr.some(fn); }
-function all(arr, fn) { return arr.every(fn); }
-function flat_map(arr, fn) { return arr.flatMap(fn); }
-function reduce(arr, fn, init) { return init === undefined ? arr.reduce(fn) : arr.reduce(fn, init); }
-function unique(arr) { return [...new Set(arr)]; }
-function group_by(arr, fn) { const r = {}; for (const v of arr) { const k = fn(v); if (!r[k]) r[k] = []; r[k].push(v); } return r; }
-function chunk(arr, n) { const r = []; for (let i = 0; i < arr.length; i += n) r.push(arr.slice(i, i + n)); return r; }
-function flatten(arr) { return arr.flat(); }
-function take(arr, n) { return arr.slice(0, n); }
-function drop(arr, n) { return arr.slice(n); }
-function first(arr) { return arr.length > 0 ? arr[0] : null; }
-function last(arr) { return arr.length > 0 ? arr[arr.length - 1] : null; }
-function count(arr, fn) { return arr.filter(fn).length; }
-function partition(arr, fn) { const y = [], n = []; for (const v of arr) { (fn(v) ? y : n).push(v); } return [y, n]; }
-function abs(n) { return Math.abs(n); }
-function floor(n) { return Math.floor(n); }
-function ceil(n) { return Math.ceil(n); }
-function round(n) { return Math.round(n); }
-function clamp(n, lo, hi) { return Math.min(Math.max(n, lo), hi); }
-function sqrt(n) { return Math.sqrt(n); }
-function pow(b, e) { return Math.pow(b, e); }
-function random() { return Math.random(); }
-function trim(s) { return s.trim(); }
-function split(s, sep) { return s.split(sep); }
-function join(arr, sep) { return arr.join(sep); }
-function replace(s, from, to) { return typeof from === 'string' ? s.replaceAll(from, to) : s.replace(from, to); }
-function repeat(s, n) { return s.repeat(n); }
-function keys(obj) { return Object.keys(obj); }
-function values(obj) { return Object.values(obj); }
-function entries(obj) { return Object.entries(obj); }
-function merge(...objs) { return Object.assign({}, ...objs); }
-function freeze(obj) { return Object.freeze(obj); }
-function clone(obj) { return structuredClone(obj); }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function upper(s) { return s.toUpperCase(); }
-function lower(s) { return s.toLowerCase(); }
-function contains(s, sub) { return s.includes(sub); }
-function starts_with(s, prefix) { return s.startsWith(prefix); }
-function ends_with(s, suffix) { return s.endsWith(suffix); }
-function chars(s) { return [...s]; }
-function words(s) { return s.split(/\\s+/).filter(Boolean); }
-function lines(s) { return s.split('\\n'); }
-function capitalize(s) { return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-function title_case(s) { return s.replace(/\\b\\w/g, c => c.toUpperCase()); }
-function snake_case(s) { return s.replace(/[-\\s]+/g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/^_/, ''); }
-function camel_case(s) { return s.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '').replace(/^[A-Z]/, c => c.toLowerCase()); }
-function assert_eq(a, b, msg) { if (a !== b) throw new Error(msg || \`Assertion failed: \${JSON.stringify(a)} !== \${JSON.stringify(b)}\`); }
-function assert_ne(a, b, msg) { if (a === b) throw new Error(msg || \`Assertion failed: values should not be equal: \${JSON.stringify(a)}\`); }
-function assert(cond, msg) { if (!cond) throw new Error(msg || "Assertion failed"); }`;
-
-
 // Individual builtin functions for tree-shaking
 export const BUILTIN_FUNCTIONS = {
   print: `function print(...args) { console.log(...args); }`,
@@ -145,6 +80,63 @@ export const BUILTIN_FUNCTIONS = {
   assert_eq: `function assert_eq(a, b, msg) { if (a !== b) throw new Error(msg || \`Assertion failed: \${JSON.stringify(a)} !== \${JSON.stringify(b)}\`); }`,
   assert_ne: `function assert_ne(a, b, msg) { if (a === b) throw new Error(msg || \`Assertion failed: values should not be equal: \${JSON.stringify(a)}\`); }`,
   assert: `function assert(cond, msg) { if (!cond) throw new Error(msg || "Assertion failed"); }`,
+
+  // ── Missing from module files (synced to BUILTIN_FUNCTIONS) ──
+  find_index: `function find_index(arr, fn) { const i = arr.findIndex(fn); return i === -1 ? null : i; }`,
+  includes: `function includes(arr, value) { return arr.includes(value); }`,
+  replace_first: `function replace_first(s, from, to) { return s.replace(from, to); }`,
+  pad_start: `function pad_start(s, n, fill) { return s.padStart(n, fill || ' '); }`,
+  pad_end: `function pad_end(s, n, fill) { return s.padEnd(n, fill || ' '); }`,
+  char_at: `function char_at(s, i) { return i < s.length ? s[i] : null; }`,
+  trim_start: `function trim_start(s) { return s.trimStart(); }`,
+  trim_end: `function trim_end(s) { return s.trimEnd(); }`,
+
+  // ── Math constants ────────────────────────────────────
+  PI: `const PI = Math.PI;`,
+  E: `const E = Math.E;`,
+  INF: `const INF = Infinity;`,
+
+  // ── Trigonometric ─────────────────────────────────────
+  sin: `function sin(n) { return Math.sin(n); }`,
+  cos: `function cos(n) { return Math.cos(n); }`,
+  tan: `function tan(n) { return Math.tan(n); }`,
+  asin: `function asin(n) { return Math.asin(n); }`,
+  acos: `function acos(n) { return Math.acos(n); }`,
+  atan: `function atan(n) { return Math.atan(n); }`,
+  atan2: `function atan2(y, x) { return Math.atan2(y, x); }`,
+
+  // ── Logarithmic / Exponential ─────────────────────────
+  log: `function log(n) { return Math.log(n); }`,
+  log2: `function log2(n) { return Math.log2(n); }`,
+  log10: `function log10(n) { return Math.log10(n); }`,
+  exp: `function exp(n) { return Math.exp(n); }`,
+
+  // ── Numeric Utilities ─────────────────────────────────
+  sign: `function sign(n) { return Math.sign(n); }`,
+  trunc: `function trunc(n) { return Math.trunc(n); }`,
+  is_nan: `function is_nan(n) { return Number.isNaN(n); }`,
+  is_finite: `function is_finite(n) { return Number.isFinite(n); }`,
+  is_close: `function is_close(a, b, tol) { return Math.abs(a - b) <= (tol === undefined ? 1e-9 : tol); }`,
+  to_radians: `function to_radians(deg) { return deg * Math.PI / 180; }`,
+  to_degrees: `function to_degrees(rad) { return rad * 180 / Math.PI; }`,
+
+  // ── Integer Math ──────────────────────────────────────
+  gcd: `function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a; }`,
+  lcm: `function lcm(a, b) { if (a === 0 && b === 0) return 0; let x = Math.abs(a), y = Math.abs(b); while (y) { const t = y; y = x % y; x = t; } return Math.abs(a * b) / x; }`,
+  factorial: `function factorial(n) { if (n < 0) return null; if (n <= 1) return 1; let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }`,
+
+  // ── Randomness ────────────────────────────────────────
+  random_int: `function random_int(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }`,
+  random_float: `function random_float(lo, hi) { return Math.random() * (hi - lo) + lo; }`,
+  choice: `function choice(arr) { return arr.length === 0 ? null : arr[Math.floor(Math.random() * arr.length)]; }`,
+  sample: `function sample(arr, n) { const c = [...arr]; for (let i = c.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [c[i], c[j]] = [c[j], c[i]]; } return c.slice(0, n); }`,
+  shuffle: `function shuffle(arr) { const c = [...arr]; for (let i = c.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [c[i], c[j]] = [c[j], c[i]]; } return c; }`,
+
+  // ── Type Conversion ───────────────────────────────────
+  to_int: `function to_int(v) { if (typeof v === 'boolean') return v ? 1 : 0; const n = typeof v === 'string' ? parseInt(v, 10) : Math.trunc(Number(v)); return isNaN(n) ? null : n; }`,
+  to_float: `function to_float(v) { if (typeof v === 'boolean') return v ? 1.0 : 0.0; const n = Number(v); return isNaN(n) ? null : n; }`,
+  to_string: `function to_string(v) { if (v == null) return 'nil'; if (v && v.__tag) return v.__tag + (v.value !== undefined ? '(' + String(v.value) + ')' : ''); return String(v); }`,
+  to_bool: `function to_bool(v) { if (typeof v === 'string') return v !== '' && v !== '0' && v !== 'false'; return Boolean(v); }`,
 
   // ── Table runtime ───────────────────────────────────
   Table: `function Table(rows, columns) { if (rows instanceof Table) return rows; const t = Object.create(Table.prototype); t._rows = Array.isArray(rows) ? rows : []; t._columns = columns || (t._rows.length > 0 ? Object.keys(t._rows[0]) : []); return t; }
@@ -255,6 +247,21 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
 // All known builtin names for matching
 export const BUILTIN_NAMES = new Set(Object.keys(BUILTIN_FUNCTIONS));
 
+// Legacy compat: full stdlib as a single string (derived from BUILTIN_FUNCTIONS)
+// Only includes non-internal, non-table functions for backward compat with tests/playground
+const _LEGACY_NAMES = [
+  'print', 'len', 'range', 'enumerate', 'sum', 'sorted', 'reversed', 'zip',
+  'min', 'max', 'type_of', 'filter', 'map', 'find', 'any', 'all', 'flat_map',
+  'reduce', 'unique', 'group_by', 'chunk', 'flatten', 'take', 'drop', 'first',
+  'last', 'count', 'partition', 'abs', 'floor', 'ceil', 'round', 'clamp',
+  'sqrt', 'pow', 'random', 'trim', 'split', 'join', 'replace', 'repeat',
+  'keys', 'values', 'entries', 'merge', 'freeze', 'clone', 'sleep',
+  'upper', 'lower', 'contains', 'starts_with', 'ends_with', 'chars', 'words',
+  'lines', 'capitalize', 'title_case', 'snake_case', 'camel_case',
+  'assert_eq', 'assert_ne', 'assert',
+];
+export const BUILTINS = _LEGACY_NAMES.map(n => BUILTIN_FUNCTIONS[n]).join('\n');
+
 // Build stdlib containing only the functions that are actually used
 export function buildSelectiveStdlib(usedNames) {
   const parts = [];
@@ -273,5 +280,5 @@ export function getFullStdlib() {
 
 // Stdlib for client codegen (includes builtins + result/option + propagate)
 export function getClientStdlib() {
-  return `${BUILTINS}\n${RESULT_OPTION}\n${PROPAGATE}`;
+  return `${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }

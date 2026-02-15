@@ -867,6 +867,22 @@ export class BaseCodegen {
         if (args.length === 2)
           return `${this.genExpression(args[0])}.endsWith(${this.genExpression(args[1])})`;
         break;
+      case 'pad_start':
+        if (args.length >= 2)
+          return `${this.genExpression(args[0])}.padStart(${this.genExpression(args[1])}${args[2] ? ', ' + this.genExpression(args[2]) : ''})`;
+        break;
+      case 'pad_end':
+        if (args.length >= 2)
+          return `${this.genExpression(args[0])}.padEnd(${this.genExpression(args[1])}${args[2] ? ', ' + this.genExpression(args[2]) : ''})`;
+        break;
+      case 'includes':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.includes(${this.genExpression(args[1])})`;
+        break;
+      case 'char_at':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}[${this.genExpression(args[1])}]`;
+        break;
     }
 
     return null;

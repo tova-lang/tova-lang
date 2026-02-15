@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { withBase } from 'vitepress'
 import LZString from 'lz-string'
 
 const props = defineProps({
@@ -9,7 +10,7 @@ const props = defineProps({
 
 const playgroundUrl = computed(() => {
   const compressed = LZString.compressToEncodedURIComponent(props.code.trim())
-  return `/playground-app/index.html#code=${compressed}`
+  return `${withBase('/playground-app/index.html')}#code=${compressed}`
 })
 
 const displayLabel = computed(() => {

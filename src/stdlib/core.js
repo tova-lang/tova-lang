@@ -96,3 +96,60 @@ export function any(arr, fn) {
 export function all(arr, fn) {
   return arr.every(fn || Boolean);
 }
+
+// ── Randomness ──────────────────────────────────────────
+
+export function random_int(lo, hi) {
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+}
+
+export function random_float(lo, hi) {
+  return Math.random() * (hi - lo) + lo;
+}
+
+export function choice(arr) {
+  return arr.length === 0 ? null : arr[Math.floor(Math.random() * arr.length)];
+}
+
+export function sample(arr, n) {
+  const c = [...arr];
+  for (let i = c.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [c[i], c[j]] = [c[j], c[i]];
+  }
+  return c.slice(0, n);
+}
+
+export function shuffle(arr) {
+  const c = [...arr];
+  for (let i = c.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [c[i], c[j]] = [c[j], c[i]];
+  }
+  return c;
+}
+
+// ── Type Conversion ─────────────────────────────────────
+
+export function to_int(v) {
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  const n = typeof v === 'string' ? parseInt(v, 10) : Math.trunc(Number(v));
+  return isNaN(n) ? null : n;
+}
+
+export function to_float(v) {
+  if (typeof v === 'boolean') return v ? 1.0 : 0.0;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+export function to_string(v) {
+  if (v == null) return 'nil';
+  if (v && v.__tag) return v.__tag + (v.value !== undefined ? '(' + String(v.value) + ')' : '');
+  return String(v);
+}
+
+export function to_bool(v) {
+  if (typeof v === 'string') return v !== '' && v !== '0' && v !== 'false';
+  return Boolean(v);
+}

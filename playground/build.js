@@ -15,6 +15,7 @@ const SOURCE_FILES = [
   '__AST_SHIM__',
   'src/parser/parser.js',
   'src/analyzer/scope.js',
+  'src/analyzer/types.js',
   'src/analyzer/analyzer.js',
   'src/stdlib/inline.js',
   'src/codegen/base-codegen.js',
@@ -27,7 +28,11 @@ const SOURCE_FILES = [
 // ─── Strip ES module syntax ─────────────────────────────
 function stripModuleSyntax(code) {
   return code
+    // Single-line imports: import ... from '...'
     .replace(/^\s*import\s+.*from\s+['"].*['"];?\s*$/gm, '')
+    // Multi-line imports: import {\n  ...\n} from '...'
+    .replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*['"];?\s*$/gm, '')
+    // Side-effect imports: import '...'
     .replace(/^\s*import\s+['"].*['"];?\s*$/gm, '')
     .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '')
     .replace(/^\s*export\s*\*\s*from\s+['"].*['"];?\s*$/gm, '')

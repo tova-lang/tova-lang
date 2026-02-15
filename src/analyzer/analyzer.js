@@ -1,5 +1,6 @@
 import { Scope, Symbol } from './scope.js';
 import { PIPE_TARGET } from '../parser/ast.js';
+import { BUILTIN_NAMES } from '../stdlib/inline.js';
 import {
   Type, PrimitiveType, NilType, AnyType, UnknownType,
   ArrayType, TupleType, FunctionType, RecordType, ADTType,
@@ -7,6 +8,31 @@ import {
   typeAnnotationToType, typeFromString, typesCompatible,
   isNumericType, isFloatNarrowing,
 } from './types.js';
+
+const _JS_GLOBALS = new Set([
+  'console', 'document', 'window', 'globalThis', 'self',
+  'JSON', 'Math', 'Date', 'RegExp', 'Error', 'TypeError', 'RangeError',
+  'Promise', 'Set', 'Map', 'WeakSet', 'WeakMap', 'Symbol',
+  'Array', 'Object', 'String', 'Number', 'Boolean', 'Function',
+  'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'NaN', 'Infinity',
+  'undefined', 'null', 'true', 'false',
+  'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+  'queueMicrotask', 'structuredClone',
+  'URL', 'URLSearchParams', 'Headers', 'Request', 'Response',
+  'FormData', 'Blob', 'File', 'FileReader',
+  'AbortController', 'AbortSignal',
+  'TextEncoder', 'TextDecoder',
+  'crypto', 'performance', 'navigator', 'location', 'history',
+  'localStorage', 'sessionStorage',
+  'fetch', 'alert', 'confirm', 'prompt',
+  'Bun', 'Deno', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
+  'Buffer', 'atob', 'btoa',
+]);
+
+const _TOVA_RUNTIME = new Set([
+  'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
+  'db', 'server', 'client', 'shared',
+]);
 
 export class Analyzer {
   constructor(ast, filename = '<stdin>', options = {}) {
@@ -1567,44 +1593,14 @@ export class Analyzer {
   }
 
   _isKnownGlobal(name) {
-    const jsGlobals = new Set([
-      // JS built-ins
-      'console', 'document', 'window', 'globalThis', 'self',
-      'JSON', 'Math', 'Date', 'RegExp', 'Error', 'TypeError', 'RangeError',
-      'Promise', 'Set', 'Map', 'WeakSet', 'WeakMap', 'Symbol',
-      'Array', 'Object', 'String', 'Number', 'Boolean', 'Function',
-      'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'NaN', 'Infinity',
-      'undefined', 'null', 'true', 'false',
-      'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
-      'queueMicrotask', 'structuredClone',
-      'URL', 'URLSearchParams', 'Headers', 'Request', 'Response',
-      'FormData', 'Blob', 'File', 'FileReader',
-      'AbortController', 'AbortSignal',
-      'TextEncoder', 'TextDecoder',
-      'crypto', 'performance', 'navigator', 'location', 'history',
-      'localStorage', 'sessionStorage',
-      'fetch', 'alert', 'confirm', 'prompt',
-      'Bun', 'Deno', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
-      'Buffer', 'atob', 'btoa',
-      // Tova runtime
-      'print', 'range', 'len', 'type_of', 'enumerate', 'zip',
-      'map', 'filter', 'reduce', 'sum', 'sorted', 'reversed',
-      'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
-      'db', 'server', 'client', 'shared',
-      // Tova stdlib — collections
-      'find', 'any', 'all', 'flat_map', 'unique', 'group_by',
-      'chunk', 'flatten', 'take', 'drop', 'first', 'last',
-      'count', 'partition',
-      // Tova stdlib — math
-      'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
-      // Tova stdlib — strings
-      'trim', 'split', 'join', 'replace', 'repeat',
-      // Tova stdlib — utility
-      'keys', 'values', 'entries', 'merge', 'freeze', 'clone',
-      // Tova stdlib — async
-      'sleep',
-    ]);
-    return jsGlobals.has(name);
+    // Tova stdlib (auto-synced from BUILTIN_FUNCTIONS in inline.js)
+    if (BUILTIN_NAMES.has(name)) return true;
+
+    // Tova runtime names
+    if (_TOVA_RUNTIME.has(name)) return true;
+
+    // JS globals / platform APIs
+    return _JS_GLOBALS.has(name);
   }
 
   visitLambda(node) {
