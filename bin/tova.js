@@ -764,6 +764,18 @@ async function devServer(args) {
       processes.push({ child, label: 'server', port });
       rebuildPortOffset++;
     }
+
+    // Wait for server to be ready before triggering browser reload
+    if (processes.length > 0) {
+      const serverPort = processes[0].port;
+      for (let i = 0; i < 50; i++) {
+        try {
+          const res = await fetch(`http://localhost:${serverPort}/`);
+          if (res.ok || res.status === 404) break;
+        } catch {}
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
     console.log('  ✓ Rebuild complete');
     notifyReload();
   });
@@ -791,7 +803,16 @@ async function generateDevHTML(clientCode, srcDir, reloadPort = 0) {
     (function() {
       var es = new EventSource("http://localhost:${reloadPort}/__tova_reload");
       es.onmessage = function(e) { if (e.data === "reload") window.location.reload(); };
-      es.onerror = function() { setTimeout(function() { window.location.reload(); }, 1000); };
+      es.onerror = function() {
+        es.close();
+        // Server is rebuilding — poll until it's back, then reload
+        var check = setInterval(function() {
+          fetch(window.location.href, { mode: "no-cors" }).then(function() {
+            clearInterval(check);
+            window.location.reload();
+          }).catch(function() {});
+        }, 500);
+      };
     })();
   </script>` : '';
 
