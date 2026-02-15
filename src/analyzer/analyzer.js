@@ -703,13 +703,21 @@ export class Analyzer {
 
   visitSharedBlock(node) {
     const prevScope = this.currentScope;
-    this.currentScope = this.currentScope.child('shared');
+    const sharedScope = this.currentScope.child('shared');
+    this.currentScope = sharedScope;
     try {
       for (const stmt of node.body) {
         this.visitNode(stmt);
       }
     } finally {
       this.currentScope = prevScope;
+    }
+    // Promote shared symbols (types, functions) to parent scope
+    // so server/client blocks can reference them
+    for (const [name, sym] of sharedScope.symbols) {
+      if (!prevScope.symbols.has(name)) {
+        prevScope.symbols.set(name, sym);
+      }
     }
   }
 
@@ -1982,6 +1990,8 @@ export class Analyzer {
       }
       case 'ExpressionStatement':
         return this._definitelyReturns(node.expression);
+      case 'CallExpression':
+        return true;
       default:
         return false;
     }
