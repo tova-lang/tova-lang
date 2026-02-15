@@ -1,0 +1,7 @@
+node_modules/
+.tova-out/
+package.json
+bun.lock
+*.db
+*.db-shm
+*.db-wal

@@ -67,11 +67,27 @@ This generates a ready-to-run project with the following structure:
 my-app/
 ├── src/
 │   └── app.tova            # Main application file
-├── package.json
+├── tova.toml               # Project manifest
+├── .gitignore
 └── README.md
 ```
 
-The `src/app.tova` file is where you write your application. A single `.tova` file can contain `shared`, `server`, and `client` blocks -- the compiler splits them automatically.
+The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The `src/app.tova` file is where you write your application. A single `.tova` file can contain `shared`, `server`, and `client` blocks -- the compiler splits them automatically.
+
+## Install Dependencies
+
+If your project uses npm packages, install them with:
+
+```bash
+tova install
+```
+
+This reads `tova.toml`, generates a shadow `package.json`, and runs `bun install`. You can also add packages directly:
+
+```bash
+tova add htmx
+tova add prettier --dev
+```
 
 ## Run the Dev Server
 
@@ -98,6 +114,9 @@ This compiles all `.tova` files to JavaScript, bundles assets, adds content hash
 | Command | Description |
 |---------|-------------|
 | `tova new <name>` | Scaffold a new project |
+| `tova install` | Install npm dependencies from `tova.toml` |
+| `tova add <pkg>` | Add an npm dependency (`--dev` for dev) |
+| `tova remove <pkg>` | Remove an npm dependency |
 | `tova dev [dir]` | Start development server with hot reload |
 | `tova build [dir]` | Compile `.tova` files to JavaScript |
 | `tova run <file>` | Compile and execute a single `.tova` file |

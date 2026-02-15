@@ -5,12 +5,12 @@ Built with [Tova](https://github.com/tova-lang/tova-lang) — a modern full-stac
 ## Development
 
 ```bash
-bun install
-bun run dev
+tova install
+tova dev
 ```
 
 ## Build
 
 ```bash
-bun run build
+tova build
 ```

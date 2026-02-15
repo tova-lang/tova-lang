@@ -26,16 +26,90 @@ tova new my-app
 
 This creates a project directory with:
 
+- `tova.toml` -- the project manifest (name, version, build settings, npm dependencies)
 - `src/app.tova` -- a starter full-stack application with shared types, a server route, and a reactive client
-- `package.json` -- configured with `dev` and `build` scripts
+- `.gitignore` -- ignores `node_modules/`, `.tova-out/`, `package.json`, `bun.lock`
 - `README.md` -- basic project documentation
 
 After scaffolding:
 
 ```bash
 cd my-app
-bun install
-bun run dev
+tova install
+tova dev
+```
+
+### `tova.toml` Manifest
+
+Every Tova project uses a `tova.toml` file as its project manifest. This replaces `package.json` as the primary configuration file.
+
+```toml
+[project]
+name = "my-app"
+version = "0.1.0"
+description = "A full-stack Tova application"
+entry = "src"
+
+[build]
+output = ".tova-out"
+
+[dev]
+port = 3000
+
+[dependencies]
+# future: tova-native packages
+
+[npm]
+htmx = "^2.0.0"
+zod = "^3.0.0"
+
+[npm.dev]
+prettier = "^3.0.0"
+```
+
+| Section | Description |
+|---------|-------------|
+| `[project]` | Project name, version, description, and entry directory |
+| `[build]` | Build output directory |
+| `[dev]` | Development server settings (port) |
+| `[dependencies]` | Reserved for future Tova-native packages |
+| `[npm]` | npm production dependencies |
+| `[npm.dev]` | npm development dependencies |
+
+When npm dependencies are present, `tova install` generates a shadow `package.json` (included in `.gitignore`) and runs `bun install`.
+
+### `tova install`
+
+Install npm dependencies defined in `tova.toml`.
+
+```bash
+tova install
+```
+
+This reads the `[npm]` and `[npm.dev]` sections from `tova.toml`, generates a shadow `package.json`, and runs `bun install`. If no `tova.toml` exists, it falls back to running `bun install` directly.
+
+### `tova add <package>`
+
+Add an npm package to `tova.toml` and install it.
+
+```bash
+tova add htmx
+tova add zod@3.22.0
+tova add prettier --dev
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--dev` | Add to `[npm.dev]` instead of `[npm]` |
+
+### `tova remove <package>`
+
+Remove an npm package from `tova.toml` and update the install.
+
+```bash
+tova remove htmx
 ```
 
 ### `tova run <file>`

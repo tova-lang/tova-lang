@@ -15,6 +15,10 @@ import { getFullStdlib, buildSelectiveStdlib, BUILTIN_NAMES, PROPAGATE } from '.
 import { Formatter } from '../src/formatter/formatter.js';
 import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
+import { resolveConfig } from '../src/config/resolve.js';
+import { writePackageJson } from '../src/config/package-json.js';
+import { addToSection, removeFromSection } from '../src/config/edit-toml.js';
+import { stringifyTOML } from '../src/config/toml.js';
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require('../package.json');
@@ -34,9 +38,12 @@ Commands:
   run <file>       Compile and execute a .tova file
   build [dir]      Compile .tova files to JavaScript (default: current dir)
   dev              Start development server with file watching
+  new <name>       Create a new Tova project
+  install          Install npm dependencies from tova.toml
+  add <pkg>        Add an npm dependency (--dev for dev dependency)
+  remove <pkg>     Remove an npm dependency
   repl             Start interactive Tova REPL
   lsp              Start Language Server Protocol server
-  new <name>       Create a new Tova project
   fmt <file>      Format a .tova file (--check to verify only)
   test [dir]      Run test blocks in .tova files (--filter, --watch)
   migrate:create <name>   Create a new migration file
@@ -87,6 +94,15 @@ async function main() {
       break;
     case 'new':
       newProject(args[1]);
+      break;
+    case 'install':
+      await installDeps();
+      break;
+    case 'add':
+      await addDep(args.slice(1));
+      break;
+    case 'remove':
+      await removeDep(args[1]);
       break;
     case 'fmt':
       formatFile(args.slice(1));
@@ -305,9 +321,23 @@ function findTovaFiles(dir) {
 
 async function runFile(filePath, options = {}) {
   if (!filePath) {
-    console.error('Error: No file specified');
-    console.error('Usage: tova run <file.tova>');
-    process.exit(1);
+    // If tova.toml exists, try to find a main file in the entry directory
+    const config = resolveConfig(process.cwd());
+    if (config._source === 'tova.toml') {
+      const entryDir = resolve(config.project.entry || '.');
+      for (const name of ['main.tova', 'app.tova']) {
+        const candidate = join(entryDir, name);
+        if (existsSync(candidate)) {
+          filePath = candidate;
+          break;
+        }
+      }
+    }
+    if (!filePath) {
+      console.error('Error: No file specified');
+      console.error('Usage: tova run <file.tova>');
+      process.exit(1);
+    }
   }
 
   const resolved = resolve(filePath);
@@ -339,11 +369,13 @@ async function runFile(filePath, options = {}) {
 // ─── Build ──────────────────────────────────────────────────
 
 async function buildProject(args) {
+  const config = resolveConfig(process.cwd());
   const isProduction = args.includes('--production');
   const buildStrict = args.includes('--strict');
-  const srcDir = resolve(args.filter(a => !a.startsWith('--'))[0] || '.');
+  const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
+  const srcDir = resolve(explicitSrc || config.project.entry || '.');
   const outIdx = args.indexOf('--output');
-  const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : '.tova-out');
+  const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : (config.build.output || '.tova-out'));
 
   // Production build uses a separate optimized pipeline
   if (isProduction) {
@@ -455,8 +487,11 @@ async function buildProject(args) {
 // ─── Dev Server ─────────────────────────────────────────────
 
 async function devServer(args) {
-  const srcDir = resolve(args[0] || '.');
-  const basePort = parseInt(args.find((_, i, a) => a[i - 1] === '--port') || '3000');
+  const config = resolveConfig(process.cwd());
+  const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
+  const srcDir = resolve(explicitSrc || config.project.entry || '.');
+  const explicitPort = args.find((_, i, a) => a[i - 1] === '--port');
+  const basePort = parseInt(explicitPort || config.dev.port || '3000');
   const buildStrict = args.includes('--strict');
 
   const tovaFiles = findFiles(srcDir, '.tova');
@@ -797,19 +832,34 @@ function newProject(name) {
   mkdirSync(projectDir, { recursive: true });
   mkdirSync(join(projectDir, 'src'));
 
-  // package.json
-  writeFileSync(join(projectDir, 'package.json'), JSON.stringify({
-    name,
-    version: '0.1.0',
-    type: 'module',
-    scripts: {
-      dev: 'tova dev src',
-      build: 'tova build src',
+  // tova.toml
+  const tomlContent = stringifyTOML({
+    project: {
+      name,
+      version: '0.1.0',
+      description: 'A full-stack Tova application',
+      entry: 'src',
     },
-    dependencies: {
-      'tova': '^0.1.0',
+    build: {
+      output: '.tova-out',
     },
-  }, null, 2) + '\n');
+    dev: {
+      port: 3000,
+    },
+    dependencies: {},
+    npm: {},
+  });
+  writeFileSync(join(projectDir, 'tova.toml'), tomlContent);
+
+  // .gitignore
+  writeFileSync(join(projectDir, '.gitignore'), `node_modules/
+.tova-out/
+package.json
+bun.lock
+*.db
+*.db-shm
+*.db-wal
+`);
 
   // Main app file
   writeFileSync(join(projectDir, 'src', 'app.tova'), `// ${name} — Built with Tova
@@ -853,24 +903,146 @@ Built with [Tova](https://github.com/tova-lang/tova-lang) — a modern full-stac
 ## Development
 
 \`\`\`bash
-bun install
-bun run dev
+tova install
+tova dev
 \`\`\`
 
 ## Build
 
 \`\`\`bash
-bun run build
+tova build
+\`\`\`
+
+## Add npm packages
+
+\`\`\`bash
+tova add htmx
+tova add prettier --dev
 \`\`\`
 `);
 
-  console.log(`  ✓ Created ${name}/package.json`);
+  console.log(`  ✓ Created ${name}/tova.toml`);
+  console.log(`  ✓ Created ${name}/.gitignore`);
   console.log(`  ✓ Created ${name}/src/app.tova`);
   console.log(`  ✓ Created ${name}/README.md`);
   console.log(`\n  Get started:\n`);
   console.log(`    cd ${name}`);
-  console.log(`    bun install`);
-  console.log(`    bun run dev\n`);
+  console.log(`    tova install`);
+  console.log(`    tova dev\n`);
+}
+
+// ─── Package Management ─────────────────────────────────────
+
+async function installDeps() {
+  const cwd = process.cwd();
+  const config = resolveConfig(cwd);
+
+  if (config._source !== 'tova.toml') {
+    // No tova.toml — just run bun install as normal
+    console.log('  No tova.toml found, running bun install...\n');
+    const proc = spawn('bun', ['install'], { stdio: 'inherit', cwd });
+    const code = await new Promise(res => proc.on('close', res));
+    process.exit(code);
+    return;
+  }
+
+  // Generate shadow package.json from tova.toml
+  const wrote = writePackageJson(config, cwd);
+  if (wrote) {
+    console.log('  Generated package.json from tova.toml');
+    const proc = spawn('bun', ['install'], { stdio: 'inherit', cwd });
+    const code = await new Promise(res => proc.on('close', res));
+    process.exit(code);
+  } else {
+    console.log('  No npm dependencies in tova.toml. Nothing to install.\n');
+  }
+}
+
+async function addDep(args) {
+  const isDev = args.includes('--dev');
+  const pkg = args.find(a => !a.startsWith('--'));
+
+  if (!pkg) {
+    console.error('Error: No package specified');
+    console.error('Usage: tova add <package> [--dev]');
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const tomlPath = join(cwd, 'tova.toml');
+
+  if (!existsSync(tomlPath)) {
+    console.error('Error: No tova.toml found in current directory');
+    console.error('Run `tova new <name>` to create a new project, or create tova.toml manually.');
+    process.exit(1);
+  }
+
+  // Parse package name and version
+  let name = pkg;
+  let version = 'latest';
+  if (pkg.includes('@') && !pkg.startsWith('@')) {
+    const atIdx = pkg.lastIndexOf('@');
+    name = pkg.slice(0, atIdx);
+    version = pkg.slice(atIdx + 1);
+  } else if (pkg.startsWith('@') && pkg.includes('@', 1)) {
+    // Scoped package with version: @scope/name@version
+    const atIdx = pkg.lastIndexOf('@');
+    name = pkg.slice(0, atIdx);
+    version = pkg.slice(atIdx + 1);
+  }
+
+  // If version is 'latest', resolve it via npm registry
+  if (version === 'latest') {
+    try {
+      const proc = spawn('npm', ['view', name, 'version'], { stdio: ['pipe', 'pipe', 'pipe'] });
+      let out = '';
+      proc.stdout.on('data', d => out += d);
+      const code = await new Promise(res => proc.on('close', res));
+      if (code === 0 && out.trim()) {
+        version = `^${out.trim()}`;
+      } else {
+        version = '*';
+      }
+    } catch {
+      version = '*';
+    }
+  }
+
+  const section = isDev ? 'npm.dev' : 'npm';
+  addToSection(tomlPath, section, name, version);
+
+  console.log(`  Added ${name}@${version} to [${section}] in tova.toml`);
+
+  // Run install
+  await installDeps();
+}
+
+async function removeDep(pkg) {
+  if (!pkg) {
+    console.error('Error: No package specified');
+    console.error('Usage: tova remove <package>');
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const tomlPath = join(cwd, 'tova.toml');
+
+  if (!existsSync(tomlPath)) {
+    console.error('Error: No tova.toml found in current directory');
+    process.exit(1);
+  }
+
+  // Try removing from [npm] first, then [npm.dev]
+  const removed = removeFromSection(tomlPath, 'npm', pkg) ||
+                  removeFromSection(tomlPath, 'npm.dev', pkg);
+
+  if (removed) {
+    console.log(`  Removed ${pkg} from tova.toml`);
+    await installDeps();
+  } else {
+    console.error(`  Package '${pkg}' not found in tova.toml`);
+    process.exit(1);
+  }
 }
 
 // ─── Migrations ─────────────────────────────────────────────

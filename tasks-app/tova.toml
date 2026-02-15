@@ -1,0 +1,15 @@
+[project]
+name = "tasks-app"
+version = "0.1.0"
+description = "A sample task manager built with Tova"
+entry = "src"
+
+[build]
+output = ".tova-out"
+
+[dev]
+port = 3000
+
+[dependencies]
+
+[npm]
