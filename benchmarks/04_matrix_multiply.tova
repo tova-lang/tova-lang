@@ -1,0 +1,56 @@
+// Benchmark 4: Matrix Multiplication
+// Tests: nested loops, array access, arithmetic intensity
+
+n = 200
+iterations = 3
+
+// Create matrices at top level
+var mat_a = []
+for i in range(n) {
+  var row = []
+  for j in range(n) {
+    row.push((i * n + j) % 100)
+  }
+  mat_a.push(row)
+}
+
+var mat_b = []
+for i in range(n) {
+  var row = []
+  for j in range(n) {
+    row.push((i * n + j + 50) % 100)
+  }
+  mat_b.push(row)
+}
+
+var times = []
+var checksum = 0
+
+for iter in range(iterations) {
+  start = performance.now()
+
+  var result = []
+  for i in range(n) {
+    var row = []
+    for j in range(n) {
+      var val = 0
+      for k in range(n) {
+        val += mat_a[i][k] * mat_b[k][j]
+      }
+      row.push(val)
+    }
+    result.push(row)
+  }
+
+  elapsed = performance.now() - start
+  checksum = result[0][0]
+  times.push(elapsed)
+}
+
+best = min(times)
+avg = sum(times) / len(times)
+print("BENCHMARK: matrix_multiply")
+print("size={n}x{n}, iterations={iterations}")
+print("checksum={checksum}")
+print("best={best}ms")
+print("avg={avg}ms")

@@ -1208,7 +1208,17 @@ export class ServerCodegen extends BaseCodegen {
       const aw = isAsync ? 'await ' : '';
       for (const modelDecl of modelDecls) {
         const typeName = modelDecl.name;
-        const typeInfo = sharedTypes.get(typeName);
+        let typeInfo = sharedTypes.get(typeName);
+        // Fall back to model declaration fields if shared type not in this file (multi-file)
+        if (!typeInfo && modelDecl.config) {
+          const fields = [{ name: 'id', type: 'Int' }];
+          for (const [key, value] of Object.entries(modelDecl.config)) {
+            if (key === 'table' || key === 'timestamps' || key === 'belongs_to' || key === 'has_many') continue;
+            const fieldType = value.name || (value.type === 'ArrayTypeAnnotation' ? 'Array' : 'Any');
+            fields.push({ name: key, type: fieldType });
+          }
+          if (fields.length > 0) typeInfo = { fields };
+        }
         if (!typeInfo) continue;
         const tableName = modelDecl.config && modelDecl.config.table
           ? this.genExpression(modelDecl.config.table).replace(/"/g, '')
@@ -1407,6 +1417,10 @@ export class ServerCodegen extends BaseCodegen {
         }
 
         lines.push('};');
+        // Alias so server functions can reference the model by its original type name
+        // Use var so it works both when Task is already declared (single-file shared block)
+        // and when it isn't (multi-file: server in separate file from shared types)
+        lines.push(`var ${typeName} = ${typeName}Model;`);
         lines.push('');
       }
     }

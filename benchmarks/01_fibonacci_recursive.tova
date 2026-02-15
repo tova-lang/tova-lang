@@ -1,0 +1,30 @@
+// Benchmark 1: Recursive Fibonacci
+// Tests: function call overhead, recursion, stack management
+
+fn fib(n) {
+  if n <= 1 { n } else { fib(n - 1) + fib(n - 2) }
+}
+
+// Warmup
+fib(20)
+
+// Benchmark fib(35) - ~9.2M recursive calls
+n = 35
+iterations = 5
+
+var times = []
+var fib_result = 0
+for i in range(iterations) {
+  start = performance.now()
+  fib_result = fib(n)
+  elapsed = performance.now() - start
+  times.push(elapsed)
+}
+
+best = min(times)
+avg = sum(times) / len(times)
+print("BENCHMARK: fibonacci_recursive")
+print("n={n}, iterations={iterations}")
+print("result={fib_result}")
+print("best={best}ms")
+print("avg={avg}ms")

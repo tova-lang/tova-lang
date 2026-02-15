@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "tasks-app",
+      "dependencies": {
+        "tova": "^0.1.0",
+      },
+    },
+  },
+  "packages": {
+    "tova": ["tova@0.1.1", "", { "bin": { "tova": "bin/tova.js" } }, "sha512-HRvRJgvwVOUH2dglxElCOhOdCbYLmO5MS8r2Wzo28tisAJBEO2fAFikkFvtJlFXzQ2qLfcNfhqB+F/VC9KRYMQ=="],
+  }
+}

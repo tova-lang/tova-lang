@@ -24,7 +24,7 @@ client {
 }
 ```
 
-You write all four in the same file. The compiler separates them at build time.
+You can write all four in a single file, or spread them across multiple files in the same directory. The compiler merges same-type blocks from all files in a directory, then separates them at build time.
 
 ### Shared Block
 
@@ -83,29 +83,31 @@ Typical contents:
 
 When you run `tova build`, the compiler performs the following steps:
 
-1. **Parse** the `.tova` file into an AST
-2. **Separate** AST nodes by block type (shared, server, client)
-3. **Generate** JavaScript for each block using its specialized code generator
-4. **Wire** the RPC bridge -- server functions get HTTP endpoints, client code gets a `server` proxy
-5. **Output** separate files to the `.tova-out/` directory
+1. **Group** `.tova` files by directory
+2. **Merge** same-type blocks from all files in each directory into a unified AST
+3. **Validate** the merged AST for duplicate declarations across files
+4. **Generate** JavaScript for each block type using its specialized code generator
+5. **Wire** the RPC bridge -- server functions get HTTP endpoints, client code gets a `server` proxy
+6. **Output** separate files to the `.tova-out/` directory
+
+For a single-file project, this is identical to the previous behavior. For multi-file projects, the merge step combines blocks before code generation:
 
 ```
                          tova build
                             |
                             v
-  +---------------------------------------------------------+
-  |                      app.tova                            |
-  |                                                         |
-  |  shared { types, validation }                           |
-  |  data   { sources, pipelines, validation, refresh }     |
-  |  server { routes, db, AI, functions }                   |
-  |  client { state, components, effects }                  |
-  +---------------------------------------------------------+
+  +-----------------------------------------------------------+
+  |  types.tova    server.tova   components.tova   app.tova   |
+  |                                                           |
+  |  shared { }    server { }    client { }        client { } |
+  +-----------------------------------------------------------+
+                            |
+                     merge by type
                             |
               +-------------+-------------+
               |             |             |
               v             v             v
-        app.shared.js  app.server.js  app.client.js
+        src.shared.js  src.server.js  src.client.js
         (types, utils) (Bun.serve,   (reactive runtime,
                         RPC endpoints, signals, effects,
                         data layer,    components, RPC proxy)
@@ -117,6 +119,8 @@ When you run `tova build`, the compiler performs the following steps:
                               index.html
                        (client JS + runtime inlined)
 ```
+
+Components defined in any file within the directory are available to all other files without imports. The `App` component in `app.tova` can reference `StatsBar` from `components.tova` directly.
 
 The server output imports `app.shared.js` for type definitions. The client output also imports `app.shared.js`. Both sides have identical type definitions and validation logic without any duplication.
 

@@ -190,6 +190,7 @@ export default defineConfig({
           text: 'Full-Stack Applications',
           items: [
             { text: 'Todo App', link: '/examples/todo-app' },
+            { text: 'Tasks App', link: '/examples/tasks-app' },
             { text: 'Chat App', link: '/examples/chat' },
             { text: 'E-Commerce Store', link: '/examples/e-commerce' },
           ],

@@ -1,0 +1,80 @@
+// Server — Database, ORM, CRUD Functions & Routes
+
+server {
+  db {
+    driver: "sqlite"
+    path: "tasks.db"
+  }
+
+  model Task {
+    title: String
+    description: String
+    priority: String
+    completed: Bool
+    created_at: String
+  }
+
+  // CREATE
+  fn create_task(title: String, description: String, priority: String) -> Task {
+    Task.create({
+      title: title,
+      description: description,
+      priority: priority,
+      completed: false,
+      created_at: Date.new().toISOString()
+    })
+  }
+
+  // READ
+  fn list_tasks() -> [Task] {
+    Task.all()
+  }
+
+  fn get_task(id: Int) -> Task {
+    Task.find(id)
+  }
+
+  // UPDATE
+  fn update_task(id: Int, title: String, description: String, priority: String) {
+    task = Task.find(id)
+    guard task != nil else { return nil }
+    Task.update(id, {
+      title: title,
+      description: description,
+      priority: priority
+    })
+    Task.find(id)
+  }
+
+  fn toggle_task(id: Int) {
+    task = Task.find(id)
+    guard task != nil else { return nil }
+    Task.update(id, { completed: not task.completed })
+    Task.find(id)
+  }
+
+  // DELETE
+  fn delete_task(id: Int) {
+    task = Task.find(id)
+    guard task != nil else { return false }
+    Task.delete(id)
+    true
+  }
+
+  fn delete_completed() {
+    completed = Task.where({ completed: true })
+    for task in completed {
+      Task.delete(task.id)
+    }
+    true
+  }
+
+  // Routes
+  route GET    "/api/tasks"              => list_tasks
+  route GET    "/api/tasks/:id"          => get_task
+  route POST   "/api/tasks"              => create_task
+  route PUT    "/api/tasks/:id"          => update_task
+  route PUT    "/api/tasks/:id/toggle"   => toggle_task
+  route DELETE "/api/tasks/:id"          => delete_task
+  route DELETE "/api/tasks/completed"    => delete_completed
+}

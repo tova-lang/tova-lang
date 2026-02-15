@@ -128,7 +128,7 @@ server {
   fn place_order(items: [CartItem], address: Address) -> Result<Order, String> {
     // Validate stock
     for item in items {
-      product = Product.find(item.product.id) |> ok_or("Product not found")!
+      product = Product.find(item.product.id) |> ok_or("Product not found")?
       guard product.stock >= item.quantity else {
         return Err("Insufficient stock for {product.name}")
       }
@@ -203,13 +203,15 @@ client {
         Some(item) => {
           items = items |> map(fn(i) {
             match i.product.id == product.id {
-              true => CartItem { product: i.product, quantity: i.quantity + 1 }
+              true => {
+                { product: i.product, quantity: i.quantity + 1 }
+              }
               false => i
             }
           })
         }
         None => {
-          items = [...items, CartItem { product: product, quantity: 1 }]
+          items = [...items, { product: product, quantity: 1 }]
         }
       }
     }
@@ -224,7 +226,9 @@ client {
         q if q > 0 => {
           items = items |> map(fn(i) {
             match i.product.id == product_id {
-              true => CartItem { product: i.product, quantity: q }
+              true => {
+                { product: i.product, quantity: q }
+              }
               false => i
             }
           })
@@ -264,21 +268,19 @@ client {
   state loading = true
   state error: Option<String> = None
 
-  computed filtered_products = {
-    result = products
-
-    result = match UIStore.search |> len() > 0 {
-      true => result |> filter(fn(p) {
-        p.name |> lower() |> contains(UIStore.search |> lower())
-      })
-      false => result
-    }
-
-    match UIStore.category_filter {
-      Some(cat) => result |> filter(fn(p) p.category == cat)
-      None => result
-    }
-  }
+  computed filtered_products = products
+    |> filter(fn(p) {
+      match UIStore.search |> len() > 0 {
+        true => p.name |> lower() |> contains(UIStore.search |> lower())
+        false => true
+      }
+    })
+    |> filter(fn(p) {
+      match UIStore.category_filter {
+        Some(cat) => p.category == cat
+        None => true
+      }
+    })
 
   effect {
     products = server.get_products()
@@ -335,9 +337,9 @@ client {
         }
       }}>
         <option value="">"All Categories"</option>
-        {for cat in categories {
+        for cat in categories {
           <option value={cat}>{cat}</option>
-        }}
+        }
       </select>
     </div>
   }
@@ -371,29 +373,30 @@ client {
     <div class="product-grid">
       <SearchBar />
       <div class="grid">
-        {for product in filtered_products {
+        for product in filtered_products {
           <ProductCard product={product} />
-        }}
+        }
       </div>
-      {if filtered_products |> len() == 0 {
+      if filtered_products |> len() == 0 {
         <p class="no-results">"No products match your search."</p>
-      }}
+      }
     </div>
   }
 
   component CartDrawer {
-    {if UIStore.cart_open {
-      <div class="cart-drawer">
-        <div class="cart-header">
-          <h2>"Shopping Cart"</h2>
-          <button onclick={fn() UIStore.toggle_cart()}>"×"</button>
-        </div>
+    <div class="cart-overlay">
+      if UIStore.cart_open {
+        <div class="cart-drawer">
+          <div class="cart-header">
+            <h2>"Shopping Cart"</h2>
+            <button onclick={fn() UIStore.toggle_cart()}>"x"</button>
+          </div>
 
-        {match CartStore.empty {
-          true => <p>"Your cart is empty"</p>
-          false => {
+          if CartStore.empty {
+            <p>"Your cart is empty"</p>
+          } else {
             <div class="cart-items">
-              {for item in CartStore.items {
+              for item in CartStore.items {
                 <div class="cart-item">
                   <span class="name">{item.product.name}</span>
                   <div class="quantity">
@@ -404,7 +407,7 @@ client {
                   <span class="price">{format_price(item.product.price * item.quantity)}</span>
                   <button onclick={fn() CartStore.remove(item.product.id)}>"Remove"</button>
                 </div>
-              }}
+              }
             </div>
             <div class="cart-footer">
               <div class="total">"Total: {format_price(CartStore.total)}"</div>
@@ -415,9 +418,9 @@ client {
               <button onclick={fn() CartStore.clear()}>"Clear Cart"</button>
             </div>
           }
-        }}
-      </div>
-    }}
+        </div>
+      }
+    </div>
   }
 
   component CheckoutForm {
@@ -427,7 +430,7 @@ client {
     state addr_region = ""
 
     fn submit_order() {
-      address = Address {
+      address = {
         street: street,
         city: city,
         region: addr_region,
@@ -441,18 +444,19 @@ client {
 
       <div class="order-summary">
         <h3>"Order Summary"</h3>
-        {for item in CartStore.items {
+        for item in CartStore.items {
           <div class="summary-item">
-            <span>"{item.product.name} × {item.quantity}"</span>
+            <span>"{item.product.name} x {item.quantity}"</span>
             <span>{format_price(item.product.price * item.quantity)}</span>
           </div>
-        }}
+        }
         <div class="summary-total">
           <strong>"Total: {format_price(CartStore.total)}"</strong>
         </div>
       </div>
 
-      <form onsubmit={fn(e) { e.preventDefault(); submit_order() }}>
+      <form onsubmit={fn(e) { e.preventDefault()
+        submit_order() }}>
         <h3>"Shipping Address"</h3>
         <input type="text" bind:value={street} placeholder="Street" required />
         <input type="text" bind:value={city} placeholder="City" required />
@@ -464,10 +468,9 @@ client {
         </button>
       </form>
 
-      {match error {
-        Some(msg) => <div class="error">{msg}</div>
-        None => {}
-      }}
+      if error != None {
+        <div class="error">{error |> unwrap()}</div>
+      }
     </div>
   }
 
@@ -480,47 +483,47 @@ client {
 
     <div class="order-history">
       <h2>"Order History"</h2>
-      {match loaded_orders |> len() {
-        0 => <p>"No orders yet."</p>
-        _ => {
-          <div class="orders">
-            {for order in loaded_orders {
-              <div class="order-card">
-                <div class="order-header">
-                  <span>"Order #{order.id}"</span>
-                  <span class="status">
-                    {match order.status {
-                      Pending => "Pending"
-                      Processing => "Processing"
-                      Shipped(tracking) => "Shipped ({tracking})"
-                      Delivered => "Delivered"
-                      Cancelled(reason) => "Cancelled: {reason}"
-                    }}
-                  </span>
-                </div>
-                <div class="order-total">{format_price(order.total)}</div>
-                <div class="order-date">{order.created_at}</div>
+      if loaded_orders |> len() == 0 {
+        <p>"No orders yet."</p>
+      } else {
+        <div class="orders">
+          for order in loaded_orders {
+            <div class="order-card">
+              <div class="order-header">
+                <span>"Order #{order.id}"</span>
+                <span class="status">
+                  {match order.status {
+                    Pending => "Pending"
+                    Processing => "Processing"
+                    Shipped(tracking) => "Shipped ({tracking})"
+                    Delivered => "Delivered"
+                    Cancelled(reason) => "Cancelled: {reason}"
+                  }}
+                </span>
               </div>
-            }}
-          </div>
-        }
-      }}
+              <div class="order-total">{format_price(order.total)}</div>
+              <div class="order-date">{order.created_at}</div>
+            </div>
+          }
+        </div>
+      }
     </div>
   }
 
   component OrderConfirmation {
-    {match UIStore.order_confirmation {
-      Some(order) => {
+    <div class="order-confirmation">
+      if UIStore.order_confirmation != None {
         <div class="confirmation">
           <h2>"Order Confirmed!"</h2>
-          <p>"Order #{order.id} has been placed."</p>
-          <p>"Total: {format_price(order.total)}"</p>
+          <p>"Your order has been placed."</p>
+          <p>"Total: {format_price(UIStore.order_confirmation |> unwrap() |> .total)}"</p>
           <button onclick={fn() UIStore.navigate("products")}>"Continue Shopping"</button>
           <button onclick={fn() UIStore.navigate("orders")}>"View Orders"</button>
         </div>
+      } else {
+        <p>"No order to display."</p>
       }
-      None => <p>"No order to display."</p>
-    }}
+    </div>
   }
 
   component App {
@@ -529,13 +532,17 @@ client {
       <CartDrawer />
 
       <main>
-        {match UIStore.view {
-          "products" => <ProductGrid />
-          "checkout" => <CheckoutForm />
-          "orders" => <OrderHistory />
-          "confirmation" => <OrderConfirmation />
-          _ => <ProductGrid />
-        }}
+        if UIStore.view == "products" {
+          <ProductGrid />
+        } elif UIStore.view == "checkout" {
+          <CheckoutForm />
+        } elif UIStore.view == "orders" {
+          <OrderHistory />
+        } elif UIStore.view == "confirmation" {
+          <OrderConfirmation />
+        } else {
+          <ProductGrid />
+        }
       </main>
     </div>
   }
@@ -586,45 +593,52 @@ The server validates stock before processing orders:
 
 ```tova
 for item in items {
-  product = Product.find(item.product.id) |> ok_or("Product not found")!
+  product = Product.find(item.product.id) |> ok_or("Product not found")?
   guard product.stock >= item.quantity else {
     return Err("Insufficient stock for {product.name}")
   }
 }
 ```
 
-Guard clauses with `!` propagation ensure each product exists and has sufficient stock before any inventory is deducted.
+Guard clauses with `?` propagation ensure each product exists and has sufficient stock before any inventory is deducted.
 
 ### Reactive Computed Filtering
 
 ```tova
-computed filtered_products = {
-  result = match UIStore.search |> len() > 0 {
-    true => products |> filter(fn(p) p.name |> lower() |> contains(UIStore.search |> lower()))
-    false => products
-  }
-  match UIStore.category_filter {
-    Some(cat) => result |> filter(fn(p) p.category == cat)
-    None => result
-  }
+computed filtered_products = products
+  |> filter(fn(p) {
+    match UIStore.search |> len() > 0 {
+      true => p.name |> lower() |> contains(UIStore.search |> lower())
+      false => true
+    }
+  })
+  |> filter(fn(p) {
+    match UIStore.category_filter {
+      Some(cat) => p.category == cat
+      None => true
+    }
+  })
+```
+
+The computed value chains two filter pipes. It re-evaluates whenever `products`, `UIStore.search`, or `UIStore.category_filter` changes.
+
+### Client-Side Routing with If/Elif
+
+```tova
+if UIStore.view == "products" {
+  <ProductGrid />
+} elif UIStore.view == "checkout" {
+  <CheckoutForm />
+} elif UIStore.view == "orders" {
+  <OrderHistory />
+} elif UIStore.view == "confirmation" {
+  <OrderConfirmation />
+} else {
+  <ProductGrid />
 }
 ```
 
-The computed value chains two optional filters. It re-evaluates whenever `products`, `UIStore.search`, or `UIStore.category_filter` changes.
-
-### Client-Side Routing with Match
-
-```tova
-{match UIStore.view {
-  "products" => <ProductGrid />
-  "checkout" => <CheckoutForm />
-  "orders" => <OrderHistory />
-  "confirmation" => <OrderConfirmation />
-  _ => <ProductGrid />
-}}
-```
-
-Simple string-based routing using `match` on a store value. `UIStore.navigate()` updates the view string and resets UI state.
+Simple string-based routing using `if`/`elif` on a store value. `UIStore.navigate()` updates the view string and resets UI state.
 
 ### OrderStatus ADT in JSX
 
@@ -647,4 +661,4 @@ ADT variants are destructured directly in JSX `match` expressions, extracting da
 
 **Guard clauses for business logic.** Stock validation and order total checks use guards for readable, linear validation chains.
 
-**Match-based routing.** For simple apps, a `match` on a view state string is simpler than a full routing library. Each branch renders a different component.
+**Conditional routing.** For simple apps, `if`/`elif` on a view state string is simpler than a full routing library. Each branch renders a different component.

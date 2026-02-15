@@ -1,0 +1,32 @@
+// Benchmark 2: Iterative Fibonacci
+// Tests: tight loop performance, variable mutation
+
+fn fib_iter(n) {
+  var a = 0
+  var b = 1
+  for i in range(n) {
+    var temp = b
+    b = a + b
+    a = temp
+  }
+  a
+}
+
+// Warmup
+fib_iter(1000)
+
+n = 50
+iterations = 1000000
+
+start = performance.now()
+var result = 0
+for i in range(iterations) {
+  result = fib_iter(n)
+}
+elapsed = performance.now() - start
+
+print("BENCHMARK: fibonacci_iterative")
+print("n={n}, iterations={iterations}")
+print("result={result}")
+print("time={elapsed}ms")
+print("ops_per_sec={floor(iterations / (elapsed / 1000))}")

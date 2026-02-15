@@ -1,0 +1,61 @@
+// Benchmark 6: String Operations
+// Tests: string building, splitting, searching, manipulation
+
+fn benchmark_string_concat(n) {
+  // Build string via interpolation
+  var parts = []
+  for i in range(n) {
+    parts.push("{i}")
+  }
+  start = performance.now()
+  result = join(parts, ",")
+  elapsed = performance.now() - start
+  print("  join {n} strings: {elapsed}ms, len={len(result)}")
+}
+
+fn benchmark_string_split(n) {
+  // Create a large comma-separated string
+  var parts = []
+  for i in range(n) {
+    parts.push("{i}")
+  }
+  big_str = join(parts, ",")
+
+  start = performance.now()
+  tokens = split(big_str, ",")
+  elapsed = performance.now() - start
+  print("  split {n} tokens: {elapsed}ms, count={len(tokens)}")
+}
+
+fn benchmark_string_replace(n) {
+  base = repeat("hello world ", 1000)
+
+  start = performance.now()
+  for i in range(n) {
+    result = replace(base, "world", "tova")
+  }
+  elapsed = performance.now() - start
+  print("  replace x{n}: {elapsed}ms")
+}
+
+fn benchmark_string_search(n) {
+  haystack = repeat("abcdefghij", 10000)
+
+  start = performance.now()
+  var found_count = 0
+  for i in range(n) {
+    if contains(haystack, "fghij") {
+      found_count += 1
+    }
+  }
+  elapsed = performance.now() - start
+  print("  contains x{n}: {elapsed}ms, found={found_count}")
+}
+
+print("BENCHMARK: string_operations")
+benchmark_string_concat(100000)
+benchmark_string_concat(1000000)
+benchmark_string_split(100000)
+benchmark_string_split(1000000)
+benchmark_string_replace(10000)
+benchmark_string_search(100000)

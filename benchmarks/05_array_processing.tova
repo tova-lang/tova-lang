@@ -1,0 +1,58 @@
+// Benchmark 5: Array Processing Pipeline
+// Tests: higher-order functions, closures, collection throughput
+
+fn benchmark_map_filter_reduce(size) {
+  data = range(size)
+
+  start = performance.now()
+
+  result = data
+    |> filter(fn(x) x % 3 != 0)
+    |> map(fn(x) x * x)
+    |> reduce(fn(acc, x) acc + x, 0)
+
+  elapsed = performance.now() - start
+  print("  map/filter/reduce ({size} items): {elapsed}ms, result={result}")
+}
+
+fn benchmark_sort(size) {
+  // Create array in reverse order
+  var data = []
+  var i = size
+  while i > 0 {
+    data.push(i)
+    i -= 1
+  }
+
+  start = performance.now()
+  sorted_data = sorted(data)
+  elapsed = performance.now() - start
+
+  print("  sort ({size} items): {elapsed}ms, first={sorted_data[0]}, last={sorted_data[size - 1]}")
+}
+
+fn benchmark_find_includes(size) {
+  data = range(size)
+  target = size - 1
+
+  start = performance.now()
+  var found = 0
+  for i in range(100) {
+    r = find(data, fn(x) x == target)
+    if r != nil {
+      found += 1
+    }
+  }
+  elapsed = performance.now() - start
+
+  print("  find x100 ({size} items): {elapsed}ms, found={found}")
+}
+
+print("BENCHMARK: array_processing")
+
+benchmark_map_filter_reduce(100000)
+benchmark_map_filter_reduce(1000000)
+benchmark_sort(100000)
+benchmark_sort(1000000)
+benchmark_find_includes(100000)
+benchmark_find_includes(1000000)

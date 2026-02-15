@@ -18,16 +18,18 @@ tova dev src --port 8080  # Custom port
 
 When you run `tova dev`, the following happens:
 
-1. **Compiles** all `.tova` files in the target directory to `.tova-out/`
-2. **Copies** runtime files (reactivity, RPC, router) to `.tova-out/runtime/`
-3. **Generates** client HTML with inlined reactive runtime
-4. **Starts** server processes for each server block
-5. **Watches** for file changes and auto-rebuilds
+1. **Groups** all `.tova` files by directory
+2. **Merges** same-type blocks from all files in each directory into a unified AST
+3. **Compiles** the merged AST to `.tova-out/`
+4. **Copies** runtime files (reactivity, RPC, router) to `.tova-out/runtime/`
+5. **Generates** client HTML with inlined reactive runtime
+6. **Starts** server processes for each server block
+7. **Watches** for file changes and auto-rebuilds
 
 ```
   Tova dev server starting...
 
-  Compiled 1 file(s)
+  Compiled 2 file(s)
   Output: .tova-out/
   Starting server on port 3000
 
@@ -37,6 +39,8 @@ When you run `tova dev`, the following happens:
 
   Watching for changes. Press Ctrl+C to stop
 ```
+
+For multi-file projects, the dev server merges all `.tova` files in the same directory before compilation. Components, state, and server functions defined in any file are available to all other files in the same directory without imports.
 
 ## Client HTML Generation
 
@@ -94,7 +98,7 @@ PORT=3000 PORT_EVENTS=4000 tova dev
 The dev server watches the source directory for changes to `.tova` files. When a change is detected:
 
 1. A short debounce period ensures multiple rapid saves are batched
-2. All `.tova` files are recompiled
+2. All `.tova` files in the changed file's directory are re-merged and recompiled
 3. If compilation succeeds, old server processes are gracefully terminated (SIGTERM, with SIGKILL escalation after 2 seconds)
 4. New server processes are spawned with the updated code
 5. If compilation fails, the error is reported and old processes continue running

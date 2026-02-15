@@ -1,0 +1,12 @@
+{
+  "name": "tasks-app",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tova dev src",
+    "build": "tova build src"
+  },
+  "dependencies": {
+    "tova": "^0.1.0"
+  }
+}

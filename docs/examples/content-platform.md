@@ -319,24 +319,18 @@ client {
         placeholder="Search articles..."
       />
       <div class="active-filters">
-        {match category_filter {
-          Some(cat) => {
-            <span class="filter-tag">
-              {cat}
-              <button onclick={fn() { category_filter = None }}>"×"</button>
-            </span>
-          }
-          None => {}
-        }}
-        {match sentiment_filter {
-          Some(s) => {
-            <span class="filter-tag">
-              {s}
-              <button onclick={fn() { sentiment_filter = None }}>"×"</button>
-            </span>
-          }
-          None => {}
-        }}
+        if category_filter != None {
+          <span class="filter-tag">
+            {category_filter |> unwrap()}
+            <button onclick={fn() { category_filter = None }}>"x"</button>
+          </span>
+        }
+        if sentiment_filter != None {
+          <span class="filter-tag">
+            {sentiment_filter |> unwrap()}
+            <button onclick={fn() { sentiment_filter = None }}>"x"</button>
+          </span>
+        }
       </div>
     </div>
   }
@@ -351,9 +345,9 @@ client {
       <h3>{article.title}</h3>
       <p class="summary">{article.summary}</p>
       <div class="keywords">
-        {for kw in article.keywords {
+        for kw in article.keywords {
           <span class="keyword">{kw}</span>
-        }}
+        }
       </div>
       <div class="footer">
         <span>{article.author}</span>
@@ -362,27 +356,33 @@ client {
     </div>
   }
 
+  computed current_article = match selected_article {
+    Some(a) => a
+    None => nil
+  }
+
   component ArticleDetail {
-    {match selected_article {
-      Some(article) => {
+    <div>
+      if selected_article != None {
         <div class="article-detail">
-          <button onclick={fn() { selected_article = None }}>"← Back"</button>
-          <h1>{article.title}</h1>
+          <button onclick={fn() { selected_article = None }}>"Back"</button>
+          <h1>{current_article.title}</h1>
           <div class="meta">
-            <span>{article.author}</span>
-            <span>{article.published_at}</span>
-            <span class="category">{article.category |> to_string()}</span>
-            <span class="sentiment">{article.sentiment |> to_string()}</span>
+            <span>{current_article.author}</span>
+            <span>{current_article.published_at}</span>
+            <span class="category">{current_article.category |> to_string()}</span>
+            <span class="sentiment">{current_article.sentiment |> to_string()}</span>
           </div>
           <div class="summary-box">
             <h3>"AI Summary"</h3>
-            <p>{article.summary}</p>
+            <p>{current_article.summary}</p>
           </div>
-          <div class="body">{article.body}</div>
+          <div class="body">{current_article.body}</div>
         </div>
+      } else {
+        <p>"Select an article to view."</p>
       }
-      None => <p>"Select an article to view."</p>
-    }}
+    </div>
   }
 
   component App {
@@ -397,22 +397,21 @@ client {
         </aside>
 
         <main>
-          {match selected_article {
-            Some(_) => <ArticleDetail />
-            None => {
-              <div>
-                <Filters />
-                <div class="articles">
-                  {for article in filtered {
-                    <ArticleCard article={article} />
-                  }}
-                  {if filtered |> len() == 0 {
-                    <p class="empty">"No articles match your filters."</p>
-                  }}
-                </div>
+          if selected_article != None {
+            <ArticleDetail />
+          } else {
+            <div>
+              <Filters />
+              <div class="articles">
+                for article in filtered {
+                  <ArticleCard article={article} />
+                }
+                if filtered |> len() == 0 {
+                  <p class="empty">"No articles match your filters."</p>
+                }
               </div>
-            }
-          }}
+            </div>
+          }
         </main>
       </div>
     </div>

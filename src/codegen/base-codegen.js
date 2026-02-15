@@ -766,6 +766,10 @@ export class BaseCodegen {
       if (node.callee.name === 'Ok' || node.callee.name === 'Err' || node.callee.name === 'Some') {
         this._needsResultOption = true;
       }
+
+      // Inline string/collection builtins to direct method calls
+      const inlined = this._tryInlineBuiltin(node);
+      if (inlined !== null) return inlined;
     }
 
     // Check for table operation calls with column expressions
@@ -803,6 +807,69 @@ export class BaseCodegen {
 
     const args = node.arguments.map(a => this.genExpression(a)).join(', ');
     return `${callee}(${args})`;
+  }
+
+  // Inline known builtins to direct method calls, eliminating wrapper overhead.
+  // Returns the inlined code string, or null if not inlineable.
+  _tryInlineBuiltin(node) {
+    const name = node.callee.name;
+    const args = node.arguments;
+
+    switch (name) {
+      // String methods: fn(str, ...) → str.method(...)
+      case 'split':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.split(${this.genExpression(args[1])})`;
+        break;
+      case 'join':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.join(${this.genExpression(args[1])})`;
+        if (args.length === 1)
+          return `${this.genExpression(args[0])}.join('')`;
+        break;
+      case 'replace':
+        if (args.length === 3)
+          return `${this.genExpression(args[0])}.replaceAll(${this.genExpression(args[1])}, ${this.genExpression(args[2])})`;
+        break;
+      case 'contains':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.includes(${this.genExpression(args[1])})`;
+        break;
+      case 'upper':
+        if (args.length === 1)
+          return `${this.genExpression(args[0])}.toUpperCase()`;
+        break;
+      case 'lower':
+        if (args.length === 1)
+          return `${this.genExpression(args[0])}.toLowerCase()`;
+        break;
+      case 'trim':
+        if (args.length === 1)
+          return `${this.genExpression(args[0])}.trim()`;
+        break;
+      case 'trim_start':
+        if (args.length === 1)
+          return `${this.genExpression(args[0])}.trimStart()`;
+        break;
+      case 'trim_end':
+        if (args.length === 1)
+          return `${this.genExpression(args[0])}.trimEnd()`;
+        break;
+      case 'repeat':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.repeat(${this.genExpression(args[1])})`;
+        break;
+      case 'starts_with':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.startsWith(${this.genExpression(args[1])})`;
+        break;
+      case 'ends_with':
+        if (args.length === 2)
+          return `${this.genExpression(args[0])}.endsWith(${this.genExpression(args[1])})`;
+        break;
+    }
+
+    return null;
   }
 
   genMemberExpression(node) {

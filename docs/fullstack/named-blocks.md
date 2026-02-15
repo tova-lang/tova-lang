@@ -31,7 +31,7 @@ An unnamed `server { }` block is the "default" server. Named blocks are addition
 
 ## Output Structure
 
-Each named block compiles to its own JavaScript file. For an input file named `app.tova`:
+Each named block compiles to its own JavaScript file. For a single file named `app.tova` (or a directory of `.tova` files):
 
 ```
 .tova-out/
@@ -48,6 +48,18 @@ Each named block compiles to its own JavaScript file. For an input file named `a
 ```
 
 Each named server file is a standalone Bun script. It imports `app.shared.js` for shared types, registers its own routes and RPC endpoints, and starts its own `Bun.serve()` instance.
+
+### Named Blocks Across Files
+
+In multi-file projects, named blocks with the same name from different files in the same directory are merged. For example:
+
+```
+src/
+  api-routes.tova      # server "api" { route GET "/users" => ... }
+  api-models.tova      # server "api" { model User { ... } }
+```
+
+Both `server "api"` blocks merge into a single `src.server.api.js` output. The same duplicate detection rules apply -- if both files define a function with the same name, the compiler reports an error.
 
 ## Port Assignment
 

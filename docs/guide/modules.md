@@ -121,9 +121,81 @@ export default_config = {
 }
 ```
 
-## Multi-file Tova Projects
+## Multi-File Block Merging
 
-Tova's compiler resolves `.tova` imports automatically. When you import from a `.tova` file, the compiler compiles it and rewrites the import to point to the generated `.js` output.
+Tova automatically merges all `.tova` files in the same directory. All `shared {}` blocks merge into one shared output, all `server {}` blocks merge into one server output, and all `client {}` blocks merge into one client output. No imports are needed between files in the same directory.
+
+This means you can split a large application across multiple files by concern:
+
+```
+my-app/src/
+  types.tova           # shared { type Task { ... } }
+  server.tova          # server { db, model, CRUD fns, routes }
+  components.tova      # client { component StatsBar, component TaskItem }
+  app.tova             # client { state, computed, effects, component App }
+```
+
+Components from `components.tova` are available in `app.tova` without imports. Shared types from `types.tova` are available in both server and client output. Server functions from `server.tova` are callable via `server.fn_name()` from client code in `app.tova`.
+
+### How It Works
+
+When `tova build` or `tova dev` finds multiple `.tova` files in a directory, it:
+
+1. Parses all files in the directory
+2. Merges same-type blocks into a single AST
+3. Checks for duplicate declarations across files
+4. Runs the analyzer and code generator on the merged AST
+5. Outputs one set of files per directory (e.g., `src.shared.js`, `src.server.js`, `src.client.js`)
+
+Single-file directories compile exactly as before -- no behavior change.
+
+### Duplicate Detection
+
+If two files in the same directory declare the same top-level name, the compiler reports an error with both file locations:
+
+```
+Error: Duplicate component 'App'
+  → first defined in app.tova:15
+  → also defined in main.tova:42
+```
+
+The following are checked for conflicts:
+
+- **Client blocks:** component names, top-level state, computed, store, and fn names
+- **Server blocks:** fn names, model names, route conflicts (same method + path), singleton configs (db, cors, auth, session, etc.)
+- **Shared blocks:** type names, fn names, interface/trait names
+
+Declarations scoped inside components or stores (like `state` inside a `component`) do **not** conflict across files.
+
+### Same-Directory Imports
+
+If a file in the directory imports from another file in the same directory, the import is automatically stripped since both files are merged together:
+
+```tova
+// This import is valid but unnecessary -- it's removed during merge
+import { Task } from "./types.tova"
+```
+
+### Subdirectories Are Separate Modules
+
+Only files in the **same** directory are merged. Subdirectories are separate modules that require explicit imports:
+
+```
+my-app/src/
+  app.tova             # merged with types.tova
+  types.tova           # merged with app.tova
+  utils/
+    validators.tova    # separate module -- needs import
+```
+
+```tova
+// src/app.tova -- import from subdirectory
+import { validate_email } from "./utils/validators.tova"
+```
+
+## Cross-File Imports
+
+Tova's compiler resolves `.tova` imports automatically. When you import from a `.tova` file in a different directory, the compiler compiles it and rewrites the import to point to the generated `.js` output.
 
 ### Project Structure
 
@@ -133,48 +205,41 @@ A typical multi-file project:
 my-app/
   src/
     app.tova           # Main entry point
-    models.tova        # Type definitions
-    validators.tova    # Validation functions
-    utils.tova         # Utility functions
+    models.tova        # Type definitions (merged with app.tova)
+    utils/
+      validators.tova  # Separate module -- imported explicitly
   package.json
 ```
 
 ### models.tova
 
 ```tova
-export type User {
-  id: Int
-  name: String
-  email: String
-} derive [Eq, Show, JSON]
+shared {
+  type User {
+    id: Int
+    name: String
+    email: String
+  }
 
-export type Post {
-  id: Int
-  title: String
-  body: String
-  author_id: Int
-} derive [JSON]
-```
-
-### validators.tova
-
-```tova
-import { User } from "./models"
-
-export fn validate_email(email: String) -> Result<String, String> {
-  if email.contains("@") {
-    Ok(email)
-  } else {
-    Err("Invalid email: {email}")
+  type Post {
+    id: Int
+    title: String
+    body: String
+    author_id: Int
   }
 }
+```
 
-export fn validate_user(user: User) -> Result<User, String> {
-  validate_email(user.email)!
-  if user.name.length == 0 {
-    Err("Name cannot be empty")
-  } else {
-    Ok(user)
+### utils/validators.tova
+
+```tova
+shared {
+  pub fn validate_email(email: String) -> Result<String, String> {
+    if email.contains("@") {
+      Ok(email)
+    } else {
+      Err("Invalid email: {email}")
+    }
   }
 }
 ```
@@ -182,19 +247,29 @@ export fn validate_user(user: User) -> Result<User, String> {
 ### app.tova
 
 ```tova
-import { User, Post } from "./models"
-import { validate_user } from "./validators"
+// Cross-directory import -- validators.tova is in a subdirectory
+import { validate_email } from "./utils/validators.tova"
 
-fn main() {
-  user = User(1, "Alice", "alice@example.com")
+// No import needed for User or Post -- models.tova is in the same directory
 
-  match validate_user(user) {
-    Ok(valid_user) => print("Valid: {valid_user.name}")
-    Err(error) => print("Error: {error}")
+server {
+  fn create_user(name: String, email: String) -> User {
+    guard validate_email(email) else { return Err("bad email") }
+    User(1, name, email)
   }
 }
 
-main()
+client {
+  state users: [User] = []
+
+  effect {
+    users = server.get_users()
+  }
+
+  component App {
+    <div>"Users"</div>
+  }
+}
 ```
 
 ## Using npm Packages

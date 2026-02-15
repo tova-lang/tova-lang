@@ -73,31 +73,61 @@ This enables debugging in browser DevTools and editor integrations that can step
 
 ## Multi-File Projects
 
-For projects with multiple `.tova` files that import from each other, the build system uses `compileWithImports` to resolve the dependency graph:
+### Same-Directory Merging
 
-```tova
-// utils.tova
-shared {
-  fn format_date(d) -> String {
-    // ...
-  }
-}
+When multiple `.tova` files exist in the same directory, the build system **merges** them automatically. All same-type blocks are combined into a single output per directory:
+
+```
+src/
+  types.tova           # shared { type Task { ... } }
+  server.tova          # server { db, model, routes }
+  components.tova      # client { component StatsBar, component TaskItem }
+  app.tova             # client { state, effects, component App }
 ```
 
-```tova
-// app.tova
-import { format_date } from "./utils"
+All `client {}` blocks from `components.tova` and `app.tova` merge into one client output. `App` can reference `StatsBar` and `TaskItem` without imports. All `shared {}` blocks merge. All `server {}` blocks merge.
 
-server {
-  fn get_post() {
-    post = fetch_post()
-    post.date = format_date(post.created_at)
-    post
-  }
-}
+The output uses the directory name as the base filename:
+
+```
+.tova-out/
+  src.shared.js        # merged shared blocks
+  src.server.js        # merged server blocks
+  src.client.js        # merged client blocks
+  runtime/
+    ...
 ```
 
-During compilation:
+Single-file directories compile exactly as before -- no behavior change.
+
+### Duplicate Detection
+
+If two files in the same directory declare the same top-level name, the compiler reports an error with both file locations:
+
+```
+Error: Duplicate component 'App'
+  → first defined in app.tova:15
+  → also defined in main.tova:42
+```
+
+The following are checked for conflicts across files:
+
+- **Client blocks:** component names, top-level state, computed, store, and fn names
+- **Server blocks:** fn names, model names, route conflicts (same method + path), singleton configs (db, cors, auth, session, etc.)
+- **Shared blocks:** type names, fn names, interface/trait names
+
+Declarations scoped inside components or stores (like `state` inside a `component`) do not conflict across files.
+
+### Cross-Directory Imports
+
+Files in subdirectories are separate modules that require explicit imports:
+
+```tova
+// src/app.tova -- import from subdirectory
+import { validate_email } from "./utils/validators.tova"
+```
+
+During compilation of cross-directory imports:
 
 - `.tova` imports are discovered and compiled first
 - Import paths are rewritten from `.tova` to `.js` in the output

@@ -306,7 +306,7 @@ The build pipeline generates source maps for debugging. When the compiler emits 
   app.client.js.map          # Source map for client
 ```
 
-Source maps use the standard VLQ-encoded format and reference the original `.tova` file. The JavaScript output includes a `//# sourceMappingURL=` comment pointing to the map file.
+Source maps use the standard VLQ-encoded format and reference the original `.tova` file(s). The JavaScript output includes a `//# sourceMappingURL=` comment pointing to the map file.
 
 This means that when debugging in browser devtools or in a Bun error stack trace, line numbers point back to the original `.tova` source rather than the generated JavaScript.
 
@@ -314,34 +314,58 @@ This means that when debugging in browser devtools or in a Bun error stack trace
 
 The Tova compiler uses a `SourceMapBuilder` class that tracks `(sourceLine, sourceCol) -> (outputLine, outputCol)` mappings during code generation. Each code generator method (`genExpression`, `genStatement`, etc.) records these mappings via a `_sourceMappings` array in the base codegen.
 
+For merged multi-file output, the source map lists all contributing `.tova` files in its `sources` array and includes the content of each file in `sourcesContent`. This allows debuggers to map generated lines back to the correct original file.
+
 ## Multi-File Projects
 
-For projects with multiple `.tova` files, `tova build` compiles each file independently. Import resolution connects them:
+### Same-Directory Merging
 
-```tova
-// models.tova
-shared {
-  type User { id: Int, name: String }
-}
+When multiple `.tova` files exist in the same directory, the compiler **merges** them before code generation. All same-type blocks are combined into a single output:
 
-// app.tova
-import { User } from "./models"
-
-server {
-  fn get_users() -> [User] { ... }
-}
+```
+src/
+  types.tova       # shared { type User { ... } }
+  server.tova      # server { db, routes, functions }
+  components.tova  # client { component Header, component UserList }
+  app.tova         # client { state, effects, component App }
 ```
 
-The `compileWithImports()` function resolves `.tova` imports, compiles dependencies, and rewrites import paths to point to the generated `.js` files. Circular imports are detected and reported as errors.
+All `client {}` blocks from `components.tova` and `app.tova` merge into one client output. `App` can reference `Header` and `UserList` without imports. All `shared {}` blocks merge. All `server {}` blocks merge.
 
-### Output for Multi-File Projects
+The compiler checks for duplicate declarations across files. If two files define the same component name, state variable, server function, route, or type, a clear error is reported showing both file locations.
+
+### Output for Merged Projects
+
+The output uses the directory name as the base filename:
 
 ```
 .tova-out/
-  models.shared.js
-  app.shared.js
-  app.server.js       # imports from models.shared.js
-  app.client.js
+  src.shared.js      # merged shared blocks from all files in src/
+  src.server.js      # merged server blocks
+  src.client.js      # merged client blocks
+  runtime/
+    ...
+```
+
+### Cross-Directory Imports
+
+Files in subdirectories are separate modules. They require explicit imports:
+
+```tova
+// src/app.tova
+import { validate_email } from "./utils/validators.tova"
+```
+
+The `compileWithImports()` function resolves `.tova` imports across directories, compiles dependencies, and rewrites import paths to point to the generated `.js` files. Circular imports are detected and reported as errors.
+
+### Output for Cross-Directory Projects
+
+```
+.tova-out/
+  src.shared.js           # merged from src/*.tova
+  src.server.js
+  src.client.js
+  validators.shared.js    # from src/utils/validators.tova (separate module)
   runtime/
     ...
 ```
@@ -349,17 +373,35 @@ The `compileWithImports()` function resolves `.tova` imports, compiles dependenc
 ## Build Pipeline Summary
 
 ```
-  .tova source file(s)
+  .tova source files (grouped by directory)
+         |
+         v
+  +------------------+
+  | Group by         |  Same-directory files are merged;
+  | Directory        |  subdirectories compiled separately
+  +------------------+
+         |
+         v  (per directory group)
+  +-------------+
+  | Lexer       |  Tokenize each file
+  +-------------+
          |
          v
   +-------------+
-  | Lexer       |  Tokenize source
+  | Parser      |  Build AST per file
   +-------------+
          |
          v
-  +-------------+
-  | Parser      |  Build AST
-  +-------------+
+  +------------------+
+  | Merge ASTs       |  Combine same-type blocks, strip
+  |                  |  same-directory imports, tag source files
+  +------------------+
+         |
+         v
+  +------------------+
+  | Validate         |  Detect duplicate declarations
+  | Merged AST       |  across files
+  +------------------+
          |
          v
   +-------------+
@@ -376,7 +418,7 @@ The `compileWithImports()` function resolves `.tova` imports, compiles dependenc
   +-------------------+     +-------------------+     +--------------------+
          |                         |                         |
          v                         v                         v
-  app.server.js            app.client.js              app.shared.js
+  src.server.js             src.client.js             src.shared.js
                                   |
                                   v
                             index.html

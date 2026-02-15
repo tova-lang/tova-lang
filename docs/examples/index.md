@@ -16,6 +16,8 @@ Learn Tova through practical, annotated examples that progressively introduce la
 
 - **[Todo App](./todo-app.md)** -- A complete full-stack CRUD application. Covers shared types, server routes, RPC, client reactivity, effects, and component composition.
 
+- **[Tasks App](./tasks-app.md)** -- A task management app with SQLite persistence, TailwindCSS styling, priority levels, filtering, and search. Demonstrates the ORM, computed values, match-based filtering, and form state management.
+
 - **[Chat App](./chat.md)** -- Real-time messaging with Server-Sent Events. Demonstrates SSE endpoints, streaming data to clients, and reactive message lists.
 
 - **[E-Commerce Store](./e-commerce.md)** -- A full e-commerce app with product browsing, cart, checkout, and orders. Demonstrates client stores, inventory guards, reactive computed values, and match-based routing.

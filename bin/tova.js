@@ -8,6 +8,7 @@ import { createRequire } from 'module';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { Program } from '../src/parser/ast.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { richError, formatDiagnostics, DiagnosticFormatter } from '../src/diagnostics/formatter.js';
 import { getFullStdlib, BUILTINS, PROPAGATE } from '../src/stdlib/inline.js';
@@ -367,22 +368,33 @@ async function buildProject(args) {
 
   let errorCount = 0;
   compilationCache.clear();
-  for (const file of tovaFiles) {
-    const rel = relative(srcDir, file);
-    try {
-      const source = readFileSync(file, 'utf-8');
-      const output = compileWithImports(source, file, srcDir);
-      const baseName = basename(file, '.tova');
 
-      // Generate source map if mappings available
+  // Group files by directory for multi-file merging
+  const dirGroups = groupFilesByDirectory(tovaFiles);
+
+  for (const [dir, files] of dirGroups) {
+    const dirName = basename(dir) === '.' ? 'app' : basename(dir);
+    const relDir = relative(srcDir, dir) || '.';
+    try {
+      const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
+      if (!result) continue;
+
+      const { output, single } = result;
+      // Use single-file basename for single-file dirs, directory name for multi-file
+      const outBaseName = single ? basename(files[0], '.tova') : dirName;
+      const relLabel = single ? relative(srcDir, files[0]) : `${relDir}/ (${files.length} files merged)`;
+
+      // Helper to generate source maps
       const generateSourceMap = (code, jsFile) => {
         if (output.sourceMappings && output.sourceMappings.length > 0) {
-          const smb = new SourceMapBuilder(rel);
+          const sourceFile = single ? relative(srcDir, files[0]) : relDir;
+          const smb = new SourceMapBuilder(sourceFile, output._sourceFiles);
           for (const m of output.sourceMappings) {
-            smb.addMapping(m.sourceLine, m.sourceCol, m.outputLine, m.outputCol);
+            smb.addMapping(m.sourceLine, m.sourceCol, m.outputLine, m.outputCol, m.sourceFile);
           }
+          const sourceContent = single ? readFileSync(files[0], 'utf-8') : null;
           const mapFile = jsFile + '.map';
-          writeFileSync(mapFile, smb.generate(source));
+          writeFileSync(mapFile, smb.generate(sourceContent, output._sourceContents));
           return code + `\n//# sourceMappingURL=${basename(mapFile)}`;
         }
         return code;
@@ -390,32 +402,32 @@ async function buildProject(args) {
 
       // Write shared
       if (output.shared && output.shared.trim()) {
-        const sharedPath = join(outDir, `${baseName}.shared.js`);
+        const sharedPath = join(outDir, `${outBaseName}.shared.js`);
         writeFileSync(sharedPath, generateSourceMap(output.shared, sharedPath));
-        console.log(`  ✓ ${rel} → ${relative('.', sharedPath)}`);
+        console.log(`  ✓ ${relLabel} → ${relative('.', sharedPath)}`);
       }
 
       // Write default server
       if (output.server) {
-        const serverPath = join(outDir, `${baseName}.server.js`);
+        const serverPath = join(outDir, `${outBaseName}.server.js`);
         writeFileSync(serverPath, generateSourceMap(output.server, serverPath));
-        console.log(`  ✓ ${rel} → ${relative('.', serverPath)}`);
+        console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}`);
       }
 
       // Write default client
       if (output.client) {
-        const clientPath = join(outDir, `${baseName}.client.js`);
+        const clientPath = join(outDir, `${outBaseName}.client.js`);
         writeFileSync(clientPath, generateSourceMap(output.client, clientPath));
-        console.log(`  ✓ ${rel} → ${relative('.', clientPath)}`);
+        console.log(`  ✓ ${relLabel} → ${relative('.', clientPath)}`);
       }
 
       // Write named server blocks (multi-block)
       if (output.multiBlock && output.servers) {
         for (const [name, code] of Object.entries(output.servers)) {
-          if (name === 'default') continue; // already written above
-          const path = join(outDir, `${baseName}.server.${name}.js`);
+          if (name === 'default') continue;
+          const path = join(outDir, `${outBaseName}.server.${name}.js`);
           writeFileSync(path, code);
-          console.log(`  ✓ ${rel} → ${relative('.', path)} [server:${name}]`);
+          console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]`);
         }
       }
 
@@ -423,18 +435,19 @@ async function buildProject(args) {
       if (output.multiBlock && output.clients) {
         for (const [name, code] of Object.entries(output.clients)) {
           if (name === 'default') continue;
-          const path = join(outDir, `${baseName}.client.${name}.js`);
+          const path = join(outDir, `${outBaseName}.client.${name}.js`);
           writeFileSync(path, code);
-          console.log(`  ✓ ${rel} → ${relative('.', path)} [client:${name}]`);
+          console.log(`  ✓ ${relLabel} → ${relative('.', path)} [client:${name}]`);
         }
       }
     } catch (err) {
-      console.error(`  ✗ ${rel}: ${err.message}`);
+      console.error(`  ✗ ${relDir}: ${err.message}`);
       errorCount++;
     }
   }
 
-  console.log(`\n  Build complete. ${tovaFiles.length - errorCount}/${tovaFiles.length} succeeded.\n`);
+  const dirCount = dirGroups.size;
+  console.log(`\n  Build complete. ${dirCount - errorCount}/${dirCount} directory group(s) succeeded.\n`);
   if (errorCount > 0) process.exit(1);
 }
 
@@ -443,6 +456,7 @@ async function buildProject(args) {
 async function devServer(args) {
   const srcDir = resolve(args[0] || '.');
   const basePort = parseInt(args.find((_, i, a) => a[i - 1] === '--port') || '3000');
+  const buildStrict = args.includes('--strict');
 
   const tovaFiles = findFiles(srcDir, '.tova');
   if (tovaFiles.length === 0) {
@@ -466,63 +480,75 @@ async function devServer(args) {
   const serverFiles = [];
   let hasClient = false;
 
-  for (const file of tovaFiles) {
+  // Clear import caches for fresh compilation
+  compilationCache.clear();
+  compilationInProgress.clear();
+  moduleExports.clear();
+
+  // Compile via directory merging
+  const dirGroups = groupFilesByDirectory(tovaFiles);
+  let clientHTML = '';
+
+  // Pass 1: Merge each directory, write shared/client outputs, collect clientHTML
+  const dirResults = [];
+  for (const [dir, files] of dirGroups) {
+    const dirName = basename(dir) === '.' ? 'app' : basename(dir);
     try {
-      const source = readFileSync(file, 'utf-8');
-      const output = compileTova(source, file, { strict: buildStrict });
-      const baseName = basename(file, '.tova');
+      const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
+      if (!result) continue;
+
+      const { output, single } = result;
+      const outBaseName = single ? basename(files[0], '.tova') : dirName;
+      dirResults.push({ dir, output, outBaseName, single, files });
 
       if (output.shared && output.shared.trim()) {
-        writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
+        writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
       }
 
-      // Default client (generate HTML first so server can embed it)
-      let clientHTML = '';
       if (output.client) {
-        const p = join(outDir, `${baseName}.client.js`);
+        const p = join(outDir, `${outBaseName}.client.js`);
         writeFileSync(p, output.client);
         clientHTML = await generateDevHTML(output.client, srcDir);
         writeFileSync(join(outDir, 'index.html'), clientHTML);
         hasClient = true;
       }
-
-      // Default server (inject client HTML for serving at /)
-      if (output.server) {
-        let serverCode = output.server;
-        if (clientHTML) {
-          // Inject __clientHTML constant before the request handler
-          const htmlConst = `const __clientHTML = ${JSON.stringify(clientHTML)};\n`;
-          serverCode = htmlConst + serverCode;
-        }
-        const p = join(outDir, `${baseName}.server.js`);
-        writeFileSync(p, serverCode);
-        serverFiles.push({ path: p, name: 'default', baseName });
-      }
-
-      // Named server blocks
-      if (output.multiBlock && output.servers) {
-        for (const [name, code] of Object.entries(output.servers)) {
-          if (name === 'default') continue;
-          const p = join(outDir, `${baseName}.server.${name}.js`);
-          writeFileSync(p, code);
-          serverFiles.push({ path: p, name, baseName });
-        }
-      }
-
-      // Named client blocks
-      if (output.multiBlock && output.clients) {
-        for (const [name, code] of Object.entries(output.clients)) {
-          if (name === 'default') continue;
-          const p = join(outDir, `${baseName}.client.${name}.js`);
-          writeFileSync(p, code);
-        }
-      }
     } catch (err) {
-      console.error(`  ✗ ${relative(srcDir, file)}: ${err.message}`);
+      console.error(`  ✗ ${relative(srcDir, dir)}: ${err.message}`);
     }
   }
 
-  console.log(`  ✓ Compiled ${tovaFiles.length} file(s)`);
+  // Pass 2: Write server files with clientHTML injected
+  for (const { output, outBaseName } of dirResults) {
+    if (output.server) {
+      let serverCode = output.server;
+      if (clientHTML) {
+        const htmlConst = `const __clientHTML = ${JSON.stringify(clientHTML)};\n`;
+        serverCode = htmlConst + serverCode;
+      }
+      const p = join(outDir, `${outBaseName}.server.js`);
+      writeFileSync(p, serverCode);
+      serverFiles.push({ path: p, name: 'default', baseName: outBaseName });
+    }
+
+    if (output.multiBlock && output.servers) {
+      for (const [name, code] of Object.entries(output.servers)) {
+        if (name === 'default') continue;
+        const p = join(outDir, `${outBaseName}.server.${name}.js`);
+        writeFileSync(p, code);
+        serverFiles.push({ path: p, name, baseName: outBaseName });
+      }
+    }
+
+    if (output.multiBlock && output.clients) {
+      for (const [name, code] of Object.entries(output.clients)) {
+        if (name === 'default') continue;
+        const p = join(outDir, `${outBaseName}.client.${name}.js`);
+        writeFileSync(p, code);
+      }
+    }
+  }
+
+  console.log(`  ✓ Compiled ${tovaFiles.length} file(s) from ${dirGroups.size} directory group(s)`);
   console.log(`  ✓ Output: ${relative('.', outDir)}/`);
 
   // Orchestrate: spawn each server block as a separate Bun process
@@ -569,29 +595,49 @@ async function devServer(args) {
     // Recompile first — keep old processes alive until success
     const currentFiles = findFiles(srcDir, '.tova');
     const newServerFiles = [];
+
+    // Clear import caches for fresh compilation
+    compilationCache.clear();
+    compilationInProgress.clear();
+    moduleExports.clear();
+
     try {
-      for (const file of currentFiles) {
-        const source = readFileSync(file, 'utf-8');
-        const output = compileTova(source, file);
-        const baseName = basename(file, '.tova');
+      // Merge each directory group, collect client HTML
+      const rebuildDirGroups = groupFilesByDirectory(currentFiles);
+      let rebuildClientHTML = '';
+
+      for (const [dir, files] of rebuildDirGroups) {
+        const dirName = basename(dir) === '.' ? 'app' : basename(dir);
+        const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
+        if (!result) continue;
+
+        const { output, single } = result;
+        const outBaseName = single ? basename(files[0], '.tova') : dirName;
 
         if (output.shared && output.shared.trim()) {
-          writeFileSync(join(outDir, `${baseName}.shared.js`), output.shared);
+          writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
         }
         if (output.client) {
-          writeFileSync(join(outDir, `${baseName}.client.js`), output.client);
-          const html = await generateDevHTML(output.client, srcDir);
-          writeFileSync(join(outDir, 'index.html'), html);
+          writeFileSync(join(outDir, `${outBaseName}.client.js`), output.client);
+          rebuildClientHTML = await generateDevHTML(output.client, srcDir);
+          writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
         }
         if (output.server) {
           let serverCode = output.server;
-          if (output.client) {
-            const html = await generateDevHTML(output.client, srcDir);
-            serverCode = `const __clientHTML = ${JSON.stringify(html)};\n` + serverCode;
+          if (rebuildClientHTML) {
+            serverCode = `const __clientHTML = ${JSON.stringify(rebuildClientHTML)};\n` + serverCode;
           }
-          const p = join(outDir, `${baseName}.server.js`);
+          const p = join(outDir, `${outBaseName}.server.js`);
           writeFileSync(p, serverCode);
           newServerFiles.push(p);
+        }
+        if (output.multiBlock && output.servers) {
+          for (const [name, code] of Object.entries(output.servers)) {
+            if (name === 'default') continue;
+            const p = join(outDir, `${outBaseName}.server.${name}.js`);
+            writeFileSync(p, code);
+            newServerFiles.push(p);
+          }
         }
       }
     } catch (err) {
@@ -651,20 +697,10 @@ async function generateDevHTML(clientCode, srcDir) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tova App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-    #app { max-width: 520px; margin: 0 auto; padding: 2rem 1rem; }
-    .app { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-    header { text-align: center; margin-bottom: 1.5rem; }
-    h1 { font-size: 2rem; margin-bottom: 0.25rem; color: #333; }
-    h2 { font-size: 1.2rem; margin-bottom: 0.75rem; color: #555; }
-    .subtitle { font-size: 0.9rem; color: #888; letter-spacing: 0.1em; text-transform: uppercase; }
-    button { cursor: pointer; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 8px; background: white; font-size: 0.9rem; transition: all 0.15s; }
-    button:hover { background: #f0f0f0; transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-    input[type="text"] { padding: 0.6rem 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; width: 100%; outline: none; transition: border-color 0.2s; }
-    input[type="text"]:focus { border-color: #667eea; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; }
     ul { list-style: none; }
     .done { text-decoration: line-through; opacity: 0.5; }
   </style>
@@ -694,20 +730,10 @@ ${bundled}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tova App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-    #app { max-width: 520px; margin: 0 auto; padding: 2rem 1rem; }
-    .app { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-    header { text-align: center; margin-bottom: 1.5rem; }
-    h1 { font-size: 2rem; margin-bottom: 0.25rem; color: #333; }
-    h2 { font-size: 1.2rem; margin-bottom: 0.75rem; color: #555; }
-    .subtitle { font-size: 0.9rem; color: #888; letter-spacing: 0.1em; text-transform: uppercase; }
-    button { cursor: pointer; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 8px; background: white; font-size: 0.9rem; transition: all 0.15s; }
-    button:hover { background: #f0f0f0; transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-    input[type="text"] { padding: 0.6rem 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; width: 100%; outline: none; transition: border-color 0.2s; }
-    input[type="text"]:focus { border-color: #667eea; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; }
     ul { list-style: none; }
     .done { text-decoration: line-through; opacity: 0.5; }
     .timer-section { text-align: center; padding: 1.5rem; margin-bottom: 1.5rem; background: #f8f9ff; border-radius: 12px; }
@@ -1296,27 +1322,43 @@ function startWatcher(srcDir, callback) {
 // ─── Source Map Support ──────────────────────────────────────
 
 class SourceMapBuilder {
-  constructor(sourceFile) {
+  constructor(sourceFile, sourceFiles = null) {
     this.sourceFile = sourceFile;
+    // Multi-source support: array of all source files for merged output
+    this.sourceFiles = sourceFiles || [sourceFile];
+    this._sourceIndex = new Map();
+    for (let i = 0; i < this.sourceFiles.length; i++) {
+      this._sourceIndex.set(this.sourceFiles[i], i);
+    }
     this.mappings = [];
     this.outputLine = 0;
     this.outputCol = 0;
   }
 
-  addMapping(sourceLine, sourceCol, outputLine, outputCol) {
-    this.mappings.push({ sourceLine, sourceCol, outputLine, outputCol });
+  addMapping(sourceLine, sourceCol, outputLine, outputCol, sourceFile = null) {
+    const srcIdx = sourceFile ? (this._sourceIndex.get(sourceFile) || 0) : 0;
+    this.mappings.push({ sourceLine, sourceCol, outputLine, outputCol, sourceIdx: srcIdx });
   }
 
   // Generate a VLQ-encoded source map
-  generate(sourceContent) {
-    const sources = [this.sourceFile];
+  generate(sourceContent, sourceContentsMap = null) {
+    const sources = this.sourceFiles;
     const names = [];
+
+    // Build sourcesContent array for multi-source
+    let sourcesContent;
+    if (sourceContentsMap && sourceContentsMap instanceof Map) {
+      sourcesContent = sources.map(s => sourceContentsMap.get(s) || null);
+    } else if (sourceContent) {
+      sourcesContent = [sourceContent];
+    }
 
     // Sort mappings by output position
     this.mappings.sort((a, b) => a.outputLine - b.outputLine || a.outputCol - b.outputCol);
 
     // Encode mappings using VLQ
     let prevOutputCol = 0;
+    let prevSourceIdx = 0;
     let prevSourceLine = 0;
     let prevSourceCol = 0;
     let currentOutputLine = 0;
@@ -1334,22 +1376,24 @@ class SourceMapBuilder {
 
       const segment = [];
       segment.push(this._vlqEncode(m.outputCol - prevOutputCol));
-      segment.push(this._vlqEncode(0)); // source index (always 0)
+      segment.push(this._vlqEncode(m.sourceIdx - prevSourceIdx));
       segment.push(this._vlqEncode(m.sourceLine - prevSourceLine));
       segment.push(this._vlqEncode(m.sourceCol - prevSourceCol));
 
       currentLine.push(segment.join(''));
       prevOutputCol = m.outputCol;
+      prevSourceIdx = m.sourceIdx;
       prevSourceLine = m.sourceLine;
       prevSourceCol = m.sourceCol;
     }
     lines.push(currentLine.join(','));
 
+    const outFile = typeof this.sourceFile === 'string' ? this.sourceFile.replace('.tova', '.js') : 'merged.js';
     return JSON.stringify({
       version: 3,
-      file: this.sourceFile.replace('.tova', '.js'),
+      file: outFile,
       sources,
-      sourcesContent: sourceContent ? [sourceContent] : undefined,
+      sourcesContent: sourcesContent || undefined,
       names,
       mappings: lines.join(';'),
     });
@@ -1368,8 +1412,8 @@ class SourceMapBuilder {
     return encoded;
   }
 
-  toDataURL(sourceContent) {
-    const mapJson = this.generate(sourceContent);
+  toDataURL(sourceContent, sourceContentsMap = null) {
+    const mapJson = this.generate(sourceContent, sourceContentsMap);
     const base64 = Buffer.from(mapJson).toString('base64');
     return `//# sourceMappingURL=data:application/json;base64,${base64}`;
   }
@@ -1497,7 +1541,8 @@ const moduleExports = new Map();
 function collectExports(ast, filename) {
   const publicExports = new Set();
   const allNames = new Set();
-  for (const node of ast.body) {
+
+  function collectFromNode(node) {
     if (node.type === 'FunctionDeclaration') {
       allNames.add(node.name);
       if (node.isPublic) publicExports.add(node.name);
@@ -1539,6 +1584,19 @@ function collectExports(ast, filename) {
       if (node.isPublic) publicExports.add(node.name);
     }
     if (node.type === 'ImplDeclaration') { /* impl doesn't export a name */ }
+  }
+
+  for (const node of ast.body) {
+    // Also collect exports from inside shared/server/client blocks
+    if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
+      if (node.body) {
+        for (const inner of node.body) {
+          collectFromNode(inner);
+        }
+      }
+      continue;
+    }
+    collectFromNode(node);
   }
   moduleExports.set(filename, { publicExports, allNames });
   return { publicExports, allNames };
@@ -1626,6 +1684,257 @@ function compileWithImports(source, filename, srcDir) {
   } finally {
     compilationInProgress.delete(filename);
   }
+}
+
+// ─── Multi-file Directory Merging ────────────────────────────
+
+function validateMergedAST(mergedBlocks, sourceFiles) {
+  const errors = [];
+
+  function addDup(kind, name, loc1, loc2) {
+    const f1 = loc1.source || 'unknown';
+    const f2 = loc2.source || 'unknown';
+    errors.push(
+      `Duplicate ${kind} '${name}'\n` +
+      `  → first defined in ${basename(f1)}:${loc1.line}\n` +
+      `  → also defined in ${basename(f2)}:${loc2.line}`
+    );
+  }
+
+  // Check client blocks — top-level declarations only
+  const clientDecls = { component: new Map(), state: new Map(), computed: new Map(), store: new Map(), fn: new Map() };
+  for (const block of mergedBlocks.clientBlocks) {
+    for (const stmt of block.body) {
+      const loc = stmt.loc || block.loc;
+      if (stmt.type === 'ComponentDeclaration') {
+        if (clientDecls.component.has(stmt.name)) addDup('component', stmt.name, clientDecls.component.get(stmt.name), loc);
+        else clientDecls.component.set(stmt.name, loc);
+      } else if (stmt.type === 'StateDeclaration') {
+        const name = stmt.name || (stmt.targets && stmt.targets[0]);
+        if (name) {
+          if (clientDecls.state.has(name)) addDup('state', name, clientDecls.state.get(name), loc);
+          else clientDecls.state.set(name, loc);
+        }
+      } else if (stmt.type === 'ComputedDeclaration') {
+        const name = stmt.name;
+        if (name) {
+          if (clientDecls.computed.has(name)) addDup('computed', name, clientDecls.computed.get(name), loc);
+          else clientDecls.computed.set(name, loc);
+        }
+      } else if (stmt.type === 'StoreDeclaration') {
+        if (clientDecls.store.has(stmt.name)) addDup('store', stmt.name, clientDecls.store.get(stmt.name), loc);
+        else clientDecls.store.set(stmt.name, loc);
+      } else if (stmt.type === 'FunctionDeclaration') {
+        if (clientDecls.fn.has(stmt.name)) addDup('function', stmt.name, clientDecls.fn.get(stmt.name), loc);
+        else clientDecls.fn.set(stmt.name, loc);
+      }
+    }
+  }
+
+  // Check server blocks — group by block name, check within same-name groups
+  const serverGrouped = new Map();
+  for (const block of mergedBlocks.serverBlocks) {
+    const key = block.name || null;
+    if (!serverGrouped.has(key)) serverGrouped.set(key, []);
+    serverGrouped.get(key).push(block);
+  }
+
+  for (const [, blocks] of serverGrouped) {
+    const serverDecls = { fn: new Map(), model: new Map(), route: new Map() };
+    const singletons = new Map(); // db, cors, auth, session, etc.
+    const SINGLETON_TYPES = {
+      'DbDeclaration': 'db', 'CorsDeclaration': 'cors', 'AuthDeclaration': 'auth',
+      'SessionDeclaration': 'session', 'CompressionDeclaration': 'compression',
+      'TlsDeclaration': 'tls', 'UploadDeclaration': 'upload', 'RateLimitDeclaration': 'rate_limit',
+    };
+
+    for (const block of blocks) {
+      const walkBody = (stmts) => {
+        for (const stmt of stmts) {
+          const loc = stmt.loc || block.loc;
+          if (stmt.type === 'FunctionDeclaration') {
+            if (serverDecls.fn.has(stmt.name)) addDup('server function', stmt.name, serverDecls.fn.get(stmt.name), loc);
+            else serverDecls.fn.set(stmt.name, loc);
+          } else if (stmt.type === 'ModelDeclaration') {
+            if (serverDecls.model.has(stmt.name)) addDup('model', stmt.name, serverDecls.model.get(stmt.name), loc);
+            else serverDecls.model.set(stmt.name, loc);
+          } else if (stmt.type === 'RouteDeclaration') {
+            const routeKey = `${stmt.method} ${stmt.path}`;
+            if (serverDecls.route.has(routeKey)) addDup('route', routeKey, serverDecls.route.get(routeKey), loc);
+            else serverDecls.route.set(routeKey, loc);
+          } else if (SINGLETON_TYPES[stmt.type]) {
+            const sName = SINGLETON_TYPES[stmt.type];
+            if (singletons.has(sName)) addDup('server config', sName, singletons.get(sName), loc);
+            else singletons.set(sName, loc);
+          } else if (stmt.type === 'RouteGroupDeclaration') {
+            walkBody(stmt.body);
+          }
+        }
+      };
+      walkBody(block.body);
+    }
+  }
+
+  // Check shared blocks
+  const sharedDecls = { type: new Map(), fn: new Map(), interface: new Map() };
+  for (const block of mergedBlocks.sharedBlocks) {
+    for (const stmt of block.body) {
+      const loc = stmt.loc || block.loc;
+      if (stmt.type === 'TypeDeclaration') {
+        if (sharedDecls.type.has(stmt.name)) addDup('type', stmt.name, sharedDecls.type.get(stmt.name), loc);
+        else sharedDecls.type.set(stmt.name, loc);
+      } else if (stmt.type === 'FunctionDeclaration') {
+        if (sharedDecls.fn.has(stmt.name)) addDup('shared function', stmt.name, sharedDecls.fn.get(stmt.name), loc);
+        else sharedDecls.fn.set(stmt.name, loc);
+      } else if (stmt.type === 'InterfaceDeclaration' || stmt.type === 'TraitDeclaration') {
+        if (sharedDecls.interface.has(stmt.name)) addDup('interface/trait', stmt.name, sharedDecls.interface.get(stmt.name), loc);
+        else sharedDecls.interface.set(stmt.name, loc);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error('Merge validation failed:\n\n' + errors.join('\n\n'));
+  }
+}
+
+function mergeDirectory(dir, srcDir, options = {}) {
+  // Find all .tova files in this directory only (non-recursive)
+  const entries = readdirSync(dir);
+  const tovaFiles = entries
+    .filter(e => e.endsWith('.tova') && !e.startsWith('.'))
+    .map(e => join(dir, e))
+    .filter(f => statSync(f).isFile())
+    .sort();
+
+  if (tovaFiles.length === 0) return null;
+  if (tovaFiles.length === 1) {
+    // Single file — use existing per-file compilation
+    const file = tovaFiles[0];
+    const source = readFileSync(file, 'utf-8');
+    return { output: compileWithImports(source, file, srcDir), files: [file], single: true };
+  }
+
+  // Parse all files in the directory
+  const parsedFiles = [];
+  for (const file of tovaFiles) {
+    const source = readFileSync(file, 'utf-8');
+    const lexer = new Lexer(source, file);
+    const tokens = lexer.tokenize();
+    const parser = new Parser(tokens, file);
+    const ast = parser.parse();
+
+    // Collect exports for cross-file import validation
+    collectExports(ast, file);
+
+    // Resolve cross-directory .tova imports (same logic as compileWithImports)
+    for (const node of ast.body) {
+      if ((node.type === 'ImportDeclaration' || node.type === 'ImportDefault' || node.type === 'ImportWildcard') && node.source.endsWith('.tova')) {
+        const importPath = resolve(dirname(file), node.source);
+        // Only process imports from OTHER directories (same-dir files are merged)
+        if (dirname(importPath) !== dir) {
+          if (compilationInProgress.has(importPath)) {
+            throw new Error(`Circular import detected: ${file} → ${importPath}`);
+          } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
+            const importSource = readFileSync(importPath, 'utf-8');
+            compileWithImports(importSource, importPath, srcDir);
+          }
+          // Validate imported names
+          if (node.type === 'ImportDeclaration' && moduleExports.has(importPath)) {
+            const { publicExports, allNames } = moduleExports.get(importPath);
+            for (const spec of node.specifiers) {
+              if (!publicExports.has(spec.imported)) {
+                if (allNames.has(spec.imported)) {
+                  throw new Error(`'${spec.imported}' is private in module '${node.source}'. Add 'pub' to export it.`);
+                } else {
+                  throw new Error(`Module '${node.source}' does not export '${spec.imported}'`);
+                }
+              }
+            }
+          }
+          // Rewrite to .js
+          node.source = node.source.replace('.tova', '.shared.js');
+        } else {
+          // Same-directory import — remove it since files are merged
+          node._removed = true;
+        }
+      }
+    }
+
+    parsedFiles.push({ file, source, ast });
+  }
+
+  // Merge ASTs: collect blocks from all files, tagged with source file
+  const mergedBody = [];
+  const sharedBlocks = [];
+  const serverBlocks = [];
+  const clientBlocks = [];
+
+  for (const { file, ast } of parsedFiles) {
+    for (const node of ast.body) {
+      // Skip removed same-directory imports
+      if (node._removed) continue;
+
+      // Tag node with source file for source maps and error reporting
+      if (node.loc) node.loc.source = file;
+      else node.loc = { line: 1, column: 0, source: file };
+
+      // Tag children too
+      if (node.body && Array.isArray(node.body)) {
+        for (const child of node.body) {
+          if (child.loc) child.loc.source = file;
+          else child.loc = { line: 1, column: 0, source: file };
+        }
+      }
+
+      if (node.type === 'SharedBlock') sharedBlocks.push(node);
+      else if (node.type === 'ServerBlock') serverBlocks.push(node);
+      else if (node.type === 'ClientBlock') clientBlocks.push(node);
+
+      mergedBody.push(node);
+    }
+  }
+
+  // Validate for duplicate declarations across files
+  validateMergedAST({ sharedBlocks, serverBlocks, clientBlocks }, tovaFiles);
+
+  // Build merged Program AST
+  const mergedAST = new Program(mergedBody);
+
+  // Run analyzer on merged AST
+  const analyzer = new Analyzer(mergedAST, dir);
+  const { warnings } = analyzer.analyze();
+
+  if (warnings.length > 0) {
+    for (const w of warnings) {
+      console.warn(`  Warning: ${w.message} (line ${w.line})`);
+    }
+  }
+
+  // Run codegen on merged AST
+  const codegen = new CodeGenerator(mergedAST, dir);
+  const output = codegen.generate();
+
+  // Collect source content from all files for source maps
+  const sourceContents = new Map();
+  for (const { file, source } of parsedFiles) {
+    sourceContents.set(file, source);
+  }
+  output._sourceContents = sourceContents;
+  output._sourceFiles = tovaFiles;
+
+  return { output, files: tovaFiles, single: false };
+}
+
+// Group .tova files by their parent directory
+function groupFilesByDirectory(files) {
+  const groups = new Map();
+  for (const file of files) {
+    const dir = dirname(file);
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(file);
+  }
+  return groups;
 }
 
 function findFiles(dir, ext) {

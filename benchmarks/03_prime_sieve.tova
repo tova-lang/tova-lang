@@ -1,0 +1,48 @@
+// Benchmark 3: Sieve of Eratosthenes
+// Tests: array allocation, indexing, conditional logic, loops
+
+sieve_size = 10000000
+iterations = 5
+
+var times = []
+var primes_found = 0
+
+for iter in range(iterations) {
+  var flags = []
+  for idx in range(sieve_size + 1) {
+    flags.push(true)
+  }
+
+  start = performance.now()
+
+  var p = 2
+  while p * p <= sieve_size {
+    if flags[p] {
+      var m = p * p
+      while m <= sieve_size {
+        flags[m] = false
+        m += p
+      }
+    }
+    p += 1
+  }
+
+  var total = 0
+  for idx in range(sieve_size + 1) {
+    if flags[idx] {
+      total += 1
+    }
+  }
+  primes_found = total - 2
+
+  elapsed = performance.now() - start
+  times.push(elapsed)
+}
+
+best = min(times)
+avg = sum(times) / len(times)
+print("BENCHMARK: prime_sieve")
+print("limit={sieve_size}, iterations={iterations}")
+print("primes_found={primes_found}")
+print("best={best}ms")
+print("avg={avg}ms")
