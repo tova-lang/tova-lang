@@ -3,6 +3,7 @@ node_modules/
 *.tova.js
 dist/
 src/runtime/embedded.js
+src/version.js
 
 # Editor / IDE
 .vscode/

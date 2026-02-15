@@ -4,7 +4,6 @@ import { resolve, basename, dirname, join, relative } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
-import { createRequire } from 'module';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
@@ -20,8 +19,7 @@ import { writePackageJson } from '../src/config/package-json.js';
 import { addToSection, removeFromSection } from '../src/config/edit-toml.js';
 import { stringifyTOML } from '../src/config/toml.js';
 
-const require = createRequire(import.meta.url);
-const { version: VERSION } = require('../package.json');
+import { VERSION } from '../src/version.js';
 
 const HELP = `
   ╦  ╦ ╦═╗ ╦
