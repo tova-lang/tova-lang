@@ -172,7 +172,8 @@ export class ClientCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(clientBlocks, sharedCode) {
+  generate(clientBlocks, sharedCode, sharedBuiltins = null) {
+    this._sharedBuiltins = sharedBuiltins || new Set();
     const lines = [];
 
     // Runtime imports
@@ -209,9 +210,10 @@ export class ClientCodegen extends BaseCodegen {
       lines.push('');
     }
 
-    // Stdlib core functions (available in all Tova code)
+    // Stdlib placeholder — filled after all client code is generated so tree-shaking sees all usages
+    const stdlibPlaceholderIdx = lines.length;
     lines.push('// ── Stdlib ──');
-    lines.push(this.getStdlibCore());
+    lines.push('__STDLIB_PLACEHOLDER__');
     lines.push('');
 
     // Server RPC proxy
@@ -349,6 +351,9 @@ export class ClientCodegen extends BaseCodegen {
       lines.push('  }');
       lines.push('});');
     }
+
+    // Replace stdlib placeholder now that all client code has been generated
+    lines[stdlibPlaceholderIdx + 1] = this.getStdlibCore();
 
     return lines.join('\n');
   }
@@ -901,8 +906,14 @@ export class ClientCodegen extends BaseCodegen {
 
   getStdlibCore() {
     const parts = [];
-    // Only include used builtin functions (tree-shaking)
-    const selectiveStdlib = buildSelectiveStdlib(this._usedBuiltins);
+    // Only include builtins used in client blocks that aren't already in shared code
+    const clientOnly = new Set();
+    for (const name of this._usedBuiltins) {
+      if (!this._sharedBuiltins || !this._sharedBuiltins.has(name)) {
+        clientOnly.add(name);
+      }
+    }
+    const selectiveStdlib = buildSelectiveStdlib(clientOnly);
     if (selectiveStdlib) parts.push(selectiveStdlib);
     // Include Result/Option if Ok/Err/Some/None are used
     if (this._needsResultOption) parts.push(RESULT_OPTION);

@@ -5,6 +5,7 @@
 import { SharedCodegen } from './shared-codegen.js';
 import { ServerCodegen } from './server-codegen.js';
 import { ClientCodegen } from './client-codegen.js';
+import { BUILTIN_NAMES } from '../stdlib/inline.js';
 
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>') {
@@ -48,6 +49,10 @@ export class CodeGenerator {
     // All shared blocks (regardless of name) are merged into one shared output
     const sharedCode = sharedBlocks.map(b => sharedGen.generate(b)).join('\n');
     const topLevelCode = topLevel.map(s => sharedGen.generateStatement(s)).join('\n');
+
+    // Pre-scan server/client blocks for builtin usage so shared stdlib includes them
+    this._scanBlocksForBuiltins([...serverBlocks, ...clientBlocks], sharedGen._usedBuiltins);
+
     const helpers = sharedGen.generateHelpers();
 
     // Generate data block code (sources, pipelines, validators, refresh)
@@ -105,7 +110,7 @@ export class CodeGenerator {
     for (const [name, blocks] of clientGroups) {
       const gen = new ClientCodegen();
       const key = name || 'default';
-      clients[key] = gen.generate(blocks, combinedShared);
+      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins);
     }
 
     // Generate tests if test blocks exist
@@ -150,6 +155,31 @@ export class CodeGenerator {
     };
     if (testCode) result.test = testCode;
     return result;
+  }
+
+  // Walk AST nodes to find builtin function calls/identifiers
+  _scanBlocksForBuiltins(blocks, targetSet) {
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'Identifier' && BUILTIN_NAMES.has(node.name)) {
+        targetSet.add(node.name);
+      }
+      if (node.type === 'CallExpression' && node.callee && node.callee.type === 'Identifier' && BUILTIN_NAMES.has(node.callee.name)) {
+        targetSet.add(node.callee.name);
+      }
+      for (const key of Object.keys(node)) {
+        if (key === 'loc' || key === 'type') continue;
+        const val = node[key];
+        if (Array.isArray(val)) {
+          for (const item of val) {
+            if (item && typeof item === 'object') walk(item);
+          }
+        } else if (val && typeof val === 'object' && val.type) {
+          walk(val);
+        }
+      }
+    };
+    for (const block of blocks) walk(block);
   }
 
   _genDataBlock(node, gen) {

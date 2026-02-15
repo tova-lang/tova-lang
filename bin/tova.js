@@ -37,7 +37,7 @@ Usage:
 Commands:
   run <file>       Compile and execute a .tova file
   build [dir]      Compile .tova files to JavaScript (default: current dir)
-  dev              Start development server with file watching
+  dev              Start development server with live reload
   new <name>       Create a new Tova project
   install          Install npm dependencies from tova.toml
   add <pkg>        Add an npm dependency (--dev for dev dependency)
@@ -500,6 +500,8 @@ async function devServer(args) {
     process.exit(1);
   }
 
+  const reloadPort = basePort + 100;
+
   console.log(`\n  Tova dev server starting...\n`);
 
   // Compile all files
@@ -544,7 +546,7 @@ async function devServer(args) {
       if (output.client) {
         const p = join(outDir, `${outBaseName}.client.js`);
         writeFileSync(p, output.client);
-        clientHTML = await generateDevHTML(output.client, srcDir);
+        clientHTML = await generateDevHTML(output.client, srcDir, reloadPort);
         writeFileSync(join(outDir, 'index.html'), clientHTML);
         hasClient = true;
       }
@@ -624,6 +626,49 @@ async function devServer(args) {
     console.log(`  ✓ Client: ${relative('.', outDir)}/index.html`);
   }
 
+  // Start live-reload SSE server
+  const reloadClients = new Set();
+  const reloadServer = Bun.serve({
+    port: reloadPort,
+    fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname === '/__tova_reload') {
+        const stream = new ReadableStream({
+          start(controller) {
+            const client = { controller };
+            reloadClients.add(client);
+            // Send heartbeat to keep connection alive
+            const heartbeat = setInterval(() => {
+              try { controller.enqueue(new TextEncoder().encode(': heartbeat\n\n')); } catch { clearInterval(heartbeat); }
+            }, 15000);
+            req.signal.addEventListener('abort', () => {
+              clearInterval(heartbeat);
+              reloadClients.delete(client);
+            });
+          },
+        });
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+      return new Response('Not Found', { status: 404 });
+    },
+  });
+
+  function notifyReload() {
+    const msg = new TextEncoder().encode('data: reload\n\n');
+    for (const client of reloadClients) {
+      try { client.controller.enqueue(msg); } catch { reloadClients.delete(client); }
+    }
+  }
+
+  console.log(`  ✓ Live reload on port ${reloadPort}`);
+
   // Start file watcher for auto-rebuild
   const watcher = startWatcher(srcDir, async () => {
     console.log('  Rebuilding...');
@@ -655,7 +700,7 @@ async function devServer(args) {
         }
         if (output.client) {
           writeFileSync(join(outDir, `${outBaseName}.client.js`), output.client);
-          rebuildClientHTML = await generateDevHTML(output.client, srcDir);
+          rebuildClientHTML = await generateDevHTML(output.client, srcDir, reloadPort);
           writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
         }
         if (output.server) {
@@ -705,6 +750,7 @@ async function devServer(args) {
       rebuildPortOffset++;
     }
     console.log('  ✓ Rebuild complete');
+    notifyReload();
   });
 
   console.log(`\n  Watching for changes. Press Ctrl+C to stop\n`);
@@ -713,6 +759,7 @@ async function devServer(args) {
   process.on('SIGINT', () => {
     console.log('\n  Shutting down...');
     watcher.close();
+    reloadServer.stop();
     for (const p of processes) {
       p.child.kill('SIGTERM');
     }
@@ -723,7 +770,16 @@ async function devServer(args) {
   await new Promise(() => {});
 }
 
-async function generateDevHTML(clientCode, srcDir) {
+async function generateDevHTML(clientCode, srcDir, reloadPort = 0) {
+  const liveReloadScript = reloadPort ? `
+  <script>
+    (function() {
+      var es = new EventSource("http://localhost:${reloadPort}/__tova_reload");
+      es.onmessage = function(e) { if (e.data === "reload") window.location.reload(); };
+      es.onerror = function() { setTimeout(function() { window.location.reload(); }, 1000); };
+    })();
+  </script>` : '';
+
   // Check if client code uses npm packages — if so, bundle with Bun.build
   if (srcDir && hasNpmImports(clientCode)) {
     const bundled = await bundleClientCode(clientCode, srcDir);
@@ -745,7 +801,7 @@ async function generateDevHTML(clientCode, srcDir) {
   <div id="app"></div>
   <script type="module">
 ${bundled}
-  </script>
+  </script>${liveReloadScript}
 </body>
 </html>`;
   }
@@ -807,7 +863,7 @@ ${inlineRpc}
 
 // ── App ──
 ${inlineClient}
-  </script>
+  </script>${liveReloadScript}
 </body>
 </html>`;
 }

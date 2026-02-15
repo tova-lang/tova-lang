@@ -42,8 +42,15 @@ export function addToSection(filePath, section, key, value) {
     }
   }
 
-  // Key doesn't exist — insert before the end of section
-  lines.splice(endIdx, 0, entry);
+  // Key doesn't exist — insert after last non-blank line in section
+  let insertIdx = sectionIdx + 1;
+  for (let i = endIdx - 1; i > sectionIdx; i--) {
+    if (lines[i].trim() !== '') {
+      insertIdx = i + 1;
+      break;
+    }
+  }
+  lines.splice(insertIdx, 0, entry);
   writeFileSync(filePath, lines.join('\n'));
 }
 
