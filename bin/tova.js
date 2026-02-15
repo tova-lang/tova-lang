@@ -500,6 +500,28 @@ async function devServer(args) {
 
   const reloadPort = basePort + 100;
 
+  // Start live-reload SSE server early so actualReloadPort is available for HTML generation
+  const reloadClients = new Set();
+  let reloadServer;
+  let actualReloadPort = reloadPort;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      reloadServer = Bun.serve({
+        port: actualReloadPort,
+        fetch(req) {
+          return handleReloadFetch(req);
+        },
+      });
+      break;
+    } catch {
+      actualReloadPort++;
+    }
+  }
+  if (!reloadServer) {
+    console.log('  ⚠ Could not start live-reload server (ports in use)');
+    actualReloadPort = 0;
+  }
+
   console.log(`\n  Tova dev server starting...\n`);
 
   // Compile all files
@@ -622,27 +644,6 @@ async function devServer(args) {
 
   if (hasClient) {
     console.log(`  ✓ Client: ${relative('.', outDir)}/index.html`);
-  }
-
-  // Start live-reload SSE server — find an available port
-  const reloadClients = new Set();
-  let reloadServer;
-  let actualReloadPort = reloadPort;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    try {
-      reloadServer = Bun.serve({
-        port: actualReloadPort,
-        fetch(req) {
-          return handleReloadFetch(req);
-        },
-      });
-      break;
-    } catch {
-      actualReloadPort++;
-    }
-  }
-  if (!reloadServer) {
-    console.log('  ⚠ Could not start live-reload server (ports in use)');
   }
 
   function handleReloadFetch(req) {
@@ -958,7 +959,7 @@ client {
 
   component App {
     <div class="app">
-      <h1>"Welcome to {message}"</h1>
+      <h1>"{message}"</h1>
       <p>"Edit src/app.tova to get started."</p>
     </div>
   }
