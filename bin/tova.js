@@ -544,7 +544,7 @@ async function devServer(args) {
       if (output.client) {
         const p = join(outDir, `${outBaseName}.client.js`);
         writeFileSync(p, output.client);
-        clientHTML = await generateDevHTML(output.client, srcDir, reloadPort);
+        clientHTML = await generateDevHTML(output.client, srcDir, actualReloadPort);
         writeFileSync(join(outDir, 'index.html'), clientHTML);
         hasClient = true;
       }
@@ -624,11 +624,28 @@ async function devServer(args) {
     console.log(`  ✓ Client: ${relative('.', outDir)}/index.html`);
   }
 
-  // Start live-reload SSE server
+  // Start live-reload SSE server — find an available port
   const reloadClients = new Set();
-  const reloadServer = Bun.serve({
-    port: reloadPort,
-    fetch(req) {
+  let reloadServer;
+  let actualReloadPort = reloadPort;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      reloadServer = Bun.serve({
+        port: actualReloadPort,
+        fetch(req) {
+          return handleReloadFetch(req);
+        },
+      });
+      break;
+    } catch {
+      actualReloadPort++;
+    }
+  }
+  if (!reloadServer) {
+    console.log('  ⚠ Could not start live-reload server (ports in use)');
+  }
+
+  function handleReloadFetch(req) {
       const url = new URL(req.url);
       if (url.pathname === '/__tova_reload') {
         const stream = new ReadableStream({
@@ -655,8 +672,7 @@ async function devServer(args) {
         });
       }
       return new Response('Not Found', { status: 404 });
-    },
-  });
+  }
 
   function notifyReload() {
     const msg = new TextEncoder().encode('data: reload\n\n');
@@ -665,7 +681,7 @@ async function devServer(args) {
     }
   }
 
-  console.log(`  ✓ Live reload on port ${reloadPort}`);
+  if (reloadServer) console.log(`  ✓ Live reload on port ${actualReloadPort}`);
 
   // Start file watcher for auto-rebuild
   const watcher = startWatcher(srcDir, async () => {
@@ -698,7 +714,7 @@ async function devServer(args) {
         }
         if (output.client) {
           writeFileSync(join(outDir, `${outBaseName}.client.js`), output.client);
-          rebuildClientHTML = await generateDevHTML(output.client, srcDir, reloadPort);
+          rebuildClientHTML = await generateDevHTML(output.client, srcDir, actualReloadPort);
           writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
         }
         if (output.server) {
@@ -757,9 +773,9 @@ async function devServer(args) {
   process.on('SIGINT', () => {
     console.log('\n  Shutting down...');
     watcher.close();
-    reloadServer.stop();
+    if (reloadServer) reloadServer.stop();
     for (const p of processes) {
-      p.child.kill('SIGTERM');
+      try { p.child.kill('SIGKILL'); } catch {}
     }
     process.exit(0);
   });
