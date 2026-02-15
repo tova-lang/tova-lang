@@ -380,6 +380,129 @@ camel_case("Hello World")       // "helloWorld"
 camel_case("some-thing")        // "someThing"
 ```
 
+### kebab_case
+
+```tova
+kebab_case(s) -> String
+```
+
+Converts a string to `kebab-case`. Handles camelCase, spaces, and underscores.
+
+```tova
+kebab_case("helloWorld")         // "hello-world"
+kebab_case("Hello World")        // "hello-world"
+kebab_case("some_thing")         // "some-thing"
+```
+
+---
+
+## Searching & Counting
+
+### index_of
+
+```tova
+index_of(s, sub) -> Int | Nil
+```
+
+Returns the position of the first occurrence of `sub` in `s`. Returns `nil` if not found.
+
+```tova
+index_of("hello world", "world")    // 6
+index_of("abcabc", "bc")            // 1
+index_of("hello", "xyz")            // nil
+```
+
+### last_index_of
+
+```tova
+last_index_of(s, sub) -> Int | Nil
+```
+
+Returns the position of the last occurrence of `sub` in `s`. Returns `nil` if not found.
+
+```tova
+last_index_of("abcabc", "bc")      // 4
+last_index_of("hello", "l")         // 3
+last_index_of("hello", "xyz")       // nil
+```
+
+### count_of
+
+```tova
+count_of(s, sub) -> Int
+```
+
+Counts the number of non-overlapping occurrences of `sub` in `s`.
+
+```tova
+count_of("banana", "an")            // 2
+count_of("mississippi", "s")        // 4
+count_of("hello", "xyz")            // 0
+```
+
+---
+
+## Substrings & Transformation
+
+### substr
+
+```tova
+substr(s, start, end?) -> String
+```
+
+Extracts a portion of the string from `start` to `end` (exclusive). If `end` is omitted, extracts to the end of the string. Supports negative indices.
+
+```tova
+substr("hello world", 6)           // "world"
+substr("hello world", 0, 5)        // "hello"
+substr("hello", -3)                 // "llo"
+```
+
+### reverse_str
+
+```tova
+reverse_str(s) -> String
+```
+
+Reverses a string.
+
+```tova
+reverse_str("hello")               // "olleh"
+reverse_str("racecar")             // "racecar"
+reverse_str("")                     // ""
+```
+
+### center
+
+```tova
+center(s, n, fill?) -> String
+```
+
+Center-pads a string to width `n`. Uses spaces by default, or the optional `fill` character. Returns the string unchanged if already wider.
+
+```tova
+center("hi", 6)                    // "  hi  "
+center("hi", 7)                    // "  hi   "
+center("hi", 6, "*")               // "**hi**"
+center("hello", 3)                 // "hello"
+```
+
+### is_empty
+
+```tova
+is_empty(v) -> Bool
+```
+
+Returns `true` if a value is empty. Works for strings, arrays, objects, and nil.
+
+```tova
+is_empty("")                        // true
+is_empty("hello")                   // false
+is_empty([])                        // true
+is_empty({})                        // true
+is_empty(nil)                       // true
+```
+
 ---
 
 ## Pipeline Examples

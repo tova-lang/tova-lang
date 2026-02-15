@@ -145,43 +145,126 @@ COLORS = freeze({
 
 ---
 
-## Patterns
+## Inspecting & Accessing
 
-### Building Objects from Arrays
+### has_key
 
 ```tova
-// Convert entries back to an object
-pairs = [["name", "Alice"], ["age", 30]]
-
-result = reduce(pairs, fn(acc, pair) {
-  merge(acc, { [pair[0]]: pair[1] })
-}, {})
-// { name: "Alice", age: 30 }
+has_key(obj, key) -> Bool
 ```
 
-### Filtering Object Keys
+Returns `true` if the object has the given key. Safely handles `nil`.
 
 ```tova
-// Keep only specific keys
-fn pick(obj, wanted_keys) {
-  entries(obj)
-    |> filter(fn(pair) contains(wanted_keys, pair[0]))
-    |> reduce(fn(acc, pair) merge(acc, { [pair[0]]: pair[1] }), {})
-}
+has_key({ name: "Alice", age: 30 }, "name")   // true
+has_key({ name: "Alice" }, "email")             // false
+has_key(nil, "anything")                        // false
+```
 
+### get
+
+```tova
+get(obj, path, default?) -> T | Nil
+```
+
+Safe nested property access using a dot-separated path string or array of keys. Returns `nil` (or the default) if any part of the path is missing.
+
+```tova
+user = { name: "Alice", address: { city: "NYC", zip: "10001" } }
+
+get(user, "address.city")           // "NYC"
+get(user, "address.country")        // nil
+get(user, "address.country", "US")  // "US"
+
+// Array path syntax
+get(user, ["address", "zip"])       // "10001"
+```
+
+### from_entries
+
+```tova
+from_entries(pairs) -> Object
+```
+
+Creates an object from an array of `[key, value]` pairs. The inverse of `entries()`.
+
+```tova
+from_entries([["name", "Alice"], ["age", 30]])
+// { name: "Alice", age: 30 }
+
+// Round-trip: entries → transform → from_entries
+{ a: 1, b: 2 }
+  |> entries()
+  |> map(fn(pair) [pair[0], pair[1] * 10])
+  |> from_entries()
+// { a: 10, b: 20 }
+```
+
+---
+
+## Selecting & Transforming
+
+### pick
+
+```tova
+pick(obj, keys) -> Object
+```
+
+Returns a new object containing only the specified keys.
+
+```tova
 pick({ a: 1, b: 2, c: 3 }, ["a", "c"])
 // { a: 1, c: 3 }
+
+// Extract public fields from a user object
+pick(user, ["name", "email", "avatar"])
 ```
 
-### Transforming Values
+### omit
 
 ```tova
-// Double all numeric values in an object
-scores = { math: 85, science: 92, english: 78 }
+omit(obj, keys) -> Object
+```
 
-scores
-  |> entries()
-  |> map(fn(pair) [pair[0], pair[1] * 2])
-  |> reduce(fn(acc, pair) merge(acc, { [pair[0]]: pair[1] }), {})
-// { math: 170, science: 184, english: 156 }
+Returns a new object with the specified keys removed.
+
+```tova
+omit({ a: 1, b: 2, c: 3 }, ["b"])
+// { a: 1, c: 3 }
+
+// Remove sensitive fields before sending to client
+omit(user, ["password", "ssn", "internal_id"])
+```
+
+### map_values
+
+```tova
+map_values(obj, fn) -> Object
+```
+
+Transforms each value in the object using a function. The function receives `(value, key)`.
+
+```tova
+map_values({ a: 1, b: 2, c: 3 }, fn(v) v * 10)
+// { a: 10, b: 20, c: 30 }
+
+map_values({ math: 85, science: 92 }, fn(v, k) "{k}: {v}%")
+// { math: "math: 85%", science: "science: 92%" }
+```
+
+---
+
+## Patterns
+
+### Pipeline with Object Functions
+
+```tova
+// Clean and reshape config
+config
+  |> omit(["internal", "debug"])
+  |> map_values(fn(v) to_string(v))
+
+// Combine two sources, keeping only needed fields
+merge(defaults, user_prefs)
+  |> pick(["theme", "lang", "timezone"])
 ```

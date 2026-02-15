@@ -1,6 +1,6 @@
 {
   "name": "tova",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Tova — a modern programming language that transpiles to JavaScript, unifying frontend and backend",
   "type": "module",
   "main": "src/index.js",
@@ -33,6 +33,7 @@
   "bugs": {
     "url": "https://github.com/tova-lang/tova-lang/issues"
   },
+  "author": "Enoch Kujem Abassey",
   "keywords": ["language", "transpiler", "fullstack", "javascript"],
   "license": "MIT"
 }

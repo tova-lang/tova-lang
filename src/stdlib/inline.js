@@ -242,6 +242,72 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   rename: `function rename(table, oldName, newName) { return table_rename(table, oldName, newName); }`,
   mean: `function mean(fn) { return agg_mean(fn); }`,
   median: `function median(fn) { return agg_median(fn); }`,
+
+  // ── Strings (new) ──────────────────────────────────────
+  index_of: `function index_of(s, sub) { const i = s.indexOf(sub); return i === -1 ? null : i; }`,
+  last_index_of: `function last_index_of(s, sub) { const i = s.lastIndexOf(sub); return i === -1 ? null : i; }`,
+  count_of: `function count_of(s, sub) { if (!sub) return 0; let c = 0, i = 0; while ((i = s.indexOf(sub, i)) !== -1) { c++; i += sub.length; } return c; }`,
+  reverse_str: `function reverse_str(s) { return [...s].reverse().join(''); }`,
+  substr: `function substr(s, start, end) { return end === undefined ? s.slice(start) : s.slice(start, end); }`,
+  is_empty: `function is_empty(v) { if (v == null) return true; if (typeof v === 'string' || Array.isArray(v)) return v.length === 0; if (typeof v === 'object') return Object.keys(v).length === 0; return false; }`,
+  kebab_case: `function kebab_case(s) { return s.replace(/[-\\s]+/g, '-').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().replace(/^-/, ''); }`,
+  center: `function center(s, n, fill) { if (s.length >= n) return s; const f = fill || ' '; const total = n - s.length; const left = Math.floor(total / 2); const right = total - left; return f.repeat(Math.ceil(left / f.length)).slice(0, left) + s + f.repeat(Math.ceil(right / f.length)).slice(0, right); }`,
+
+  // ── Collections (new) ──────────────────────────────────
+  zip_with: `function zip_with(a, b, fn) { const m = Math.min(a.length, b.length); const r = []; for (let i = 0; i < m; i++) r.push(fn(a[i], b[i])); return r; }`,
+  frequencies: `function frequencies(arr) { const r = {}; for (const v of arr) { const k = String(v); r[k] = (r[k] || 0) + 1; } return r; }`,
+  scan: `function scan(arr, fn, init) { const r = []; let acc = init; for (const v of arr) { acc = fn(acc, v); r.push(acc); } return r; }`,
+  min_by: `function min_by(arr, fn) { if (arr.length === 0) return null; let best = arr[0], bestK = fn(arr[0]); for (let i = 1; i < arr.length; i++) { const k = fn(arr[i]); if (k < bestK) { best = arr[i]; bestK = k; } } return best; }`,
+  max_by: `function max_by(arr, fn) { if (arr.length === 0) return null; let best = arr[0], bestK = fn(arr[0]); for (let i = 1; i < arr.length; i++) { const k = fn(arr[i]); if (k > bestK) { best = arr[i]; bestK = k; } } return best; }`,
+  sum_by: `function sum_by(arr, fn) { let s = 0; for (const v of arr) s += fn(v); return s; }`,
+  product: `function product(arr) { return arr.reduce((a, b) => a * b, 1); }`,
+  from_entries: `function from_entries(pairs) { return Object.fromEntries(pairs); }`,
+  has_key: `function has_key(obj, key) { return obj != null && Object.prototype.hasOwnProperty.call(obj, key); }`,
+  get: `function get(obj, path, def) { const keys = Array.isArray(path) ? path : String(path).split('.'); let cur = obj; for (const k of keys) { if (cur == null || typeof cur !== 'object') return def !== undefined ? def : null; cur = cur[k]; } return cur !== undefined ? cur : (def !== undefined ? def : null); }`,
+  pick: `function pick(obj, ks) { const r = {}; for (const k of ks) { if (k in obj) r[k] = obj[k]; } return r; }`,
+  omit: `function omit(obj, ks) { const s = new Set(ks); const r = {}; for (const k of Object.keys(obj)) { if (!s.has(k)) r[k] = obj[k]; } return r; }`,
+  map_values: `function map_values(obj, fn) { const r = {}; for (const [k, v] of Object.entries(obj)) r[k] = fn(v, k); return r; }`,
+  sliding_window: `function sliding_window(arr, n) { if (n <= 0 || n > arr.length) return []; const r = []; for (let i = 0; i <= arr.length - n; i++) r.push(arr.slice(i, i + n)); return r; }`,
+
+  // ── JSON (new) ─────────────────────────────────────────
+  json_parse: `function json_parse(s) { try { return Ok(JSON.parse(s)); } catch (e) { return Err(e.message); } }`,
+  json_stringify: `function json_stringify(v) { return JSON.stringify(v); }`,
+  json_pretty: `function json_pretty(v) { return JSON.stringify(v, null, 2); }`,
+
+  // ── Functional (new) ───────────────────────────────────
+  compose: `function compose(...fns) { return (x) => fns.reduceRight((v, fn) => fn(v), x); }`,
+  pipe_fn: `function pipe_fn(...fns) { return (x) => fns.reduce((v, fn) => fn(v), x); }`,
+  identity: `function identity(x) { return x; }`,
+  memoize: `function memoize(fn) { const cache = new Map(); return function(...args) { const key = JSON.stringify(args); if (cache.has(key)) return cache.get(key); const result = fn.apply(this, args); cache.set(key, result); return result; }; }`,
+  debounce: `function debounce(fn, ms) { let timer; return function(...args) { clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), ms); }; }`,
+  throttle: `function throttle(fn, ms) { let last = 0; return function(...args) { const now = Date.now(); if (now - last >= ms) { last = now; return fn.apply(this, args); } }; }`,
+  once: `function once(fn) { let called = false, result; return function(...args) { if (!called) { called = true; result = fn.apply(this, args); } return result; }; }`,
+  negate: `function negate(fn) { return function(...args) { return !fn.apply(this, args); }; }`,
+
+  // ── Error Handling (new) ───────────────────────────────
+  try_fn: `function try_fn(fn) { try { return Ok(fn()); } catch (e) { return Err(e instanceof Error ? e.message : String(e)); } }`,
+  try_async: `async function try_async(fn) { try { return Ok(await fn()); } catch (e) { return Err(e instanceof Error ? e.message : String(e)); } }`,
+
+  // ── Async (new) ────────────────────────────────────────
+  parallel: `function parallel(list) { return Promise.all(list); }`,
+  timeout: `function timeout(promise, ms) { return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout after ' + ms + 'ms')), ms))]); }`,
+  retry: `async function retry(fn, opts) { const o = opts || {}; const times = o.times || 3; const delay = o.delay || 100; const backoff = o.backoff || 1; let lastErr; for (let i = 0; i < times; i++) { try { return await fn(); } catch (e) { lastErr = e; if (i < times - 1) await new Promise(r => setTimeout(r, delay * Math.pow(backoff, i))); } } throw lastErr; }`,
+
+  // ── Encoding (new) ─────────────────────────────────────
+  base64_encode: `function base64_encode(s) { return typeof btoa === 'function' ? btoa(unescape(encodeURIComponent(s))) : Buffer.from(s, 'utf-8').toString('base64'); }`,
+  base64_decode: `function base64_decode(s) { return typeof atob === 'function' ? decodeURIComponent(escape(atob(s))) : Buffer.from(s, 'base64').toString('utf-8'); }`,
+  url_encode: `function url_encode(s) { return encodeURIComponent(s); }`,
+  url_decode: `function url_decode(s) { return decodeURIComponent(s); }`,
+
+  // ── Math (new) ─────────────────────────────────────────
+  hypot: `function hypot(a, b) { return Math.hypot(a, b); }`,
+  lerp: `function lerp(a, b, t) { return a + (b - a) * t; }`,
+  divmod: `function divmod(a, b) { return [Math.floor(a / b), a % b]; }`,
+  avg: `function avg(arr) { return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length; }`,
+
+  // ── Date/Time (new) ────────────────────────────────────
+  now: `function now() { return Date.now(); }`,
+  now_iso: `function now_iso() { return new Date().toISOString(); }`,
 };
 
 // All known builtin names for matching

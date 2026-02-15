@@ -2,6 +2,8 @@
 
 A modern programming language that transpiles to JavaScript, unifying frontend and backend development with clean, enjoyable syntax.
 
+Created by **Enoch Kujem Abassey**.
+
 ## Features
 
 - **Full-stack in one file** — `server`, `client`, and `shared` blocks

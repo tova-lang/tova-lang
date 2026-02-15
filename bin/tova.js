@@ -24,6 +24,7 @@ const HELP = `
   ║  ║ ║ ║ ╠╣
   ╩═╝╚═╝╩═╝╩  v${VERSION}
 
+  Created by Enoch Kujem Abassey
   A modern full-stack language that transpiles to JavaScript
 
 Usage:

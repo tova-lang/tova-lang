@@ -3,6 +3,7 @@
   "displayName": "Tova Language",
   "description": "Language support for the Tova programming language",
   "version": "0.1.0",
+  "author": "Enoch Kujem Abassey",
   "publisher": "tova-lang",
   "engines": {
     "vscode": "^1.75.0"

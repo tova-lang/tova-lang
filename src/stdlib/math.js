@@ -33,3 +33,8 @@ export function lcm(a, b) {
   return Math.abs(a * b) / x;
 }
 export function factorial(n) { if (n < 0) return null; if (n <= 1) return 1; let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }
+
+export function hypot(a, b) { return Math.hypot(a, b); }
+export function lerp(a, b, t) { return a + (b - a) * t; }
+export function divmod(a, b) { return [Math.floor(a / b), a % b]; }
+export function avg(arr) { return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length; }

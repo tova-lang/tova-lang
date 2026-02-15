@@ -103,6 +103,28 @@ export class Analyzer {
       'where', 'select', 'derive', 'agg', 'sort_by', 'limit',
       'pivot', 'unpivot', 'explode', 'union', 'drop_duplicates', 'rename',
       'mean', 'median',
+      // Strings (new)
+      'index_of', 'last_index_of', 'count_of', 'reverse_str', 'substr',
+      'is_empty', 'kebab_case', 'center',
+      // Collections (new)
+      'zip_with', 'frequencies', 'scan', 'min_by', 'max_by', 'sum_by',
+      'product', 'from_entries', 'has_key', 'get', 'pick', 'omit',
+      'map_values', 'sliding_window',
+      // JSON
+      'json_parse', 'json_stringify', 'json_pretty',
+      // Functional
+      'compose', 'pipe_fn', 'identity', 'memoize', 'debounce', 'throttle',
+      'once', 'negate',
+      // Error handling
+      'try_fn', 'try_async',
+      // Async
+      'parallel', 'timeout', 'retry',
+      // Encoding
+      'base64_encode', 'base64_decode', 'url_encode', 'url_decode',
+      // Math (new)
+      'hypot', 'lerp', 'divmod', 'avg',
+      // Date/Time
+      'now', 'now_iso',
     ];
     for (const name of builtins) {
       this.globalScope.define(name, new Symbol(name, 'builtin', null, false, { line: 0, column: 0, file: '<builtin>' }));

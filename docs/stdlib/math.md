@@ -456,6 +456,67 @@ shuffle([1, 2, 3, 4, 5])     // e.g., [3, 5, 1, 4, 2]
 
 ---
 
+## Geometry & Interpolation
+
+### hypot
+
+```tova
+hypot(a, b) -> Float
+```
+
+Returns the hypotenuse (length of the vector from origin to point `(a, b)`). More numerically stable than `sqrt(a**2 + b**2)`.
+
+```tova
+hypot(3, 4)      // 5
+hypot(5, 12)     // 13
+hypot(0, 0)      // 0
+```
+
+### lerp
+
+```tova
+lerp(a, b, t) -> Float
+```
+
+Linear interpolation between `a` and `b`. When `t` is `0`, returns `a`; when `t` is `1`, returns `b`.
+
+```tova
+lerp(0, 10, 0.5)    // 5
+lerp(0, 10, 0)      // 0
+lerp(0, 10, 1)      // 10
+lerp(0, 100, 0.25)  // 25
+```
+
+### divmod
+
+```tova
+divmod(a, b) -> [Int, Int]
+```
+
+Returns both the quotient and remainder as a tuple.
+
+```tova
+divmod(10, 3)    // [3, 1]
+divmod(7, 2)     // [3, 1]
+divmod(6, 3)     // [2, 0]
+```
+
+### avg
+
+```tova
+avg(arr) -> Float
+```
+
+Returns the arithmetic mean of an array. Returns `0` for an empty array.
+
+```tova
+avg([1, 2, 3, 4, 5])    // 3
+avg([10])                 // 10
+avg([])                   // 0
+```
+
+---
+
 ## Async
 
 ### sleep

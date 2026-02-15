@@ -148,6 +148,10 @@ export default defineConfig({
             { text: 'Strings', link: '/stdlib/strings' },
             { text: 'Math', link: '/stdlib/math' },
             { text: 'Objects & Utilities', link: '/stdlib/objects' },
+            { text: 'Functional', link: '/stdlib/functional' },
+            { text: 'JSON', link: '/stdlib/json' },
+            { text: 'Encoding', link: '/stdlib/encoding' },
+            { text: 'Async & Error Handling', link: '/stdlib/async' },
             { text: 'Result & Option', link: '/stdlib/result-option' },
             { text: 'Type Conversion', link: '/stdlib/conversion' },
             { text: 'Assertions', link: '/stdlib/assertions' },
@@ -267,7 +271,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright Tova Contributors',
+      copyright: 'Copyright Enoch Kujem Abassey and Tova Contributors',
     },
   },
 

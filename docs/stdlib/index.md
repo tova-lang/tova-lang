@@ -1,6 +1,6 @@
 # Standard Library Overview
 
-Tova provides **100+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
+Tova provides **150+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
 
 ## Availability
 
@@ -23,12 +23,16 @@ Tova's standard library follows a few guiding principles:
 
 | Category | Functions | Page |
 |---|---|---|
-| **Collections** | `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `find_index`, `includes`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print` | [Collections](./collections) |
-| **Strings** | `trim`, `trim_start`, `trim_end`, `split`, `join`, `replace`, `replace_first`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `char_at`, `pad_start`, `pad_end`, `capitalize`, `title_case`, `snake_case`, `camel_case` | [Strings](./strings) |
-| **Math** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `log`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep` | [Math](./math) |
-| **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
-| **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone` | [Objects & Utilities](./objects) |
+| **Collections** | `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `find_index`, `includes`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print`, `zip_with`, `frequencies`, `scan`, `min_by`, `max_by`, `sum_by`, `product`, `sliding_window` | [Collections](./collections) |
+| **Strings** | `trim`, `trim_start`, `trim_end`, `split`, `join`, `replace`, `replace_first`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `char_at`, `pad_start`, `pad_end`, `capitalize`, `title_case`, `snake_case`, `camel_case`, `kebab_case`, `index_of`, `last_index_of`, `count_of`, `substr`, `reverse_str`, `center`, `is_empty` | [Strings](./strings) |
+| **Math** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `log`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep`, `hypot`, `lerp`, `divmod`, `avg` | [Math](./math) |
+| **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone`, `has_key`, `get`, `from_entries`, `pick`, `omit`, `map_values` | [Objects & Utilities](./objects) |
+| **Functional** | `compose`, `pipe_fn`, `identity`, `memoize`, `debounce`, `throttle`, `once`, `negate` | [Functional](./functional) |
+| **JSON** | `json_parse`, `json_stringify`, `json_pretty` | [JSON](./json) |
+| **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode` | [Encoding](./encoding) |
+| **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `timeout`, `retry`, `now`, `now_iso` | [Async & Error Handling](./async) |
 | **Result & Option** | `Ok`, `Err`, `Some`, `None`, `!` (propagation) | [Result & Option](./result-option) |
+| **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
 | **Assertions** | `assert`, `assert_eq`, `assert_ne` | [Assertions](./assertions) |
 
 ## Quick Reference
@@ -71,6 +75,33 @@ sqrt(16)                         // 4
 ```tova
 keys({ a: 1, b: 2 })           // ["a", "b"]
 merge({ a: 1 }, { b: 2 })      // { a: 1, b: 2 }
+get(user, "address.city")       // safe nested access
+pick(obj, ["name", "email"])    // select keys
+```
+
+### Functional
+
+```tova
+double_then_inc = compose(fn(x) x + 1, fn(x) x * 2)
+cached = memoize(expensive_fn)
+run_once = once(fn() init_app())
+```
+
+### JSON & Encoding
+
+```tova
+json_parse('{"a": 1}')          // Ok({ a: 1 })
+json_pretty({ a: 1 })           // formatted JSON string
+base64_encode("hello")          // "aGVsbG8="
+url_encode("hello world")       // "hello%20world"
+```
+
+### Async & Error Handling
+
+```tova
+result = try_fn(fn() risky_operation())
+data = await parallel([fetch("/a"), fetch("/b")])
+data = await retry(fn() fetch("/api"), { times: 3 })
 ```
 
 ### Result & Option

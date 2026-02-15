@@ -384,9 +384,10 @@ fn setUser() { return 3 }
     for (const [name] of scope.symbols) {
       if (name.toLowerCase().includes(query)) matching.push(name);
     }
-    expect(matching.length).toBe(2);
+    expect(matching.length).toBe(3);
     expect(matching).toContain('getUser');
     expect(matching).toContain('getName');
+    expect(matching).toContain('get');
   });
 });
 

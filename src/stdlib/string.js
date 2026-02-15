@@ -98,3 +98,45 @@ export function camel_case(str) {
     .replace(/[-_\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '')
     .replace(/^[A-Z]/, c => c.toLowerCase());
 }
+
+export function index_of(s, sub) {
+  const i = s.indexOf(sub);
+  return i === -1 ? null : i;
+}
+
+export function last_index_of(s, sub) {
+  const i = s.lastIndexOf(sub);
+  return i === -1 ? null : i;
+}
+
+export function count_of(s, sub) {
+  if (!sub) return 0;
+  let c = 0, i = 0;
+  while ((i = s.indexOf(sub, i)) !== -1) { c++; i += sub.length; }
+  return c;
+}
+
+export function reverse_str(s) {
+  return [...s].reverse().join('');
+}
+
+export function substr(s, start, end) {
+  return end === undefined ? s.slice(start) : s.slice(start, end);
+}
+
+export function kebab_case(s) {
+  return s
+    .replace(/[-\s]+/g, '-')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/^-/, '');
+}
+
+export function center(s, n, fill) {
+  if (s.length >= n) return s;
+  const f = fill || ' ';
+  const total = n - s.length;
+  const left = Math.floor(total / 2);
+  const right = total - left;
+  return f.repeat(Math.ceil(left / f.length)).slice(0, left) + s + f.repeat(Math.ceil(right / f.length)).slice(0, right);
+}

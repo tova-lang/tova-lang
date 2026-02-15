@@ -153,3 +153,22 @@ export function to_bool(v) {
   if (typeof v === 'string') return v !== '' && v !== '0' && v !== 'false';
   return Boolean(v);
 }
+
+// ── General Utilities ────────────────────────────────────
+
+export function is_empty(v) {
+  if (v == null) return true;
+  if (typeof v === 'string' || Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
+
+// ── Date/Time ────────────────────────────────────────────
+
+export function now() {
+  return Date.now();
+}
+
+export function now_iso() {
+  return new Date().toISOString();
+}

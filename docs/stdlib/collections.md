@@ -525,6 +525,142 @@ group_by(users, fn(u) u.role)
 
 ---
 
+## Advanced Collections
+
+### zip_with
+
+```tova
+zip_with(a, b, fn) -> List
+```
+
+Combines two arrays element-by-element using a function. Like `zip` followed by `map`, but in one step.
+
+```tova
+zip_with([1, 2, 3], [10, 20, 30], fn(a, b) a + b)
+// [11, 22, 33]
+
+zip_with(["Alice", "Bob"], [30, 25], fn(name, age) { name: name, age: age })
+// [{ name: "Alice", age: 30 }, { name: "Bob", age: 25 }]
+```
+
+### frequencies
+
+```tova
+frequencies(arr) -> Object
+```
+
+Counts how often each value appears. Returns an object of value-to-count pairs.
+
+```tova
+frequencies(["a", "b", "a", "c", "b", "a"])
+// { a: 3, b: 2, c: 1 }
+
+frequencies([1, 2, 2, 3, 3, 3])
+// { "1": 1, "2": 2, "3": 3 }
+```
+
+### scan
+
+```tova
+scan(arr, fn, init) -> List
+```
+
+Like `reduce`, but returns all intermediate results. Useful for running totals.
+
+```tova
+scan([1, 2, 3, 4], fn(acc, x) acc + x, 0)
+// [1, 3, 6, 10]
+
+scan([100, -20, 50, -10], fn(bal, tx) bal + tx, 0)
+// [100, 80, 130, 120]
+```
+
+### min_by
+
+```tova
+min_by(arr, fn) -> T | Nil
+```
+
+Returns the element with the smallest key as determined by the function. Returns `nil` for empty arrays.
+
+```tova
+min_by([{n: 3}, {n: 1}, {n: 2}], fn(x) x.n)
+// { n: 1 }
+
+min_by(["hello", "hi", "hey"], fn(s) len(s))
+// "hi"
+
+min_by([], fn(x) x)
+// nil
+```
+
+### max_by
+
+```tova
+max_by(arr, fn) -> T | Nil
+```
+
+Returns the element with the largest key as determined by the function. Returns `nil` for empty arrays.
+
+```tova
+max_by([{n: 3}, {n: 1}, {n: 2}], fn(x) x.n)
+// { n: 3 }
+
+max_by(users, fn(u) u.age)
+// user with highest age
+```
+
+### sum_by
+
+```tova
+sum_by(arr, fn) -> Number
+```
+
+Sums the results of applying a function to each element. Shorthand for `map` + `sum`.
+
+```tova
+sum_by([{v: 10}, {v: 20}, {v: 30}], fn(x) x.v)
+// 60
+
+sum_by(cart, fn(item) item.price * item.qty)
+// total cost
+```
+
+### product
+
+```tova
+product(arr) -> Number
+```
+
+Multiplies all elements in the array. Returns `1` for an empty array.
+
+```tova
+product([1, 2, 3, 4])    // 24
+product([5])               // 5
+product([2, 0, 10])        // 0
+```
+
+### sliding_window
+
+```tova
+sliding_window(arr, n) -> List[List]
+```
+
+Returns all contiguous sub-arrays of size `n`. Useful for moving averages, pattern detection.
+
+```tova
+sliding_window([1, 2, 3, 4], 2)
+// [[1, 2], [2, 3], [3, 4]]
+
+sliding_window([1, 2, 3, 4, 5], 3)
+// [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
+
+sliding_window([1, 2], 5)
+// []  -- window larger than array
+```
+
+---
+
 ## Pipeline Examples
 
 These functions compose beautifully with the pipe operator `|>`:
