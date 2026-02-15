@@ -661,6 +661,282 @@ sliding_window([1, 2], 5)
 
 ---
 
+## Set Operations
+
+### union
+
+```tova
+union(a, b) -> List
+```
+
+Returns a new array containing all unique elements from both arrays. Also works on Tables for table union.
+
+```tova
+union([1, 2, 3], [3, 4, 5])       // [1, 2, 3, 4, 5]
+union(["a", "b"], ["b", "c"])      // ["a", "b", "c"]
+```
+
+### intersection
+
+```tova
+intersection(a, b) -> List
+```
+
+Returns elements present in both arrays.
+
+```tova
+intersection([1, 2, 3], [2, 3, 4])    // [2, 3]
+intersection([1, 2], [3, 4])           // []
+```
+
+### difference
+
+```tova
+difference(a, b) -> List
+```
+
+Returns elements in `a` that are not in `b`.
+
+```tova
+difference([1, 2, 3], [2, 3, 4])      // [1]
+difference([1, 2, 3], [4, 5])          // [1, 2, 3]
+```
+
+### symmetric_difference
+
+```tova
+symmetric_difference(a, b) -> List
+```
+
+Returns elements in either array but not both.
+
+```tova
+symmetric_difference([1, 2, 3], [2, 3, 4])    // [1, 4]
+symmetric_difference([1, 2], [1, 2])           // []
+```
+
+### is_subset
+
+```tova
+is_subset(a, b) -> Bool
+```
+
+Returns `true` if every element of `a` is in `b`.
+
+```tova
+is_subset([1, 2], [1, 2, 3])      // true
+is_subset([1, 4], [1, 2, 3])      // false
+is_subset([], [1, 2])              // true
+```
+
+### is_superset
+
+```tova
+is_superset(a, b) -> Bool
+```
+
+Returns `true` if `a` contains every element of `b`.
+
+```tova
+is_superset([1, 2, 3], [1, 2])    // true
+is_superset([1, 2], [1, 2, 3])    // false
+```
+
+---
+
+## Itertools
+
+### pairwise
+
+```tova
+pairwise(arr) -> List[[T, T]]
+```
+
+Returns adjacent pairs from the array.
+
+```tova
+pairwise([1, 2, 3, 4])        // [[1, 2], [2, 3], [3, 4]]
+pairwise([1])                   // []
+pairwise([])                    // []
+```
+
+### combinations
+
+```tova
+combinations(arr, r) -> List[List]
+```
+
+Returns all `r`-length combinations of elements (order does not matter).
+
+```tova
+combinations([1, 2, 3, 4], 2)
+// [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]
+
+combinations(["a", "b", "c"], 2)
+// [["a", "b"], ["a", "c"], ["b", "c"]]
+```
+
+### permutations
+
+```tova
+permutations(arr, r?) -> List[List]
+```
+
+Returns all `r`-length permutations of elements (order matters). If `r` is omitted, returns full-length permutations.
+
+```tova
+permutations([1, 2, 3], 2)
+// [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]]
+
+permutations([1, 2, 3])
+// all 6 orderings of [1, 2, 3]
+```
+
+### intersperse
+
+```tova
+intersperse(arr, sep) -> List
+```
+
+Inserts `sep` between every element.
+
+```tova
+intersperse([1, 2, 3], 0)         // [1, 0, 2, 0, 3]
+intersperse(["a", "b"], "-")      // ["a", "-", "b"]
+intersperse([1], 0)                // [1]
+```
+
+### interleave
+
+```tova
+interleave(...arrays) -> List
+```
+
+Interleaves elements from multiple arrays.
+
+```tova
+interleave([1, 2], ["a", "b"])     // [1, "a", 2, "b"]
+interleave([1, 2, 3], ["a", "b"])  // [1, "a", 2, "b", 3]
+```
+
+### repeat_value
+
+```tova
+repeat_value(val, n) -> List
+```
+
+Creates an array of `n` copies of `val`.
+
+```tova
+repeat_value(0, 5)                 // [0, 0, 0, 0, 0]
+repeat_value("x", 3)               // ["x", "x", "x"]
+```
+
+---
+
+## Array Utilities
+
+### binary_search
+
+```tova
+binary_search(arr, target, keyFn?) -> Int
+```
+
+Performs binary search on a sorted array. Returns the index of the target, or `-1` if not found.
+
+```tova
+binary_search([1, 3, 5, 7, 9], 5)     // 2
+binary_search([1, 3, 5, 7, 9], 4)     // -1
+
+// With key function
+items = [{ id: 1 }, { id: 3 }, { id: 5 }]
+binary_search(items, 3, fn(x) x.id)   // 1
+```
+
+### is_sorted
+
+```tova
+is_sorted(arr, keyFn?) -> Bool
+```
+
+Returns `true` if the array is sorted in ascending order.
+
+```tova
+is_sorted([1, 2, 3, 4])               // true
+is_sorted([1, 3, 2])                   // false
+is_sorted([])                           // true
+
+// With key function
+is_sorted([{n: 1}, {n: 2}, {n: 3}], fn(x) x.n)  // true
+```
+
+### compact
+
+```tova
+compact(arr) -> List
+```
+
+Removes `null` and `undefined` values from an array. Keeps other falsy values like `0`, `""`, and `false`.
+
+```tova
+compact([1, null, 2, undefined, 3])    // [1, 2, 3]
+compact([0, "", false, null])          // [0, "", false]
+```
+
+### rotate
+
+```tova
+rotate(arr, n) -> List
+```
+
+Rotates an array by `n` positions. Positive `n` rotates left, negative rotates right.
+
+```tova
+rotate([1, 2, 3, 4, 5], 2)            // [3, 4, 5, 1, 2]
+rotate([1, 2, 3, 4, 5], -1)           // [5, 1, 2, 3, 4]
+```
+
+### insert_at
+
+```tova
+insert_at(arr, idx, val) -> List
+```
+
+Returns a new array with `val` inserted at position `idx`. Does not mutate the original.
+
+```tova
+insert_at([1, 2, 3], 1, "x")          // [1, "x", 2, 3]
+insert_at([1, 2], 0, 0)               // [0, 1, 2]
+```
+
+### remove_at
+
+```tova
+remove_at(arr, idx) -> List
+```
+
+Returns a new array with the element at `idx` removed. Does not mutate the original.
+
+```tova
+remove_at([1, 2, 3], 1)               // [1, 3]
+remove_at(["a", "b", "c"], 0)         // ["b", "c"]
+```
+
+### update_at
+
+```tova
+update_at(arr, idx, val) -> List
+```
+
+Returns a new array with the element at `idx` replaced by `val`. Does not mutate the original.
+
+```tova
+update_at([1, 2, 3], 1, "x")          // [1, "x", 3]
+update_at(["a", "b", "c"], 2, "z")    // ["a", "b", "z"]
+```
+
+---
+
 ## Pipeline Examples
 
 These functions compose beautifully with the pipe operator `|>`:
@@ -686,4 +962,14 @@ nested_lists
   |> flatten()
   |> unique()
   |> sorted()
+
+// Set operations in pipelines
+users_a
+  |> intersection(users_b)
+  |> sorted(fn(u) u.name)
+
+// Immutable array updates
+todos
+  |> insert_at(0, new_todo)
+  |> remove_at(completed_idx)
 ```

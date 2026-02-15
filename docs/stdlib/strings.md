@@ -505,6 +505,123 @@ is_empty(nil)                       // true
 
 ---
 
+## Text Processing
+
+### truncate
+
+```tova
+truncate(s, n, suffix?) -> String
+```
+
+Truncates a string to at most `n` characters, appending `suffix` (default `"..."`) if truncated.
+
+```tova
+truncate("Hello World", 8)            // "Hello..."
+truncate("Hi", 10)                     // "Hi"
+truncate("Hello World", 8, "..")       // "Hello .."
+```
+
+### word_wrap
+
+```tova
+word_wrap(s, width) -> String
+```
+
+Wraps text at word boundaries to fit within `width` characters per line.
+
+```tova
+word_wrap("one two three four", 10)
+// "one two\nthree four"
+
+word_wrap("the quick brown fox", 12)
+// "the quick\nbrown fox"
+```
+
+### dedent
+
+```tova
+dedent(s) -> String
+```
+
+Removes common leading whitespace from all lines. Useful for cleaning up indented multi-line strings.
+
+```tova
+dedent("  hello\n  world")     // "hello\nworld"
+dedent("    line1\n  line2")   // "  line1\nline2"
+```
+
+### indent_str
+
+```tova
+indent_str(s, n, ch?) -> String
+```
+
+Adds `n` repetitions of `ch` (default: space) to the beginning of each line.
+
+```tova
+indent_str("hello\nworld", 2)         // "  hello\n  world"
+indent_str("a\nb", 1, ">")            // ">a\n>b"
+```
+
+### slugify
+
+```tova
+slugify(s) -> String
+```
+
+Converts a string to a URL-friendly slug: lowercased, special characters removed, spaces replaced with hyphens.
+
+```tova
+slugify("Hello World!")            // "hello-world"
+slugify("A & B @ C")              // "a-b-c"
+slugify("  My Blog Post  ")       // "my-blog-post"
+```
+
+### escape_html
+
+```tova
+escape_html(s) -> String
+```
+
+Escapes HTML special characters (`<`, `>`, `&`, `"`, `'`).
+
+```tova
+escape_html("<b>Hello</b>")
+// "&lt;b&gt;Hello&lt;/b&gt;"
+
+escape_html("a > b & c < d")
+// "a &gt; b &amp; c &lt; d"
+```
+
+### unescape_html
+
+```tova
+unescape_html(s) -> String
+```
+
+Reverses HTML entity escaping.
+
+```tova
+unescape_html("&lt;b&gt;Hello&lt;/b&gt;")
+// "<b>Hello</b>"
+```
+
+### fmt
+
+```tova
+fmt(template, ...args) -> String
+```
+
+Simple placeholder formatting. Replaces `{}` placeholders with arguments in order.
+
+```tova
+fmt("Hello, {}!", "world")         // "Hello, world!"
+fmt("{} + {} = {}", 1, 2, 3)      // "1 + 2 = 3"
+fmt("{} items at ${}", 3, 9.99)   // "3 items at $9.99"
+```
+
+---
+
 ## Pipeline Examples
 
 String functions work naturally with the pipe operator `|>`:
@@ -524,11 +641,7 @@ input
 
 // Build a slug from a title
 "Hello World! This is Tova."
-  |> lower()
-  |> replace("!", "")
-  |> replace(".", "")
-  |> words()
-  |> join("-")
+  |> slugify()
 // "hello-world-this-is-tova"
 
 // Count vowels
@@ -537,6 +650,11 @@ input
   |> filter(fn(c) contains("aeiou", c))
   |> len()
 // 3
+
+// Escape user input for HTML
+user_input
+  |> trim()
+  |> escape_html()
 ```
 
 ## String Concatenation

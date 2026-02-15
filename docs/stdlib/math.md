@@ -1,6 +1,6 @@
-# Math
+# Math & Stats
 
-Tova provides essential math functions for numerical computation.
+Tova provides essential math functions for numerical computation, statistics, and number formatting.
 
 ## Constants
 
@@ -533,6 +533,173 @@ await sleep(1000)     // wait 1 second
 
 ---
 
+## Statistics
+
+### mean
+
+```tova
+mean(arr) -> Float
+mean(fn) -> AggFn
+```
+
+When called with an array, returns the arithmetic mean. When called with a function or string, returns an aggregation helper for use with `agg()`.
+
+```tova
+mean([1, 2, 3, 4, 5])     // 3
+mean([10])                  // 10
+mean([])                    // 0
+
+// As aggregation helper
+table |> group_by("dept") |> agg({ avg_salary: mean("salary") })
+```
+
+### median
+
+```tova
+median(arr) -> Float | Nil
+median(fn) -> AggFn
+```
+
+When called with an array, returns the middle value (or average of two middle values for even-length arrays). When called with a function or string, returns an aggregation helper.
+
+```tova
+median([1, 2, 3, 4, 5])   // 3
+median([1, 2, 3, 4])       // 2.5
+median([])                  // nil
+```
+
+### mode
+
+```tova
+mode(arr) -> T | Nil
+```
+
+Returns the most frequently occurring element. Returns `nil` for empty arrays.
+
+```tova
+mode([1, 2, 2, 3, 3, 3])      // 3
+mode(["a", "b", "a"])          // "a"
+mode([])                        // nil
+```
+
+### stdev
+
+```tova
+stdev(arr) -> Float
+```
+
+Returns the population standard deviation.
+
+```tova
+stdev([2, 4, 4, 4, 5, 5, 7, 9])   // ~2.0
+stdev([5, 5, 5])                    // 0
+stdev([])                           // 0
+```
+
+### variance
+
+```tova
+variance(arr) -> Float
+```
+
+Returns the population variance.
+
+```tova
+variance([2, 4, 4, 4, 5, 5, 7, 9])   // ~4.0
+variance([5, 5, 5])                    // 0
+```
+
+### percentile
+
+```tova
+percentile(arr, p) -> Float | Nil
+```
+
+Returns the `p`-th percentile (0--100) of a numeric array. Uses linear interpolation between data points.
+
+```tova
+percentile([1, 2, 3, 4, 5], 50)   // 3
+percentile([1, 2, 3, 4], 25)      // 1.75
+percentile([10, 20, 30], 0)       // 10
+percentile([10, 20, 30], 100)     // 30
+percentile([], 50)                  // nil
+```
+
+---
+
+## Number Formatting
+
+### format_number
+
+```tova
+format_number(n, opts?) -> String
+```
+
+Formats a number with thousands separators. Options: `separator` (default: `","`), `decimals` (fixed decimal places).
+
+```tova
+format_number(1234567)                     // "1,234,567"
+format_number(1234.5, { decimals: 2 })    // "1,234.50"
+format_number(1234567, { separator: "." })  // "1.234.567"
+```
+
+### to_hex
+
+```tova
+to_hex(n) -> String
+```
+
+Converts an integer to a hexadecimal string.
+
+```tova
+to_hex(255)    // "ff"
+to_hex(16)     // "10"
+to_hex(0)      // "0"
+```
+
+### to_binary
+
+```tova
+to_binary(n) -> String
+```
+
+Converts an integer to a binary string.
+
+```tova
+to_binary(10)      // "1010"
+to_binary(255)     // "11111111"
+to_binary(0)       // "0"
+```
+
+### to_octal
+
+```tova
+to_octal(n) -> String
+```
+
+Converts an integer to an octal string.
+
+```tova
+to_octal(8)        // "10"
+to_octal(255)      // "377"
+```
+
+### to_fixed
+
+```tova
+to_fixed(n, decimals) -> Float
+```
+
+Rounds a number to a fixed number of decimal places and returns a number (not a string).
+
+```tova
+to_fixed(3.14159, 2)    // 3.14
+to_fixed(3.7, 0)         // 4
+to_fixed(1.005, 2)       // 1
+```
+
+---
+
 ## Arithmetic Operators
 
 | Operator | Description | Example |
@@ -563,4 +730,11 @@ range(10)
 fn distance(x1, y1, x2, y2) {
   sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 }
+
+// Statistical summary
+data = [12, 15, 18, 22, 29, 34, 41]
+print("Mean: {mean(data)}")
+print("Median: {median(data)}")
+print("Stdev: {stdev(data)}")
+print("P90: {percentile(data, 90)}")
 ```

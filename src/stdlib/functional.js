@@ -58,3 +58,25 @@ export function negate(fn) {
     return !fn.apply(this, args);
   };
 }
+
+// ── Extended Functional ───────────────────────────────────
+
+export function partial(fn, ...bound) {
+  return function(...args) {
+    return fn(...bound, ...args);
+  };
+}
+
+export function curry(fn, arity) {
+  const n = arity || fn.length;
+  return function curried(...args) {
+    if (args.length >= n) return fn(...args);
+    return function(...more) { return curried(...args, ...more); };
+  };
+}
+
+export function flip(fn) {
+  return function(a, b, ...rest) {
+    return fn(b, a, ...rest);
+  };
+}

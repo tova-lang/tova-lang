@@ -38,3 +38,56 @@ export function hypot(a, b) { return Math.hypot(a, b); }
 export function lerp(a, b, t) { return a + (b - a) * t; }
 export function divmod(a, b) { return [Math.floor(a / b), a % b]; }
 export function avg(arr) { return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length; }
+
+// ── Statistics ────────────────────────────────────────────
+
+export function mode(arr) {
+  if (arr.length === 0) return null;
+  const freq = {};
+  let maxF = 0, result = arr[0];
+  for (const v of arr) {
+    const k = String(v);
+    freq[k] = (freq[k] || 0) + 1;
+    if (freq[k] > maxF) { maxF = freq[k]; result = v; }
+  }
+  return result;
+}
+
+export function stdev(arr) {
+  if (arr.length === 0) return 0;
+  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / arr.length);
+}
+
+export function variance(arr) {
+  if (arr.length === 0) return 0;
+  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return arr.reduce((s, v) => s + (v - m) * (v - m), 0) / arr.length;
+}
+
+export function percentile(arr, p) {
+  if (arr.length === 0) return null;
+  const s = [...arr].sort((a, b) => a - b);
+  const i = (p / 100) * (s.length - 1);
+  const lo = Math.floor(i);
+  const hi = Math.ceil(i);
+  if (lo === hi) return s[lo];
+  return s[lo] + (s[hi] - s[lo]) * (i - lo);
+}
+
+// ── Number Formatting ─────────────────────────────────────
+
+export function format_number(n, opts) {
+  const o = opts || {};
+  const sep = o.separator || ',';
+  const dec = o.decimals;
+  let s = dec !== undefined ? n.toFixed(dec) : String(n);
+  const parts = s.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, sep);
+  return parts.join('.');
+}
+
+export function to_hex(n) { return Math.trunc(n).toString(16); }
+export function to_binary(n) { return Math.trunc(n).toString(2); }
+export function to_octal(n) { return Math.trunc(n).toString(8); }
+export function to_fixed(n, decimals) { return Number(n.toFixed(decimals)); }

@@ -191,3 +191,145 @@ export function sliding_window(arr, n) {
   for (let i = 0; i <= arr.length - n; i++) r.push(arr.slice(i, i + n));
   return r;
 }
+
+// ── Set Operations ────────────────────────────────────────
+
+export function intersection(a, b) {
+  const s = new Set(b);
+  return a.filter(x => s.has(x));
+}
+
+export function difference(a, b) {
+  const s = new Set(b);
+  return a.filter(x => !s.has(x));
+}
+
+export function symmetric_difference(a, b) {
+  const sa = new Set(a);
+  const sb = new Set(b);
+  return [...a.filter(x => !sb.has(x)), ...b.filter(x => !sa.has(x))];
+}
+
+export function is_subset(a, b) {
+  const s = new Set(b);
+  return a.every(x => s.has(x));
+}
+
+export function is_superset(a, b) {
+  const s = new Set(a);
+  return b.every(x => s.has(x));
+}
+
+// ── Itertools ─────────────────────────────────────────────
+
+export function pairwise(arr) {
+  const r = [];
+  for (let i = 0; i < arr.length - 1; i++) r.push([arr[i], arr[i + 1]]);
+  return r;
+}
+
+export function combinations(arr, r) {
+  const result = [];
+  const combo = [];
+  function gen(start, depth) {
+    if (depth === r) { result.push([...combo]); return; }
+    for (let i = start; i < arr.length; i++) {
+      combo.push(arr[i]);
+      gen(i + 1, depth + 1);
+      combo.pop();
+    }
+  }
+  gen(0, 0);
+  return result;
+}
+
+export function permutations(arr, r) {
+  const n = r === undefined ? arr.length : r;
+  const result = [];
+  const perm = [];
+  const used = new Array(arr.length).fill(false);
+  function gen() {
+    if (perm.length === n) { result.push([...perm]); return; }
+    for (let i = 0; i < arr.length; i++) {
+      if (!used[i]) {
+        used[i] = true;
+        perm.push(arr[i]);
+        gen();
+        perm.pop();
+        used[i] = false;
+      }
+    }
+  }
+  gen();
+  return result;
+}
+
+export function intersperse(arr, sep) {
+  if (arr.length <= 1) return [...arr];
+  const r = [arr[0]];
+  for (let i = 1; i < arr.length; i++) { r.push(sep, arr[i]); }
+  return r;
+}
+
+export function interleave(...arrs) {
+  const m = Math.max(...arrs.map(a => a.length));
+  const r = [];
+  for (let i = 0; i < m; i++) {
+    for (const a of arrs) { if (i < a.length) r.push(a[i]); }
+  }
+  return r;
+}
+
+export function repeat_value(val, n) {
+  return Array(n).fill(val);
+}
+
+// ── Array Utilities ───────────────────────────────────────
+
+export function binary_search(arr, target, keyFn) {
+  let lo = 0, hi = arr.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const val = keyFn ? keyFn(arr[mid]) : arr[mid];
+    if (val === target) return mid;
+    if (val < target) lo = mid + 1; else hi = mid - 1;
+  }
+  return -1;
+}
+
+export function is_sorted(arr, keyFn) {
+  for (let i = 1; i < arr.length; i++) {
+    const a = keyFn ? keyFn(arr[i - 1]) : arr[i - 1];
+    const b = keyFn ? keyFn(arr[i]) : arr[i];
+    if (a > b) return false;
+  }
+  return true;
+}
+
+export function compact(arr) {
+  return arr.filter(v => v != null);
+}
+
+export function rotate(arr, n) {
+  if (arr.length === 0) return [];
+  const k = ((n % arr.length) + arr.length) % arr.length;
+  return [...arr.slice(k), ...arr.slice(0, k)];
+}
+
+export function insert_at(arr, idx, val) {
+  const r = [...arr];
+  r.splice(idx, 0, val);
+  return r;
+}
+
+export function remove_at(arr, idx) {
+  const r = [...arr];
+  r.splice(idx, 1);
+  return r;
+}
+
+export function update_at(arr, idx, val) {
+  const r = [...arr];
+  r[idx] = val;
+  return r;
+}

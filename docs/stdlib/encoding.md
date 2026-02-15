@@ -77,3 +77,41 @@ query = params
   |> join("&")
 // "q=tova%20lang&page=1"
 ```
+
+---
+
+## Hex Encoding
+
+### hex_encode
+
+```tova
+hex_encode(s) -> String
+```
+
+Encodes a string to hexadecimal (each character to its 2-digit hex code).
+
+```tova
+hex_encode("hello")          // "68656c6c6f"
+hex_encode("AB")             // "4142"
+```
+
+### hex_decode
+
+```tova
+hex_decode(s) -> String
+```
+
+Decodes a hexadecimal string back to the original string.
+
+```tova
+hex_decode("68656c6c6f")    // "hello"
+hex_decode("4142")           // "AB"
+```
+
+```tova
+// Round-trip
+original = "Tova"
+encoded = hex_encode(original)
+decoded = hex_decode(encoded)
+assert_eq(decoded, original)
+```

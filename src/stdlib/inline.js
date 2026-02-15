@@ -237,11 +237,11 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   pivot: `function pivot(table, opts) { return table_pivot(table, opts); }`,
   unpivot: `function unpivot(table, opts) { return table_unpivot(table, opts); }`,
   explode: `function explode(table, colFn) { return table_explode(table, colFn); }`,
-  union: `function union(table, other) { return table_union(table, other); }`,
+  union: `function union(a, b) { if (a && a._rows) return table_union(a, b); return [...new Set([...a, ...b])]; }`,
   drop_duplicates: `function drop_duplicates(table, opts) { return table_drop_duplicates(table, opts); }`,
   rename: `function rename(table, oldName, newName) { return table_rename(table, oldName, newName); }`,
-  mean: `function mean(fn) { return agg_mean(fn); }`,
-  median: `function median(fn) { return agg_median(fn); }`,
+  mean: `function mean(v) { if (Array.isArray(v)) { return v.length === 0 ? 0 : v.reduce((a, b) => a + b, 0) / v.length; } return agg_mean(v); }`,
+  median: `function median(v) { if (Array.isArray(v)) { if (v.length === 0) return null; const s = [...v].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m]; } return agg_median(v); }`,
 
   // ── Strings (new) ──────────────────────────────────────
   index_of: `function index_of(s, sub) { const i = s.indexOf(sub); return i === -1 ? null : i; }`,
@@ -308,6 +308,95 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   // ── Date/Time (new) ────────────────────────────────────
   now: `function now() { return Date.now(); }`,
   now_iso: `function now_iso() { return new Date().toISOString(); }`,
+  date_parse: `function date_parse(s) { const d = new Date(s); return isNaN(d.getTime()) ? Err('Invalid date: ' + s) : Ok(d); }`,
+  date_format: `function date_format(d, fmt) { if (typeof d === 'number') d = new Date(d); if (fmt === 'iso') return d.toISOString(); if (fmt === 'date') return d.toISOString().slice(0, 10); if (fmt === 'time') return d.toTimeString().slice(0, 8); if (fmt === 'datetime') return d.toISOString().slice(0, 10) + ' ' + d.toTimeString().slice(0, 8); return fmt.replace('YYYY', String(d.getFullYear())).replace('MM', String(d.getMonth() + 1).padStart(2, '0')).replace('DD', String(d.getDate()).padStart(2, '0')).replace('HH', String(d.getHours()).padStart(2, '0')).replace('mm', String(d.getMinutes()).padStart(2, '0')).replace('ss', String(d.getSeconds()).padStart(2, '0')); }`,
+  date_add: `function date_add(d, amount, unit) { if (typeof d === 'number') d = new Date(d); const r = new Date(d.getTime()); if (unit === 'years') r.setFullYear(r.getFullYear() + amount); else if (unit === 'months') r.setMonth(r.getMonth() + amount); else if (unit === 'days') r.setDate(r.getDate() + amount); else if (unit === 'hours') r.setHours(r.getHours() + amount); else if (unit === 'minutes') r.setMinutes(r.getMinutes() + amount); else if (unit === 'seconds') r.setSeconds(r.getSeconds() + amount); return r; }`,
+  date_diff: `function date_diff(d1, d2, unit) { if (typeof d1 === 'number') d1 = new Date(d1); if (typeof d2 === 'number') d2 = new Date(d2); const ms = d2.getTime() - d1.getTime(); if (unit === 'seconds') return Math.floor(ms / 1000); if (unit === 'minutes') return Math.floor(ms / 60000); if (unit === 'hours') return Math.floor(ms / 3600000); if (unit === 'days') return Math.floor(ms / 86400000); if (unit === 'months') return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()); if (unit === 'years') return d2.getFullYear() - d1.getFullYear(); return ms; }`,
+  date_from: `function date_from(parts) { return new Date(parts.year || 0, (parts.month || 1) - 1, parts.day || 1, parts.hour || 0, parts.minute || 0, parts.second || 0); }`,
+  date_part: `function date_part(d, part) { if (typeof d === 'number') d = new Date(d); if (part === 'year') return d.getFullYear(); if (part === 'month') return d.getMonth() + 1; if (part === 'day') return d.getDate(); if (part === 'hour') return d.getHours(); if (part === 'minute') return d.getMinutes(); if (part === 'second') return d.getSeconds(); if (part === 'weekday') return d.getDay(); return null; }`,
+  time_ago: `function time_ago(d) { if (typeof d === 'number') d = new Date(d); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return s + ' seconds ago'; const m = Math.floor(s / 60); if (m < 60) return m + (m === 1 ? ' minute ago' : ' minutes ago'); const h = Math.floor(m / 60); if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago'); const dy = Math.floor(h / 24); if (dy < 30) return dy + (dy === 1 ? ' day ago' : ' days ago'); const mo = Math.floor(dy / 30); if (mo < 12) return mo + (mo === 1 ? ' month ago' : ' months ago'); const yr = Math.floor(mo / 12); return yr + (yr === 1 ? ' year ago' : ' years ago'); }`,
+
+  // ── Regex ──────────────────────────────────────────────
+  regex_test: `function regex_test(s, pattern, flags) { return new RegExp(pattern, flags).test(s); }`,
+  regex_match: `function regex_match(s, pattern, flags) { const m = s.match(new RegExp(pattern, flags)); if (!m) return Err('No match'); return Ok({ match: m[0], index: m.index, groups: m.slice(1) }); }`,
+  regex_find_all: `function regex_find_all(s, pattern, flags) { const re = new RegExp(pattern, (flags || '') + (flags && flags.includes('g') ? '' : 'g')); const results = []; let m; while ((m = re.exec(s)) !== null) { results.push({ match: m[0], index: m.index, groups: m.slice(1) }); } return results; }`,
+  regex_replace: `function regex_replace(s, pattern, replacement, flags) { return s.replace(new RegExp(pattern, flags || 'g'), replacement); }`,
+  regex_split: `function regex_split(s, pattern, flags) { return s.split(new RegExp(pattern, flags)); }`,
+  regex_capture: `function regex_capture(s, pattern, flags) { const m = s.match(new RegExp(pattern, flags)); if (!m) return Err('No match'); if (!m.groups) return Err('No named groups'); return Ok(m.groups); }`,
+
+  // ── Validation ─────────────────────────────────────────
+  is_email: `function is_email(s) { return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s); }`,
+  is_url: `function is_url(s) { try { new URL(s); return true; } catch { return false; } }`,
+  is_numeric: `function is_numeric(s) { return typeof s === 'string' && s.length > 0 && !isNaN(Number(s)); }`,
+  is_alpha: `function is_alpha(s) { return /^[a-zA-Z]+$/.test(s); }`,
+  is_alphanumeric: `function is_alphanumeric(s) { return /^[a-zA-Z0-9]+$/.test(s); }`,
+  is_uuid: `function is_uuid(s) { return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s); }`,
+  is_hex: `function is_hex(s) { return /^[0-9a-fA-F]+$/.test(s); }`,
+
+  // ── URL & UUID ─────────────────────────────────────────
+  uuid: `function uuid() { return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }); }`,
+  parse_url: `function parse_url(s) { try { const u = new URL(s); return Ok({ protocol: u.protocol.replace(':', ''), host: u.host, pathname: u.pathname, search: u.search, hash: u.hash }); } catch (e) { return Err('Invalid URL: ' + s); } }`,
+  build_url: `function build_url(parts) { let url = (parts.protocol || 'https') + '://' + (parts.host || ''); url += parts.pathname || '/'; if (parts.search) url += (parts.search.startsWith('?') ? '' : '?') + parts.search; if (parts.hash) url += (parts.hash.startsWith('#') ? '' : '#') + parts.hash; return url; }`,
+  parse_query: `function parse_query(s) { const r = {}; const qs = s.startsWith('?') ? s.slice(1) : s; if (!qs) return r; for (const pair of qs.split('&')) { const [k, ...v] = pair.split('='); r[decodeURIComponent(k)] = decodeURIComponent(v.join('=')); } return r; }`,
+  build_query: `function build_query(obj) { return Object.entries(obj).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); }`,
+
+  // ── Set Operations ─────────────────────────────────────
+  intersection: `function intersection(a, b) { const s = new Set(b); return a.filter(x => s.has(x)); }`,
+  difference: `function difference(a, b) { const s = new Set(b); return a.filter(x => !s.has(x)); }`,
+  symmetric_difference: `function symmetric_difference(a, b) { const sa = new Set(a); const sb = new Set(b); return [...a.filter(x => !sb.has(x)), ...b.filter(x => !sa.has(x))]; }`,
+  is_subset: `function is_subset(a, b) { const s = new Set(b); return a.every(x => s.has(x)); }`,
+  is_superset: `function is_superset(a, b) { const s = new Set(a); return b.every(x => s.has(x)); }`,
+
+  // ── Statistics ─────────────────────────────────────────
+  mode: `function mode(arr) { if (arr.length === 0) return null; const freq = {}; let maxF = 0, result = arr[0]; for (const v of arr) { const k = String(v); freq[k] = (freq[k] || 0) + 1; if (freq[k] > maxF) { maxF = freq[k]; result = v; } } return result; }`,
+  stdev: `function stdev(arr) { if (arr.length === 0) return 0; const m = arr.reduce((a, b) => a + b, 0) / arr.length; return Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / arr.length); }`,
+  variance: `function variance(arr) { if (arr.length === 0) return 0; const m = arr.reduce((a, b) => a + b, 0) / arr.length; return arr.reduce((s, v) => s + (v - m) * (v - m), 0) / arr.length; }`,
+  percentile: `function percentile(arr, p) { if (arr.length === 0) return null; const s = [...arr].sort((a, b) => a - b); const i = (p / 100) * (s.length - 1); const lo = Math.floor(i); const hi = Math.ceil(i); if (lo === hi) return s[lo]; return s[lo] + (s[hi] - s[lo]) * (i - lo); }`,
+
+  // ── Text Utilities ─────────────────────────────────────
+  truncate: `function truncate(s, n, suffix) { const sf = suffix !== undefined ? suffix : '...'; return s.length <= n ? s : s.slice(0, n - sf.length) + sf; }`,
+  word_wrap: `function word_wrap(s, width) { const ws = s.split(' '); const lines = []; let line = ''; for (const w of ws) { if (line && (line.length + 1 + w.length) > width) { lines.push(line); line = w; } else { line = line ? line + ' ' + w : w; } } if (line) lines.push(line); return lines.join('\\n'); }`,
+  dedent: `function dedent(s) { const lines = s.split('\\n'); const nonEmpty = lines.filter(l => l.trim().length > 0); if (nonEmpty.length === 0) return s; const indent = Math.min(...nonEmpty.map(l => l.match(/^(\\s*)/)[1].length)); return lines.map(l => l.slice(indent)).join('\\n'); }`,
+  indent_str: `function indent_str(s, n, ch) { const prefix = (ch || ' ').repeat(n); return s.split('\\n').map(l => prefix + l).join('\\n'); }`,
+  slugify: `function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }`,
+  escape_html: `function escape_html(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }`,
+  unescape_html: `function unescape_html(s) { return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"); }`,
+
+  // ── Number Formatting ──────────────────────────────────
+  format_number: `function format_number(n, opts) { const o = opts || {}; const sep = o.separator || ','; const dec = o.decimals; let s = dec !== undefined ? n.toFixed(dec) : String(n); const parts = s.split('.'); parts[0] = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, sep); return parts.join('.'); }`,
+  to_hex: `function to_hex(n) { return Math.trunc(n).toString(16); }`,
+  to_binary: `function to_binary(n) { return Math.trunc(n).toString(2); }`,
+  to_octal: `function to_octal(n) { return Math.trunc(n).toString(8); }`,
+  to_fixed: `function to_fixed(n, decimals) { return Number(n.toFixed(decimals)); }`,
+
+  // ── Itertools ──────────────────────────────────────────
+  pairwise: `function pairwise(arr) { const r = []; for (let i = 0; i < arr.length - 1; i++) r.push([arr[i], arr[i + 1]]); return r; }`,
+  combinations: `function combinations(arr, r) { const result = []; const combo = []; function gen(start, depth) { if (depth === r) { result.push([...combo]); return; } for (let i = start; i < arr.length; i++) { combo.push(arr[i]); gen(i + 1, depth + 1); combo.pop(); } } gen(0, 0); return result; }`,
+  permutations: `function permutations(arr, r) { const n = r === undefined ? arr.length : r; const result = []; const perm = []; const used = new Array(arr.length).fill(false); function gen() { if (perm.length === n) { result.push([...perm]); return; } for (let i = 0; i < arr.length; i++) { if (!used[i]) { used[i] = true; perm.push(arr[i]); gen(); perm.pop(); used[i] = false; } } } gen(); return result; }`,
+  intersperse: `function intersperse(arr, sep) { if (arr.length <= 1) return [...arr]; const r = [arr[0]]; for (let i = 1; i < arr.length; i++) { r.push(sep, arr[i]); } return r; }`,
+  interleave: `function interleave(...arrs) { const m = Math.max(...arrs.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) { for (const a of arrs) { if (i < a.length) r.push(a[i]); } } return r; }`,
+  repeat_value: `function repeat_value(val, n) { return Array(n).fill(val); }`,
+
+  // ── Array Utilities ────────────────────────────────────
+  binary_search: `function binary_search(arr, target, keyFn) { let lo = 0, hi = arr.length - 1; while (lo <= hi) { const mid = (lo + hi) >> 1; const val = keyFn ? keyFn(arr[mid]) : arr[mid]; if (val === target) return mid; if (val < target) lo = mid + 1; else hi = mid - 1; } return -1; }`,
+  is_sorted: `function is_sorted(arr, keyFn) { for (let i = 1; i < arr.length; i++) { const a = keyFn ? keyFn(arr[i - 1]) : arr[i - 1]; const b = keyFn ? keyFn(arr[i]) : arr[i]; if (a > b) return false; } return true; }`,
+  compact: `function compact(arr) { return arr.filter(v => v != null); }`,
+  rotate: `function rotate(arr, n) { if (arr.length === 0) return []; const k = ((n % arr.length) + arr.length) % arr.length; return [...arr.slice(k), ...arr.slice(0, k)]; }`,
+  insert_at: `function insert_at(arr, idx, val) { const r = [...arr]; r.splice(idx, 0, val); return r; }`,
+  remove_at: `function remove_at(arr, idx) { const r = [...arr]; r.splice(idx, 1); return r; }`,
+  update_at: `function update_at(arr, idx, val) { const r = [...arr]; r[idx] = val; return r; }`,
+
+  // ── Functional (extended) ──────────────────────────────
+  partial: `function partial(fn, ...bound) { return function(...args) { return fn(...bound, ...args); }; }`,
+  curry: `function curry(fn, arity) { const n = arity || fn.length; return function curried(...args) { if (args.length >= n) return fn(...args); return function(...more) { return curried(...args, ...more); }; }; }`,
+  flip: `function flip(fn) { return function(a, b, ...rest) { return fn(b, a, ...rest); }; }`,
+
+  // ── Encoding (extended) ────────────────────────────────
+  hex_encode: `function hex_encode(s) { let r = ''; for (let i = 0; i < s.length; i++) r += s.charCodeAt(i).toString(16).padStart(2, '0'); return r; }`,
+  hex_decode: `function hex_decode(s) { let r = ''; for (let i = 0; i < s.length; i += 2) r += String.fromCharCode(parseInt(s.substr(i, 2), 16)); return r; }`,
+
+  // ── String (extended) ──────────────────────────────────
+  fmt: `function fmt(template, ...args) { let i = 0; return template.replace(/\\{\\}/g, () => i < args.length ? String(args[i++]) : '{}'); }`,
 };
 
 // All known builtin names for matching

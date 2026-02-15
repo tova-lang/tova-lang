@@ -172,3 +172,14 @@ export function now() {
 export function now_iso() {
   return new Date().toISOString();
 }
+
+// ── UUID ──────────────────────────────────────────────────
+
+export function uuid() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+}

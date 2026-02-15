@@ -1,6 +1,6 @@
 # Standard Library Overview
 
-Tova provides **150+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
+Tova provides **220+ built-in functions** that are automatically available in every Tova program. There is nothing to import -- all standard library functions are in scope by default.
 
 ## Availability
 
@@ -23,14 +23,18 @@ Tova's standard library follows a few guiding principles:
 
 | Category | Functions | Page |
 |---|---|---|
-| **Collections** | `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `find_index`, `includes`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print`, `zip_with`, `frequencies`, `scan`, `min_by`, `max_by`, `sum_by`, `product`, `sliding_window` | [Collections](./collections) |
-| **Strings** | `trim`, `trim_start`, `trim_end`, `split`, `join`, `replace`, `replace_first`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `char_at`, `pad_start`, `pad_end`, `capitalize`, `title_case`, `snake_case`, `camel_case`, `kebab_case`, `index_of`, `last_index_of`, `count_of`, `substr`, `reverse_str`, `center`, `is_empty` | [Strings](./strings) |
-| **Math** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `log`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep`, `hypot`, `lerp`, `divmod`, `avg` | [Math](./math) |
+| **Collections** | `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `find_index`, `includes`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print`, `zip_with`, `frequencies`, `scan`, `min_by`, `max_by`, `sum_by`, `product`, `sliding_window`, `intersection`, `difference`, `symmetric_difference`, `is_subset`, `is_superset`, `union`, `pairwise`, `combinations`, `permutations`, `intersperse`, `interleave`, `repeat_value`, `binary_search`, `is_sorted`, `compact`, `rotate`, `insert_at`, `remove_at`, `update_at` | [Collections](./collections) |
+| **Strings** | `trim`, `trim_start`, `trim_end`, `split`, `join`, `replace`, `replace_first`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `char_at`, `pad_start`, `pad_end`, `capitalize`, `title_case`, `snake_case`, `camel_case`, `kebab_case`, `index_of`, `last_index_of`, `count_of`, `substr`, `reverse_str`, `center`, `is_empty`, `truncate`, `word_wrap`, `dedent`, `indent_str`, `slugify`, `escape_html`, `unescape_html`, `fmt` | [Strings](./strings) |
+| **Math & Stats** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `log`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep`, `hypot`, `lerp`, `divmod`, `avg`, `mean`, `median`, `mode`, `stdev`, `variance`, `percentile`, `format_number`, `to_hex`, `to_binary`, `to_octal`, `to_fixed` | [Math & Stats](./math) |
 | **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone`, `has_key`, `get`, `from_entries`, `pick`, `omit`, `map_values` | [Objects & Utilities](./objects) |
-| **Functional** | `compose`, `pipe_fn`, `identity`, `memoize`, `debounce`, `throttle`, `once`, `negate` | [Functional](./functional) |
+| **Functional** | `compose`, `pipe_fn`, `identity`, `memoize`, `debounce`, `throttle`, `once`, `negate`, `partial`, `curry`, `flip` | [Functional](./functional) |
+| **Regex** | `regex_test`, `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`, `regex_capture` | [Regex](./regex) |
+| **Validation** | `is_email`, `is_url`, `is_numeric`, `is_alpha`, `is_alphanumeric`, `is_uuid`, `is_hex` | [Validation](./validation) |
+| **URL & UUID** | `uuid`, `parse_url`, `build_url`, `parse_query`, `build_query` | [URL & UUID](./url) |
+| **Date & Time** | `now`, `now_iso`, `date_parse`, `date_format`, `date_add`, `date_diff`, `date_from`, `date_part`, `time_ago` | [Date & Time](./datetime) |
 | **JSON** | `json_parse`, `json_stringify`, `json_pretty` | [JSON](./json) |
-| **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode` | [Encoding](./encoding) |
-| **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `timeout`, `retry`, `now`, `now_iso` | [Async & Error Handling](./async) |
+| **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode` | [Encoding](./encoding) |
+| **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `timeout`, `retry` | [Async & Error Handling](./async) |
 | **Result & Option** | `Ok`, `Err`, `Some`, `None`, `!` (propagation) | [Result & Option](./result-option) |
 | **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
 | **Assertions** | `assert`, `assert_eq`, `assert_ne` | [Assertions](./assertions) |
@@ -94,6 +98,39 @@ json_parse('{"a": 1}')          // Ok({ a: 1 })
 json_pretty({ a: 1 })           // formatted JSON string
 base64_encode("hello")          // "aGVsbG8="
 url_encode("hello world")       // "hello%20world"
+```
+
+### Regex
+
+```tova
+regex_test("hello123", "\\d+")         // true
+regex_replace("a1b2c3", "\\d", "X")   // "aXbXcX"
+regex_find_all("a1b2c3", "\\d")        // [{match: "1"}, ...]
+```
+
+### Validation
+
+```tova
+is_email("user@example.com")           // true
+is_url("https://tova.dev")            // true
+is_uuid("550e8400-e29b-41d4-a716-446655440000")  // true
+```
+
+### URL & UUID
+
+```tova
+id = uuid()                             // "a1b2c3d4-..."
+parse_query("a=1&b=2")                 // { a: "1", b: "2" }
+build_url({ host: "api.com", pathname: "/v1" })
+```
+
+### Date & Time
+
+```tova
+d = date_parse("2024-01-15")           // Ok(Date)
+date_format(d.unwrap(), "YYYY-MM-DD")  // "2024-01-15"
+date_add(d.unwrap(), 7, "days")        // Date (7 days later)
+time_ago(d.unwrap())                    // "3 months ago"
 ```
 
 ### Async & Error Handling

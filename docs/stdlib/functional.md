@@ -167,6 +167,68 @@ log_scroll = throttle(fn(pos) {
 
 ---
 
+## Partial Application & Currying
+
+### partial
+
+```tova
+partial(fn, ...args) -> Function
+```
+
+Returns a new function with some arguments pre-filled. The remaining arguments are supplied when the returned function is called.
+
+```tova
+add = fn(a, b) a + b
+add5 = partial(add, 5)
+
+add5(3)         // 8
+add5(10)        // 15
+
+// Pre-fill multiple arguments
+greet = fn(greeting, name) "{greeting}, {name}!"
+hello = partial(greet, "Hello")
+hello("Alice")  // "Hello, Alice!"
+```
+
+### curry
+
+```tova
+curry(fn, arity?) -> Function
+```
+
+Returns a curried version of the function. Each argument can be supplied one at a time, and the function executes when all arguments are provided.
+
+```tova
+add = curry(fn(a, b, c) a + b + c)
+
+add(1)(2)(3)       // 6
+add(1, 2)(3)       // 6
+add(1)(2, 3)       // 6
+add(1, 2, 3)       // 6
+```
+
+### flip
+
+```tova
+flip(fn) -> Function
+```
+
+Returns a new function with the first two arguments swapped.
+
+```tova
+sub = fn(a, b) a - b
+flipped_sub = flip(sub)
+
+sub(10, 3)          // 7
+flipped_sub(3, 10)  // 7  (calls sub(10, 3))
+
+// Useful for making functions pipe-friendly
+contains_in = flip(contains)
+"hello" |> contains_in("ell")   // true
+```
+
+---
+
 ## Pipeline Examples
 
 ```tova
@@ -184,4 +246,12 @@ validate = compose(
   fn(s) if len(s) < 3 { Err("too short") } else { Ok(s) },
   fn(s) trim(s)
 )
+
+// Partial application for reusable transforms
+multiply = curry(fn(a, b) a * b)
+double = multiply(2)
+triple = multiply(3)
+
+[1, 2, 3] |> map(double)    // [2, 4, 6]
+[1, 2, 3] |> map(triple)    // [3, 6, 9]
 ```

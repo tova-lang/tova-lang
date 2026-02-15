@@ -140,3 +140,56 @@ export function center(s, n, fill) {
   const right = total - left;
   return f.repeat(Math.ceil(left / f.length)).slice(0, left) + s + f.repeat(Math.ceil(right / f.length)).slice(0, right);
 }
+
+// ── Text Utilities ────────────────────────────────────────
+
+export function truncate(s, n, suffix) {
+  const sf = suffix !== undefined ? suffix : '...';
+  return s.length <= n ? s : s.slice(0, n - sf.length) + sf;
+}
+
+export function word_wrap(s, width) {
+  const ws = s.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of ws) {
+    if (line && (line.length + 1 + w.length) > width) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = line ? line + ' ' + w : w;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.join('\n');
+}
+
+export function dedent(s) {
+  const lines = s.split('\n');
+  const nonEmpty = lines.filter(l => l.trim().length > 0);
+  if (nonEmpty.length === 0) return s;
+  const indent = Math.min(...nonEmpty.map(l => l.match(/^(\s*)/)[1].length));
+  return lines.map(l => l.slice(indent)).join('\n');
+}
+
+export function indent_str(s, n, ch) {
+  const prefix = (ch || ' ').repeat(n);
+  return s.split('\n').map(l => prefix + l).join('\n');
+}
+
+export function slugify(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+export function escape_html(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+export function unescape_html(s) {
+  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+
+export function fmt(template, ...args) {
+  let i = 0;
+  return template.replace(/\{\}/g, () => i < args.length ? String(args[i++]) : '{}');
+}

@@ -122,35 +122,7 @@ data = await retry(
 
 ## Date & Time
 
-### now
-
-```tova
-now() -> Int
-```
-
-Returns the current timestamp in milliseconds since the Unix epoch.
-
-```tova
-start = now()
-// ... do work ...
-elapsed = now() - start
-print("Took {elapsed}ms")
-```
-
-### now_iso
-
-```tova
-now_iso() -> String
-```
-
-Returns the current date and time as an ISO 8601 string.
-
-```tova
-now_iso()
-// "2024-01-15T10:30:00.000Z"
-
-log_entry = { timestamp: now_iso(), message: "Server started" }
-```
+For date/time functions (`now`, `now_iso`, `date_parse`, `date_format`, `date_add`, `date_diff`, `date_from`, `date_part`, `time_ago`), see the [Date & Time](./datetime) page.
 
 ---
 
