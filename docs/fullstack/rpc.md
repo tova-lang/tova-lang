@@ -156,6 +156,18 @@ async function handle_submit() {
 
 The compiler walks the AST to detect whether a function or effect body contains any `server.xxx()` calls. If it does, the function is marked `async` and each RPC call gets `await`. You never need to write `async` or `await` explicitly for RPC.
 
+This also works with pipe expressions. When a pipe chain involves an RPC call, the compiler automatically awaits the result:
+
+```tova
+client {
+  fn load_active_names() {
+    names = server.get_users() |> filter(fn(u) u.active) |> map(fn(u) u.name)
+  }
+}
+```
+
+The `server.get_users()` call within the pipe is automatically awaited before the result flows through the rest of the pipeline.
+
 ## Full Example: Tova to Generated JS
 
 Here is a complete example showing both the Tova source and the generated JavaScript on each side.

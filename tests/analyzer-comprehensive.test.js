@@ -635,6 +635,32 @@ describe('Scope management edge cases', () => {
     const { scope } = analyze('shared { shared_val = 1 }');
     expect(scope.lookupLocal('shared_val')).toBeNull();
   });
+
+  test('shared block promotes types but not variables to parent scope', () => {
+    const { scope } = analyze(`
+      shared {
+        type Color { Red Green Blue }
+        fn helper() { return 1 }
+        leaked_var = 42
+      }
+    `);
+    // Types and functions should be accessible in module scope
+    expect(scope.lookup('Color')).not.toBeNull();
+    expect(scope.lookup('helper')).not.toBeNull();
+    // Variables should NOT leak into module scope
+    expect(scope.lookupLocal('leaked_var')).toBeNull();
+  });
+
+  test('call expression is not treated as definite return', () => {
+    const { warnings } = analyze(`
+      fn void_func() { }
+      fn needs_return() -> Int {
+        void_func()
+      }
+    `);
+    const hasWarning = warnings.some(w => w.message.includes('not all code paths return'));
+    expect(hasWarning).toBe(true);
+  });
 });
 
 // =====================================================================

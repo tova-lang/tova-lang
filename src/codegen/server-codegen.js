@@ -474,6 +474,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push(this._getAiRuntime());
       lines.push('');
 
+      let hasDefaultAi = false;
       for (const aiConf of aiConfigs) {
         const configParts = [];
         for (const [key, valueNode] of Object.entries(aiConf.config)) {
@@ -487,7 +488,12 @@ export class ServerCodegen extends BaseCodegen {
         } else {
           // Default provider: ai { ... } → const ai = __createAI({...})
           lines.push(`const ai = __createAI(${configStr});`);
+          hasDefaultAi = true;
         }
+      }
+      // If no default ai config, create a default for one-off calls
+      if (!hasDefaultAi) {
+        lines.push('const ai = __createAI({});');
       }
       lines.push('');
     }
@@ -2672,7 +2678,6 @@ function __createAI(config) {
     classify(text, categories, opts) { return __aiRequest('classify', [text, categories, opts || {}], opts); },
   };
 }
-// Default AI object for one-off calls (no config block required)
-const ai = typeof ai === 'undefined' ? __createAI({}) : ai;`;
+`;
   }
 }

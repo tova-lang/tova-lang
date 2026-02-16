@@ -79,10 +79,10 @@ async function main() {
       await runFile(args.filter(a => a !== '--strict')[1], { strict: isStrict });
       break;
     case 'build':
-      buildProject(args.slice(1));
+      await buildProject(args.slice(1));
       break;
     case 'dev':
-      devServer(args.slice(1));
+      await devServer(args.slice(1));
       break;
     case 'repl':
       await startRepl();
@@ -1302,7 +1302,7 @@ async function migrateUp(args) {
         await db.exec(sql);
       }
       const ph = db.driver === 'postgres' ? '$1' : '?';
-      await db.exec(`INSERT INTO __migrations (name) VALUES ('${file.replace(/'/g, "''")}')`);
+      await db.query(`INSERT INTO __migrations (name) VALUES (${ph})`, file);
       console.log(`  ✓ ${file}`);
     }
 

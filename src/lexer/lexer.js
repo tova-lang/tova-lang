@@ -86,7 +86,7 @@ export class Lexer {
     const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
     if (!prev) return true;
     const valueTypes = [TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING,
-      TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET,
+      TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
       TokenType.TRUE, TokenType.FALSE, TokenType.NIL];
     return !valueTypes.includes(prev.type);
   }

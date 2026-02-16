@@ -25,8 +25,8 @@ export const BUILTIN_FUNCTIONS = {
   sorted: `function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }`,
   reversed: `function reversed(a) { return [...a].reverse(); }`,
   zip: `function zip(...as) { if (as.length === 0) return []; const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }`,
-  min: `function min(a) { return a.length === 0 ? null : Math.min(...a); }`,
-  max: `function max(a) { return a.length === 0 ? null : Math.max(...a); }`,
+  min: `function min(a) { if (a.length === 0) return null; let m = a[0]; for (let i = 1; i < a.length; i++) if (a[i] < m) m = a[i]; return m; }`,
+  max: `function max(a) { if (a.length === 0) return null; let m = a[0]; for (let i = 1; i < a.length; i++) if (a[i] > m) m = a[i]; return m; }`,
   type_of: `function type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }`,
   filter: `function filter(arr, fn) { return arr.filter(fn); }`,
   map: `function map(arr, fn) { return arr.map(fn); }`,
@@ -163,12 +163,12 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   agg_count: `function agg_count(fn) { if (!fn) return (rows) => rows.length; return (rows) => rows.filter(fn).length; }`,
   agg_mean: `function agg_mean(fn) { return (rows) => { if (rows.length === 0) return 0; return rows.reduce((a, r) => a + (typeof fn === 'function' ? fn(r) : r[fn]), 0) / rows.length; }; }`,
   agg_median: `function agg_median(fn) { return (rows) => { if (rows.length === 0) return 0; const vs = rows.map(r => typeof fn === 'function' ? fn(r) : r[fn]).sort((a, b) => a - b); const m = Math.floor(vs.length / 2); return vs.length % 2 !== 0 ? vs[m] : (vs[m - 1] + vs[m]) / 2; }; }`,
-  agg_min: `function agg_min(fn) { return (rows) => rows.length === 0 ? null : Math.min(...rows.map(r => typeof fn === 'function' ? fn(r) : r[fn])); }`,
-  agg_max: `function agg_max(fn) { return (rows) => rows.length === 0 ? null : Math.max(...rows.map(r => typeof fn === 'function' ? fn(r) : r[fn])); }`,
+  agg_min: `function agg_min(fn) { return (rows) => { if (rows.length === 0) return null; let m = typeof fn === 'function' ? fn(rows[0]) : rows[0][fn]; for (let i = 1; i < rows.length; i++) { const v = typeof fn === 'function' ? fn(rows[i]) : rows[i][fn]; if (v < m) m = v; } return m; }; }`,
+  agg_max: `function agg_max(fn) { return (rows) => { if (rows.length === 0) return null; let m = typeof fn === 'function' ? fn(rows[0]) : rows[0][fn]; for (let i = 1; i < rows.length; i++) { const v = typeof fn === 'function' ? fn(rows[i]) : rows[i][fn]; if (v > m) m = v; } return m; }; }`,
 
   // ── Data exploration ────────────────────────────────
   peek: `function peek(table, opts) { const o = typeof opts === 'object' ? opts : {}; console.log(table._format ? table._format(o.n || 10, o.title) : String(table)); return table; }`,
-  describe: `function describe(table) { const stats = []; for (const col of table._columns) { const vals = table._rows.map(r => r[col]).filter(v => v != null); const st = { Column: col, Type: 'Unknown', 'Non-Null': vals.length }; if (vals.length > 0) { const s = vals[0]; if (typeof s === 'number') { st.Type = Number.isInteger(s) ? 'Int' : 'Float'; st.Mean = vals.reduce((a, b) => a + b, 0) / vals.length; st.Min = Math.min(...vals); st.Max = Math.max(...vals); } else if (typeof s === 'string') { st.Type = 'String'; st.Unique = new Set(vals).size; } else if (typeof s === 'boolean') { st.Type = 'Bool'; } } stats.push(st); } const dt = Table(stats); console.log(dt._format(100, 'describe()')); return dt; }`,
+  describe: `function describe(table) { const stats = []; for (const col of table._columns) { const vals = table._rows.map(r => r[col]).filter(v => v != null); const st = { Column: col, Type: 'Unknown', 'Non-Null': vals.length }; if (vals.length > 0) { const s = vals[0]; if (typeof s === 'number') { st.Type = Number.isInteger(s) ? 'Int' : 'Float'; st.Mean = vals.reduce((a, b) => a + b, 0) / vals.length; let mn = vals[0], mx = vals[0]; for (let i = 1; i < vals.length; i++) { if (vals[i] < mn) mn = vals[i]; if (vals[i] > mx) mx = vals[i]; } st.Min = mn; st.Max = mx; } else if (typeof s === 'string') { st.Type = 'String'; st.Unique = new Set(vals).size; } else if (typeof s === 'boolean') { st.Type = 'Bool'; } } stats.push(st); } const dt = Table(stats); console.log(dt._format(100, 'describe()')); return dt; }`,
   schema_of: `function schema_of(table) { const sc = {}; if (table._rows.length === 0) { for (const c of table._columns) sc[c] = 'Unknown'; } else { const s = table._rows[0]; for (const c of table._columns) { const v = s[c]; if (v == null) sc[c] = 'Nil'; else if (typeof v === 'number') sc[c] = Number.isInteger(v) ? 'Int' : 'Float'; else if (typeof v === 'string') sc[c] = 'String'; else if (typeof v === 'boolean') sc[c] = 'Bool'; else if (Array.isArray(v)) sc[c] = 'Array'; else sc[c] = 'Object'; } } console.log('Schema:'); for (const [c, t] of Object.entries(sc)) console.log('  ' + c + ': ' + t); return sc; }`,
 
   // ── Data cleaning ───────────────────────────────────
@@ -302,7 +302,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   // ── Math (new) ─────────────────────────────────────────
   hypot: `function hypot(a, b) { return Math.hypot(a, b); }`,
   lerp: `function lerp(a, b, t) { return a + (b - a) * t; }`,
-  divmod: `function divmod(a, b) { return [Math.floor(a / b), a % b]; }`,
+  divmod: `function divmod(a, b) { const q = Math.floor(a / b); return [q, a - q * b]; }`,
   avg: `function avg(arr) { return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length; }`,
 
   // ── Date/Time (new) ────────────────────────────────────
@@ -374,7 +374,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   combinations: `function combinations(arr, r) { const result = []; const combo = []; function gen(start, depth) { if (depth === r) { result.push([...combo]); return; } for (let i = start; i < arr.length; i++) { combo.push(arr[i]); gen(i + 1, depth + 1); combo.pop(); } } gen(0, 0); return result; }`,
   permutations: `function permutations(arr, r) { const n = r === undefined ? arr.length : r; const result = []; const perm = []; const used = new Array(arr.length).fill(false); function gen() { if (perm.length === n) { result.push([...perm]); return; } for (let i = 0; i < arr.length; i++) { if (!used[i]) { used[i] = true; perm.push(arr[i]); gen(); perm.pop(); used[i] = false; } } } gen(); return result; }`,
   intersperse: `function intersperse(arr, sep) { if (arr.length <= 1) return [...arr]; const r = [arr[0]]; for (let i = 1; i < arr.length; i++) { r.push(sep, arr[i]); } return r; }`,
-  interleave: `function interleave(...arrs) { const m = Math.max(...arrs.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) { for (const a of arrs) { if (i < a.length) r.push(a[i]); } } return r; }`,
+  interleave: `function interleave(...arrs) { if (arrs.length === 0) return []; const m = Math.max(...arrs.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) { for (const a of arrs) { if (i < a.length) r.push(a[i]); } } return r; }`,
   repeat_value: `function repeat_value(val, n) { return Array(n).fill(val); }`,
 
   // ── Array Utilities ────────────────────────────────────

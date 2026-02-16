@@ -518,3 +518,39 @@ describe('LSP: Error Recovery', () => {
     }
   });
 });
+
+// ─── URI Path Handling ────────────────────────────────────────────
+// (Tests the _uriToPath logic inline, since importing the LSP server blocks on stdio)
+
+describe('LSP: URI Path Handling', () => {
+  function uriToPath(uri) {
+    if (uri.startsWith('file://')) {
+      let path = decodeURIComponent(uri.slice(7));
+      if (/^\/[a-zA-Z]:/.test(path)) {
+        path = path.slice(1);
+      }
+      return path;
+    }
+    return uri;
+  }
+
+  test('Unix file URI decodes correctly', () => {
+    expect(uriToPath('file:///home/user/file.tova')).toBe('/home/user/file.tova');
+  });
+
+  test('Windows file URI strips leading slash', () => {
+    expect(uriToPath('file:///C:/Users/name/file.tova')).toBe('C:/Users/name/file.tova');
+  });
+
+  test('Windows lowercase drive letter', () => {
+    expect(uriToPath('file:///d:/projects/app.tova')).toBe('d:/projects/app.tova');
+  });
+
+  test('Encoded URI characters are decoded', () => {
+    expect(uriToPath('file:///home/my%20project/file.tova')).toBe('/home/my project/file.tova');
+  });
+
+  test('Non-file URI returned as-is', () => {
+    expect(uriToPath('untitled:Untitled-1')).toBe('untitled:Untitled-1');
+  });
+});

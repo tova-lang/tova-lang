@@ -298,7 +298,9 @@ export class Analyzer {
         if (['+', '-', '*', '/', '%', '**'].includes(expr.operator)) {
           const lt = this._inferType(expr.left);
           const rt = this._inferType(expr.right);
+          if (!lt && !rt) return null;
           if (lt === 'Float' || rt === 'Float') return 'Float';
+          if (lt === 'String' || rt === 'String') return 'String';
           return 'Int';
         }
         if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) return 'Bool';
@@ -567,8 +569,16 @@ export class Analyzer {
         return;
       case 'ObjectLiteral':
         for (const prop of node.properties) {
-          this.visitExpression(prop.key);
-          this.visitExpression(prop.value);
+          if (prop.spread) {
+            // Spread property: {...expr}
+            this.visitExpression(prop.argument);
+          } else if (prop.shorthand) {
+            // Shorthand: {name} — key IS the variable reference
+            this.visitExpression(prop.key);
+          } else {
+            // Non-shorthand: {key: value} — only visit value, key is a label
+            this.visitExpression(prop.value);
+          }
         }
         return;
       case 'ListComprehension':
@@ -712,10 +722,10 @@ export class Analyzer {
     } finally {
       this.currentScope = prevScope;
     }
-    // Promote shared symbols (types, functions) to parent scope
-    // so server/client blocks can reference them
+    // Promote shared types and functions to parent scope
+    // so server/client blocks can reference them (but not variables)
     for (const [name, sym] of sharedScope.symbols) {
-      if (!prevScope.symbols.has(name)) {
+      if (!prevScope.symbols.has(name) && (sym.kind === 'type' || sym.kind === 'function')) {
         prevScope.symbols.set(name, sym);
       }
     }
@@ -832,7 +842,12 @@ export class Analyzer {
     // Push expected return type for return-statement checking
     const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
     this._functionReturnTypeStack.push(expectedReturn);
-    if (node.isAsync) this._asyncDepth++;
+    const prevAsyncDepth = this._asyncDepth;
+    if (node.isAsync) {
+      this._asyncDepth++;
+    } else {
+      this._asyncDepth = 0; // Non-async function resets async context
+    }
 
     try {
       for (const param of node.params) {
@@ -861,7 +876,7 @@ export class Analyzer {
         }
       }
     } finally {
-      if (node.isAsync) this._asyncDepth--;
+      this._asyncDepth = prevAsyncDepth;
       this._functionReturnTypeStack.pop();
       this.currentScope = prevScope;
     }
@@ -1211,10 +1226,13 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    for (const child of node.body) {
-      this.visitNode(child);
+    try {
+      for (const child of node.body) {
+        this.visitNode(child);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   visitStoreDeclaration(node) {
@@ -1231,10 +1249,13 @@ export class Analyzer {
 
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
-    for (const child of node.body) {
-      this.visitNode(child);
+    try {
+      for (const child of node.body) {
+        this.visitNode(child);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   visitRouteDeclaration(node) {
@@ -1288,8 +1309,11 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitHealthCheckDeclaration(node) {
@@ -1324,8 +1348,11 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitWebSocketDeclaration(node) {
@@ -1345,8 +1372,11 @@ export class Analyzer {
           this.error(e.message);
         }
       }
-      this.visitNode(handler.body);
-      this.currentScope = prevScope;
+      try {
+        this.visitNode(handler.body);
+      } finally {
+        this.currentScope = prevScope;
+      }
     }
   }
 
@@ -1418,8 +1448,11 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitSubscribeDeclaration(node) {
@@ -1437,8 +1470,11 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitEnvDeclaration(node) {
@@ -1480,8 +1516,11 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitUploadDeclaration(node) {
@@ -1555,8 +1594,11 @@ export class Analyzer {
         this.error(e.message);
       }
     }
-    this.visitNode(node.body);
-    this.currentScope = prevScope;
+    try {
+      this.visitNode(node.body);
+    } finally {
+      this.currentScope = prevScope;
+    }
   }
 
   visitCacheDeclaration(node) {
@@ -1579,10 +1621,13 @@ export class Analyzer {
     for (const p of node.params) {
       this.currentScope.define(p.name, { kind: 'param' });
     }
-    for (const stmt of node.body.body || []) {
-      this.visitNode(stmt);
+    try {
+      for (const stmt of node.body.body || []) {
+        this.visitNode(stmt);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   visitModelDeclaration(node) {
@@ -1600,10 +1645,13 @@ export class Analyzer {
   visitTestBlock(node) {
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
-    for (const stmt of node.body) {
-      this.visitNode(stmt);
+    try {
+      for (const stmt of node.body) {
+        this.visitNode(stmt);
+      }
+    } finally {
+      this.currentScope = prevScope;
     }
-    this.currentScope = prevScope;
   }
 
   // ─── Expression visitors ──────────────────────────────────
@@ -1639,7 +1687,12 @@ export class Analyzer {
 
     const expectedReturn = node.returnType ? this._typeAnnotationToString(node.returnType) : null;
     this._functionReturnTypeStack.push(expectedReturn);
-    if (node.isAsync) this._asyncDepth++;
+    const prevAsyncDepth = this._asyncDepth;
+    if (node.isAsync) {
+      this._asyncDepth++;
+    } else {
+      this._asyncDepth = 0; // Non-async lambda resets async context
+    }
 
     try {
       for (const param of node.params) {
@@ -1662,7 +1715,7 @@ export class Analyzer {
         this.visitExpression(node.body);
       }
     } finally {
-      if (node.isAsync) this._asyncDepth--;
+      this._asyncDepth = prevAsyncDepth;
       this._functionReturnTypeStack.pop();
       this.currentScope = prevScope;
     }
@@ -1764,31 +1817,35 @@ export class Analyzer {
         }
       }
 
-      // Check user-defined types — look up in _variantFields from the global scope
-      // Collect all known type variants by iterating type declarations
-      for (const topNode of this.ast.body) {
-        this._collectTypeVariants(topNode, variantNames, coveredVariants, node.loc);
-      }
-    }
-  }
-
-  _collectTypeVariants(node, allVariants, coveredVariants, matchLoc) {
-    if (node.type === 'TypeDeclaration') {
-      const typeVariants = node.variants.filter(v => v.type === 'TypeVariant').map(v => v.name);
-      // If any of the match arms reference a variant from this type, check all
-      const relevantVariants = typeVariants.filter(v => coveredVariants.has(v));
-      if (relevantVariants.length > 0) {
+      // Check user-defined types — find the single best-matching type whose variants
+      // contain ALL covered variant names (avoids false positives with shared names)
+      const candidates = [];
+      this._collectTypeCandidates(this.ast.body, coveredVariants, candidates);
+      // Only warn if exactly one type contains all covered variants
+      if (candidates.length === 1) {
+        const [typeName, typeVariants] = candidates[0];
         for (const v of typeVariants) {
           if (!coveredVariants.has(v)) {
-            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${node.name}'`, matchLoc);
+            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${typeName}'`, node.loc);
           }
         }
       }
     }
-    // Recurse into blocks
-    if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
-      for (const child of node.body) {
-        this._collectTypeVariants(child, allVariants, coveredVariants, matchLoc);
+  }
+
+  _collectTypeCandidates(nodes, coveredVariants, candidates) {
+    for (const node of nodes) {
+      if (node.type === 'TypeDeclaration') {
+        const typeVariants = node.variants.filter(v => v.type === 'TypeVariant').map(v => v.name);
+        if (typeVariants.length === 0) continue;
+        // All covered variants must be contained in this type's variants
+        const allCovered = [...coveredVariants].every(v => typeVariants.includes(v));
+        if (allCovered) {
+          candidates.push([node.name, typeVariants]);
+        }
+      }
+      if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
+        this._collectTypeCandidates(node.body, coveredVariants, candidates);
       }
     }
   }
@@ -1963,7 +2020,8 @@ export class Analyzer {
         return true;
       case 'BlockStatement':
         if (node.body.length === 0) return false;
-        return this._definitelyReturns(node.body[node.body.length - 1]);
+        // Any statement that definitely returns makes the block definitely return
+        return node.body.some(stmt => this._definitelyReturns(stmt));
       case 'IfStatement':
         if (!node.elseBody) return false;
         const consequentReturns = this._definitelyReturns(node.consequent);
@@ -1971,8 +2029,9 @@ export class Analyzer {
         const allAlternatesReturn = (node.alternates || []).every(alt => this._definitelyReturns(alt.body));
         return consequentReturns && elseReturns && allAlternatesReturn;
       case 'GuardStatement':
-        // Guard's else block always runs if condition fails — if it returns, the guard is a definite return path
-        return this._definitelyReturns(node.elseBody);
+        // Guard only handles the failure case — when condition is true, execution falls through
+        // A guard alone never guarantees return on ALL paths
+        return false;
       case 'MatchExpression': {
         const hasWildcard = node.arms.some(arm =>
           arm.pattern.type === 'WildcardPattern' ||
@@ -1983,15 +2042,15 @@ export class Analyzer {
       }
       case 'TryCatchStatement': {
         const tryReturns = node.tryBody.length > 0 &&
-          this._definitelyReturns(node.tryBody[node.tryBody.length - 1]);
+          node.tryBody.some(s => this._definitelyReturns(s));
         const catchReturns = !node.catchBody || (node.catchBody.length > 0 &&
-          this._definitelyReturns(node.catchBody[node.catchBody.length - 1]));
+          node.catchBody.some(s => this._definitelyReturns(s)));
         return tryReturns && catchReturns;
       }
       case 'ExpressionStatement':
         return this._definitelyReturns(node.expression);
       case 'CallExpression':
-        return true;
+        return false;
       default:
         return false;
     }
@@ -2059,6 +2118,12 @@ export class Analyzer {
         this.strictError(`Type mismatch: '++' expects String on right side, but got ${rightType}`, node.loc);
       }
     } else if (['-', '*', '/', '%', '**'].includes(op)) {
+      // String literal * Int is valid (string repeat) — skip warning for that case
+      if (op === '*') {
+        const leftIsStr = node.left.type === 'StringLiteral' || node.left.type === 'TemplateLiteral';
+        const rightIsStr = node.right.type === 'StringLiteral' || node.right.type === 'TemplateLiteral';
+        if (leftIsStr || rightIsStr) return;
+      }
       // Arithmetic: both sides must be numeric
       const numerics = new Set(['Int', 'Float']);
       if (leftType && !numerics.has(leftType) && leftType !== 'Any') {

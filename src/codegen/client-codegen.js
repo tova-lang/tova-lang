@@ -27,6 +27,7 @@ export class ClientCodegen extends BaseCodegen {
     }
     if (node.type === 'IfExpression') {
       return this._containsRPC(node.condition) || this._containsRPC(node.consequent) ||
+        (node.alternates && node.alternates.some(a => this._containsRPC(a.condition) || this._containsRPC(a.body))) ||
         this._containsRPC(node.elseBody);
     }
     if (node.type === 'ForStatement') return this._containsRPC(node.iterable) || this._containsRPC(node.body);
@@ -45,14 +46,15 @@ export class ClientCodegen extends BaseCodegen {
       return this._containsRPC(node.subject) || node.arms.some(a => this._containsRPC(a.body));
     }
     if (node.type === 'TryCatchStatement') {
-      return this._containsRPC(node.tryBlock) || this._containsRPC(node.catchBlock) ||
-        this._containsRPC(node.finallyBlock);
+      return (node.tryBody && node.tryBody.some(s => this._containsRPC(s))) ||
+        (node.catchBody && node.catchBody.some(s => this._containsRPC(s))) ||
+        (node.finallyBody && node.finallyBody.some(s => this._containsRPC(s)));
     }
     if (node.type === 'PipeExpression') {
       return this._containsRPC(node.left) || this._containsRPC(node.right);
     }
     if (node.type === 'GuardStatement') {
-      return this._containsRPC(node.condition) || this._containsRPC(node.elseBlock);
+      return this._containsRPC(node.condition) || this._containsRPC(node.elseBody);
     }
     if (node.type === 'LetDestructure') return this._containsRPC(node.value);
     if (node.type === 'ArrayLiteral') return node.elements.some(e => this._containsRPC(e));
@@ -61,7 +63,7 @@ export class ClientCodegen extends BaseCodegen {
     if (node.type === 'AwaitExpression') return this._containsRPC(node.argument);
     if (node.type === 'PropagateExpression') return this._containsRPC(node.expression);
     if (node.type === 'UnaryExpression') return this._containsRPC(node.operand);
-    if (node.type === 'TemplateLiteral') return node.parts.some(p => p.type === 'expr' && this._containsRPC(p.expression));
+    if (node.type === 'TemplateLiteral') return node.parts.some(p => p.type === 'expr' && this._containsRPC(p.value));
     if (node.type === 'ChainedComparison') return node.operands.some(o => this._containsRPC(o));
     if (node.type === 'RangeExpression') return this._containsRPC(node.start) || this._containsRPC(node.end);
     if (node.type === 'SliceExpression') return this._containsRPC(node.object) || this._containsRPC(node.start) || this._containsRPC(node.end) || this._containsRPC(node.step);
@@ -602,6 +604,7 @@ export class ClientCodegen extends BaseCodegen {
     if (node.type === 'ObjectLiteral') return node.properties.some(p => this._exprReadsSignal(p.value));
     if (node.type === 'IfExpression') {
       return this._exprReadsSignal(node.condition) || this._exprReadsSignal(node.consequent) ||
+        (node.alternates && node.alternates.some(a => this._exprReadsSignal(a.condition) || this._exprReadsSignal(a.body))) ||
         this._exprReadsSignal(node.elseBody);
     }
     if (node.type === 'MatchExpression') {
@@ -874,6 +877,16 @@ export class ClientCodegen extends BaseCodegen {
 
     // Wrap in reactive closure so the runtime creates a dynamic block
     return `() => ${result}`;
+  }
+
+  // Override to add await for piped RPC calls
+  genPipeExpression(node) {
+    const result = super.genPipeExpression(node);
+    // If the pipe target is an RPC call and we're in async context, wrap with await
+    if (this._asyncContext && this._containsRPC(node.right)) {
+      return `await ${result}`;
+    }
+    return result;
   }
 
   // Override function declaration to make async if it contains server.* calls

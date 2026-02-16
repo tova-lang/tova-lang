@@ -2110,7 +2110,8 @@ export class Parser {
   parsePipe() {
     let left = this.parseNullCoalesce();
     while (this.match(TokenType.PIPE)) {
-      const l = this.loc();
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
       // Method pipe: |> .method(args) — parse as MemberExpression with empty Identifier
       if (this.check(TokenType.DOT)) {
         this.advance(); // consume .
@@ -2134,7 +2135,8 @@ export class Parser {
   parseNullCoalesce() {
     let left = this.parseOr();
     while (this.match(TokenType.QUESTION_QUESTION)) {
-      const l = this.loc();
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
       const right = this.parseOr();
       left = new AST.BinaryExpression('??', left, right, l);
     }
@@ -2144,7 +2146,8 @@ export class Parser {
   parseOr() {
     let left = this.parseAnd();
     while (this.match(TokenType.OR_OR) || this.match(TokenType.OR)) {
-      const l = this.loc();
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
       const right = this.parseAnd();
       left = new AST.LogicalExpression('or', left, right, l);
     }
@@ -2154,7 +2157,8 @@ export class Parser {
   parseAnd() {
     let left = this.parseNot();
     while (this.match(TokenType.AND_AND) || this.match(TokenType.AND)) {
-      const l = this.loc();
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
       const right = this.parseNot();
       left = new AST.LogicalExpression('and', left, right, l);
     }
@@ -2163,7 +2167,8 @@ export class Parser {
 
   parseNot() {
     if (this.match(TokenType.NOT) || this.match(TokenType.BANG)) {
-      const l = this.loc();
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
       const operand = this.parseNot();
       return new AST.UnaryExpression('not', operand, true, l);
     }
@@ -2349,6 +2354,10 @@ export class Parser {
       }
 
       if (this.check(TokenType.LPAREN)) {
+        // Don't treat ( as call if it's on a new line (avoids ambiguity with grouped expressions)
+        const prevLine = this.pos > 0 ? this.tokens[this.pos - 1].line : 0;
+        const curLine = this.current().line;
+        if (curLine > prevLine) break;
         expr = this.parseCallExpression(expr);
         continue;
       }

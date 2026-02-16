@@ -167,9 +167,17 @@ describe('Type Checking — Binary Operators', () => {
     `, "'-' expects numeric type, but got String")).toBe(true);
   });
 
-  test('warns on String * Int', () => {
+  test('no warning on String literal * Int (string repeat)', () => {
+    // String literal * Int is intentionally allowed (generates .repeat())
     expect(hasWarning(`
       x = "hello" * 3
+    `, "'*' expects numeric type, but got String")).toBe(false);
+  });
+
+  test('warns on String variable * Int', () => {
+    expect(hasWarning(`
+      x = "hello"
+      y = x * 3
     `, "'*' expects numeric type, but got String")).toBe(true);
   });
 

@@ -679,10 +679,14 @@ export class BaseCodegen {
     const right = this.genExpression(node.right);
     const op = node.operator;
 
-    // String multiply: "ha" * 3 => "ha".repeat(3)
+    // String multiply: "ha" * 3 => "ha".repeat(3), also x * 3 when x is string
     if (op === '*' &&
       (node.left.type === 'StringLiteral' || node.left.type === 'TemplateLiteral')) {
       return `${left}.repeat(${right})`;
+    }
+    if (op === '*' &&
+      (node.right.type === 'StringLiteral' || node.right.type === 'TemplateLiteral')) {
+      return `${right}.repeat(${left})`;
     }
 
     // Tova ?? is NaN-safe: catches null, undefined, AND NaN
@@ -1027,7 +1031,7 @@ export class BaseCodegen {
     if (node.type === 'TemplateLiteral') {
       // Template literal with column references
       const parts = node.parts.map(p => {
-        if (p.type === 'text') return p.value;
+        if (p.type === 'text') return p.value.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
         return `\${${this._genColumnBody(p.value)}}`;
       });
       return '`' + parts.join('') + '`';

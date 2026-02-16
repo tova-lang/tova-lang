@@ -13,7 +13,7 @@ class TovaLanguageServer {
   static MAX_CACHE_SIZE = 100; // max cached diagnostics entries
 
   constructor() {
-    this._buffer = '';
+    this._buffer = Buffer.alloc(0);
     this._documents = new Map(); // uri -> { text, version }
     this._diagnosticsCache = new Map(); // uri -> { ast, analyzer, errors, typeRegistry }
     this._initialized = false;
@@ -22,7 +22,7 @@ class TovaLanguageServer {
   }
 
   start() {
-    process.stdin.setEncoding('utf8');
+    // Do NOT set encoding — use raw Buffers for correct byte-based Content-Length (LSP protocol)
     process.stdin.on('data', (chunk) => this._onData(chunk));
     process.stdin.on('end', () => process.exit(0));
 
@@ -46,12 +46,13 @@ class TovaLanguageServer {
   // ─── JSON-RPC Transport ────────────────────────────────────
 
   _onData(chunk) {
-    this._buffer += chunk;
+    this._buffer = Buffer.concat([this._buffer, typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk]);
     while (true) {
-      const headerEnd = this._buffer.indexOf('\r\n\r\n');
+      const sep = Buffer.from('\r\n\r\n');
+      const headerEnd = this._buffer.indexOf(sep);
       if (headerEnd === -1) break;
 
-      const header = this._buffer.slice(0, headerEnd);
+      const header = this._buffer.slice(0, headerEnd).toString('utf8');
       const match = header.match(/Content-Length:\s*(\d+)/i);
       if (!match) {
         this._buffer = this._buffer.slice(headerEnd + 4);
@@ -62,7 +63,7 @@ class TovaLanguageServer {
       const start = headerEnd + 4;
       if (this._buffer.length < start + contentLength) break;
 
-      const body = this._buffer.slice(start, start + contentLength);
+      const body = this._buffer.slice(start, start + contentLength).toString('utf8');
       this._buffer = this._buffer.slice(start + contentLength);
 
       try {
@@ -305,7 +306,7 @@ class TovaLanguageServer {
               diagnostics.push({
                 range: {
                   start: { line: (e.line || 1) - 1, character: (e.column || 1) - 1 },
-                  end: { line: (e.line || 1) - 1, character: (e.column || 1) + 10 },
+                  end: { line: (e.line || 1) - 1, character: (e.column || 1) - 1 + 10 },
                 },
                 severity: 1,
                 source: 'tova',
@@ -714,11 +715,32 @@ class TovaLanguageServer {
     const line = doc.text.split('\n')[position.line] || '';
     const before = line.slice(0, position.character);
 
-    // Find function name before (
-    const match = before.match(/(\w+)\s*\([^)]*$/);
-    if (!match) return this._respond(msg.id, null);
+    // Walk backwards to find the immediately enclosing function call (handles nesting)
+    let depth = 0;
+    let parenPos = -1;
+    for (let i = before.length - 1; i >= 0; i--) {
+      if (before[i] === ')') depth++;
+      else if (before[i] === '(') {
+        if (depth === 0) { parenPos = i; break; }
+        depth--;
+      }
+    }
+    if (parenPos === -1) return this._respond(msg.id, null);
 
-    const funcName = match[1];
+    const funcMatch = before.slice(0, parenPos).match(/(\w+)\s*$/);
+    if (!funcMatch) return this._respond(msg.id, null);
+
+    const funcName = funcMatch[1];
+
+    // Count commas at depth 0 after the enclosing paren (ignores nested call commas)
+    const afterParen = before.slice(parenPos + 1);
+    let activeParam = 0;
+    let parenDepth = 0;
+    for (const ch of afterParen) {
+      if (ch === '(') parenDepth++;
+      else if (ch === ')') parenDepth--;
+      else if (ch === ',' && parenDepth === 0) activeParam++;
+    }
 
     // Built-in signatures
     const signatures = {
@@ -737,10 +759,6 @@ class TovaLanguageServer {
 
     const sig = signatures[funcName];
     if (sig) {
-      // Count commas to determine active parameter
-      const afterParen = before.slice(before.lastIndexOf('(') + 1);
-      const activeParam = (afterParen.match(/,/g) || []).length;
-
       return this._respond(msg.id, {
         signatures: [{
           label: sig.label,
@@ -755,17 +773,14 @@ class TovaLanguageServer {
     const cached = this._diagnosticsCache.get(textDocument.uri);
     if (cached?.analyzer) {
       const symbol = this._findSymbolInScopes(cached.analyzer, funcName);
-      if (symbol?.params) {
-        const afterParen = before.slice(before.lastIndexOf('(') + 1);
-        const activeParam = (afterParen.match(/,/g) || []).length;
-
+      if (symbol?._params) {
         return this._respond(msg.id, {
           signatures: [{
-            label: `${funcName}(${symbol.params.join(', ')})`,
-            parameters: symbol.params.map(p => ({ label: p })),
+            label: `${funcName}(${symbol._params.join(', ')})`,
+            parameters: symbol._params.map(p => ({ label: p })),
           }],
           activeSignature: 0,
-          activeParameter: Math.min(activeParam, symbol.params.length - 1),
+          activeParameter: Math.max(0, Math.min(activeParam, symbol._params.length - 1)),
         });
       }
     }
@@ -901,7 +916,12 @@ class TovaLanguageServer {
 
   _uriToPath(uri) {
     if (uri.startsWith('file://')) {
-      return decodeURIComponent(uri.slice(7));
+      let path = decodeURIComponent(uri.slice(7));
+      // On Windows, file:///C:/path becomes /C:/path — strip leading slash
+      if (/^\/[a-zA-Z]:/.test(path)) {
+        path = path.slice(1);
+      }
+      return path;
     }
     return uri;
   }

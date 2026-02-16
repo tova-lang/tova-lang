@@ -363,9 +363,9 @@ export function watch(getter, callback, options = {}) {
   const effect = createEffect(() => {
     const newValue = getter();
     if (initialized) {
-      callback(newValue, oldValue);
+      untrack(() => callback(newValue, oldValue));
     } else if (options.immediate) {
-      callback(newValue, undefined);
+      untrack(() => callback(newValue, undefined));
     }
     oldValue = newValue;
     initialized = true;
@@ -463,12 +463,8 @@ export function ErrorBoundary({ fallback, children, onError, onReset, retry = 0 
     if (onError) onError({ error: e, componentStack: stack });
   }
 
-  pushErrorHandler(handleError);
-
   // Return a reactive wrapper that switches between children and fallback
   const childContent = children && children.length === 1 ? children[0] : tova_fragment(children || []);
-
-  popErrorHandler();
 
   const vnode = {
     __tova: true,
@@ -477,6 +473,7 @@ export function ErrorBoundary({ fallback, children, onError, onReset, retry = 0 
     children: [],
     _fallback: fallback,
     _componentName: 'ErrorBoundary',
+    _errorHandler: handleError, // Active during __dynamic effect render cycle
     compute: () => {
       const err = error();
       if (err) {
@@ -547,6 +544,7 @@ export function Portal({ target, children }) {
 
 export function lazy(loader) {
   let resolved = null;
+  let loadError = null;
   let promise = null;
 
   return function LazyWrapper(props) {
@@ -554,17 +552,18 @@ export function lazy(loader) {
       return resolved(props);
     }
 
-    const [comp, setComp] = createSignal(null);
-    const [err, setErr] = createSignal(null);
-
     if (!promise) {
       promise = loader()
         .then(mod => {
           resolved = mod.default || mod;
-          setComp(() => resolved);
         })
-        .catch(e => setErr(e));
+        .catch(e => { loadError = e; });
     }
+
+    const [tick, setTick] = createSignal(0);
+
+    // Trigger re-render when promise settles
+    promise.then(() => setTick(1)).catch(() => setTick(1));
 
     return {
       __tova: true,
@@ -572,10 +571,9 @@ export function lazy(loader) {
       props: {},
       children: [],
       compute: () => {
-        const e = err();
-        if (e) return tova_el('span', { className: 'tova-error' }, [String(e)]);
-        const c = comp();
-        if (c) return c(props);
+        tick(); // Track for reactivity
+        if (loadError) return tova_el('span', { className: 'tova-error' }, [String(loadError)]);
+        if (resolved) return resolved(props);
         // Fallback while loading
         return props && props.fallback ? props.fallback : null;
       },
@@ -861,22 +859,36 @@ export function render(vnode) {
     frag.appendChild(marker);
 
     let prevDispose = null;
+    const errHandler = vnode._errorHandler || null;
     createEffect(() => {
-      const inner = vnode.compute();
-      const parent = marker.parentNode;
-      const ref = nextSiblingAfterMarker(marker);
+      if (errHandler) pushErrorHandler(errHandler);
+      try {
+        const inner = vnode.compute();
+        const parent = marker.parentNode;
+        const ref = nextSiblingAfterMarker(marker);
 
-      if (prevDispose) {
-        prevDispose();
-        prevDispose = null;
+        if (prevDispose) {
+          prevDispose();
+          prevDispose = null;
+        }
+        clearMarkerContent(marker);
+
+        createRoot((dispose) => {
+          prevDispose = dispose;
+          const rendered = render(inner);
+          marker.__tovaNodes = insertRendered(parent, rendered, ref, marker);
+        });
+      } catch (e) {
+        if (errHandler) {
+          errHandler(e);
+        } else if (currentErrorHandler) {
+          currentErrorHandler(e);
+        } else {
+          console.error('Uncaught error during render:', e);
+        }
+      } finally {
+        if (errHandler) popErrorHandler();
       }
-      clearMarkerContent(marker);
-
-      createRoot((dispose) => {
-        prevDispose = dispose;
-        const rendered = render(inner);
-        marker.__tovaNodes = insertRendered(parent, rendered, ref, marker);
-      });
     });
 
     return frag;
@@ -965,6 +977,14 @@ function applyPropValue(el, key, val) {
   } else if (key === 'disabled' || key === 'readOnly' || key === 'hidden') {
     el[key] = !!val;
   } else if (key === 'style' && typeof val === 'object') {
+    // Clear old properties not present in new style object
+    for (let i = el.style.length - 1; i >= 0; i--) {
+      const prop = el.style[i];
+      const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      if (!(prop in val) && !(camel in val)) {
+        el.style.removeProperty(prop);
+      }
+    }
     Object.assign(el.style, val);
   } else {
     const s = val == null ? '' : String(val);
@@ -1150,11 +1170,7 @@ function patchPositionalInMarker(marker, newChildren) {
     if (oldNodes[i].parentNode === parent) parent.removeChild(oldNodes[i]);
   }
 
-  marker.__tovaNodes = oldNodes.slice(0, Math.max(newCount, oldCount > newCount ? newCount : oldNodes.length));
-  // Simplify: rebuild __tovaNodes from what should remain
-  if (newCount <= oldCount) {
-    marker.__tovaNodes = oldNodes.slice(0, newCount);
-  }
+  marker.__tovaNodes = oldNodes.slice(0, newCount);
 }
 
 // Keyed reconciliation for children of an element (not marker-based)
