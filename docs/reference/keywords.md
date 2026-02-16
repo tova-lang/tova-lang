@@ -23,7 +23,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`effect`](#effect) | Declare a reactive side effect |
 | [`elif`](#elif) | Chained conditional branch |
 | [`else`](#else) | Fallback conditional branch |
-| [`export`](#export) | Make a declaration available to other modules |
+| `export` | Reserved keyword (use [`pub`](#pub) instead) |
 | [`extern`](#extern) | Declare an external (foreign) binding |
 | [`false`](#false) | Boolean false literal |
 | [`finally`](#finally) | Code that always runs after try/catch |
@@ -283,13 +283,7 @@ if condition {
 
 ### `export`
 
-Makes a declaration accessible to other modules.
-
-```tova
-export fn greet(name) {
-  "Hello, {name}!"
-}
-```
+Reserved keyword. Use [`pub`](#pub) to make declarations accessible to other modules.
 
 ### `extern`
 

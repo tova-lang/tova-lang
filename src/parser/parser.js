@@ -5,7 +5,7 @@ export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
 
   constructor(tokens, filename = '<stdin>') {
-    this.tokens = tokens.filter(t => t.type !== TokenType.NEWLINE && t.type !== TokenType.DOCSTRING);
+    this.tokens = tokens.filter(t => t.type !== TokenType.NEWLINE && t.type !== TokenType.DOCSTRING && t.type !== TokenType.SEMICOLON);
     this.rawTokens = tokens;
     this.filename = filename;
     this.pos = 0;
@@ -2846,6 +2846,25 @@ export class Parser {
     return new AST.ArrayLiteral(elements, l);
   }
 
+  _parseObjectProperty() {
+    // Spread property: ...expr
+    if (this.check(TokenType.SPREAD)) {
+      const sl = this.loc();
+      this.advance();
+      const argument = this.parseUnary();
+      return { spread: true, argument };
+    }
+    const key = this.parseExpression();
+    if (this.match(TokenType.COLON)) {
+      const value = this.parseExpression();
+      return { key, value, shorthand: false };
+    }
+    if (key.type === 'Identifier') {
+      return { key, value: key, shorthand: true };
+    }
+    this.error("Expected ':' in object literal");
+  }
+
   parseObjectOrDictComprehension() {
     const l = this.loc();
     this.expect(TokenType.LBRACE);
@@ -2853,6 +2872,17 @@ export class Parser {
     if (this.check(TokenType.RBRACE)) {
       this.advance();
       return new AST.ObjectLiteral([], l);
+    }
+
+    // Check for spread as first element — always an object literal
+    if (this.check(TokenType.SPREAD)) {
+      const properties = [this._parseObjectProperty()];
+      while (this.match(TokenType.COMMA)) {
+        if (this.check(TokenType.RBRACE)) break;
+        properties.push(this._parseObjectProperty());
+      }
+      this.expect(TokenType.RBRACE, "Expected '}'");
+      return new AST.ObjectLiteral(properties, l);
     }
 
     // Try to parse first key: value pair
@@ -2883,10 +2913,7 @@ export class Parser {
       const properties = [{ key: firstKey, value: firstValue, shorthand: false }];
       while (this.match(TokenType.COMMA)) {
         if (this.check(TokenType.RBRACE)) break;
-        const key = this.parseExpression();
-        this.expect(TokenType.COLON, "Expected ':' in object literal");
-        const value = this.parseExpression();
-        properties.push({ key, value, shorthand: false });
+        properties.push(this._parseObjectProperty());
       }
 
       this.expect(TokenType.RBRACE, "Expected '}'");
@@ -2898,15 +2925,7 @@ export class Parser {
       const properties = [{ key: firstKey, value: firstKey, shorthand: true }];
       while (this.match(TokenType.COMMA)) {
         if (this.check(TokenType.RBRACE)) break;
-        const key = this.parseExpression();
-        if (this.match(TokenType.COLON)) {
-          // Colon property: y: 10
-          const value = this.parseExpression();
-          properties.push({ key, value, shorthand: false });
-        } else {
-          // Shorthand property: y
-          properties.push({ key, value: key, shorthand: true });
-        }
+        properties.push(this._parseObjectProperty());
       }
       this.expect(TokenType.RBRACE, "Expected '}'");
       return new AST.ObjectLiteral(properties, l);

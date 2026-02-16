@@ -110,7 +110,7 @@ if user not in banned_users {
 | `/=` | Divide and assign | `x = x / 10` |
 
 ```tova
-counter = 0
+var counter = 0
 counter += 1       // counter is now 1
 counter *= 5       // counter is now 5
 ```
@@ -243,7 +243,7 @@ fn add(a: Int, b: Int) -> Int {
 | Operator | Name | Usage |
 |----------|------|-------|
 | `:` | Type annotation / object field | `x: Int`, `{name: "Alice"}` |
-| `::` | Namespace access | `Module::function` |
+| `::` | Slice step | `items[::2]`, `items[1::3]` |
 | `++` | String concatenation (in patterns) | `"api/" ++ rest` |
 
 ## Operator Precedence

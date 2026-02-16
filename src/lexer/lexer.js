@@ -435,6 +435,7 @@ export class Lexer {
           case '\\': current += '\\'; break;
           case '"': current += '"'; break;
           case '{': current += '{'; break;
+          case '}': current += '}'; break;
           default: current += '\\' + esc;
         }
         continue;

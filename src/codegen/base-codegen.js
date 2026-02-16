@@ -1462,6 +1462,9 @@ export class BaseCodegen {
 
   genObjectLiteral(node) {
     const props = node.properties.map(p => {
+      if (p.spread) {
+        return `...${this.genExpression(p.argument)}`;
+      }
       if (p.shorthand) {
         return this.genExpression(p.key);
       }
@@ -1590,7 +1593,7 @@ export class BaseCodegen {
       const fieldNames = node.variants.map(f => f.name);
       const params = fieldNames.join(', ');
       const obj = fieldNames.map(f => `${f}`).join(', ');
-      lines.push(`${this.i()}${exportPrefix}function ${node.name}(${params}) { return { ${obj} }; }`);
+      lines.push(`${this.i()}${exportPrefix}function ${node.name}(${params}) { return Object.assign(Object.create(${node.name}.prototype), { ${obj} }); }`);
     }
 
     // Derive clause: generate methods
@@ -1636,21 +1639,24 @@ export class BaseCodegen {
   genImplDeclaration(node) {
     const lines = [];
     for (const method of node.methods) {
+      const hasSelf = method.params.some(p => p.name === 'self');
       const params = method.params.filter(p => p.name !== 'self');
       const paramStr = this.genParams(params);
       const hasPropagate = this._containsPropagate(method.body);
       const asyncPrefix = method.isAsync ? 'async ' : '';
       this.pushScope();
+      if (hasSelf) this.declareVar('self');
       for (const p of params) {
         if (p.destructure) this._declareDestructureVars(p.destructure);
         else this.declareVar(p.name);
       }
       const body = this.genBlockBody(method.body);
       this.popScope();
+      const selfBinding = hasSelf ? `\n${this.i()}  const self = this;` : '';
       if (hasPropagate) {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
       } else {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${body}\n${this.i()}};`);
+        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${body}\n${this.i()}};`);
       }
     }
     return lines.join('\n');

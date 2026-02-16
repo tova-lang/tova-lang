@@ -214,14 +214,24 @@ upper_names = names.map(x => x.upper())
 
 ## Named Arguments
 
-When calling functions with many parameters, you can use named arguments for clarity:
+Named arguments are passed as a single object, so the function should use **object destructuring** to receive them:
 
 ```tova
-fn create_server(host, port, debug) {
-  // ...
+fn create_server({ host, port, debug }) {
+  print("Starting {host}:{port} debug={debug}")
 }
 
 create_server(host: "localhost", port: 8080, debug: true)
+```
+
+You can also mix positional and named arguments. The named arguments are grouped into a trailing object:
+
+```tova
+fn connect(url, { timeout, retries }) {
+  print("Connecting to {url} timeout={timeout} retries={retries}")
+}
+
+connect("https://api.example.com", timeout: 5000, retries: 3)
 ```
 
 ## Destructuring Parameters

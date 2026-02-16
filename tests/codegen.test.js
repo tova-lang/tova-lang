@@ -173,7 +173,7 @@ describe('Codegen — Types', () => {
   test('struct type → constructor function', () => {
     const code = compileShared('type User { name: String, age: Int }');
     expect(code).toContain('function User(name, age)');
-    expect(code).toContain('return { name, age }');
+    expect(code).toContain('return Object.assign(Object.create(User.prototype), { name, age })');
   });
 
   test('algebraic type → tagged unions', () => {

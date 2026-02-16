@@ -1,6 +1,6 @@
 # Modules
 
-Tova uses a module system based on `import` and `export`, similar to JavaScript ES modules. You can import from other `.tova` files, from npm packages, or from built-in modules.
+Tova uses a module system based on `import` and `pub`, similar to JavaScript ES modules. You can import from other `.tova` files, from npm packages, or from built-in modules.
 
 ## Named Imports
 
@@ -23,7 +23,7 @@ rounded = floor(3.7)  // 3
 
 ## Default Imports
 
-Import the default export of a module with a plain name (no braces):
+Import the default module with a plain name (no braces):
 
 ```tova
 import express from "express"
@@ -74,16 +74,16 @@ cleaned = utils.sanitize(input)
 
 ## Exporting
 
-### Export Functions
+### Public Functions
 
-Mark functions as available to other modules with `export`:
+Mark functions as available to other modules with `pub`:
 
 ```tova
-export fn add(a, b) {
+pub fn add(a, b) {
   a + b
 }
 
-export fn multiply(a, b) {
+pub fn multiply(a, b) {
   a * b
 }
 
@@ -93,29 +93,29 @@ fn helper(x) {
 }
 ```
 
-### Export Types
+### Public Types
 
-Export type definitions so other modules can use them:
+Mark type definitions as public so other modules can use them:
 
 ```tova
-export type User {
+pub type User {
   id: Int
   name: String
   email: String
 }
 
-export type Role {
+pub type Role {
   Admin
   Editor
   Viewer
 }
 ```
 
-### Export Variables
+### Public Variables
 
 ```tova
-export version = "1.0.0"
-export default_config = {
+pub version = "1.0.0"
+pub default_config = {
   host: "localhost",
   port: 8080
 }
@@ -253,9 +253,9 @@ import { validate_email } from "./utils/validators.tova"
 // No import needed for User or Post -- models.tova is in the same directory
 
 server {
-  fn create_user(name: String, email: String) -> User {
+  fn create_user(name: String, email: String) {
     guard validate_email(email) else { return Err("bad email") }
-    User(1, name, email)
+    Ok(User(1, name, email))
   }
 }
 
@@ -334,25 +334,25 @@ Tova follows these conventions for resolving imports:
 
 **Keep modules focused.** Each `.tova` file should have a clear responsibility -- types, validation, utilities, etc. This makes imports self-documenting.
 
-**Export types alongside their functions.** If a module defines a `User` type, export the functions that operate on it from the same module:
+**Publish types alongside their functions.** If a module defines a `User` type, make the functions that operate on it public from the same module:
 
 ```tova
-export type User {
+pub type User {
   id: Int
   name: String
   email: String
 }
 
-export fn create_user(name, email) {
+pub fn create_user(name, email) {
   User(next_id(), name, email)
 }
 
-export fn display_user(user: User) -> String {
+pub fn display_user(user: User) -> String {
   "{user.name} <{user.email}>"
 }
 ```
 
-**Use aliases to resolve naming conflicts.** When two modules export the same name, aliased imports keep things clear without renaming the source:
+**Use aliases to resolve naming conflicts.** When two modules publish the same name, aliased imports keep things clear without renaming the source:
 
 ```tova
 import { parse as parse_json } from "json"

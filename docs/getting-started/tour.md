@@ -116,7 +116,7 @@ var y = 10              // mutable
 y += 1                  // OK
 
 let { name, age } = user    // destructure an object
-let [first, ...rest] = items // destructure an array
+let [a, b, c] = items       // destructure an array
 ```
 
 <TryInPlayground :code="variablesCode" label="Variables" />
@@ -232,7 +232,7 @@ match list {
   []        => "empty"
   [x]       => "one element: {x}"
   [x, y]    => "two: {x}, {y}"
-  [_, ...rest] => "many, rest has {len(rest)}"
+  _         => "many elements"
 }
 
 match url {
@@ -274,18 +274,11 @@ type Color {
 bg = Custom(30, 60, 90)
 ```
 
-Generic types:
+Tova has built-in generic types `Option<T>` and `Result<T, E>`:
 
 ```tova
-type Option<T> {
-  Some(T)
-  None
-}
-
-type Result<T, E> {
-  Ok(T)
-  Err(E)
-}
+val = Some(42)       // Option: Some(T) or None
+res = Ok("hello")    // Result: Ok(T) or Err(E)
 ```
 
 <TryInPlayground :code="typesCode" label="Types" />
@@ -297,8 +290,8 @@ Arrays, objects, spread, slicing, and comprehensions:
 ```tova
 // Arrays
 nums = [1, 2, 3, 4, 5]
-first = nums[0]
-slice = nums[1:4]          // [2, 3, 4]
+head = nums[0]
+part = nums[1:4]           // [2, 3, 4]
 
 // Spread
 combined = [...nums, 6, 7]
@@ -336,18 +329,18 @@ Chain operations with `.map()` and `.unwrap()`:
 
 ```tova
 value = divide(10, 2)
-  |> Result.map(fn(x) x * 2)
-  |> Result.unwrap()
+  |> .map(fn(x) x * 2)
+  |> .unwrap()
 
 print(value)   // 10
 ```
 
-Propagate errors with `!`:
+Propagate errors with `?`:
 
 ```tova
 fn load_config(path) {
-  content = read_file(path)!     // returns Err early if read fails
-  parse_json(content)!           // returns Err early if parse fails
+  content = read_file(path)?     // returns Err early if read fails
+  parse_json(content)?           // returns Err early if parse fails
   Ok(content)
 }
 ```
@@ -377,21 +370,21 @@ Use `_` as a placeholder when the value should not go in the first position:
 
 ## 9. Modules
 
-Import and export between files:
+Import and publish declarations between files:
 
 ```tova
-// math.tova
-export fn square(x) { x * x }
-export fn cube(x) { x * x * x }
-export PI = 3.14159
+// lib/math.tova
+pub fn square(x) { x * x }
+pub fn cube(x) { x * x * x }
+pub TAU = 6.28318
 ```
 
 ```tova
 // app.tova
-import { square, cube, PI } from "./math"
+import { square, cube, TAU } from "./lib/math"
 
 print(square(5))   // 25
-print(PI)          // 3.14159
+print(TAU)         // 6.28318
 ```
 
 Import npm packages the same way:

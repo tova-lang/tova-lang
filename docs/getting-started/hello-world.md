@@ -60,15 +60,15 @@ That is all it takes. Let us break down what happened.
 **Immutable by default.** The line `name = "World"` creates an immutable binding. Once assigned, `name` cannot be reassigned. If you need a mutable variable, use `var`:
 
 ```tova
-var count = 0
-count += 1       // OK -- count is mutable
+var counter = 0
+counter += 1       // OK -- counter is mutable
 ```
 
 **String interpolation.** Curly braces inside a string evaluate expressions inline. Any valid expression works:
 
 ```tova
 print("2 + 3 = {2 + 3}")       // 2 + 3 = 5
-print("upper: {to_upper(name)}")  // upper: WORLD
+print("upper: {upper(name)}")  // upper: WORLD
 ```
 
 **Implicit returns.** The last expression in a block is its return value. No `return` keyword is needed (though you can use one for early returns).

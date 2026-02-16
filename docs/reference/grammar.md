@@ -249,7 +249,7 @@ import_declaration = "import" ( import_specifiers "from" STRING
 import_specifiers  = "{" import_specifier { "," import_specifier } "}" ;
 import_specifier   = IDENTIFIER [ "as" IDENTIFIER ] ;
 
-export_statement = "export" ( function_declaration | type_declaration | statement ) ;
+pub_declaration = "pub" ( function_declaration | type_declaration | statement ) ;
 
 return_statement = "return" [ expression ] ;
 

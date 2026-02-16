@@ -119,7 +119,7 @@ regex_like = 'hello\nworld'             // escape sequences still work
 
 ### Escape Sequences
 
-Both string types support the following escape sequences:
+Both string types support these common escape sequences:
 
 | Sequence | Meaning |
 |----------|---------|
@@ -127,9 +127,15 @@ Both string types support the following escape sequences:
 | `\t` | Tab |
 | `\r` | Carriage return |
 | `\\` | Literal backslash |
-| `\"` | Literal double quote |
-| `\'` | Literal single quote |
-| `\{` | Literal `{` (prevents interpolation in double-quoted strings) |
+
+Each string type also supports escaping its own delimiter and interpolation characters:
+
+| Sequence | Meaning | String type |
+|----------|---------|-------------|
+| `\"` | Literal double quote | Double-quoted only |
+| `\'` | Literal single quote | Single-quoted only |
+| `\{` | Literal `{` (prevents interpolation) | Double-quoted only |
+| `\}` | Literal `}` | Double-quoted only |
 
 Example:
 

@@ -2006,7 +2006,14 @@ export class Analyzer {
     const hasSpread = node.arguments.some(a => a.type === 'SpreadExpression');
     if (hasSpread) return;
 
-    const actualCount = node.arguments.length;
+    // Named arguments are collapsed into a single object at codegen
+    const hasNamedArgs = node.arguments.some(a => a.type === 'NamedArgument');
+    if (hasNamedArgs) {
+      const positionalCount = node.arguments.filter(a => a.type !== 'NamedArgument').length;
+      var actualCount = positionalCount + 1; // named args become one object
+    } else {
+      var actualCount = node.arguments.length;
+    }
     const name = node.callee.name;
 
     if (actualCount > fnSym._totalParamCount) {
@@ -2144,7 +2151,7 @@ export class Analyzer {
         name: m.name,
         paramTypes: (m.params || []).map(p => typeAnnotationToType(p.typeAnnotation)),
         returnType: typeAnnotationToType(m.returnType),
-        paramCount: (m.params || []).length,
+        paramCount: (m.params || []).filter(p => p.name !== 'self').length,
       }));
       this.currentScope.define(node.name, sym);
 

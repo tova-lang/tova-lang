@@ -21,9 +21,9 @@ Tova provides the following primitive types:
 Array types use bracket syntax:
 
 ```tova
-scores: [Int] = [90, 85, 92, 78]
-names: [String] = ["Alice", "Bob", "Charlie"]
-matrix: [[Int]] = [[1, 2], [3, 4]]
+scores = [90, 85, 92, 78]
+names = ["Alice", "Bob", "Charlie"]
+matrix = [[1, 2], [3, 4]]
 ```
 
 ### Objects / Maps
@@ -64,14 +64,7 @@ fn apply(f: (Int) -> Int, x: Int) -> Int {
 
 ## Type Annotations
 
-### On Variables
-
-```tova
-name: String = "Alice"
-count: Int = 42
-ratio: Float = 0.75
-active: Bool = true
-```
+Type annotations are supported on function parameters and return types. Variable types are inferred automatically.
 
 ### On Function Parameters
 
@@ -108,7 +101,7 @@ fn format_name(first: String, last: String) -> String {
 ```tova
 fn divide(a: Float, b: Float) -> Result<Float, String> {
   if b == 0.0 {
-    Error("division by zero")
+    Err("division by zero")
   } else {
     Ok(a / b)
   }
@@ -197,7 +190,7 @@ type Color {
 
 ## Generics
 
-Types and functions can be parameterized with type variables using angle bracket syntax:
+Types can be parameterized with type variables using angle bracket syntax. Functions are generic through type inference.
 
 ### Generic Types
 
@@ -209,7 +202,7 @@ type Option<T> {
 
 type Result<T, E> {
   Ok(T)
-  Error(E)
+  Err(E)
 }
 
 type Pair<A, B> {
@@ -221,21 +214,21 @@ type Pair<A, B> {
 Usage:
 
 ```tova
-maybe_name: Option<String> = Some("Alice")
-result: Result<Int, String> = Ok(42)
+maybe_name = Some("Alice")
+result = Ok(42)
 pair = Pair(1, "hello")
 ```
 
 ### Generic Functions
 
-Functions can accept generic type parameters:
+Functions are generic by default through type inference -- no explicit type parameters are needed:
 
 ```tova
-fn identity<T>(x: T) -> T {
+fn identity(x) {
   x
 }
 
-fn first<T>(items: [T]) -> Option<T> {
+fn first(items) {
   if items.length > 0 {
     Some(items[0])
   } else {
@@ -256,8 +249,8 @@ Tova infers types in most contexts, so explicit annotations are optional. The co
 ```tova
 // All types inferred -- no annotations needed
 name = "Alice"           // String
-count = 42               // Int
-ratio = count / 100.0    // Float
+total = 42               // Int
+ratio = total / 100.0    // Float
 items = [1, 2, 3]        // [Int]
 doubled = items |> map(fn(x) x * 2)  // [Int]
 ```
@@ -303,11 +296,11 @@ type Point {
 
 ### Available Derivations
 
-| Trait | Generated Behavior |
-|-------|-------------------|
-| `Eq` | Structural equality (`==` and `!=`) |
-| `Show` | Human-readable string representation |
-| `JSON` | Serialization to/from JSON (`to_json`, `from_json`) |
+| Trait | Generated Method | Behavior |
+|-------|-----------------|----------|
+| `Eq` | `Type.__eq(a, b)` | Structural equality (deep field comparison) |
+| `Show` | `Type.__show(obj)` | Human-readable string representation |
+| `JSON` | `Type.toJSON(obj)` / `Type.fromJSON(str)` | Serialization to/from JSON |
 
 Multiple derives are specified in a single bracket list:
 
@@ -319,15 +312,15 @@ type User {
 } derive [Eq, Show, JSON]
 ```
 
-The generated methods can be used directly:
+The generated methods are called as static methods on the type:
 
 ```tova
 p1 = Point(1.0, 2.0)
 p2 = Point(1.0, 2.0)
 
-p1 == p2              // true (Eq)
-print(p1)             // "Point(1.0, 2.0)" (Show)
-json_str = to_json(p1)  // JSON serialization
+Point.__eq(p1, p2)       // true (structural equality)
+Point.__show(p1)          // "Point(x: 1.0, y: 2.0)"
+json_str = Point.toJSON(p1)  // JSON serialization
 ```
 
 ## Interfaces
@@ -379,8 +372,8 @@ In strict mode, the following produce **errors** instead of warnings:
 Strict mode also warns about potential data loss from **float narrowing**:
 
 ```tova
-var count: Int = 10
-count = 3.14  // warning: Potential data loss: assigning Float to Int variable
+var total = 10
+total = 3.14  // warning: Potential data loss: assigning Float to Int variable
 ```
 
 ### Trait Conformance
@@ -531,7 +524,7 @@ fn parse_int(s: String) -> Result<Int, String> {
   if valid {
     Ok(parsed_value)
   } else {
-    Error("invalid integer: {s}")
+    Err("invalid integer: {s}")
   }
 }
 ```
@@ -541,7 +534,7 @@ fn parse_int(s: String) -> Result<Int, String> {
 ```tova
 match fetch_user(id) {
   Ok(user) => render(user)
-  Error("not found") => show_404()
-  Error(msg) => show_error(msg)
+  Err("not found") => show_404()
+  Err(msg) => show_error(msg)
 }
 ```

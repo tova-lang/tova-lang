@@ -352,7 +352,9 @@ async function runFile(filePath, options = {}) {
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     const stdlib = getRunStdlib();
-    const code = stdlib + '\n' + (output.shared || '') + '\n' + (output.server || output.client || '');
+    let code = stdlib + '\n' + (output.shared || '') + '\n' + (output.server || output.client || '');
+    // Strip 'export ' keywords — not valid inside AsyncFunction (used in tova build only)
+    code = code.replace(/^export /gm, '');
     const fn = new AsyncFunction(code);
     await fn();
   } catch (err) {
@@ -1477,6 +1479,8 @@ async function startRepl() {
     }
 
     if (trimmed === ':clear') {
+      for (const key of Object.keys(context)) delete context[key];
+      delete context.__mutable;
       initFn.call(context);
       console.log('  Context cleared.\n');
       rl.prompt();
@@ -1512,6 +1516,36 @@ async function startRepl() {
       const output = compileTova(input, '<repl>');
       const code = output.shared || '';
       if (code.trim()) {
+        // Extract function/const/let names from compiled code
+        const declaredInCode = new Set();
+        for (const m of code.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+        for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+        for (const m of code.matchAll(/\blet\s+([a-zA-Z_]\w*)/g)) {
+          declaredInCode.add(m[1]);
+          // Track mutable variables for proper let destructuring
+          if (!context.__mutable) context.__mutable = new Set();
+          context.__mutable.add(m[1]);
+        }
+
+        // Save declared variables back to context for persistence across inputs
+        const saveNewDecls = declaredInCode.size > 0
+          ? [...declaredInCode].map(n => `if(typeof ${n}!=='undefined')__ctx.${n}=${n};`).join('\n')
+          : '';
+        // Also save mutable variables that may have been modified (not newly declared)
+        const mutKeys = context.__mutable
+          ? [...context.__mutable].filter(n => !declaredInCode.has(n) && n in context)
+          : [];
+        const saveMut = mutKeys.map(n => `__ctx.${n}=${n};`).join('\n');
+        const allSave = [saveNewDecls, saveMut].filter(Boolean).join('\n');
+
+        // Context destructuring: use let for mutable, const for immutable
+        const ctxKeys = Object.keys(context).filter(k => !declaredInCode.has(k) && k !== '__mutable');
+        const constKeys = ctxKeys.filter(k => !context.__mutable || !context.__mutable.has(k));
+        const letKeys = ctxKeys.filter(k => context.__mutable && context.__mutable.has(k));
+        const destructure =
+          (constKeys.length > 0 ? `const {${constKeys.join(',')}} = __ctx;\n` : '') +
+          (letKeys.length > 0 ? `let {${letKeys.join(',')}} = __ctx;\n` : '');
+
         // Try wrapping last expression statement as a return for value display
         const lines = code.trim().split('\n');
         const lastLine = lines[lines.length - 1].trim();
@@ -1522,28 +1556,25 @@ async function startRepl() {
           const allButLast = lines.slice(0, -1).join('\n');
           // Strip trailing semicolon from last line for the return
           const returnExpr = lastLine.endsWith(';') ? lastLine.slice(0, -1) : lastLine;
-          evalCode = allButLast + (allButLast ? '\n' : '') + `return (${returnExpr});`;
+          // Use try/finally so save runs after return expression evaluates (captures updated mutable values)
+          if (allSave) {
+            evalCode = `try {\n${allButLast}\nreturn (${returnExpr});\n} finally {\n${allSave}\n}`;
+          } else {
+            evalCode = allButLast + (allButLast ? '\n' : '') + `return (${returnExpr});`;
+          }
+        } else {
+          evalCode = code + (allSave ? '\n' + allSave : '');
         }
         try {
-          // Extract function/const names from compiled code to avoid shadowing conflicts
-          const declaredInCode = new Set();
-          for (const m of evalCode.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
-          for (const m of evalCode.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
-          const ctxKeys = Object.keys(context).filter(k => !declaredInCode.has(k));
-          const destructure = ctxKeys.length > 0 ? `const {${ctxKeys.join(',')}} = __ctx;` : '';
-          const fn = new Function('__ctx', `${destructure}\n${evalCode}`);
+          const fn = new Function('__ctx', `${destructure}${evalCode}`);
           const result = fn(context);
           if (result !== undefined) {
             console.log(' ', result);
           }
         } catch (e) {
           // If return-wrapping fails, fall back to plain execution
-          const declaredInCode = new Set();
-          for (const m of code.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
-          for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
-          const ctxKeys = Object.keys(context).filter(k => !declaredInCode.has(k));
-          const destructure = ctxKeys.length > 0 ? `const {${ctxKeys.join(',')}} = __ctx;` : '';
-          const fn = new Function('__ctx', `${destructure}\n${code}`);
+          const fallbackCode = code + (allSave ? '\n' + allSave : '');
+          const fn = new Function('__ctx', `${destructure}${fallbackCode}`);
           fn(context);
         }
       }

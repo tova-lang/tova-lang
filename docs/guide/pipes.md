@@ -30,10 +30,10 @@ The `|>` operator takes the value on the left and passes it as the **first argum
 
 ```tova
 // Without pipes:
-result = to_upper(trim("  hello  "))
+nested = upper(trim("  hello  "))
 
 // With pipes:
-result = "  hello  " |> trim() |> to_upper()
+piped = "  hello  " |> trim() |> upper()
 ```
 
 Both produce `"HELLO"`, but the piped version reads in the order operations happen: first trim, then uppercase.
@@ -60,7 +60,7 @@ Pipes really shine when you chain several transformations:
 result = data
   |> filter(fn(x) x > 0)
   |> map(fn(x) x * 2)
-  |> sort()
+  |> sorted()
   |> take(5)
 ```
 
@@ -68,7 +68,7 @@ Compare this to the nested equivalent:
 
 ```tova
 // Nested calls -- reads inside-out
-result = take(sort(map(filter(data, fn(x) x > 0), fn(x) x * 2)), 5)
+result = take(sorted(map(filter(data, fn(x) x > 0), fn(x) x * 2)), 5)
 ```
 
 The piped version is far more readable because each step is on its own line and reads in execution order.
@@ -81,7 +81,7 @@ Processing a list of users:
 active_emails = users
   |> filter(fn(u) u.active)
   |> map(fn(u) u.email)
-  |> sort()
+  |> sorted()
   |> join(", ")
 ```
 
@@ -128,13 +128,9 @@ items |> join(_, ", ")
 ```tova
 name = "world"
   |> replace(_, "o", "0")
-  |> "Hello, {_}!"
-```
+  |> fn(s) "Hello, {s}!"
 
-```tova
-// Insert the piped value at a specific position
-result = 42
-  |> format("The answer is: {}", _)
+print(name)  // Hello, w0rld!
 ```
 
 ```tova
@@ -202,17 +198,17 @@ total_revenue = orders
 ### Extract-Transform-Load
 
 ```tova
+fn to_record(row) {
+  {name: row[0], age: to_int(row[1]), email: row[2]}
+}
+
 fn process_csv(raw_csv) {
   raw_csv
     |> trim()
     |> split("\n")
     |> map(fn(line) split(line, ","))
     |> filter(fn(row) len(row) == 3)
-    |> map(fn(row) {
-      name: row[0],
-      age: parse_int(row[1]),
-      email: row[2]
-    })
+    |> map(to_record)
 }
 ```
 
@@ -238,13 +234,15 @@ fn validate_input(input) {
 
 ```tova
 // Good:
-result = data
+readable = data
   |> filter(fn(x) x > 0)
   |> map(fn(x) x * 2)
   |> sum()
+```
 
+```tova
 // Harder to read:
-result = data |> filter(fn(x) x > 0) |> map(fn(x) x * 2) |> sum()
+dense = data |> filter(fn(x) x > 0) |> map(fn(x) x * 2) |> sum()
 ```
 
 **Use `_` sparingly.** If you find yourself using `_` frequently, the functions may not be designed for piping. Consider wrapping them in helpers that take the "data" argument first.
