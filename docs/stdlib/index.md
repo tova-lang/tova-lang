@@ -35,7 +35,7 @@ Tova's standard library follows a few guiding principles:
 | **JSON** | `json_parse`, `json_stringify`, `json_pretty` | [JSON](./json) |
 | **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode` | [Encoding](./encoding) |
 | **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `timeout`, `retry` | [Async & Error Handling](./async) |
-| **Result & Option** | `Ok`, `Err`, `Some`, `None`, `!` (propagation) | [Result & Option](./result-option) |
+| **Result & Option** | `Ok`, `Err`, `Some`, `None`, `?` (propagation) | [Result & Option](./result-option) |
 | **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
 | **Assertions** | `assert`, `assert_eq`, `assert_ne` | [Assertions](./assertions) |
 

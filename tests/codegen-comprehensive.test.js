@@ -42,14 +42,14 @@ describe('Base — If expression ternary optimization', () => {
     expect(code).toContain('(0)');
   });
 
-  test('if-elif-else forces IIFE instead of ternary', () => {
+  test('if-elif-else optimized to ternary chain', () => {
     const code = genShared('x = if a { 1 } elif b { 2 } else { 3 }');
-    expect(code).toContain('(() => {');
-    expect(code).toContain('if (a)');
-    expect(code).toContain('else if (b)');
-    expect(code).toContain('return 1;');
-    expect(code).toContain('return 2;');
-    expect(code).toContain('return 3;');
+    // Simple if-elif-else expressions are optimized to ternary chains
+    expect(code).toContain('(a) ?');
+    expect(code).toContain('(1)');
+    expect(code).toContain('(b) ?');
+    expect(code).toContain('(2)');
+    expect(code).toContain('(3)');
   });
 
   test('multi-statement branch forces IIFE', () => {
@@ -84,19 +84,20 @@ describe('Base — String multiply with TemplateLiteral', () => {
 });
 
 describe('Base — Chained comparison with 3+ operands', () => {
-  test('a < b < c generates two-part && chain with temp vars', () => {
+  test('a < b < c generates two-part && chain', () => {
     const code = genShared('x = 1 < y < 10');
-    // Uses temp vars to avoid evaluating intermediate operands twice
-    expect(code).toMatch(/1 < \(__cmp_\d+ = y\)/);
-    expect(code).toMatch(/__cmp_\d+ < 10/);
+    // Optimized: simple operands don't need temp vars
+    expect(code).toContain('(1 < y)');
+    expect(code).toContain('(y < 10)');
     expect(code).toContain('&&');
   });
 
-  test('a <= b < c <= d generates three-part && chain with temp vars', () => {
+  test('a <= b < c <= d generates three-part && chain', () => {
     const code = genShared('x = 0 <= a < b <= 100');
-    expect(code).toMatch(/0 <= \(__cmp_\d+ = a\)/);
-    expect(code).toMatch(/__cmp_\d+ < \(__cmp_\d+ = b\)/);
-    expect(code).toMatch(/__cmp_\d+ <= 100/);
+    // Optimized: simple operands inline without temp vars
+    expect(code).toContain('(0 <= a)');
+    expect(code).toContain('(a < b)');
+    expect(code).toContain('(b <= 100)');
     // All three parts joined with &&
     const andCount = (code.match(/&&/g) || []).length;
     expect(andCount).toBeGreaterThanOrEqual(2);
@@ -1264,8 +1265,10 @@ describe('Base — genBlockBody with IfStatement last (implicit return)', () => 
         }
       }
     `);
-    expect(code).toContain('return ((');
-    expect(code).toContain('__match');
+    // Simple match is optimized to ternary, still gets implicit return
+    expect(code).toContain('return ((n === 0)');
+    expect(code).toContain('"zero"');
+    expect(code).toContain('"other"');
   });
 });
 
@@ -1279,7 +1282,8 @@ describe('Base — Foo.new() transform', () => {
 describe('Base — NaN-safe null coalescing ??', () => {
   test('?? operator generates NaN-safe check', () => {
     const code = genShared('x = a ?? "default"');
-    expect(code).toContain('__tova_v != null && __tova_v === __tova_v');
+    // Optimized: simple expressions inline the NaN-safe check
+    expect(code).toContain('a != null && a === a');
     expect(code).toContain('"default"');
   });
 });

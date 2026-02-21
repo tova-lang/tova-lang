@@ -14,6 +14,7 @@ Tova has the following built-in primitive and compound types:
 | `Bool` | Boolean | `true`, `false` |
 | `[T]` | Array of T | `[1, 2, 3]`, `["a", "b"]` |
 | `(A, B) -> R` | Function type | `(Int, Int) -> Int` |
+| `Table<T>` | Tabular data (array of typed rows) | `Table([{name: "Alice"}])` |
 | `nil` | Absence of value | `nil` |
 
 ## Struct-like Types

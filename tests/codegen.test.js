@@ -74,9 +74,9 @@ describe('Codegen — Expressions', () => {
 
   test('chained comparison', () => {
     const code = compileShared('x = 1 < y < 10');
-    // Uses temp vars to avoid evaluating intermediate operands twice
-    expect(code).toMatch(/1 < \(__cmp_\d+ = y\)/);
-    expect(code).toMatch(/__cmp_\d+ < 10/);
+    // Optimized: simple operands don't need temp vars
+    expect(code).toContain('(1 < y)');
+    expect(code).toContain('(y < 10)');
     expect(code).toContain('&&');
   });
 
@@ -186,10 +186,13 @@ describe('Codegen — Types', () => {
 });
 
 describe('Codegen — Match', () => {
-  test('basic match → IIFE', () => {
+  test('basic match → ternary optimization', () => {
     const code = compileShared('x = match val { 0 => "zero", _ => "other" }');
-    expect(code).toContain('(__match) =>');
-    expect(code).toContain('__match === 0');
+    // Simple matches are optimized to ternary expressions
+    expect(code).toContain('val === 0');
+    expect(code).toContain('?');
+    expect(code).toContain('"zero"');
+    expect(code).toContain('"other"');
   });
 
   test('match with variant', () => {
@@ -330,7 +333,8 @@ describe('Codegen — Bug Fixes', () => {
 describe('Codegen — Null Coalescing', () => {
   test('?? operator (NaN-safe)', () => {
     const code = compileShared('x = a ?? "default"');
-    expect(code).toContain('__tova_v != null && __tova_v === __tova_v');
+    // Optimized: simple expressions inline the NaN-safe check
+    expect(code).toContain('a != null && a === a');
     expect(code).toContain('"default"');
   });
 
@@ -357,8 +361,10 @@ describe('Codegen — If Expression', () => {
 
   test('if-elif-else expression', () => {
     const code = compileShared('x = if a { 1 } elif b { 2 } else { 3 }');
-    expect(code).toContain('(() => {');
-    expect(code).toContain('else if');
+    // Simple if-elif-else expressions are optimized to ternary chains
+    expect(code).toContain('(a) ?');
+    expect(code).toContain('(b) ?');
+    expect(code).toContain('(3)');
   });
 });
 

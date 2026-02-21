@@ -299,7 +299,7 @@ server "api" {
   }
 
   fn resolve_alert(id: Int) -> Result<AlertRecord, String> {
-    alert = AlertRecord.find(id) |> ok_or("Alert not found")!
+    alert = AlertRecord.find(id) |> ok_or("Alert not found")?
     AlertRecord.update(id, { resolved: true })
     Ok(alert)
   }

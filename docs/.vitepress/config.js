@@ -29,6 +29,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/getting-started/' },
+      { text: 'Tutorial', link: '/tutorial' },
       { text: 'Reference', link: '/reference/syntax' },
       { text: 'Full-Stack', link: '/fullstack/architecture' },
       { text: 'Stdlib', link: '/stdlib/' },
@@ -73,6 +74,13 @@ export default defineConfig({
             { text: 'JS Interop', link: '/guide/js-interop' },
           ],
         },
+        {
+          text: 'Coming From...',
+          items: [
+            { text: 'Python Developers', link: '/guide/from-python' },
+            { text: 'JavaScript Developers', link: '/guide/from-javascript' },
+          ],
+        },
       ],
 
       '/reference/': [
@@ -84,6 +92,7 @@ export default defineConfig({
             { text: 'Keywords', link: '/reference/keywords' },
             { text: 'Type System', link: '/reference/type-system' },
             { text: 'Grammar', link: '/reference/grammar' },
+            { text: 'Language Specification', link: '/reference/spec' },
           ],
         },
       ],
@@ -238,6 +247,12 @@ export default defineConfig({
           text: 'Language Deep Dives',
           items: [
             { text: 'Type-Driven Design', link: '/examples/type-driven' },
+          ],
+        },
+        {
+          text: 'Cookbook',
+          items: [
+            { text: 'Recipes', link: '/examples/cookbook' },
           ],
         },
       ],

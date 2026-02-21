@@ -202,7 +202,7 @@ process = fn(item) {
 
 ### Arrow Syntax
 
-For very short lambdas, use the arrow syntax:
+Tova also supports JavaScript-style arrow syntax for lambdas. Both forms are valid Tova; `fn(x) expr` is the idiomatic style, while `x => expr` is a shorter alternative:
 
 ```tova
 double = x => x * 2

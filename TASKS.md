@@ -525,34 +525,36 @@ Compiler and runtime performance.
 
 ## T12 — Documentation & Community
 
-- [ ] **T12-1**: Write "Tova for Python developers" guide
+- [x] **T12-1**: Write "Tova for Python developers" guide
   - Side-by-side comparison of Python and Tova syntax
   - Highlight what's similar and what's different
-  - Files: `docs/guide/`
+  - Covers: variables, functions, types, control flow, pattern matching, pipes, error handling, collections, async, full-stack model
+  - Files: `docs/guide/from-python.md`
 
-- [ ] **T12-2**: Write "Tova for JavaScript developers" guide
+- [x] **T12-2**: Write "Tova for JavaScript developers" guide
   - Focus on what Tova adds over plain JS/TS
   - Explain the `server`/`client`/`shared` model
-  - Files: `docs/guide/`
+  - Covers: variables, functions, strings, control flow, pattern matching, pipes, error handling, types, ADTs, reactive primitives, JSX differences
+  - Files: `docs/guide/from-javascript.md`
 
-- [ ] **T12-3**: Create interactive tutorial
-  - Step-by-step in-browser tutorial
-  - Each step builds on the previous
-  - Covers: variables, functions, types, match, server, client
-  - Files: `docs/`
+- [x] **T12-3**: Create interactive tutorial
+  - Step-by-step tutorial with 10 lessons, each building on the previous
+  - Covers: variables, functions, types, control flow, pattern matching, collections, pipes, error handling, full-stack model, stores/components, server routes
+  - Each lesson includes "Try it" exercises and key takeaway boxes
+  - Files: `docs/tutorial.md`
 
-- [ ] **T12-4**: Add cookbook / recipes section
-  - "How to build a REST API"
-  - "How to build a real-time chat"
-  - "How to handle file uploads"
-  - "How to add authentication"
-  - Files: `docs/examples/`
+- [x] **T12-4**: Add cookbook / recipes section
+  - 8 self-contained recipes: REST API, real-time chat, file uploads, authentication, WebSockets, background jobs, data pipelines, CLI tools
+  - Copy-paste-ready code with server and client blocks
+  - Files: `docs/examples/cookbook.md`
 
-- [ ] **T12-5**: Create a language specification document
-  - Formal grammar (EBNF)
-  - Type system rules
-  - Evaluation semantics
-  - Serves as reference implementation guide
+- [x] **T12-5**: Create a language specification document
+  - Formal grammar (EBNF) for all constructs
+  - Complete type system rules (assignability, narrowing, generics, refinement types)
+  - Evaluation semantics (binding, pipes, match, error propagation, truthiness, iteration)
+  - Compilation model (block separation, RPC bridge, reactive compilation, source maps)
+  - Standard library reference (namespaces, builtins, Result/Option)
+  - Tooling reference (CLI commands, error codes, LSP features)
   - Files: `docs/reference/spec.md`
 
 ---

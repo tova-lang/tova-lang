@@ -140,9 +140,15 @@ describe('Lexer — Keywords', () => {
 
 describe('Lexer — Operators', () => {
   test('arithmetic', () => {
-    expect(types('+ - * / % **')).toEqual([
+    // Note: bare `* /` is ambiguous (could be regex after *), so we test
+    // / in a division context (after identifier) and other operators separately
+    expect(types('+ - * % **')).toEqual([
       TokenType.PLUS, TokenType.MINUS, TokenType.STAR,
-      TokenType.SLASH, TokenType.PERCENT, TokenType.POWER,
+      TokenType.PERCENT, TokenType.POWER,
+    ]);
+    // / after an identifier is unambiguously division
+    expect(types('x / y')).toEqual([
+      TokenType.IDENTIFIER, TokenType.SLASH, TokenType.IDENTIFIER,
     ]);
   });
 

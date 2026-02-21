@@ -2679,7 +2679,7 @@ export class ServerCodegen extends BaseCodegen {
 
   generateTests(testBlocks) {
     const lines = [];
-    lines.push('import { describe, test, expect, beforeEach, afterEach } from "bun:test";');
+    lines.push('import { describe, test, expect } from "bun:test";');
     lines.push('');
     lines.push('// ── Test Helpers ──');
     lines.push('async function request(method, path, options = {}) {');

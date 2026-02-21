@@ -199,15 +199,15 @@ Some(2).filter(fn(x) x > 3)    // None
 None.filter(fn(x) x > 3)       // None
 ```
 
-## Error Propagation with `!`
+## Error Propagation with `?`
 
-The `!` operator propagates errors upward. If the expression evaluates to `Err` (for Result) or `None` (for Option), the function immediately returns that error. Otherwise, it unwraps the success value:
+The `?` operator propagates errors upward. If the expression evaluates to `Err` (for Result) or `None` (for Option), the function immediately returns that error. Otherwise, it unwraps the success value:
 
 ```tova
 fn process_data(input: String) -> Result<Data, String> {
-  parsed = parse(input)!           // return Err early if parse fails
-  validated = validate(parsed)!    // return Err early if validation fails
-  transformed = transform(validated)!
+  parsed = parse(input)?           // return Err early if parse fails
+  validated = validate(parsed)?    // return Err early if validation fails
+  transformed = transform(validated)?
   Ok(transformed)
 }
 ```
@@ -233,7 +233,7 @@ fn process_data(input: String) -> Result<Data, String> {
 }
 ```
 
-The `!` operator eliminates this nesting and makes the happy path the primary reading path.
+The `?` operator eliminates this nesting and makes the happy path the primary reading path.
 
 ## Try / Catch for JavaScript Interop
 
@@ -295,14 +295,14 @@ fn process_config(path: String) -> Result<Config, String> {
 
 **Prefer `.unwrapOr()` over `.unwrap()`.** The `.unwrap()` method panics on error. In production code, almost always provide a sensible default with `.unwrapOr()` or handle the error explicitly with pattern matching.
 
-**Use `!` to keep code flat.** When chaining several fallible operations, the `!` operator produces clean, linear code instead of deeply nested match expressions.
+**Use `?` to keep code flat.** When chaining several fallible operations, the `?` operator produces clean, linear code instead of deeply nested match expressions.
 
 ```tova
 // Clean and readable
 fn load_config() -> Result<Config, String> {
-  content = read_file("config.json")!
-  parsed = parse_json(content)!
-  validated = validate(parsed)!
+  content = read_file("config.json")?
+  parsed = parse_json(content)?
+  validated = validate(parsed)?
   Ok(validated)
 }
 ```

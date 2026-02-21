@@ -174,14 +174,12 @@ describe('T3-4: Simple Enums', () => {
     expect(typeDecl.variants).toHaveLength(3);
   });
 
-  test('type alias for non-PascalCase stays as alias', () => {
-    // type StringOrInt = String | Int should remain a TypeAlias since these
-    // are actual type names, not enum variant names
+  test('type alias with builtin types stays as alias', () => {
+    // type StringOrInt = String | Int should remain a TypeAlias since String
+    // and Int are built-in type names, not enum variant names
     const ast = parse('shared { type StringOrInt = String | Int }');
     const decl = ast.body[0].body[0];
-    // String and Int are PascalCase, so this becomes a TypeDeclaration (enum)
-    // That's actually correct behavior — users can define simple enums this way
-    expect(decl.type).toBe('TypeDeclaration');
+    expect(decl.type).toBe('TypeAlias');
   });
 });
 

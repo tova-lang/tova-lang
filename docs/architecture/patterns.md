@@ -148,12 +148,12 @@ Server functions can:
 
 ### Handling Strategies
 
-**`!` propagation** — Bail on first error. Use for sequential chains:
+**`?` propagation** — Bail on first error. Use for sequential chains:
 
 ```tova
 fn process(id: Int) -> Result<String, String> {
-  user = find_user(id)!     // Returns Err if not found
-  profile = build_profile(user)!
+  user = find_user(id)?     // Returns Err if not found
+  profile = build_profile(user)?
   Ok(profile.name)
 }
 ```

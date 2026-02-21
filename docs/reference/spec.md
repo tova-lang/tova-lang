@@ -210,7 +210,7 @@ Both symbol and keyword forms are accepted. The keyword forms (`and`, `or`, `not
 | `?` | Optional type suffix |
 | `?.` | Optional chaining |
 | `??` | Null coalescing |
-| `!` (postfix) | Error propagation (unwrap-or-return) |
+| `?` (postfix) | Error propagation (unwrap-or-return) |
 | `::` | Namespace access |
 
 ### 1.12 Delimiters

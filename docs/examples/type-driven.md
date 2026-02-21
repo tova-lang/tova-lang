@@ -252,8 +252,8 @@ fn get_user_display(id: Int) -> String {
 
 // Result chaining with ? propagation
 fn process_order(user_id: Int, amount: Float) -> Result<String, String> {
-  user = find_user(user_id) |> ok_or("User not found")!
-  profile = build_profile(user)!
+  user = find_user(user_id) |> ok_or("User not found")?
+  profile = build_profile(user)?
 
   guard amount > 0.0 else {
     return Err("Amount must be positive")
@@ -306,7 +306,7 @@ fn validate_email(email: String) -> Result<Email, FieldError> {
 
 fn validate_age(age_str: String) -> Result<PositiveInt, FieldError> {
   parse_err = FieldError { field: "age", message: "Age must be a number" }
-  age = age_str |> parse_int() |> ok_or(parse_err)!
+  age = age_str |> parse_int() |> ok_or(parse_err)?
   guard age > 0 else {
     err = FieldError { field: "age", message: "Age must be positive" }
     return Err(err)
@@ -470,7 +470,7 @@ fn get_user_profile(id: Int) -> Result<UserProfile, String> {
 - `map()` transforms the success value
 - `flatMap()` chains operations that themselves return Result/Option
 - `unwrapOr()` provides a default for None/Err
-- `!` propagates errors — if the expression is Err or None, the function returns early
+- `?` propagates errors — if the expression is Err or None, the function returns early
 
 ### Form Validation System
 
@@ -490,4 +490,4 @@ The complete system ties everything together:
 
 **Collect all errors.** The `validate_form` function runs all validations and collects errors into a list, rather than short-circuiting on the first failure.
 
-**`!` for linear chains, `match` for branching.** Use `!` propagation when you want to bail on the first error. Use explicit `match` when you need to handle errors differently.
+**`?` for linear chains, `match` for branching.** Use `?` propagation when you want to bail on the first error. Use explicit `match` when you need to handle errors differently.

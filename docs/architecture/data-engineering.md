@@ -494,7 +494,7 @@ data {
 server {
   fn create_order(email: String, total: Float) -> Result<Order, String> {
     guard email |> contains("@") else { return Err("Invalid email") }
-    validated_total = validate_order_total(total)!
+    validated_total = validate_order_total(total)?
     // ...
   }
 }

@@ -388,9 +388,9 @@ None.filter(fn(x) true)         // None
 
 ---
 
-## Propagation Operator `!`
+## Propagation Operator `?`
 
-The `!` operator provides concise syntax for unwrapping `Ok`/`Some` values and short-circuiting on `Err`/`None`. It is similar to Rust's `?` operator.
+The `?` operator provides concise syntax for unwrapping `Ok`/`Some` values and short-circuiting on `Err`/`None`. It works like Rust's `?` operator.
 
 When applied to a value:
 - If the value is `Ok(v)` or `Some(v)`, it extracts `v` and execution continues
@@ -406,7 +406,7 @@ fn process(input) {
   value = result.unwrap()
 
   // With propagation -- equivalent to above
-  value = parse(input)!
+  value = parse(input)?
 }
 ```
 
@@ -414,10 +414,10 @@ fn process(input) {
 
 ```tova
 fn process_user(raw_data) {
-  // Each ! unwraps Ok or short-circuits with Err
-  parsed = parse_json(raw_data)!
-  validated = validate_user(parsed)!
-  saved = save_to_db(validated)!
+  // Each ? unwraps Ok or short-circuits with Err
+  parsed = parse_json(raw_data)?
+  validated = validate_user(parsed)?
+  saved = save_to_db(validated)?
   Ok(saved)
 }
 
@@ -435,7 +435,7 @@ The propagation operator uses a sentinel-based mechanism:
 - `__propagate(val)` -- if the value is `Err` or `None`, throws an internal sentinel object; if `Ok` or `Some`, returns the inner value
 - The enclosing function catches the sentinel and returns the `Err`/`None` directly
 
-You never need to call `__propagate` manually -- just use the `!` suffix operator.
+You never need to call `__propagate` manually -- just use the `?` suffix operator.
 
 ---
 

@@ -85,6 +85,32 @@ fn test_random() {
 
 ---
 
+## assert_throws
+
+```tova
+assert_throws(func, expected?) -> Nil
+```
+
+Calls `func` and asserts that it throws an error. If no error is thrown, the assertion fails. The optional `expected` parameter can be:
+
+- A **string**: passes if the error message contains the string
+- A **RegExp**: passes if the error message matches the pattern
+
+```tova
+assert_throws(fn() divide(1, 0))                        // passes if it throws
+assert_throws(fn() divide(1, 0), "divide by zero")      // passes if message contains "divide by zero"
+assert_throws(fn() parse("abc"), RegExp.new("invalid"))  // passes if message matches /invalid/
+```
+
+```tova
+fn test_validation() {
+  assert_throws(fn() withdraw(account, -10), "must be positive")
+  assert_throws(fn() withdraw(account, 99999), "insufficient")
+}
+```
+
+---
+
 ## Usage in Tests
 
 Assertions are the primary tool for writing Tova tests. Tova test files use `fn test_*()` naming conventions:

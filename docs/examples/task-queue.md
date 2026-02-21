@@ -43,8 +43,8 @@ fn fetch_posts(user_id: Int) {
 
 // Sequential: each step depends on the previous
 fn get_user_with_posts(id: Int) {
-  user = fetch_user(id)!
-  posts = fetch_posts(user.id)!
+  user = fetch_user(id)?
+  posts = fetch_posts(user.id)?
   Ok({ user: user, posts: posts })
 }
 
@@ -187,8 +187,8 @@ fn process_with_lock(resource_id: String) -> Result<String, String> {
   defer { release_lock(lock) }
 
   // Even if this fails, the lock is released
-  data = safe_fetch("https://api.example.com/resources/{resource_id}")!
-  processed = transform(data)!
+  data = safe_fetch("https://api.example.com/resources/{resource_id}")?
+  processed = transform(data)?
 
   Ok(processed)
 }
@@ -357,8 +357,8 @@ tova run tasks.tova
 Sequential — each step depends on the previous:
 
 ```tova
-user = fetch_user(id)!        // Wait for user
-posts = fetch_posts(user.id)! // Then fetch posts (needs user.id)
+user = fetch_user(id)?        // Wait for user
+posts = fetch_posts(user.id)? // Then fetch posts (needs user.id)
 ```
 
 Parallel — independent operations run concurrently:
@@ -374,7 +374,7 @@ stats = results[1]
 alerts = results[2]
 ```
 
-Use `!` propagation for sequential chains. Use `Promise.all` for independent fetches.
+Use `?` propagation for sequential chains. Use `Promise.all` for independent fetches.
 
 ### Async Result Patterns
 
@@ -419,8 +419,8 @@ fn process_with_lock(resource_id: String) -> Result<String, String> {
   lock = await acquire_lock(resource_id)
   defer { release_lock(lock) }
 
-  data = safe_fetch(url)!    // If this fails...
-  processed = transform(data)!  // ...or this fails...
+  data = safe_fetch(url)?    // If this fails...
+  processed = transform(data)?  // ...or this fails...
   Ok(processed)               // ...the lock is still released
 }
 ```

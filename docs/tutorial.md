@@ -359,12 +359,12 @@ display = parse_age("25")
 print(display)    // Age: 25
 ```
 
-### Error Propagation with `!`
+### Error Propagation with `?`
 
 ```tova
 fn process(input: String) -> Result<String, String> {
-  age = parse_age(input)!        // returns Err early if it fails
-  category = categorize(age)!
+  age = parse_age(input)?        // returns Err early if it fails
+  category = categorize(age)?
   Ok("You are {category}")
 }
 ```
@@ -397,7 +397,7 @@ email = find_user(users, "Alice")
 ::: tip Key Takeaways
 - `Result<T, E>` = `Ok(value)` or `Err(error)`
 - `Option<T>` = `Some(value)` or `None`
-- `!` propagates errors: `risky_call()!`
+- `?` propagates errors: `risky_call()?`
 - `.map()`, `.flatMap()`, `.unwrapOr()` for chaining
 - No `throw` — errors are values
 :::
@@ -676,7 +676,7 @@ You now know the fundamentals of Tova. Here is where to go next:
 - **[Types](./guide/types)** — ADTs, generics, derive macros
 - **[Pattern Matching](./guide/pattern-matching)** — all pattern forms
 - **[Pipes](./guide/pipes)** — pipe operator and pipeline patterns
-- **[Error Handling](./guide/error-handling)** — Result, Option, and `!` operator
+- **[Error Handling](./guide/error-handling)** — Result, Option, and `?` operator
 - **[Full-Stack Architecture](./fullstack/architecture)** — the server/client/shared model
 - **[Reactivity](./reactivity/signals)** — signals, computed, effects in depth
 - **[Standard Library](./stdlib/)** — all built-in functions and modules

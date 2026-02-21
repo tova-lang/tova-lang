@@ -541,12 +541,12 @@ match divide(10.0, 0.0) {
 
 ### Error Propagation
 
-Python exceptions propagate automatically. In Tova, use `!` for explicit propagation:
+Python exceptions propagate automatically. In Tova, use `?` for explicit propagation:
 
 ```tova
 fn process_data(input: String) -> Result<Data, String> {
-  parsed = parse(input)!            // return Err early if parse fails
-  validated = validate(parsed)!     // return Err early if validation fails
+  parsed = parse(input)?            // return Err early if parse fails
+  validated = validate(parsed)?     // return Err early if validation fails
   Ok(transform(validated))
 }
 ```

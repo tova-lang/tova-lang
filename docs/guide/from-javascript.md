@@ -509,12 +509,12 @@ match divide(10.0, 0.0) {
 
 ### Error Propagation
 
-The `!` operator is like a built-in early return for errors:
+The `?` operator is like a built-in early return for errors:
 
 ```tova
 fn process(input: String) -> Result<Data, String> {
-  parsed = parse(input)!            // returns Err early if it fails
-  validated = validate(parsed)!
+  parsed = parse(input)?            // returns Err early if it fails
+  validated = validate(parsed)?
   Ok(transform(validated))
 }
 ```

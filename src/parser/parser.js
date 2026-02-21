@@ -768,7 +768,7 @@ export class Parser {
     }
     const urlExpression = this.parseExpression();
     let config = null;
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'with') {
+    if (this.check(TokenType.WITH)) {
       this.advance(); // consume 'with'
       this.expect(TokenType.LBRACE, "Expected '{' after 'with'");
       config = {};
@@ -1111,7 +1111,7 @@ export class Parser {
 
     // Optional decorators: route GET "/path" with auth, role("admin") => handler
     let decorators = [];
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'with') {
+    if (this.check(TokenType.WITH)) {
       this.advance(); // consume 'with'
       // Parse comma-separated decorator list
       do {
@@ -2071,11 +2071,16 @@ export class Parser {
 
       // Simple enum syntax: type Color = Red | Green | Blue
       // Detect when the type expression is a union of bare identifiers (PascalCase, no type params)
+      // But NOT when any member is a known built-in type (that's a type alias, not an enum)
       if (typeExpr.type === 'UnionTypeAnnotation') {
+        const builtinTypes = new Set(['String', 'Int', 'Float', 'Bool', 'List', 'Map', 'Set', 'Option', 'Result', 'Any', 'Nil', 'Void', 'Number', 'Array', 'Object', 'Promise', 'Tuple']);
         const isSimpleEnum = typeExpr.members.every(m =>
           m.type === 'TypeAnnotation' && m.typeParams.length === 0 && /^[A-Z]/.test(m.name)
         );
-        if (isSimpleEnum) {
+        const hasBuiltinType = typeExpr.members.some(m =>
+          m.type === 'TypeAnnotation' && builtinTypes.has(m.name)
+        );
+        if (isSimpleEnum && !hasBuiltinType) {
           const variants = typeExpr.members.map(m =>
             new AST.TypeVariant(m.name, [], m.loc)
           );

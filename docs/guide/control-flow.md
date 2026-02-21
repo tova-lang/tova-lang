@@ -166,6 +166,45 @@ for n in range(10) {
 
 The analyzer validates that `break` and `continue` only appear inside loops. Using them outside a loop produces a compile-time error.
 
+### Labeled Loops
+
+When working with nested loops, you can label a loop and reference it from `break` or `continue`:
+
+```tova
+outer: for row in rows {
+  for col in row {
+    if col == target {
+      break outer   // breaks out of the outer loop
+    }
+  }
+}
+```
+
+```tova
+outer: for i in range(10) {
+  for j in range(10) {
+    if j == 5 {
+      continue outer  // skips to the next iteration of the outer loop
+    }
+    print("{i}, {j}")
+  }
+}
+```
+
+Labels work with `for`, `while`, and `loop`:
+
+```tova
+search: while has_more() {
+  items = fetch_next_batch()
+  for item in items {
+    if item.matches(query) {
+      result = item
+      break search
+    }
+  }
+}
+```
+
 ## Guard Clauses
 
 The `guard` statement checks a condition and exits the current scope if it fails. It is a great way to handle preconditions without deep nesting:

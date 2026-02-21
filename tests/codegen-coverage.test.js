@@ -209,8 +209,9 @@ describe('Codegen Coverage — Match with range pattern (lines 645-649)', () => 
     const code = compileShared('x = match n { 1..=5 => "small", _ => "other" }');
     expect(code).toContain('>= 1');
     expect(code).toContain('<= 5');
-    expect(code).toContain('return "small"');
-    expect(code).toContain('return "other"');
+    // Optimized to ternary
+    expect(code).toContain('"small"');
+    expect(code).toContain('"other"');
   });
 
   test('exclusive range pattern generates >= and <', () => {
@@ -496,9 +497,10 @@ describe('Codegen Coverage — Additional edge cases', () => {
 
   test('match with literal guard (non-binding pattern with guard)', () => {
     const code = compileShared('x = match n { 1 if true => "one", _ => "other" }');
-    expect(code).toContain('__match === 1');
+    // Optimized to ternary with inlined match subject
+    expect(code).toContain('n === 1');
     expect(code).toContain('&& (true)');
-    expect(code).toContain('return "one"');
+    expect(code).toContain('"one"');
   });
 
   test('genBlockBody implicit return for last expression', () => {
