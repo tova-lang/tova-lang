@@ -151,7 +151,7 @@ server {
   fn search_posts(query) -> [Post] {
     Post.where({ published: true })
       |> filter(fn(p) {
-        p.title.includes(query) || p.body.includes(query)
+        p.title.includes(query) or p.body.includes(query)
       })
   }
 
@@ -183,7 +183,7 @@ client {
   computed filtered_posts = match search_query {
     "" => posts
     q => posts |> filter(fn(p) {
-      p.title.includes(q) || p.body.includes(q)
+      p.title.includes(q) or p.body.includes(q)
     })
   }
 
@@ -417,7 +417,7 @@ Each guard clause short-circuits the function with an error if the condition fai
 fn search_posts(query) -> [Post] {
   Post.where({ published: true })
     |> filter(fn(p) {
-      p.title.includes(query) || p.body.includes(query)
+      p.title.includes(query) or p.body.includes(query)
     })
 }
 ```

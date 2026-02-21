@@ -92,6 +92,12 @@ export class Lexer {
   }
 
   tokenize() {
+    // Strip shebang line if present (e.g. #!/usr/bin/env tova)
+    if (this.pos === 0 && this.source[0] === '#' && this.source[1] === '!') {
+      while (this.pos < this.length && this.source[this.pos] !== '\n') this.advance();
+      if (this.pos < this.length) this.advance();
+    }
+
     while (this.pos < this.length) {
       this.scanToken();
     }
@@ -143,17 +149,15 @@ export class Lexer {
           break;
         }
       }
-      // Only treat as regex after tokens that clearly start an expression context
-      const regexPreceders = [
-        TokenType.ASSIGN, TokenType.LPAREN, TokenType.LBRACKET, TokenType.LBRACE,
-        TokenType.COMMA, TokenType.COLON, TokenType.SEMICOLON,
-        TokenType.RETURN, TokenType.ARROW, TokenType.PIPE,
-        TokenType.EQUAL, TokenType.NOT_EQUAL,
-        TokenType.AND, TokenType.OR, TokenType.AND_AND, TokenType.OR_OR,
-        TokenType.NOT, TokenType.BANG,
-        TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
+      // Negative list: if previous token ends an expression (produces a value),
+      // then / is division. Otherwise, / starts a regex.
+      // This is simpler and more robust — new token types default to regex context.
+      const divisionContextTokens = [
+        TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING, TokenType.STRING_TEMPLATE,
+        TokenType.TRUE, TokenType.FALSE, TokenType.NIL,
+        TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
       ];
-      if (prev && regexPreceders.includes(prev.type)) {
+      if (prev && !divisionContextTokens.includes(prev.type)) {
         this.scanRegex();
         return;
       }
@@ -844,7 +848,7 @@ export class Lexer {
         } else if (this.match('|')) {
           this.tokens.push(new Token(TokenType.OR_OR, '||', startLine, startCol));
         } else {
-          this.error(`Unexpected character: '|'. Did you mean '|>' or '||'?`);
+          this.tokens.push(new Token(TokenType.BAR, '|', startLine, startCol));
         }
         break;
 

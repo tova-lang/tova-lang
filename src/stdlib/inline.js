@@ -2,10 +2,10 @@
 // Single source of truth for all inline stdlib code used in code generation.
 // Used by: base-codegen.js, client-codegen.js, bin/tova.js
 
-export const RESULT_OPTION = `function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { const r = fn(value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Ok/Err"); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; } }); }
-function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + (typeof error === "object" ? JSON.stringify(error) : error)); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; } }); }
-function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { return Some(fn(value)); }, flatMap(fn) { const r = fn(value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Some/None"); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(value) ? this : None; } }); }
-const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });`;
+export const RESULT_OPTION = `function Ok(value) { return Object.freeze({ __tag: "Ok", value, map(fn) { return Ok(fn(value)); }, flatMap(fn) { const r = fn(value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Ok/Err"); }, andThen(fn) { return this.flatMap(fn); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; }, context(_) { return this; } }); }
+function Err(error) { return Object.freeze({ __tag: "Err", error, map(_) { return this; }, flatMap(_) { return this; }, andThen(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + (typeof error === "object" ? JSON.stringify(error) : error)); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(error)); }, unwrapErr() { return error; }, or(other) { return other; }, and(_) { return this; }, context(msg) { const inner = typeof error === "object" ? JSON.stringify(error) : String(error); return Err(msg + " \\u2192 caused by: " + inner); } }); }
+function Some(value) { return Object.freeze({ __tag: "Some", value, map(fn) { return Some(fn(value)); }, flatMap(fn) { const r = fn(value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Some/None"); }, andThen(fn) { return this.flatMap(fn); }, unwrap() { return value; }, unwrapOr(_) { return value; }, expect(_) { return value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(value) ? this : None; } }); }
+const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, andThen(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });`;
 
 export const PROPAGATE = `function __propagate(val) {
   if (val && val.__tag === "Err") throw { __tova_propagate: true, value: val };
@@ -290,6 +290,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
 
   // ── Async (new) ────────────────────────────────────────
   parallel: `function parallel(list) { return Promise.all(list); }`,
+  race: `function race(promises) { return Promise.race(promises); }`,
   timeout: `function timeout(promise, ms) { return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout after ' + ms + 'ms')), ms))]); }`,
   retry: `async function retry(fn, opts) { const o = opts || {}; const times = o.times || 3; const delay = o.delay || 100; const backoff = o.backoff || 1; let lastErr; for (let i = 0; i < times; i++) { try { return await fn(); } catch (e) { lastErr = e; if (i < times - 1) await new Promise(r => setTimeout(r, delay * Math.pow(backoff, i))); } } throw lastErr; }`,
 
@@ -397,6 +398,221 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
 
   // ── String (extended) ──────────────────────────────────
   fmt: `function fmt(template, ...args) { let i = 0; return template.replace(/\\{\\}/g, () => i < args.length ? String(args[i++]) : '{}'); }`,
+
+  // ── Scripting: Environment & CLI ──────────────────────
+  env: `function env(key, fallback) { if (key === undefined) return { ...process.env }; const v = process.env[key]; return v !== undefined ? v : (fallback !== undefined ? fallback : null); }`,
+  set_env: `function set_env(key, value) { process.env[key] = String(value); }`,
+  args: `function args() { return typeof __tova_args !== 'undefined' ? __tova_args : process.argv.slice(2); }`,
+  exit: `function exit(code) { process.exit(code !== undefined ? code : 0); }`,
+
+  // ── Scripting: Filesystem ─────────────────────────────
+  exists: `function exists(path) { const fs = require('fs'); return fs.existsSync(path); }`,
+  is_dir: `function is_dir(path) { try { return require('fs').statSync(path).isDirectory(); } catch { return false; } }`,
+  is_file: `function is_file(path) { try { return require('fs').statSync(path).isFile(); } catch { return false; } }`,
+  ls: `function ls(dir, opts) { const fs = require('fs'); const p = require('path'); const d = dir || '.'; const entries = fs.readdirSync(d); if (opts && opts.full) return entries.map(e => p.join(d, e)); return entries; }`,
+  glob_files: `function glob_files(pattern, opts) { if (typeof Bun !== 'undefined' && Bun.Glob) { const glob = new Bun.Glob(pattern); const results = [...glob.scanSync(opts && opts.cwd || '.')]; return results; } const fs = require('fs'); if (fs.globSync) return fs.globSync(pattern, opts); return []; }`,
+  mkdir: `function mkdir(dir) { try { require('fs').mkdirSync(dir, { recursive: true }); return Ok(dir); } catch (e) { return Err(e.message); } }`,
+  rm: `function rm(path, opts) { try { require('fs').rmSync(path, { recursive: !!(opts && opts.recursive), force: !!(opts && opts.force) }); return Ok(path); } catch (e) { return Err(e.message); } }`,
+  cp: `function cp(src, dest, opts) { try { const fs = require('fs'); if (opts && opts.recursive) { fs.cpSync(src, dest, { recursive: true }); } else { fs.copyFileSync(src, dest); } return Ok(dest); } catch (e) { return Err(e.message); } }`,
+  mv: `function mv(src, dest) { try { require('fs').renameSync(src, dest); return Ok(dest); } catch (e) { return Err(e.message); } }`,
+  cwd: `function cwd() { return process.cwd(); }`,
+  chdir: `function chdir(dir) { try { process.chdir(dir); return Ok(dir); } catch (e) { return Err(e.message); } }`,
+  read_text: `function read_text(path, enc) { try { return Ok(require('fs').readFileSync(path, enc || 'utf-8')); } catch (e) { return Err(e.message); } }`,
+  read_bytes: `function read_bytes(path) { try { return Ok(require('fs').readFileSync(path)); } catch (e) { return Err(e.message); } }`,
+  write_text: `function write_text(path, content, opts) { try { const fs = require('fs'); if (opts && opts.append) fs.appendFileSync(path, content); else fs.writeFileSync(path, content); return Ok(path); } catch (e) { return Err(e.message); } }`,
+
+  // ── Scripting: Shell ──────────────────────────────────
+  // sh() uses shell:true for convenience (pipes, redirects). For trusted commands only.
+  // exec() uses shell:false — safe from injection by default (array args).
+  sh: `function sh(cmd, opts) { try { const cp = require('child_process'); const o = opts || {}; const result = cp.spawnSync(cmd, { shell: true, cwd: o.cwd, env: o.env ? { ...process.env, ...o.env } : undefined, timeout: o.timeout, stdio: o.inherit ? 'inherit' : 'pipe', encoding: 'utf-8' }); if (result.error) return Err(result.error.message); return Ok({ stdout: (result.stdout || '').trimEnd(), stderr: (result.stderr || '').trimEnd(), exitCode: result.status }); } catch (e) { return Err(e.message); } }`,
+  exec: `function exec(cmd, cmdArgs, opts) { try { const cp = require('child_process'); if (cmdArgs && typeof cmdArgs === 'object' && !Array.isArray(cmdArgs)) { opts = cmdArgs; cmdArgs = []; } const o = opts || {}; const a = cmdArgs || []; const result = cp.spawnSync(cmd, a, { shell: false, cwd: o.cwd, env: o.env ? { ...process.env, ...o.env } : undefined, timeout: o.timeout, stdio: o.inherit ? 'inherit' : 'pipe', encoding: 'utf-8' }); if (result.error) return Err(result.error.message); return Ok({ stdout: (result.stdout || '').trimEnd(), stderr: (result.stderr || '').trimEnd(), exitCode: result.status }); } catch (e) { return Err(e.message); } }`,
+
+  // ── Scripting: stdin ─────────────────────────────────
+  read_stdin: `function read_stdin() { try { return require('fs').readFileSync(0, 'utf-8'); } catch { return ''; } }`,
+  read_lines: `function read_lines() { try { return require('fs').readFileSync(0, 'utf-8').split('\\n').filter(l => l.length > 0); } catch { return []; } }`,
+
+  // ── Scripting: Script path ──────────────────────────
+  script_path: `function script_path() { return typeof __tova_filename !== 'undefined' ? __tova_filename : null; }`,
+  script_dir: `function script_dir() { return typeof __tova_dirname !== 'undefined' ? __tova_dirname : null; }`,
+
+  // ── Scripting: Argument parsing ──────────────────────
+  parse_args: `function parse_args(argv) { const flags = {}; const positional = []; let i = 0; while (i < argv.length) { const arg = argv[i]; if (arg === '--') { positional.push(...argv.slice(i + 1)); break; } if (arg.startsWith('--')) { const eq = arg.indexOf('='); if (eq !== -1) { flags[arg.slice(2, eq)] = arg.slice(eq + 1); } else if (i + 1 < argv.length && !argv[i + 1].startsWith('-')) { flags[arg.slice(2)] = argv[i + 1]; i++; } else { flags[arg.slice(2)] = true; } } else if (arg.startsWith('-') && arg.length > 1) { for (let j = 1; j < arg.length; j++) flags[arg[j]] = true; } else { positional.push(arg); } i++; } return { flags, positional }; }`,
+
+  // ── Lazy Iterators / Sequences ──────────────────────
+  iter: `function iter(source) { return new Seq(function*() { for (const x of source) yield x; }); }`,
+  Seq: `class Seq {
+  constructor(gen) { this._gen = gen; }
+  filter(fn) { const g = this._gen; return new Seq(function*() { for (const x of g()) if (fn(x)) yield x; }); }
+  map(fn) { const g = this._gen; return new Seq(function*() { for (const x of g()) yield fn(x); }); }
+  take(n) { const g = this._gen; return new Seq(function*() { let i = 0; for (const x of g()) { if (i++ >= n) return; yield x; } }); }
+  drop(n) { const g = this._gen; return new Seq(function*() { let i = 0; for (const x of g()) { if (i++ < n) continue; yield x; } }); }
+  zip(other) { const g1 = this._gen; const g2 = other._gen; return new Seq(function*() { const i1 = g1(), i2 = g2(); while (true) { const a = i1.next(), b = i2.next(); if (a.done || b.done) return; yield [a.value, b.value]; } }); }
+  flat_map(fn) { const g = this._gen; return new Seq(function*() { for (const x of g()) { const result = fn(x); if (result && result._gen) { for (const y of result._gen()) yield y; } else if (result && result[Symbol.iterator]) { for (const y of result) yield y; } else { yield result; } } }); }
+  enumerate() { const g = this._gen; return new Seq(function*() { let i = 0; for (const x of g()) yield [i++, x]; }); }
+  collect() { return [...this._gen()]; }
+  toArray() { return this.collect(); }
+  reduce(fn, init) { let acc = init; for (const x of this._gen()) acc = fn(acc, x); return acc; }
+  first() { for (const x of this._gen()) return Some(x); return None; }
+  count() { let n = 0; for (const x of this._gen()) n++; return n; }
+  forEach(fn) { for (const x of this._gen()) fn(x); }
+  any(fn) { for (const x of this._gen()) if (fn(x)) return true; return false; }
+  all(fn) { for (const x of this._gen()) if (!fn(x)) return false; return true; }
+  find(fn) { for (const x of this._gen()) if (fn(x)) return Some(x); return None; }
+  [Symbol.iterator]() { return this._gen(); }
+}`,
+
+  // ── Scripting: Terminal colors ──────────────────────
+  color: `function color(text, name) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); const codes = { red: '31', green: '32', yellow: '33', blue: '34', magenta: '35', cyan: '36', white: '37', gray: '90' }; const c = codes[name]; return c ? '\\x1b[' + c + 'm' + text + '\\x1b[0m' : String(text); }`,
+  bold: `function bold(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[1m' + text + '\\x1b[0m'; }`,
+  dim: `function dim(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[2m' + text + '\\x1b[0m'; }`,
+
+  // ── Scripting: Signal handling ────────────────────────
+  on_signal: `function on_signal(name, callback) { process.on(name, callback); }`,
+
+  // ── Scripting: File stat ──────────────────────────────
+  file_stat: `function file_stat(path) { try { const s = require('fs').statSync(path); return Ok({ size: s.size, mode: s.mode, mtime: s.mtime.toISOString(), atime: s.atime.toISOString(), isDir: s.isDirectory(), isFile: s.isFile(), isSymlink: s.isSymbolicLink() }); } catch (e) { return Err(e.message); } }`,
+  file_size: `function file_size(path) { try { return Ok(require('fs').statSync(path).size); } catch (e) { return Err(e.message); } }`,
+
+  // ── Scripting: Path utilities ─────────────────────────
+  path_join: `function path_join(...parts) { return require('path').join(...parts); }`,
+  path_dirname: `function path_dirname(p) { return require('path').dirname(p); }`,
+  path_basename: `function path_basename(p, ext) { return ext ? require('path').basename(p, ext) : require('path').basename(p); }`,
+  path_resolve: `function path_resolve(p) { return require('path').resolve(p); }`,
+  path_ext: `function path_ext(p) { return require('path').extname(p); }`,
+  path_relative: `function path_relative(from, to) { return require('path').relative(from, to); }`,
+
+  // ── Scripting: Symlinks ───────────────────────────────
+  symlink: `function symlink(target, path) { try { require('fs').symlinkSync(target, path); return Ok(null); } catch (e) { return Err(e.message); } }`,
+  readlink: `function readlink(path) { try { return Ok(require('fs').readlinkSync(path)); } catch (e) { return Err(e.message); } }`,
+  is_symlink: `function is_symlink(path) { try { return require('fs').lstatSync(path).isSymbolicLink(); } catch { return false; } }`,
+
+  // ── Scripting: Async shell ────────────────────────────
+  spawn: `function spawn(cmd, cmdArgs, opts) { if (cmdArgs && typeof cmdArgs === 'object' && !Array.isArray(cmdArgs)) { opts = cmdArgs; cmdArgs = []; } const o = opts || {}; const a = cmdArgs || []; return new Promise(function(resolve) { try { const cp = require('child_process'); const child = cp.spawn(cmd, a, { shell: !!o.shell, cwd: o.cwd, env: o.env ? Object.assign({}, process.env, o.env) : undefined, stdio: 'pipe' }); let stdout = ''; let stderr = ''; child.stdout.on('data', function(d) { stdout += d; }); child.stderr.on('data', function(d) { stderr += d; }); child.on('error', function(e) { resolve(Err(e.message)); }); child.on('close', function(code) { resolve(Ok({ stdout: stdout.trimEnd(), stderr: stderr.trimEnd(), exitCode: code })); }); } catch (e) { resolve(Err(e.message)); } }); }`,
+
+  // ── Ordering type ─────────────────────────────────────
+  Less: `const Less = Object.freeze({ __tag: "Less", value: -1 });`,
+  Equal: `const Equal = Object.freeze({ __tag: "Equal", value: 0 });`,
+  Greater: `const Greater = Object.freeze({ __tag: "Greater", value: 1 });`,
+  compare: `function compare(a, b) { if (a < b) return Less; if (a > b) return Greater; return Equal; }`,
+  compare_by: `function compare_by(arr, fn) { return [...arr].sort(function(a, b) { const ord = fn(a, b); return ord.value; }); }`,
+
+  // ── Regex Builder ─────────────────────────────────────
+  RegexBuilder: `class RegexBuilder {
+  constructor() { this._parts = []; this._flags = ''; }
+  literal(s) { this._parts.push(s.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&')); return this; }
+  digits(n) { this._parts.push(n ? '\\\\d{' + n + '}' : '\\\\d+'); return this; }
+  word() { this._parts.push('\\\\w+'); return this; }
+  space() { this._parts.push('\\\\s+'); return this; }
+  any() { this._parts.push('.'); return this; }
+  oneOf(chars) { this._parts.push('[' + chars.replace(/[\\]\\\\]/g, '\\\\$&') + ']'); return this; }
+  group(name) { this._parts.push(name ? '(?<' + name + '>' : '('); return this; }
+  endGroup() { this._parts.push(')'); return this; }
+  optional() { this._parts.push('?'); return this; }
+  oneOrMore() { this._parts.push('+'); return this; }
+  zeroOrMore() { this._parts.push('*'); return this; }
+  startOfLine() { this._parts.push('^'); return this; }
+  endOfLine() { this._parts.push('$'); return this; }
+  flags(f) { this._flags = f; return this; }
+  build() { return new RegExp(this._parts.join(''), this._flags); }
+  test(s) { return this.build().test(s); }
+  match(s) { return s.match(this.build()); }
+}`,
+  regex_builder: `function regex_builder() { return new RegexBuilder(); }`,
+
+  // ── Channel-based async ───────────────────────────────
+  Channel: `class Channel {
+  constructor(capacity) {
+    this._capacity = capacity || 0;
+    this._buffer = [];
+    this._closed = false;
+    this._sendWaiters = [];
+    this._recvWaiters = [];
+  }
+  async send(value) {
+    if (this._closed) throw new Error('Cannot send on closed channel');
+    if (this._recvWaiters.length > 0) {
+      const waiter = this._recvWaiters.shift();
+      waiter(Some(value));
+      return;
+    }
+    if (this._capacity > 0 && this._buffer.length < this._capacity) {
+      this._buffer.push(value);
+      return;
+    }
+    return new Promise(function(resolve) {
+      this._sendWaiters.push({ value: value, resolve: resolve });
+    }.bind(this));
+  }
+  async receive() {
+    if (this._buffer.length > 0) {
+      const value = this._buffer.shift();
+      if (this._sendWaiters.length > 0) {
+        const waiter = this._sendWaiters.shift();
+        this._buffer.push(waiter.value);
+        waiter.resolve();
+      }
+      return Some(value);
+    }
+    if (this._closed) return None;
+    if (this._sendWaiters.length > 0) {
+      const waiter = this._sendWaiters.shift();
+      waiter.resolve();
+      return Some(waiter.value);
+    }
+    return new Promise(function(resolve) {
+      this._recvWaiters.push(resolve);
+    }.bind(this));
+  }
+  close() {
+    this._closed = true;
+    for (const waiter of this._recvWaiters) waiter(None);
+    this._recvWaiters = [];
+  }
+  [Symbol.asyncIterator]() {
+    const ch = this;
+    return {
+      async next() {
+        const val = await ch.receive();
+        if (val.__tag === 'None') return { done: true, value: undefined };
+        return { done: false, value: val.value };
+      }
+    };
+  }
+}`,
+
+  // ── Snapshot testing ──────────────────────────────────
+  assert_snapshot: `function assert_snapshot(value, name) {
+  const snap = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  const updateMode = typeof process !== 'undefined' && process.env.TOVA_UPDATE_SNAPSHOTS === '1';
+  if (typeof __tova_snapshots === 'undefined') { globalThis.__tova_snapshots = {}; }
+  const key = name || ('snapshot_' + Object.keys(__tova_snapshots).length);
+  if (updateMode || !__tova_snapshots[key]) {
+    __tova_snapshots[key] = snap;
+    return;
+  }
+  if (__tova_snapshots[key] !== snap) {
+    throw new Error('Snapshot mismatch for "' + key + '":\\nExpected:\\n' + __tova_snapshots[key] + '\\nActual:\\n' + snap);
+  }
+}`,
+
+  // ── Property-based testing ────────────────────────────
+  Gen: `const Gen = {
+  int: function(min, max) { return function() { const lo = min !== undefined ? min : -1000; const hi = max !== undefined ? max : 1000; return Math.floor(Math.random() * (hi - lo + 1)) + lo; }; },
+  float: function(min, max) { return function() { const lo = min !== undefined ? min : -1000; const hi = max !== undefined ? max : 1000; return Math.random() * (hi - lo) + lo; }; },
+  bool: function() { return function() { return Math.random() < 0.5; }; },
+  string: function(maxLen) { return function() { const len = Math.floor(Math.random() * (maxLen || 20)); const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'; let s = ''; for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)]; return s; }; },
+  array: function(gen, maxLen) { return function() { const len = Math.floor(Math.random() * (maxLen || 10)); const arr = []; for (let i = 0; i < len; i++) arr.push(gen()); return arr; }; },
+  oneOf: function(values) { return function() { return values[Math.floor(Math.random() * values.length)]; }; }
+};`,
+  forAll: `function forAll(generators, property, opts) {
+  const runs = (opts && opts.runs) || 100;
+  for (let i = 0; i < runs; i++) {
+    const args = generators.map(function(g) { return g(); });
+    let result;
+    try { result = property.apply(null, args); } catch (e) { throw new Error('Property failed on input ' + JSON.stringify(args) + ': ' + e.message); }
+    if (result === false) { throw new Error('Property failed on input: ' + JSON.stringify(args)); }
+  }
+}`,
 };
 
 // All known builtin names for matching
@@ -420,7 +636,13 @@ export const BUILTINS = _LEGACY_NAMES.map(n => BUILTIN_FUNCTIONS[n]).join('\n');
 // Build stdlib containing only the functions that are actually used
 export function buildSelectiveStdlib(usedNames) {
   const parts = [];
-  for (const name of usedNames) {
+  // Ensure Seq class is emitted before iter (dependency order)
+  const ordered = [...usedNames].sort((a, b) => {
+    if (a === 'Seq' && b === 'iter') return -1;
+    if (a === 'iter' && b === 'Seq') return 1;
+    return 0;
+  });
+  for (const name of ordered) {
     if (BUILTIN_FUNCTIONS[name]) {
       parts.push(BUILTIN_FUNCTIONS[name]);
     }

@@ -615,3 +615,458 @@ describe('analyzer: exhaustiveness no false positives', () => {
     expect(greenWarning.length).toBeGreaterThan(0);
   });
 });
+
+// ── P0 Improvements ──────────────────────────────────────────────
+
+describe('P0: else if and elif both accepted', () => {
+  test('else if parses as elif alternate', () => {
+    const code = compile(`
+      fn check(x: Int) -> String {
+        if x > 10 {
+          "big"
+        } else if x > 5 {
+          "medium"
+        } else {
+          "small"
+        }
+      }
+    `);
+    expect(code).toContain('else if');
+  });
+
+  test('elif still works', () => {
+    const code = compile(`
+      fn check(x: Int) -> String {
+        if x > 10 {
+          "big"
+        } elif x > 5 {
+          "medium"
+        } else {
+          "small"
+        }
+      }
+    `);
+    expect(code).toContain('else if');
+  });
+
+  test('mixed elif and else if in same chain', () => {
+    const code = compile(`
+      fn check(x: Int) -> String {
+        if x > 10 {
+          "big"
+        } elif x > 5 {
+          "medium"
+        } else if x > 0 {
+          "positive"
+        } else {
+          "zero"
+        }
+      }
+    `);
+    expect(code).toContain('else if');
+  });
+});
+
+describe('P0: mut keyword removed, var is canonical', () => {
+  test('mut produces parse error', () => {
+    expect(() => parse('mut x = 0')).toThrow("'mut' is not supported in Tova. Use 'var' for mutable variables");
+  });
+
+  test('var still works (canonical form)', () => {
+    const code = compile('var y = 10');
+    expect(code).toContain('let y = 10');
+  });
+
+  test('var allows reassignment', () => {
+    const warnings = getWarnings(`
+      fn test_fn() {
+        var x = 0
+        x = 5
+      }
+    `);
+    const reassignErr = warnings.filter(w => w.message.includes('Cannot reassign'));
+    expect(reassignErr.length).toBe(0);
+  });
+
+  test('error message mentions var for immutable reassignment', () => {
+    const errors = getErrors(`
+      fn test_fn() {
+        x = 5
+        x = 10
+      }
+    `);
+    const reassignErr = errors.find(e => e.message.includes('Cannot reassign'));
+    expect(reassignErr).toBeDefined();
+    expect(reassignErr.message).toContain('var');
+  });
+});
+
+describe('P0: -> lambda syntax', () => {
+  test('x -> x + 1 parses as LambdaExpression', () => {
+    const ast = parse('f = x -> x + 1');
+    const assign = ast.body[0];
+    const lambda = assign.values[0];
+    expect(lambda.type).toBe('LambdaExpression');
+    expect(lambda.params.length).toBe(1);
+    expect(lambda.params[0].name).toBe('x');
+  });
+
+  test('(x, y) -> x + y parses with 2 params', () => {
+    const ast = parse('f = (x, y) -> x + y');
+    const lambda = ast.body[0].values[0];
+    expect(lambda.type).toBe('LambdaExpression');
+    expect(lambda.params.length).toBe(2);
+  });
+
+  test('() -> 42 parses with 0 params', () => {
+    const ast = parse('f = () -> 42');
+    const lambda = ast.body[0].values[0];
+    expect(lambda.type).toBe('LambdaExpression');
+    expect(lambda.params.length).toBe(0);
+  });
+
+  test('x -> x + 1 produces same codegen as x => x + 1', () => {
+    const thinArrow = compile('f = x -> x + 1');
+    const fatArrow = compile('f = x => x + 1');
+    expect(thinArrow).toBe(fatArrow);
+  });
+
+  test('-> in pipes: [1,2,3] |> map(x -> x * 2)', () => {
+    const code = compile('[1,2,3] |> map(x -> x * 2)');
+    expect(code).toContain('=>');
+  });
+
+  test('fn foo() -> Int { 42 } still parses correctly (return type)', () => {
+    const ast = parse('fn foo() -> Int { 42 }');
+    const fn = ast.body[0];
+    expect(fn.type).toBe('FunctionDeclaration');
+    expect(fn.name).toBe('foo');
+    expect(fn.returnType).toBeDefined();
+  });
+});
+
+describe('P0: did you mean suggestions', () => {
+  test('typo suggests correct name: nme -> name', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        name = "alice"
+        print(nme)
+      }
+    `);
+    const typoWarn = warnings.find(w => w.message.includes("'nme'") && w.message.includes('not defined'));
+    expect(typoWarn).toBeDefined();
+    expect(typoWarn.hint).toContain('name');
+  });
+
+  test('builtin typo: prnt -> print', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        prnt("hello")
+      }
+    `);
+    const typoWarn = warnings.find(w => w.message.includes("'prnt'"));
+    expect(typoWarn).toBeDefined();
+    expect(typoWarn.hint).toContain('print');
+  });
+
+  test('completely unrelated name: no hint', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        xyzzyplugh("hello")
+      }
+    `);
+    const typoWarn = warnings.find(w => w.message.includes("'xyzzyplugh'"));
+    expect(typoWarn).toBeDefined();
+    expect(typoWarn.hint).toBeUndefined();
+  });
+
+  test('hint field appears in warning object', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        consle.log("hi")
+      }
+    `);
+    const typoWarn = warnings.find(w => w.message.includes("'consle'"));
+    expect(typoWarn).toBeDefined();
+    expect(typoWarn.hint).toBeDefined();
+    expect(typoWarn.hint).toContain('console');
+  });
+});
+
+describe('P0: type mismatch conversion hints', () => {
+  test('Int where String expected hints toString', () => {
+    const errors = getErrors(`
+      fn greet(name: String) -> String {
+        return name
+      }
+      greet(42)
+    `);
+    const mismatch = errors.find(e => e.message.includes('Type mismatch'));
+    expect(mismatch).toBeDefined();
+    expect(mismatch.hint).toContain('toString');
+  });
+
+  test('String where Int expected hints toInt', () => {
+    const errors = getErrors(`
+      fn double(x: Int) -> Int {
+        return x
+      }
+      double("5")
+    `);
+    const mismatch = errors.find(e => e.message.includes('Type mismatch'));
+    expect(mismatch).toBeDefined();
+    expect(mismatch.hint).toContain('toInt');
+  });
+
+  test('no hint for compatible types (no false positives)', () => {
+    const errors = getErrors(`
+      fn double(x: Int) -> Int {
+        return x
+      }
+      double(5)
+    `);
+    const mismatch = errors.find(e => e.message.includes('Type mismatch'));
+    expect(mismatch).toBeUndefined();
+  });
+});
+
+// ── P1 Improvements ──────────────────────────────────────────────
+
+describe('P1: andThen alias for flatMap on Result', () => {
+  test('andThen compiles on Ok result', () => {
+    const code = compile(`
+      result = Ok(5)
+      doubled = result.andThen(fn(x) Ok(x * 2))
+    `);
+    expect(code).toContain('andThen');
+  });
+
+  test('andThen compiles on Err result', () => {
+    const code = compile(`
+      result = Err("fail")
+      doubled = result.andThen(fn(x) Ok(x * 2))
+    `);
+    expect(code).toContain('andThen');
+  });
+
+  test('andThen compiles on Option (Some)', () => {
+    const code = compile(`
+      opt = Some(5)
+      doubled = opt.andThen(fn(x) Some(x * 2))
+    `);
+    expect(code).toContain('andThen');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// T0 — Language Identity & Consistency
+// ═══════════════════════════════════════════════════════════════
+
+// ── T0-1: Both symbolic and keyword logical operators accepted ──
+
+describe('T0-1: Both operator forms accepted', () => {
+  test('&& compiles to &&', () => {
+    const code = compile('x = true && false');
+    expect(code).toContain('&&');
+  });
+
+  test('|| compiles to ||', () => {
+    const code = compile('x = true || false');
+    expect(code).toContain('||');
+  });
+
+  test('! compiles to !', () => {
+    const code = compile('x = !true');
+    expect(code).toContain('!');
+  });
+
+  test('and/or/not also work', () => {
+    const code = compile('x = true and false or not true');
+    expect(code).toContain('&&');
+    expect(code).toContain('||');
+    expect(code).toContain('!');
+  });
+});
+
+// ── T0-2: mut is a parse error ──────────────────────────────
+
+describe('T0-2: mut keyword produces parse error', () => {
+  test('mut x = 0 throws with helpful message', () => {
+    expect(() => parse('mut x = 0')).toThrow("'mut' is not supported in Tova");
+    expect(() => parse('mut x = 0')).toThrow("Use 'var'");
+  });
+
+  test('var x = 0 still works', () => {
+    const ast = parse('var x = 0');
+    expect(ast.body[0].type).toBe('VarDeclaration');
+    expect(ast.body[0].targets[0]).toBe('x');
+  });
+});
+
+// ── T0-3: let error message mentions var ────────────────────
+
+describe('T0-3: let error message mentions var', () => {
+  test('let x = 5 error mentions var', () => {
+    expect(() => parse('let x = 5')).toThrow("var x = value");
+    expect(() => parse('let x = 5')).toThrow("for mutable");
+  });
+
+  test('let destructuring still works', () => {
+    const ast = parse('let {a, b} = obj');
+    expect(ast.body[0].type).toBe('LetDestructure');
+  });
+});
+
+// ── T0-4: Both else if and elif accepted ──────────────────────
+
+describe('T0-4: Both else if and elif accepted', () => {
+  test('else if in if-statement works', () => {
+    const code = compile(`
+      fn check(x: Int) -> String {
+        if x > 10 {
+          "big"
+        } else if x > 5 {
+          "medium"
+        } else {
+          "small"
+        }
+      }
+    `);
+    expect(code).toContain('else if');
+  });
+
+  test('else if in if-expression works', () => {
+    const code = compile(`
+      fn check(x: Int) -> String {
+        result = if x > 10 { "big" } else if x > 5 { "medium" } else { "small" }
+        result
+      }
+    `);
+    expect(code).toContain('"big"');
+    expect(code).toContain('"medium"');
+  });
+
+  test('elif in if-statement works', () => {
+    const code = compile(`
+      fn check(x: Int) -> String {
+        if x > 10 {
+          "big"
+        } elif x > 5 {
+          "medium"
+        } else {
+          "small"
+        }
+      }
+    `);
+    expect(code).toContain('else if');
+  });
+});
+
+// ── T0-7: Naming conventions ────────────────────────────────
+
+describe('T0-7: Naming convention enforcement', () => {
+  test('camelCase function name warns', () => {
+    const warnings = getWarnings(`
+      fn myFunction() {
+        print("hello")
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes("'myFunction'") && w.message.includes('snake_case'));
+    expect(nameWarn).toBeDefined();
+    expect(nameWarn.hint).toContain('my_function');
+  });
+
+  test('snake_case function name does not warn', () => {
+    const warnings = getWarnings(`
+      fn my_function() {
+        print("hello")
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes('snake_case') && w.message.includes("'my_function'"));
+    expect(nameWarn).toBeUndefined();
+  });
+
+  test('camelCase variable warns', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        myVar = 42
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes("'myVar'") && w.message.includes('snake_case'));
+    expect(nameWarn).toBeDefined();
+    expect(nameWarn.hint).toContain('my_var');
+  });
+
+  test('camelCase parameter warns', () => {
+    const warnings = getWarnings(`
+      fn test(myParam: Int) {
+        print(myParam)
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes("'myParam'") && w.message.includes('snake_case'));
+    expect(nameWarn).toBeDefined();
+    expect(nameWarn.hint).toContain('my_param');
+  });
+
+  test('PascalCase type name does not warn', () => {
+    const warnings = getWarnings(`
+      type MyType {
+        Variant(value: Int)
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes("'MyType'") && w.message.includes('PascalCase'));
+    expect(nameWarn).toBeUndefined();
+  });
+
+  test('snake_case type name warns', () => {
+    const warnings = getWarnings(`
+      type my_type {
+        Variant(value: Int)
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes("'my_type'") && w.message.includes('PascalCase'));
+    expect(nameWarn).toBeDefined();
+    expect(nameWarn.hint).toContain('MyType');
+  });
+
+  test('single-char names do not warn', () => {
+    const warnings = getWarnings(`
+      fn test(x: Int) {
+        y = x + 1
+      }
+    `);
+    const nameWarns = warnings.filter(w => w.message.includes('snake_case') || w.message.includes('PascalCase'));
+    expect(nameWarns.length).toBe(0);
+  });
+
+  test('underscore-prefixed names do not warn', () => {
+    const warnings = getWarnings(`
+      fn test(_unused: Int) {
+        _temp = 42
+      }
+    `);
+    const nameWarns = warnings.filter(w => w.message.includes('snake_case') && (w.message.includes("'_unused'") || w.message.includes("'_temp'")));
+    expect(nameWarns.length).toBe(0);
+  });
+
+  test('UPPER_SNAKE_CASE does not warn (constants)', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        MAX_SIZE = 100
+      }
+    `);
+    const nameWarns = warnings.filter(w => w.message.includes("'MAX_SIZE'") && w.message.includes('snake_case'));
+    expect(nameWarns.length).toBe(0);
+  });
+
+  test('var with camelCase warns', () => {
+    const warnings = getWarnings(`
+      fn test() {
+        var myCounter = 0
+        myCounter = 1
+      }
+    `);
+    const nameWarn = warnings.find(w => w.message.includes("'myCounter'") && w.message.includes('snake_case'));
+    expect(nameWarn).toBeDefined();
+  });
+});

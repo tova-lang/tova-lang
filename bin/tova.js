@@ -35,6 +35,8 @@ Usage:
 Commands:
   run <file>       Compile and execute a .tova file
   build [dir]      Compile .tova files to JavaScript (default: current dir)
+  check [dir]      Type-check .tova files without generating code
+  clean            Delete .tova-out build artifacts
   dev              Start development server with live reload
   new <name>       Create a new Tova project
   install          Install npm dependencies from tova.toml
@@ -44,6 +46,8 @@ Commands:
   lsp              Start Language Server Protocol server
   fmt <file>      Format a .tova file (--check to verify only)
   test [dir]      Run test blocks in .tova files (--filter, --watch)
+  bench [dir]     Run bench blocks in .tova files
+  doc [dir]       Generate documentation from /// docstrings
   migrate:create <name>   Create a new migration file
   migrate:up [file.tova]   Run pending migrations
   migrate:status [file.tova] Show migration status
@@ -53,7 +57,9 @@ Options:
   --version, -v    Show version
   --output, -o     Output directory (default: .tova-out)
   --production     Production build (minify, bundle, hash)
-  --watch          Watch for file changes
+  --watch          Watch for file changes and rebuild
+  --verbose        Show detailed output during compilation
+  --quiet          Suppress non-error output
   --debug          Show verbose error output
   --strict         Enable strict type checking
 `;
@@ -75,11 +81,23 @@ async function main() {
 
   const isStrict = args.includes('--strict');
   switch (command) {
-    case 'run':
-      await runFile(args.filter(a => a !== '--strict')[1], { strict: isStrict });
+    case 'run': {
+      const runArgs = args.filter(a => a !== '--strict');
+      const filePath = runArgs[1];
+      const restArgs = runArgs.slice(2);
+      const ddIdx = restArgs.indexOf('--');
+      const scriptArgs = ddIdx !== -1 ? restArgs.slice(ddIdx + 1) : restArgs;
+      await runFile(filePath, { strict: isStrict, scriptArgs });
       break;
+    }
     case 'build':
       await buildProject(args.slice(1));
+      break;
+    case 'check':
+      await checkProject(args.slice(1));
+      break;
+    case 'clean':
+      cleanBuild(args.slice(1));
       break;
     case 'dev':
       await devServer(args.slice(1));
@@ -108,6 +126,12 @@ async function main() {
     case 'test':
       await runTests(args.slice(1));
       break;
+    case 'bench':
+      await runBench(args.slice(1));
+      break;
+    case 'doc':
+      await generateDocs(args.slice(1));
+      break;
     case 'migrate:create':
       migrateCreate(args[1]);
       break;
@@ -119,7 +143,10 @@ async function main() {
       break;
     default:
       if (command.endsWith('.tova')) {
-        await runFile(command, { strict: isStrict });
+        const directArgs = args.filter(a => a !== '--strict').slice(1);
+        const ddIdx = directArgs.indexOf('--');
+        const scriptArgs = ddIdx !== -1 ? directArgs.slice(ddIdx + 1) : directArgs;
+        await runFile(command, { strict: isStrict, scriptArgs });
       } else {
         console.error(`Unknown command: ${command}`);
         console.log(HELP);
@@ -299,6 +326,113 @@ async function runTests(args) {
   }
 }
 
+async function runBench(args) {
+  const targetDir = args.find(a => !a.startsWith('--')) || '.';
+  const tovaFiles = findTovaFiles(resolve(targetDir));
+  const benchFiles = [];
+
+  for (const file of tovaFiles) {
+    const source = readFileSync(file, 'utf-8');
+    if (/\bbench\s+["'{]/m.test(source) || /\bbench\s*\{/m.test(source)) {
+      benchFiles.push(file);
+    }
+  }
+
+  if (benchFiles.length === 0) {
+    console.log('No bench files found.');
+    return;
+  }
+
+  console.log(`Found ${benchFiles.length} bench file(s)\n`);
+
+  const tmpDir = resolve('.tova-bench-out');
+  if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+
+  for (const file of benchFiles) {
+    try {
+      const source = readFileSync(file, 'utf-8');
+      const lexer = new Lexer(source, file);
+      const tokens = lexer.tokenize();
+      const parser = new Parser(tokens, file);
+      const ast = parser.parse();
+
+      const codegen = new CodeGenerator(ast, file);
+      const result = codegen.generate();
+
+      if (result.bench) {
+        const relPath = relative(resolve(targetDir), file).replace(/\.tova$/, '.bench.js');
+        const outPath = join(tmpDir, relPath);
+        const outDir = dirname(outPath);
+        if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+
+        const stdlib = getFullStdlib();
+        const fullBench = stdlib + '\n' + result.bench;
+        writeFileSync(outPath, fullBench);
+        console.log(`  Compiled: ${relative('.', file)}`);
+
+        // Run the bench file
+        console.log('');
+        const proc = spawn('bun', ['run', outPath], { stdio: 'inherit' });
+        await new Promise(res => proc.on('close', res));
+        console.log('');
+      }
+    } catch (err) {
+      console.error(`  Error compiling ${relative('.', file)}: ${err.message}`);
+    }
+  }
+}
+
+async function generateDocs(args) {
+  const { DocGenerator } = await import('../src/docs/generator.js');
+  const outputDir = args.find((a, i) => args[i - 1] === '--output' || args[i - 1] === '-o') || 'docs-out';
+  const format = args.find((a, i) => args[i - 1] === '--format') || 'html';
+  const targetDir = args.find(a => !a.startsWith('--') && a !== outputDir && a !== format) || '.';
+
+  const tovaFiles = findTovaFiles(resolve(targetDir));
+  if (tovaFiles.length === 0) {
+    console.log('No .tova files found.');
+    return;
+  }
+
+  const modules = [];
+  for (const file of tovaFiles) {
+    try {
+      const source = readFileSync(file, 'utf-8');
+      // Quick check: skip files without docstrings
+      if (!source.includes('///')) continue;
+
+      const lexer = new Lexer(source, file);
+      const tokens = lexer.tokenize();
+      const parser = new Parser(tokens, file);
+      const ast = parser.parse();
+      const name = relative(resolve(targetDir), file).replace(/\.tova$/, '').replace(/[/\\]/g, '.');
+      modules.push({ name, ast });
+    } catch (err) {
+      console.error(`  Error parsing ${relative('.', file)}: ${err.message}`);
+    }
+  }
+
+  if (modules.length === 0) {
+    console.log('No documented .tova files found (add /// docstrings to your code).');
+    return;
+  }
+
+  const generator = new DocGenerator(modules);
+  const pages = generator.generate(format);
+
+  const outDir = resolve(outputDir);
+  if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+
+  let count = 0;
+  for (const [filename, content] of Object.entries(pages)) {
+    const outPath = join(outDir, filename);
+    writeFileSync(outPath, content);
+    count++;
+  }
+
+  console.log(`Generated ${count} documentation file(s) in ${relative('.', outDir)}/`);
+}
+
 function findTovaFiles(dir) {
   const files = [];
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return files;
@@ -355,8 +489,13 @@ async function runFile(filePath, options = {}) {
     let code = stdlib + '\n' + (output.shared || '') + '\n' + (output.server || output.client || '');
     // Strip 'export ' keywords — not valid inside AsyncFunction (used in tova build only)
     code = code.replace(/^export /gm, '');
-    const fn = new AsyncFunction(code);
-    await fn();
+    // Auto-call main() if the compiled code defines a main function
+    const scriptArgs = options.scriptArgs || [];
+    if (/\bfunction\s+main\s*\(/.test(code)) {
+      code += '\nconst __tova_exit = await main(__tova_args); if (typeof __tova_exit === "number") process.exitCode = __tova_exit;\n';
+    }
+    const fn = new AsyncFunction('__tova_args', '__tova_filename', '__tova_dirname', code);
+    await fn(scriptArgs, resolved, dirname(resolved));
   } catch (err) {
     console.error(richError(source, err, filePath));
     if (process.argv.includes('--debug') || process.env.DEBUG) {
@@ -372,6 +511,9 @@ async function buildProject(args) {
   const config = resolveConfig(process.cwd());
   const isProduction = args.includes('--production');
   const buildStrict = args.includes('--strict');
+  const isVerbose = args.includes('--verbose');
+  const isQuiet = args.includes('--quiet');
+  const isWatch = args.includes('--watch');
   const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
   const srcDir = resolve(explicitSrc || config.project.entry || '.');
   const outIdx = args.indexOf('--output');
@@ -397,9 +539,10 @@ async function buildProject(args) {
   writeFileSync(join(runtimeDest, 'rpc.js'), RPC_SOURCE);
   writeFileSync(join(runtimeDest, 'router.js'), ROUTER_SOURCE);
 
-  console.log(`\n  Building ${tovaFiles.length} file(s)...\n`);
+  if (!isQuiet) console.log(`\n  Building ${tovaFiles.length} file(s)...\n`);
 
   let errorCount = 0;
+  const buildStart = Date.now();
   compilationCache.clear();
 
   // Group files by directory for multi-file merging
@@ -408,6 +551,7 @@ async function buildProject(args) {
   for (const [dir, files] of dirGroups) {
     const dirName = basename(dir) === '.' ? 'app' : basename(dir);
     const relDir = relative(srcDir, dir) || '.';
+    const groupStart = Date.now();
     try {
       const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
       if (!result) continue;
@@ -416,6 +560,8 @@ async function buildProject(args) {
       // Use single-file basename for single-file dirs, directory name for multi-file
       const outBaseName = single ? basename(files[0], '.tova') : dirName;
       const relLabel = single ? relative(srcDir, files[0]) : `${relDir}/ (${files.length} files merged)`;
+      const elapsed = Date.now() - groupStart;
+      const timing = isVerbose ? ` (${elapsed}ms)` : '';
 
       // Helper to generate source maps
       const generateSourceMap = (code, jsFile) => {
@@ -437,21 +583,21 @@ async function buildProject(args) {
       if (output.shared && output.shared.trim()) {
         const sharedPath = join(outDir, `${outBaseName}.shared.js`);
         writeFileSync(sharedPath, generateSourceMap(output.shared, sharedPath));
-        console.log(`  ✓ ${relLabel} → ${relative('.', sharedPath)}`);
+        if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', sharedPath)}${timing}`);
       }
 
       // Write default server
       if (output.server) {
         const serverPath = join(outDir, `${outBaseName}.server.js`);
         writeFileSync(serverPath, generateSourceMap(output.server, serverPath));
-        console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}`);
+        if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}${timing}`);
       }
 
       // Write default client
       if (output.client) {
         const clientPath = join(outDir, `${outBaseName}.client.js`);
         writeFileSync(clientPath, generateSourceMap(output.client, clientPath));
-        console.log(`  ✓ ${relLabel} → ${relative('.', clientPath)}`);
+        if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', clientPath)}${timing}`);
       }
 
       // Write named server blocks (multi-block)
@@ -460,7 +606,7 @@ async function buildProject(args) {
           if (name === 'default') continue;
           const path = join(outDir, `${outBaseName}.server.${name}.js`);
           writeFileSync(path, code);
-          console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]`);
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]${timing}`);
         }
       }
 
@@ -470,7 +616,7 @@ async function buildProject(args) {
           if (name === 'default') continue;
           const path = join(outDir, `${outBaseName}.client.${name}.js`);
           writeFileSync(path, code);
-          console.log(`  ✓ ${relLabel} → ${relative('.', path)} [client:${name}]`);
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [client:${name}]${timing}`);
         }
       }
     } catch (err) {
@@ -480,8 +626,105 @@ async function buildProject(args) {
   }
 
   const dirCount = dirGroups.size;
-  console.log(`\n  Build complete. ${dirCount - errorCount}/${dirCount} directory group(s) succeeded.\n`);
+  const totalElapsed = Date.now() - buildStart;
+  if (!isQuiet) {
+    const timingStr = isVerbose ? ` in ${totalElapsed}ms` : '';
+    console.log(`\n  Build complete. ${dirCount - errorCount}/${dirCount} directory group(s) succeeded${timingStr}.\n`);
+  }
   if (errorCount > 0) process.exit(1);
+
+  // Watch mode for build command
+  if (isWatch) {
+    console.log('  Watching for changes...\n');
+    let debounceTimer = null;
+    const watcher = fsWatch(srcDir, { recursive: true }, (event, filename) => {
+      if (!filename || !filename.endsWith('.tova')) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        compilationCache.clear();
+        if (!isQuiet) console.log(`  Rebuilding (${filename} changed)...`);
+        await buildProject(args.filter(a => a !== '--watch'));
+        if (!isQuiet) console.log('  Watching for changes...\n');
+      }, 100);
+    });
+    // Keep process alive
+    await new Promise(() => {});
+  }
+}
+
+// ─── Check (type-check only, no codegen) ────────────────────
+
+async function checkProject(args) {
+  const checkStrict = args.includes('--strict');
+  const isVerbose = args.includes('--verbose');
+  const isQuiet = args.includes('--quiet');
+  const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
+  const srcDir = resolve(explicitSrc || '.');
+
+  const tovaFiles = findFiles(srcDir, '.tova');
+  if (tovaFiles.length === 0) {
+    console.error('No .tova files found');
+    process.exit(1);
+  }
+
+  let totalErrors = 0;
+  let totalWarnings = 0;
+
+  for (const file of tovaFiles) {
+    const relPath = relative(srcDir, file);
+    const start = Date.now();
+    try {
+      const source = readFileSync(file, 'utf-8');
+      const lexer = new Lexer(source, file);
+      const tokens = lexer.tokenize();
+      const parser = new Parser(tokens, file);
+      const ast = parser.parse();
+      const analyzer = new Analyzer(ast, file, { strict: checkStrict, tolerant: true });
+      const result = analyzer.analyze();
+
+      const errors = result.errors || [];
+      const warnings = result.warnings || [];
+      totalErrors += errors.length;
+      totalWarnings += warnings.length;
+
+      if (errors.length > 0 || warnings.length > 0) {
+        const formatter = new DiagnosticFormatter(source, file);
+        for (const e of errors) {
+          console.error(formatter.formatError(e.message, { line: e.line, column: e.column }, e.hint));
+        }
+        for (const w of warnings) {
+          console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }, w.hint));
+        }
+      }
+
+      if (isVerbose) {
+        const elapsed = Date.now() - start;
+        console.log(`  ✓ ${relPath} (${elapsed}ms)`);
+      }
+    } catch (err) {
+      totalErrors++;
+      console.error(`  ✗ ${relPath}: ${err.message}`);
+    }
+  }
+
+  if (!isQuiet) {
+    console.log(`\n  ${tovaFiles.length} files checked, ${totalErrors} error(s), ${totalWarnings} warning(s)\n`);
+  }
+  if (totalErrors > 0) process.exit(1);
+}
+
+// ─── Clean (delete build artifacts) ─────────────────────────
+
+function cleanBuild(args) {
+  const config = resolveConfig(process.cwd());
+  const outDir = resolve(config.build?.output || '.tova-out');
+
+  if (existsSync(outDir)) {
+    rmSync(outDir, { recursive: true, force: true });
+    console.log(`  Cleaned ${relative('.', outDir)}/`);
+  } else {
+    console.log(`  Nothing to clean (${relative('.', outDir)}/ does not exist)`);
+  }
 }
 
 // ─── Dev Server ─────────────────────────────────────────────
@@ -1059,6 +1302,8 @@ async function addDep(args) {
   if (!pkg) {
     console.error('Error: No package specified');
     console.error('Usage: tova add <package> [--dev]');
+    console.error('       tova add npm:<package>   — add an npm package');
+    console.error('       tova add <tova-package>  — add a Tova package (local path or git URL)');
     process.exit(1);
   }
 
@@ -1071,44 +1316,100 @@ async function addDep(args) {
     process.exit(1);
   }
 
-  // Parse package name and version
-  let name = pkg;
-  let version = 'latest';
-  if (pkg.includes('@') && !pkg.startsWith('@')) {
-    const atIdx = pkg.lastIndexOf('@');
-    name = pkg.slice(0, atIdx);
-    version = pkg.slice(atIdx + 1);
-  } else if (pkg.startsWith('@') && pkg.includes('@', 1)) {
-    // Scoped package with version: @scope/name@version
-    const atIdx = pkg.lastIndexOf('@');
-    name = pkg.slice(0, atIdx);
-    version = pkg.slice(atIdx + 1);
-  }
+  // Determine if this is an npm package or a Tova native dependency
+  const isNpm = pkg.startsWith('npm:');
+  const actualPkg = isNpm ? pkg.slice(4) : pkg;
 
-  // If version is 'latest', resolve it via npm registry
-  if (version === 'latest') {
-    try {
-      const proc = spawn('npm', ['view', name, 'version'], { stdio: ['pipe', 'pipe', 'pipe'] });
-      let out = '';
-      proc.stdout.on('data', d => out += d);
-      const code = await new Promise(res => proc.on('close', res));
-      if (code === 0 && out.trim()) {
-        version = `^${out.trim()}`;
-      } else {
+  if (isNpm) {
+    // npm package handling (existing behavior)
+    let name = actualPkg;
+    let version = 'latest';
+    if (actualPkg.includes('@') && !actualPkg.startsWith('@')) {
+      const atIdx = actualPkg.lastIndexOf('@');
+      name = actualPkg.slice(0, atIdx);
+      version = actualPkg.slice(atIdx + 1);
+    } else if (actualPkg.startsWith('@') && actualPkg.includes('@', 1)) {
+      const atIdx = actualPkg.lastIndexOf('@');
+      name = actualPkg.slice(0, atIdx);
+      version = actualPkg.slice(atIdx + 1);
+    }
+
+    if (version === 'latest') {
+      try {
+        const proc = spawn('npm', ['view', name, 'version'], { stdio: ['pipe', 'pipe', 'pipe'] });
+        let out = '';
+        proc.stdout.on('data', d => out += d);
+        const code = await new Promise(res => proc.on('close', res));
+        if (code === 0 && out.trim()) {
+          version = `^${out.trim()}`;
+        } else {
+          version = '*';
+        }
+      } catch {
         version = '*';
       }
-    } catch {
-      version = '*';
     }
+
+    const section = isDev ? 'npm.dev' : 'npm';
+    addToSection(tomlPath, section, name, version);
+    console.log(`  Added ${name}@${version} to [${section}] in tova.toml`);
+    await installDeps();
+  } else {
+    // Tova native dependency
+    let name = actualPkg;
+    let source = actualPkg;
+
+    // Detect source type
+    if (actualPkg.startsWith('file:') || actualPkg.startsWith('./') || actualPkg.startsWith('../') || actualPkg.startsWith('/')) {
+      // Local path dependency
+      source = actualPkg.startsWith('file:') ? actualPkg : `file:${actualPkg}`;
+      name = basename(actualPkg.replace(/^file:/, ''));
+    } else if (actualPkg.startsWith('git:') || actualPkg.includes('github.com/') || actualPkg.includes('.git')) {
+      // Git dependency
+      source = actualPkg.startsWith('git:') ? actualPkg : `git:${actualPkg}`;
+      name = basename(actualPkg.replace(/\.git$/, '').replace(/^git:/, ''));
+    } else {
+      // Tova registry package (future: for now, just store the name)
+      source = `*`;
+    }
+
+    addToSection(tomlPath, 'dependencies', name, source);
+    console.log(`  Added ${name} = "${source}" to [dependencies] in tova.toml`);
+
+    // Generate lock file
+    generateLockFile(cwd);
+  }
+}
+
+function generateLockFile(cwd) {
+  const config = resolveConfig(cwd);
+  const deps = config.dependencies || {};
+  const npmProd = config.npm?.prod || {};
+  const npmDev = config.npm?.dev || {};
+
+  const lock = {
+    version: 1,
+    generated: new Date().toISOString(),
+    dependencies: {},
+    npm: {},
+  };
+
+  for (const [name, source] of Object.entries(deps)) {
+    lock.dependencies[name] = {
+      source,
+      resolved: source, // For now, resolved = source
+    };
   }
 
-  const section = isDev ? 'npm.dev' : 'npm';
-  addToSection(tomlPath, section, name, version);
+  for (const [name, version] of Object.entries(npmProd)) {
+    lock.npm[name] = { version, dev: false };
+  }
+  for (const [name, version] of Object.entries(npmDev)) {
+    lock.npm[name] = { version, dev: true };
+  }
 
-  console.log(`  Added ${name}@${version} to [${section}] in tova.toml`);
-
-  // Run install
-  await installDeps();
+  const lockPath = join(cwd, 'tova.lock');
+  writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
 }
 
 async function removeDep(pkg) {
@@ -1126,8 +1427,9 @@ async function removeDep(pkg) {
     process.exit(1);
   }
 
-  // Try removing from [npm] first, then [npm.dev]
-  const removed = removeFromSection(tomlPath, 'npm', pkg) ||
+  // Try removing from [dependencies], [npm], or [npm.dev]
+  const removed = removeFromSection(tomlPath, 'dependencies', pkg) ||
+                  removeFromSection(tomlPath, 'npm', pkg) ||
                   removeFromSection(tomlPath, 'npm.dev', pkg);
 
   if (removed) {
@@ -1447,7 +1749,8 @@ async function startRepl() {
   });
 
   console.log(`\n  Tova REPL v${VERSION}`);
-  console.log('  Type expressions to evaluate. Use :quit to exit.\n');
+  console.log('  Type expressions to evaluate. Use :quit to exit.');
+  console.log('  Use _ to reference the last result.\n');
 
   const context = {};
   const stdlib = getStdlibForRuntime();
@@ -1473,7 +1776,28 @@ async function startRepl() {
     if (trimmed === ':help') {
       console.log('  :quit    Exit the REPL');
       console.log('  :help    Show this help');
-      console.log('  :clear   Clear context\n');
+      console.log('  :clear   Clear context');
+      console.log('  :type    Show inferred type of expression');
+      console.log('  _        Reference the last result\n');
+      rl.prompt();
+      return;
+    }
+
+    if (trimmed.startsWith(':type ')) {
+      const expr = trimmed.slice(6).trim();
+      try {
+        const output = compileTova(expr, '<repl>');
+        const code = output.shared || '';
+        const ctxKeys = Object.keys(context).filter(k => k !== '__mutable');
+        const destructure = ctxKeys.length > 0 ? `const {${ctxKeys.join(',')}} = __ctx;\n` : '';
+        // REPL context: evaluating user-provided Tova expressions (intentional dynamic eval)
+        const fn = new Function('__ctx', `${destructure}return (${code.replace(/;$/, '')});`);
+        const val = fn(context);
+        const typeStr = val === null ? 'Nil' : Array.isArray(val) ? 'List' : val?.__tag ? val.__tag : typeof val === 'number' ? (Number.isInteger(val) ? 'Int' : 'Float') : typeof val === 'string' ? 'String' : typeof val === 'boolean' ? 'Bool' : typeof val === 'function' ? 'Function' : typeof val === 'object' ? 'Object' : 'Unknown';
+        console.log(`  ${expr} : ${typeStr}`);
+      } catch (err) {
+        console.error(`  Error: ${err.message}`);
+      }
       rl.prompt();
       return;
     }
@@ -1569,6 +1893,7 @@ async function startRepl() {
           const fn = new Function('__ctx', `${destructure}${evalCode}`);
           const result = fn(context);
           if (result !== undefined) {
+            context._ = result; // Save as last result
             console.log(' ', result);
           }
         } catch (e) {
@@ -1830,6 +2155,7 @@ async function productionBuild(srcDir, outDir) {
 
 const compilationCache = new Map();
 const compilationInProgress = new Set();
+const compilationChain = []; // ordered import chain for circular import error messages
 
 // Track module exports for cross-file import validation
 const moduleExports = new Map();
@@ -1904,6 +2230,7 @@ function compileWithImports(source, filename, srcDir) {
   }
 
   compilationInProgress.add(filename);
+  compilationChain.push(filename);
 
   try {
     // Parse and find .tova imports
@@ -1920,7 +2247,8 @@ function compileWithImports(source, filename, srcDir) {
       if (node.type === 'ImportDeclaration' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         if (compilationInProgress.has(importPath)) {
-          throw new Error(`Circular import detected: ${filename} → ${importPath}`);
+          const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
+          throw new Error(`Circular import detected: ${chain}`);
         } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
@@ -1944,7 +2272,8 @@ function compileWithImports(source, filename, srcDir) {
       if (node.type === 'ImportDefault' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         if (compilationInProgress.has(importPath)) {
-          throw new Error(`Circular import detected: ${filename} → ${importPath}`);
+          const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
+          throw new Error(`Circular import detected: ${chain}`);
         } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
@@ -1954,7 +2283,8 @@ function compileWithImports(source, filename, srcDir) {
       if (node.type === 'ImportWildcard' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         if (compilationInProgress.has(importPath)) {
-          throw new Error(`Circular import detected: ${filename} → ${importPath}`);
+          const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
+          throw new Error(`Circular import detected: ${chain}`);
         } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
@@ -1979,6 +2309,7 @@ function compileWithImports(source, filename, srcDir) {
     return output;
   } finally {
     compilationInProgress.delete(filename);
+    compilationChain.pop();
   }
 }
 
@@ -2130,7 +2461,8 @@ function mergeDirectory(dir, srcDir, options = {}) {
         // Only process imports from OTHER directories (same-dir files are merged)
         if (dirname(importPath) !== dir) {
           if (compilationInProgress.has(importPath)) {
-            throw new Error(`Circular import detected: ${file} → ${importPath}`);
+            const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
+            throw new Error(`Circular import detected: ${chain}`);
           } else if (existsSync(importPath) && !compilationCache.has(importPath)) {
             const importSource = readFileSync(importPath, 'utf-8');
             compileWithImports(importSource, importPath, srcDir);

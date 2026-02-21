@@ -163,8 +163,8 @@ server {
     enriched
       |> where(
         .title |> lower() |> contains(query |> lower())
-        || .summary |> lower() |> contains(query |> lower())
-        || .keywords |> any(fn(k) k |> lower() |> contains(query |> lower()))
+        or .summary |> lower() |> contains(query |> lower())
+        or .keywords |> any(fn(k) k |> lower() |> contains(query |> lower()))
       )
       |> to_list()
   }
@@ -228,7 +228,7 @@ client {
     result = match search |> len() > 0 {
       true => result |> filter(fn(a) {
         a.title |> lower() |> contains(search |> lower())
-        || a.summary |> lower() |> contains(search |> lower())
+        or a.summary |> lower() |> contains(search |> lower())
       })
       false => result
     }
@@ -496,8 +496,8 @@ fn search_articles(query: String) -> [EnrichedArticle] {
   enriched
     |> where(
       .title |> lower() |> contains(query |> lower())
-      || .summary |> lower() |> contains(query |> lower())
-      || .keywords |> any(fn(k) k |> lower() |> contains(query |> lower()))
+      or .summary |> lower() |> contains(query |> lower())
+      or .keywords |> any(fn(k) k |> lower() |> contains(query |> lower()))
     )
 }
 ```

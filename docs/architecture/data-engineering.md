@@ -88,7 +88,7 @@ table |> derive(.tier = match .spend {
 
 // Combining columns
 table |> derive(.full_name = "{.first_name} {.last_name}")
-table |> where(.start_date <= Date.now() && .end_date >= Date.now())
+table |> where(.start_date <= Date.now() and .end_date >= Date.now())
 ```
 
 ### Column References Across Operations
@@ -287,7 +287,7 @@ table |> derive(
 table |> where(.age >= 18)
 table |> where(.status == "active")
 table |> where(.name |> contains("alice"))
-table |> where(.score > 0 && .verified == true)
+table |> where(.score > 0 and .verified == true)
 ```
 
 ### Renaming Columns

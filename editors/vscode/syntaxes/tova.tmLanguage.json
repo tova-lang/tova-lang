@@ -86,7 +86,7 @@
       "patterns": [
         {
           "name": "keyword.control.tova",
-          "match": "\\b(if|elif|else|for|while|in|match|return|break|continue|guard|try|catch|finally)\\b"
+          "match": "\\b(if|elif|else|for|while|loop|when|in|match|return|break|continue|guard|try|catch|finally)\\b"
         },
         {
           "name": "keyword.declaration.tova",

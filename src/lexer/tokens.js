@@ -64,6 +64,13 @@ export const TokenType = {
   // Defer
   DEFER: 'DEFER',
 
+  // Mutable (alias for var)
+  MUT: 'MUT',
+
+  // Loop
+  LOOP: 'LOOP',
+  WHEN: 'WHEN',
+
   // Generators
   YIELD: 'YIELD',
 
@@ -107,6 +114,7 @@ export const TokenType = {
   OR_OR: 'OR_OR',             // ||
   BANG: 'BANG',                // !
   PIPE: 'PIPE',               // |>
+  BAR: 'BAR',                 // |
   ARROW: 'ARROW',             // =>
   THIN_ARROW: 'THIN_ARROW',   // ->
   DOT: 'DOT',                 // .
@@ -186,7 +194,10 @@ export const Keywords = {
   'impl': TokenType.IMPL,
   'trait': TokenType.TRAIT,
   'defer': TokenType.DEFER,
+  'mut': TokenType.MUT,
   'yield': TokenType.YIELD,
+  'loop': TokenType.LOOP,
+  'when': TokenType.WHEN,
   'extern': TokenType.EXTERN,
   'server': TokenType.SERVER,
   'client': TokenType.CLIENT,

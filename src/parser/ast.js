@@ -77,9 +77,10 @@ export class LetDestructure {
 }
 
 export class FunctionDeclaration {
-  constructor(name, params, body, returnType, loc, isAsync = false) {
+  constructor(name, params, body, returnType, loc, isAsync = false, typeParams = []) {
     this.type = 'FunctionDeclaration';
     this.name = name;
+    this.typeParams = typeParams; // Array of type parameter names (generics)
     this.params = params;     // Array of Parameter nodes
     this.body = body;         // BlockStatement or Expression (implicit return)
     this.returnType = returnType; // optional type annotation
@@ -198,21 +199,34 @@ export class IfStatement {
 }
 
 export class ForStatement {
-  constructor(variable, iterable, body, elseBody, loc) {
+  constructor(variable, iterable, body, elseBody, loc, guard = null, label = null, isAsync = false) {
     this.type = 'ForStatement';
     this.variable = variable;   // Identifier or destructure pattern
     this.iterable = iterable;   // Expression
     this.body = body;           // BlockStatement
     this.elseBody = elseBody;   // BlockStatement or null (for-else)
+    this.guard = guard;         // Expression or null (when guard)
+    this.label = label;         // string or null (for named loops)
+    this.isAsync = isAsync;     // true for `async for x in stream`
     this.loc = loc;
   }
 }
 
 export class WhileStatement {
-  constructor(condition, body, loc) {
+  constructor(condition, body, loc, label = null) {
     this.type = 'WhileStatement';
     this.condition = condition;
     this.body = body;
+    this.label = label;         // string or null (for named loops)
+    this.loc = loc;
+  }
+}
+
+export class LoopStatement {
+  constructor(body, label, loc) {
+    this.type = 'LoopStatement';
+    this.body = body;           // BlockStatement
+    this.label = label;         // string or null (for named loops)
     this.loc = loc;
   }
 }
@@ -240,15 +254,17 @@ export class TryCatchStatement {
 }
 
 export class BreakStatement {
-  constructor(loc) {
+  constructor(loc, label = null) {
     this.type = 'BreakStatement';
+    this.label = label;         // string or null (for named break)
     this.loc = loc;
   }
 }
 
 export class ContinueStatement {
-  constructor(loc) {
+  constructor(loc, label = null) {
     this.type = 'ContinueStatement';
+    this.label = label;         // string or null (for named continue)
     this.loc = loc;
   }
 }
@@ -996,6 +1012,15 @@ export class TestBlock {
   }
 }
 
+export class BenchBlock {
+  constructor(name, body, loc) {
+    this.type = 'BenchBlock';
+    this.name = name;       // optional string name
+    this.body = body;       // Array of statements (expressions to benchmark)
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Extern declarations
 // ============================================================
@@ -1041,6 +1066,14 @@ export class FunctionTypeAnnotation {
   }
 }
 
+export class UnionTypeAnnotation {
+  constructor(members, loc) {
+    this.type = 'UnionTypeAnnotation';
+    this.members = members; // Array of TypeAnnotation nodes
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Impl blocks
 // ============================================================
@@ -1073,9 +1106,10 @@ export class TraitDeclaration {
 // ============================================================
 
 export class TypeAlias {
-  constructor(name, typeExpr, loc) {
+  constructor(name, typeParams, typeExpr, loc) {
     this.type = 'TypeAlias';
     this.name = name;
+    this.typeParams = typeParams; // Array of type parameter names (for generics)
     this.typeExpr = typeExpr; // TypeAnnotation
     this.loc = loc;
   }

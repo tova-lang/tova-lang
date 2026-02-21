@@ -46,7 +46,7 @@ fn describe_shape(shape: Shape) -> String {
     Circle(_) => "Circle"
     Rectangle(w, h) if w == h => "Square ({w}x{h})"
     Rectangle(w, h) => "Rectangle ({w}x{h})"
-    Triangle(a, b, c) if a == b && b == c => "Equilateral triangle"
+    Triangle(a, b, c) if a == b and b == c => "Equilateral triangle"
     Triangle(a, b, _) if a == b => "Isosceles triangle"
     Triangle(_, _, _) => "Scalene triangle"
   }

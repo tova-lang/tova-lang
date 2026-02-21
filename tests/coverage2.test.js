@@ -40,8 +40,9 @@ describe('Lexer — error paths', () => {
     expect(() => new Lexer('&', '<test>').tokenize()).toThrow('&&');
   });
 
-  test('error on lone | character', () => {
-    expect(() => new Lexer('x | y', '<test>').tokenize()).toThrow('||');
+  test('lone | character is valid BAR token for union types', () => {
+    const tokens = new Lexer('x | y', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'BAR')).toBe(true);
   });
 
   // Line 164: unterminated block comment

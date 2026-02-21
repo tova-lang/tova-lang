@@ -1,15 +1,32 @@
 {
   "name": "tova-lang",
   "displayName": "Tova Language",
-  "description": "Language support for the Tova programming language",
+  "description": "Full-stack language support for Tova — syntax highlighting, LSP, snippets, formatting, debugging, and more",
   "version": "0.1.0",
   "author": "Enoch Kujem Abassey",
   "publisher": "tova-lang",
+  "license": "MIT",
+  "icon": "icons/tova-icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tova-lang/tova-lang"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Snippets",
+    "Themes",
+    "Formatters",
+    "Debuggers"
+  ],
+  "keywords": [
+    "tova",
+    "full-stack",
+    "transpiler",
+    "language",
+    "jsx"
   ],
   "activationEvents": [
     "onLanguage:tova"
@@ -26,7 +43,11 @@
         "extensions": [
           ".tova"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/tova-icon.svg",
+          "dark": "./icons/tova-icon.svg"
+        }
       }
     ],
     "grammars": [
@@ -35,6 +56,68 @@
         "scopeName": "source.tova",
         "path": "./syntaxes/tova.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "tova",
+        "path": "./snippets/tova.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "Tova Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/tova-dark-color-theme.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[tova]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "tova-lang.tova-lang"
+      }
+    },
+    "debuggers": [
+      {
+        "type": "tova",
+        "label": "Tova Debug",
+        "languages": ["tova"],
+        "configurationAttributes": {
+          "launch": {
+            "required": ["program"],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the .tova file to debug"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "tova",
+            "request": "launch",
+            "name": "Debug Tova File",
+            "program": "${file}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Tova: Launch",
+            "description": "Debug a Tova file",
+            "body": {
+              "type": "tova",
+              "request": "launch",
+              "name": "Debug Tova File",
+              "program": "^\"\\${file}\""
+            }
+          }
+        ]
+      }
     ]
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "vscode-languageclient": "^9.0.1",
+    "@vscode/vsce": "^2.22.0"
   }
 }

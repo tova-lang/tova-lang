@@ -12,6 +12,8 @@ export class BaseCodegen {
     this._usedBuiltins = new Set(); // track which stdlib builtins are actually used
     this._needsResultOption = false; // track if Ok/Err/Some/None are used
     this._variantFields = { 'Ok': ['value'], 'Err': ['error'], 'Some': ['value'] }; // map variant name -> [field names] for pattern destructuring
+    this._traitDecls = new Map(); // traitName -> { methods: [...] }
+    this._traitImpls = new Map(); // "TraitName:TypeName" -> ImplDeclaration node
     // Source map tracking
     this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol}
     this._outputLineCount = 0;
@@ -19,6 +21,23 @@ export class BaseCodegen {
 
   _uid() {
     return this._counter++;
+  }
+
+  // Returns true for AST nodes with no side effects that are safe to evaluate multiple times
+  _isSimpleExpression(node) {
+    if (!node) return false;
+    switch (node.type) {
+      case 'Identifier':
+      case 'NumberLiteral':
+      case 'StringLiteral':
+      case 'BooleanLiteral':
+      case 'NilLiteral':
+        return true;
+      case 'MemberExpression':
+        return !node.computed && this._isSimpleExpression(node.object);
+      default:
+        return false;
+    }
   }
 
   // Known void/side-effect-only calls that shouldn't be implicitly returned
@@ -143,13 +162,14 @@ export class BaseCodegen {
       case 'IfStatement': result = this.genIfStatement(node); break;
       case 'ForStatement': result = this.genForStatement(node); break;
       case 'WhileStatement': result = this.genWhileStatement(node); break;
+      case 'LoopStatement': result = this.genLoopStatement(node); break;
       case 'TryCatchStatement': result = this.genTryCatchStatement(node); break;
       case 'ReturnStatement': result = this.genReturnStatement(node); break;
       case 'ExpressionStatement': result = `${this.i()}${this.genExpression(node.expression)};`; break;
       case 'BlockStatement': result = this.genBlock(node); break;
       case 'CompoundAssignment': result = this.genCompoundAssignment(node); break;
-      case 'BreakStatement': result = `${this.i()}break;`; break;
-      case 'ContinueStatement': result = `${this.i()}continue;`; break;
+      case 'BreakStatement': result = node.label ? `${this.i()}break ${node.label};` : `${this.i()}break;`; break;
+      case 'ContinueStatement': result = node.label ? `${this.i()}continue ${node.label};` : `${this.i()}continue;`; break;
       case 'GuardStatement': result = this.genGuardStatement(node); break;
       case 'InterfaceDeclaration': result = this.genInterfaceDeclaration(node); break;
       case 'ImplDeclaration': result = this.genImplDeclaration(node); break;
@@ -417,6 +437,8 @@ export class BaseCodegen {
   genForStatement(node) {
     const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
     const iterExpr = this.genExpression(node.iterable);
+    const labelPrefix = node.label ? `${node.label}: ` : '';
+    const awaitKeyword = node.isAsync ? ' await' : '';
 
     if (node.elseBody) {
       // for-else: run else if iterable was empty
@@ -429,12 +451,15 @@ export class BaseCodegen {
       this.pushScope();
       for (const v of vars) this.declareVar(v);
       if (vars.length === 2) {
-        code += `${this.i()}for (const [${vars[0]}, ${vars[1]}] of ${tempVar}) {\n`;
+        code += `${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${tempVar}) {\n`;
       } else {
-        code += `${this.i()}for (const ${vars[0]} of ${tempVar}) {\n`;
+        code += `${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${tempVar}) {\n`;
       }
       this.indent++;
       code += `${this.i()}${enteredVar} = true;\n`;
+      if (node.guard) {
+        code += `${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`;
+      }
       code += this.genBlockStatements(node.body);
       this.indent--;
       code += `\n${this.i()}}\n`;
@@ -455,11 +480,14 @@ export class BaseCodegen {
     for (const v of vars) this.declareVar(v);
     let code;
     if (vars.length === 2) {
-      code = `${this.i()}for (const [${vars[0]}, ${vars[1]}] of ${iterExpr}) {\n`;
+      code = `${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${iterExpr}) {\n`;
     } else {
-      code = `${this.i()}for (const ${vars[0]} of ${iterExpr}) {\n`;
+      code = `${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${iterExpr}) {\n`;
     }
     this.indent++;
+    if (node.guard) {
+      code += `${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`;
+    }
     code += this.genBlockStatements(node.body);
     this.indent--;
     code += `\n${this.i()}}`;
@@ -469,7 +497,20 @@ export class BaseCodegen {
   }
 
   genWhileStatement(node) {
-    let code = `${this.i()}while (${this.genExpression(node.condition)}) {\n`;
+    const labelPrefix = node.label ? `${node.label}: ` : '';
+    let code = `${this.i()}${labelPrefix}while (${this.genExpression(node.condition)}) {\n`;
+    this.indent++;
+    this.pushScope();
+    code += this.genBlockStatements(node.body);
+    this.popScope();
+    this.indent--;
+    code += `\n${this.i()}}`;
+    return code;
+  }
+
+  genLoopStatement(node) {
+    const labelPrefix = node.label ? `${node.label}: ` : '';
+    let code = `${this.i()}${labelPrefix}while (true) {\n`;
     this.indent++;
     this.pushScope();
     code += this.genBlockStatements(node.body);
@@ -691,6 +732,9 @@ export class BaseCodegen {
 
     // Tova ?? is NaN-safe: catches null, undefined, AND NaN
     if (op === '??') {
+      if (this._isSimpleExpression(node.left)) {
+        return `((${left} != null && ${left} === ${left}) ? ${left} : ${right})`;
+      }
       return `((__tova_v) => (__tova_v != null && __tova_v === __tova_v) ? __tova_v : ${right})(${left})`;
     }
 
@@ -719,6 +763,21 @@ export class BaseCodegen {
       const right = this.genExpression(node.operands[1]);
       return `(${left} ${node.operators[0]} ${right})`;
     }
+    // Optimization: if all intermediate operands are simple (no side effects),
+    // we can inline them without temp vars or IIFE
+    const intermediateOperands = node.operands.slice(1, -1);
+    const allSimple = intermediateOperands.every(op => this._isSimpleExpression(op));
+
+    if (allSimple) {
+      const parts = [];
+      for (let idx = 0; idx < node.operators.length; idx++) {
+        const left = this.genExpression(node.operands[idx]);
+        const right = this.genExpression(node.operands[idx + 1]);
+        parts.push(`(${left} ${node.operators[idx]} ${right})`);
+      }
+      return `(${parts.join(' && ')})`;
+    }
+
     const temps = [];
     const parts = [];
     for (let idx = 0; idx < node.operators.length; idx++) {
@@ -744,9 +803,45 @@ export class BaseCodegen {
     return `(${parts.join(' && ')})`;
   }
 
+  // Try to specialize `in` checks based on the collection's AST type
+  _specializeContains(collectionNode, colCode, valCode) {
+    switch (collectionNode.type) {
+      case 'ArrayLiteral':
+        return `${colCode}.includes(${valCode})`;
+      case 'StringLiteral':
+      case 'TemplateLiteral':
+        return `${colCode}.includes(${valCode})`;
+      case 'CallExpression':
+        if (collectionNode.callee.type === 'MemberExpression' &&
+            !collectionNode.callee.computed &&
+            collectionNode.callee.property === 'new') {
+          const objName = collectionNode.callee.object.type === 'Identifier'
+            ? collectionNode.callee.object.name : null;
+          if (objName === 'Set' || objName === 'Map') {
+            return `${colCode}.has(${valCode})`;
+          }
+        }
+        return null;
+      case 'ObjectLiteral':
+        return `(${valCode} in ${colCode})`;
+      default:
+        return null;
+    }
+  }
+
   genMembershipExpression(node) {
     const val = this.genExpression(node.value);
     const col = this.genExpression(node.collection);
+
+    // Try specialized check based on collection type
+    const specialized = this._specializeContains(node.collection, col, val);
+    if (specialized) {
+      if (node.negated) {
+        return `(!${specialized})`;
+      }
+      return specialized;
+    }
+
     this._needsContainsHelper = true;
     if (node.negated) {
       return `(!__contains(${col}, ${val}))`;
@@ -769,6 +864,11 @@ export class BaseCodegen {
       }
       if (node.callee.name === 'Ok' || node.callee.name === 'Err' || node.callee.name === 'Some') {
         this._needsResultOption = true;
+      }
+      // Seq is a dependency of iter — include Seq whenever iter is used
+      if (node.callee.name === 'iter') {
+        this._usedBuiltins.add('Seq');
+        this._needsResultOption = true; // Seq.first()/find() return Option
       }
 
       // Inline string/collection builtins to direct method calls
@@ -941,7 +1041,14 @@ export class BaseCodegen {
       if (placeholderCount > 0) {
         const callee = this.genExpression(right.callee);
         if (placeholderCount > 1) {
-          // Multiple placeholders: evaluate left once via IIFE temp var
+          // Multiple placeholders: inline if left is simple, otherwise IIFE temp var
+          if (this._isSimpleExpression(node.left)) {
+            const args = right.arguments.map(a => {
+              if (a.type === 'Identifier' && a.name === '_') return left;
+              return this.genExpression(a);
+            }).join(', ');
+            return `${callee}(${args})`;
+          }
           const tmp = `__pipe_${this._uid()}`;
           const args = right.arguments.map(a => {
             if (a.type === 'Identifier' && a.name === '_') return tmp;
@@ -1249,7 +1356,67 @@ export class BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
+  // Check if a match can be emitted as a ternary chain instead of IIFE
+  _isSimpleMatch(node) {
+    if (!this._isSimpleExpression(node.subject)) return false;
+    for (const arm of node.arms) {
+      // All bodies must be expressions (not block statements)
+      if (arm.body.type === 'BlockStatement') return false;
+      // No patterns that need variable bindings
+      if (this._patternNeedsBindings(arm.pattern)) return false;
+      // Guards with BindingPattern need IIFE for binding
+      if (arm.guard && arm.pattern.type === 'BindingPattern') return false;
+    }
+    return true;
+  }
+
+  // Check recursively whether a pattern requires const bindings
+  _patternNeedsBindings(pattern) {
+    switch (pattern.type) {
+      case 'LiteralPattern':
+      case 'WildcardPattern':
+      case 'RangePattern':
+        return false;
+      case 'BindingPattern':
+        return true;
+      case 'VariantPattern':
+        return pattern.fields.some(f => typeof f === 'string' || (f && this._patternNeedsBindings(f)));
+      case 'ArrayPattern':
+      case 'TuplePattern':
+        return pattern.elements.some(el => el && this._patternNeedsBindings(el));
+      default:
+        return true; // Conservative: unknown patterns may need bindings
+    }
+  }
+
+  // Generate a simple match as nested ternary
+  _genSimpleMatch(node) {
+    const subject = this.genExpression(node.subject);
+    let result = '';
+    for (let idx = 0; idx < node.arms.length; idx++) {
+      const arm = node.arms[idx];
+      const body = this.genExpression(arm.body);
+      // Last arm with wildcard → else branch
+      if ((arm.pattern.type === 'WildcardPattern' || arm.pattern.type === 'BindingPattern') && !arm.guard) {
+        result += body;
+        break;
+      }
+      const condition = this.genPatternCondition(arm.pattern, subject, arm.guard);
+      result += `(${condition}) ? ${body} : `;
+      // If this is the last arm and not a wildcard, add undefined as fallback
+      if (idx === node.arms.length - 1) {
+        result += 'undefined';
+      }
+    }
+    return `(${result})`;
+  }
+
   genMatchExpression(node) {
+    // Optimization: simple matches emit ternary chain instead of IIFE
+    if (this._isSimpleMatch(node)) {
+      return this._genSimpleMatch(node);
+    }
+
     // Generate as IIFE with if-else chain
     const subject = this.genExpression(node.subject);
     const tempVar = '__match';
@@ -1307,6 +1474,18 @@ export class BaseCodegen {
       const thenExpr = this.genExpression(node.consequent.body[0].expression);
       const elseExpr = this.genExpression(node.elseBody.body[0].expression);
       return `((${cond}) ? (${thenExpr}) : (${elseExpr}))`;
+    }
+
+    // Extended optimization: if/elif/else where ALL branches are single expressions → nested ternary
+    if (node.alternates.length > 0 && node.elseBody &&
+        isSingleExpr(node.consequent) && isSingleExpr(node.elseBody) &&
+        node.alternates.every(alt => isSingleExpr(alt.body))) {
+      let result = `((${this.genExpression(node.condition)}) ? (${this.genExpression(node.consequent.body[0].expression)})`;
+      for (const alt of node.alternates) {
+        result += ` : (${this.genExpression(alt.condition)}) ? (${this.genExpression(alt.body.body[0].expression)})`;
+      }
+      result += ` : (${this.genExpression(node.elseBody.body[0].expression)}))`;
+      return result;
     }
 
     // Full IIFE for multi-statement branches
@@ -1605,6 +1784,7 @@ export class BaseCodegen {
       const targetName = hasVariants ? null : node.name;
       const fieldNames = hasVariants ? [] : node.variants.map(f => f.name);
 
+      const builtinTraits = new Set(['Eq', 'Show', 'JSON']);
       for (const trait of node.derive) {
         if (trait === 'Eq' && targetName) {
           // Deep equality: compare all fields
@@ -1618,6 +1798,19 @@ export class BaseCodegen {
         if (trait === 'JSON' && targetName) {
           lines.push(`${this.i()}${targetName}.toJSON = function(obj) { return JSON.stringify(obj); };`);
           lines.push(`${this.i()}${targetName}.fromJSON = function(str) { const d = JSON.parse(str); return ${targetName}(${fieldNames.map(f => `d.${f}`).join(', ')}); };`);
+        }
+
+        // Extensible derive: user-defined traits
+        if (!builtinTraits.has(trait) && targetName) {
+          const traitDecl = this._traitDecls.get(trait);
+          if (traitDecl) {
+            for (const method of traitDecl.methods) {
+              if (method.body) {
+                // Trait has a default implementation — use it
+                lines.push(`${this.i()}${targetName}.prototype.${method.name} = __trait_${trait}_${method.name};`);
+              }
+            }
+          }
         }
       }
 
@@ -1641,6 +1834,11 @@ export class BaseCodegen {
   }
 
   genImplDeclaration(node) {
+    // Register trait impl for extensible derive
+    if (node.traitName) {
+      this._traitImpls.set(`${node.traitName}:${node.typeName}`, node);
+    }
+
     const lines = [];
     for (const method of node.methods) {
       const hasSelf = method.params.some(p => p.name === 'self');
@@ -1667,6 +1865,9 @@ export class BaseCodegen {
   }
 
   genTraitDeclaration(node) {
+    // Register trait for extensible derive
+    this._traitDecls.set(node.name, { methods: node.methods });
+
     // Traits are mostly compile-time, but generate default implementations as functions
     const lines = [];
     const defaultMethods = node.methods.filter(m => m.body);
@@ -1692,8 +1893,31 @@ export class BaseCodegen {
   genTypeAlias(node) {
     // Type aliases are compile-time only
     const exportStr = node.isPublic ? 'export ' : '';
-    const typeStr = node.typeExpr.name || 'any';
-    return `${this.i()}/* ${exportStr}type alias: ${node.name} = ${typeStr} */`;
+    const typeParams = node.typeParams && node.typeParams.length > 0 ? `<${node.typeParams.join(', ')}>` : '';
+    const typeStr = this._typeAnnotationToString(node.typeExpr);
+    return `${this.i()}/* ${exportStr}type alias: ${node.name}${typeParams} = ${typeStr} */`;
+  }
+
+  _typeAnnotationToString(ann) {
+    if (!ann) return 'any';
+    if (ann.type === 'UnionTypeAnnotation') {
+      return ann.members.map(m => this._typeAnnotationToString(m)).join(' | ');
+    }
+    if (ann.type === 'ArrayTypeAnnotation') {
+      return `[${this._typeAnnotationToString(ann.elementType)}]`;
+    }
+    if (ann.type === 'TupleTypeAnnotation') {
+      return `(${ann.elementTypes.map(t => this._typeAnnotationToString(t)).join(', ')})`;
+    }
+    if (ann.type === 'FunctionTypeAnnotation') {
+      const params = ann.paramTypes.map(t => this._typeAnnotationToString(t)).join(', ');
+      return `(${params}) -> ${this._typeAnnotationToString(ann.returnType)}`;
+    }
+    if (ann.typeParams && ann.typeParams.length > 0) {
+      const params = ann.typeParams.map(t => this._typeAnnotationToString(t)).join(', ');
+      return `${ann.name}<${params}>`;
+    }
+    return ann.name || 'any';
   }
 
   genRefinementType(node) {

@@ -864,8 +864,8 @@ p = XY(1, 2, 3)
   test('does not warn when spread arguments are used', () => {
     const result = analyze(`
 fn add(a, b) { a + b }
-args = [1, 2]
-x = add(...args)
+fn_args = [1, 2]
+x = add(...fn_args)
 `);
     const argWarnings = result.warnings.filter(w => w.message.includes('argument'));
     expect(argWarnings.length).toBe(0);
@@ -1928,5 +1928,436 @@ describe('Raw Strings', () => {
     const tokens = tokenize(`r"\\d+\\.\\d+"`);
     const strToken = tokens.find(t => t.type === 'STRING');
     expect(strToken.value).toBe('\\d+\\.\\d+');
+  });
+});
+
+// ================================================================
+// Union Types
+// ================================================================
+
+describe('Union Types', () => {
+  test('parse union type alias', () => {
+    const ast = parse('type StringOrNumber = String | Int');
+    const alias = ast.body[0];
+    expect(alias.type).toBe('TypeAlias');
+    expect(alias.name).toBe('StringOrNumber');
+    expect(alias.typeExpr.type).toBe('UnionTypeAnnotation');
+    expect(alias.typeExpr.members).toHaveLength(2);
+    expect(alias.typeExpr.members[0].name).toBe('String');
+    expect(alias.typeExpr.members[1].name).toBe('Int');
+  });
+
+  test('parse multi-member union', () => {
+    const ast = parse('type Value = String | Int | Float | Bool');
+    const union = ast.body[0].typeExpr;
+    expect(union.type).toBe('UnionTypeAnnotation');
+    expect(union.members).toHaveLength(4);
+    expect(union.members.map(m => m.name)).toEqual(['String', 'Int', 'Float', 'Bool']);
+  });
+
+  test('inline union in function param', () => {
+    const ast = parse('fn process(x: String | Int) -> String { "hello" }');
+    const param = ast.body[0].params[0];
+    expect(param.typeAnnotation.type).toBe('UnionTypeAnnotation');
+    expect(param.typeAnnotation.members).toHaveLength(2);
+  });
+
+  test('union type alias compiles to comment', () => {
+    const code = compileShared('type StringOrNumber = String | Int');
+    expect(code).toContain('type alias: StringOrNumber = String | Int');
+  });
+
+  test('BAR token is emitted for standalone |', () => {
+    const tokens = tokenize('x | y');
+    expect(tokens.some(t => t.type === 'BAR')).toBe(true);
+  });
+
+  test('union with generic types', () => {
+    const ast = parse('type ApiResponse = Result<String, Error> | Option<Int>');
+    const union = ast.body[0].typeExpr;
+    expect(union.type).toBe('UnionTypeAnnotation');
+    expect(union.members).toHaveLength(2);
+    expect(union.members[0].name).toBe('Result');
+    expect(union.members[0].typeParams).toHaveLength(2);
+  });
+
+  test('analyzer accepts union type alias', () => {
+    const result = analyze('type StringOrNumber = String | Int');
+    expect(result.warnings.filter(w => w.severity === 'error')).toHaveLength(0);
+  });
+});
+
+// ================================================================
+// Generic Type Aliases
+// ================================================================
+
+describe('Generic Type Aliases', () => {
+  test('parse generic type alias', () => {
+    const ast = parse('type Handler<T> = (Request) -> Result<T, Error>');
+    const alias = ast.body[0];
+    expect(alias.type).toBe('TypeAlias');
+    expect(alias.name).toBe('Handler');
+    expect(alias.typeParams).toEqual(['T']);
+    expect(alias.typeExpr.type).toBe('FunctionTypeAnnotation');
+  });
+
+  test('parse multi-param generic alias', () => {
+    const ast = parse('type Pair<A, B> = (A, B)');
+    const alias = ast.body[0];
+    expect(alias.typeParams).toEqual(['A', 'B']);
+    expect(alias.typeExpr.type).toBe('TupleTypeAnnotation');
+  });
+
+  test('generic alias compiles to comment with params', () => {
+    const code = compileShared('type Callback<T> = (T) -> Nil');
+    expect(code).toContain('type alias: Callback<T>');
+  });
+
+  test('analyzer accepts generic type alias', () => {
+    const result = analyze('type Handler<T> = (Request) -> Result<T, Error>');
+    expect(result.warnings.filter(w => w.severity === 'error')).toHaveLength(0);
+  });
+
+  test('non-generic alias still works', () => {
+    const ast = parse('type Name = String');
+    const alias = ast.body[0];
+    expect(alias.typeParams).toEqual([]);
+    expect(alias.typeExpr.name).toBe('String');
+  });
+});
+
+// ================================================================
+// Type Narrowing in Conditionals
+// ================================================================
+
+describe('Type Narrowing', () => {
+  test('typeOf narrowing compiles without errors', () => {
+    const code = compileShared(`
+      fn process(x: String | Int) -> String {
+        if type_of(x) == "String" {
+          x
+        } else {
+          "number"
+        }
+      }
+    `);
+    expect(code).toContain('function process');
+    expect(code).toContain('type_of(x)');
+  });
+
+  test('nil check narrowing compiles without errors', () => {
+    const code = compileShared(`
+      fn safe(x: String) -> String {
+        if x != nil {
+          x
+        } else {
+          "default"
+        }
+      }
+    `);
+    expect(code).toContain('!= null');
+  });
+
+  test('analyzer does not error on narrowing pattern', () => {
+    const result = analyze(`
+      fn process(x: String | Int) -> String {
+        if type_of(x) == "String" {
+          result = x
+        }
+        "done"
+      }
+    `);
+    expect(result.warnings.filter(w => w.severity === 'error')).toHaveLength(0);
+  });
+
+  test('isOk narrowing compiles', () => {
+    const code = compileShared(`
+      fn handle(r: Result) -> String {
+        if r.isOk() {
+          "success"
+        } else {
+          "failure"
+        }
+      }
+    `);
+    expect(code).toContain('.isOk()');
+  });
+});
+
+// ================================================================
+// Extensible Derive
+// ================================================================
+
+describe('Extensible Derive', () => {
+  test('built-in derive Eq still works', () => {
+    const code = compileShared(`
+      type Point { x: Int, y: Int } derive [Eq]
+    `);
+    expect(code).toContain('__eq');
+    expect(code).toContain('a.x === b.x');
+  });
+
+  test('built-in derive Show still works', () => {
+    const code = compileShared(`
+      type Point { x: Int, y: Int } derive [Show]
+    `);
+    expect(code).toContain('__show');
+  });
+
+  test('built-in derive JSON still works', () => {
+    const code = compileShared(`
+      type Point { x: Int, y: Int } derive [JSON]
+    `);
+    expect(code).toContain('toJSON');
+    expect(code).toContain('fromJSON');
+  });
+
+  test('user-defined trait with default impl can be derived', () => {
+    const code = compileShared(`
+      trait Printable {
+        fn display(self) -> String {
+          "default"
+        }
+      }
+      type Point { x: Int, y: Int } derive [Eq, Printable]
+    `);
+    expect(code).toContain('__trait_Printable_display');
+    expect(code).toContain('Point.prototype.display');
+  });
+
+  test('analyzer warns on unknown derive trait', () => {
+    const result = analyze(`
+      type Point { x: Int, y: Int } derive [UnknownTrait]
+    `);
+    expect(result.warnings.some(w => w.message.includes("Unknown trait 'UnknownTrait'"))).toBe(true);
+  });
+
+  test('impl Trait for Type generates prototype methods', () => {
+    const code = compileShared(`
+      type Point { x: Int, y: Int }
+      impl Point {
+        fn distance(self) -> Float {
+          0.0
+        }
+      }
+    `);
+    expect(code).toContain('Point.prototype.distance');
+  });
+});
+
+// ================================================================
+// Lazy Iterators / Sequences
+// ================================================================
+
+describe('Lazy Iterators / Sequences', () => {
+  test('iter function is included in stdlib when used', () => {
+    const code = compileWithStdlib(`
+      result = iter([1, 2, 3]) |> .collect()
+    `);
+    expect(code).toContain('iter');
+  });
+
+  test('Seq class methods compile correctly with method pipe', () => {
+    const code = compileShared(`
+      result = iter([1, 2, 3, 4, 5])
+        |> .filter(fn(x) x > 2)
+        |> .map(fn(x) x * 2)
+        |> .collect()
+    `);
+    expect(code).toContain('.filter(');
+    expect(code).toContain('.map(');
+    expect(code).toContain('.collect()');
+  });
+
+  test('Seq.take compiles', () => {
+    const code = compileShared(`
+      result = iter([1, 2, 3, 4, 5]) |> .take(3) |> .collect()
+    `);
+    expect(code).toContain('.take(3)');
+    expect(code).toContain('.collect()');
+  });
+
+  test('Seq.drop compiles', () => {
+    const code = compileShared(`
+      result = iter([1, 2, 3, 4, 5]) |> .drop(2) |> .collect()
+    `);
+    expect(code).toContain('.drop(2)');
+  });
+
+  test('Seq.enumerate compiles', () => {
+    const code = compileShared(`
+      result = iter(["a", "b"]) |> .enumerate() |> .collect()
+    `);
+    expect(code).toContain('.enumerate()');
+  });
+
+  test('lazy chain with multiple operations', () => {
+    const code = compileShared(`
+      result = iter([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        |> .filter(fn(x) x % 2 == 0)
+        |> .map(fn(x) x * x)
+        |> .take(3)
+        |> .collect()
+    `);
+    expect(code).toContain('.filter(');
+    expect(code).toContain('.map(');
+    expect(code).toContain('.take(3)');
+    expect(code).toContain('.collect()');
+  });
+
+  test('Seq terminal operations compile', () => {
+    const code = compileShared(`
+      nums = iter([1, 2, 3])
+      c = nums |> .count()
+      a = iter([1, 2, 3]) |> .any(fn(x) x > 2)
+      b = iter([1, 2, 3]) |> .all(fn(x) x > 0)
+      r = iter([1, 2, 3]) |> .reduce(fn(acc, x) acc + x, 0)
+    `);
+    expect(code).toContain('.count()');
+    expect(code).toContain('.any(');
+    expect(code).toContain('.all(');
+    expect(code).toContain('.reduce(');
+  });
+});
+
+// ================================================================
+// Implicit `it` parameter (Kotlin-style)
+// ================================================================
+
+describe('Implicit it parameter', () => {
+  // --- Wrapping cases ---
+
+  test('filter(it > 0) wraps in lambda', () => {
+    const code = compileShared(`
+      result = filter(it > 0)
+    `);
+    // Should produce an arrow function with `it` parameter
+    expect(code).toContain('=>');
+    expect(code).toContain('it');
+  });
+
+  test('map(it.name) wraps member access in lambda', () => {
+    const code = compileShared(`
+      result = map(it.name)
+    `);
+    expect(code).toContain('=>');
+    expect(code).toContain('.name');
+  });
+
+  test('sort_by(it.name.toLowerCase()) wraps chained access', () => {
+    const code = compileShared(`
+      result = sort_by(it.name.toLowerCase())
+    `);
+    expect(code).toContain('=>');
+    expect(code).toContain('.toLowerCase()');
+  });
+
+  test('filter(it > 0 and it < 10) wraps compound expressions', () => {
+    const code = compileShared(`
+      result = filter(it > 0 and it < 10)
+    `);
+    expect(code).toContain('=>');
+    expect(code).toContain('it');
+  });
+
+  test('map(stringify(it)) wraps nested call containing it', () => {
+    const code = compileShared(`
+      result = map(stringify(it))
+    `);
+    // The outer map arg should be wrapped, inner stringify(it) keeps bare it
+    expect(code).toContain('=>');
+  });
+
+  test('named arg: process(cb: it > 0) wraps value', () => {
+    const ast = parse(`
+      process(cb: it > 0)
+    `);
+    const call = ast.body[0].expression;
+    const namedArg = call.arguments[0];
+    expect(namedArg.type).toBe('NamedArgument');
+    expect(namedArg.value.type).toBe('LambdaExpression');
+    expect(namedArg.value.params[0].name).toBe('it');
+  });
+
+  // --- Non-wrapping cases ---
+
+  test('process(it) bare it is NOT wrapped', () => {
+    const ast = parse(`
+      process(it)
+    `);
+    const call = ast.body[0].expression;
+    const arg = call.arguments[0];
+    expect(arg.type).toBe('Identifier');
+    expect(arg.name).toBe('it');
+  });
+
+  test('filter(fn(x) x > 0) explicit lambda is NOT wrapped', () => {
+    const ast = parse(`
+      filter(fn(x) x > 0)
+    `);
+    const call = ast.body[0].expression;
+    const arg = call.arguments[0];
+    expect(arg.type).toBe('LambdaExpression');
+    expect(arg.params[0].name).toBe('x');
+  });
+
+  // --- Pipe integration ---
+
+  test('list |> filter(it > 0) |> map(it * 2) compiles', () => {
+    const code = compileShared(`
+      list = [1, 2, 3, 4, 5]
+      result = list |> filter(it > 0) |> map(it * 2)
+    `);
+    expect(code).toContain('=>');
+    expect(code).toContain('filter');
+    expect(code).toContain('map');
+  });
+
+  // --- AST structure checks ---
+
+  test('it > 0 in call arg produces LambdaExpression with it param', () => {
+    const ast = parse(`
+      filter(it > 0)
+    `);
+    const call = ast.body[0].expression;
+    const arg = call.arguments[0];
+    expect(arg.type).toBe('LambdaExpression');
+    expect(arg.params.length).toBe(1);
+    expect(arg.params[0].name).toBe('it');
+    expect(arg.body.type).toBe('BinaryExpression');
+  });
+
+  test('it used as variable outside call args still works', () => {
+    const code = compileShared(`
+      it = 42
+      result = it + 1
+    `);
+    expect(code).toContain('42');
+  });
+
+  test('nested lambda boundary: fn(x) x + it does NOT wrap outer it', () => {
+    const ast = parse(`
+      process(fn(x) x + it)
+    `);
+    const call = ast.body[0].expression;
+    const arg = call.arguments[0];
+    // The arg is already a LambdaExpression (explicit), should NOT be double-wrapped
+    expect(arg.type).toBe('LambdaExpression');
+    expect(arg.params[0].name).toBe('x');
+  });
+
+  test('multiple args: only args with free it are wrapped', () => {
+    const ast = parse(`
+      process(10, it > 0, it)
+    `);
+    const call = ast.body[0].expression;
+    // First arg: number literal, not wrapped
+    expect(call.arguments[0].type).toBe('NumberLiteral');
+    // Second arg: it > 0, wrapped in lambda
+    expect(call.arguments[1].type).toBe('LambdaExpression');
+    expect(call.arguments[1].params[0].name).toBe('it');
+    // Third arg: bare it, NOT wrapped
+    expect(call.arguments[2].type).toBe('Identifier');
+    expect(call.arguments[2].name).toBe('it');
   });
 });

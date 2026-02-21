@@ -31,6 +31,7 @@ export class CodeGenerator {
     const topLevel = [];
 
     const testBlocks = [];
+    const benchBlocks = [];
     const dataBlocks = [];
 
     for (const node of this.ast.body) {
@@ -39,6 +40,7 @@ export class CodeGenerator {
         case 'ServerBlock': serverBlocks.push(node); break;
         case 'ClientBlock': clientBlocks.push(node); break;
         case 'TestBlock': testBlocks.push(node); break;
+        case 'BenchBlock': benchBlocks.push(node); break;
         case 'DataBlock': dataBlocks.push(node); break;
         default: topLevel.push(node); break;
       }
@@ -126,6 +128,13 @@ export class CodeGenerator {
       }
     }
 
+    // Generate benchmarks if bench blocks exist
+    let benchCode = '';
+    if (benchBlocks.length > 0) {
+      const benchGen = new ServerCodegen();
+      benchCode = benchGen.generateBench(benchBlocks);
+    }
+
     // Backward-compatible: if only unnamed blocks, return flat structure
     const hasNamedBlocks = [...serverGroups.keys(), ...clientGroups.keys()].some(k => k !== null);
 
@@ -140,6 +149,7 @@ export class CodeGenerator {
         sourceMappings,
       };
       if (testCode) result.test = testCode;
+      if (benchCode) result.bench = benchCode;
       return result;
     }
 
@@ -154,6 +164,7 @@ export class CodeGenerator {
       sourceMappings,
     };
     if (testCode) result.test = testCode;
+    if (benchCode) result.bench = benchCode;
     return result;
   }
 

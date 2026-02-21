@@ -109,7 +109,7 @@ fn with_retry(operation: () -> Result<any, String>, config: RetryConfig) -> Resu
   var final_result = Err("")
   var done = false
 
-  while attempt <= config.max_attempts && !done {
+  while attempt <= config.max_attempts and not done {
     match operation() {
       Ok(value) => {
         final_result = Ok(value)

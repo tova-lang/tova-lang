@@ -369,6 +369,10 @@ export function typeAnnotationToType(ann) {
     }
     case 'FunctionTypeAnnotation':
       return Type.FUNCTION;
+    case 'UnionTypeAnnotation': {
+      const members = ann.members.map(m => typeAnnotationToType(m) || Type.UNKNOWN);
+      return new UnionType(members);
+    }
     default:
       return null;
   }

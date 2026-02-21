@@ -2553,6 +2553,58 @@ export class ServerCodegen extends BaseCodegen {
     return lines.join('\n');
   }
 
+  generateBench(benchBlocks) {
+    const lines = [];
+    lines.push('// ── Tova Benchmark Runner ──');
+    lines.push('');
+    lines.push('async function __runBench(name, fn, runs) {');
+    lines.push('  runs = runs || 100;');
+    lines.push('  // Warmup');
+    lines.push('  for (let i = 0; i < Math.min(10, runs); i++) await fn();');
+    lines.push('  const times = [];');
+    lines.push('  for (let i = 0; i < runs; i++) {');
+    lines.push('    const start = performance.now();');
+    lines.push('    await fn();');
+    lines.push('    times.push(performance.now() - start);');
+    lines.push('  }');
+    lines.push('  times.sort((a, b) => a - b);');
+    lines.push('  const sum = times.reduce((a, b) => a + b, 0);');
+    lines.push('  const mean = sum / times.length;');
+    lines.push('  const p50 = times[Math.floor(times.length * 0.5)];');
+    lines.push('  const p99 = times[Math.floor(times.length * 0.99)];');
+    lines.push('  console.log(`bench ${JSON.stringify(name)}: mean=${mean.toFixed(2)}ms p50=${p50.toFixed(2)}ms p99=${p99.toFixed(2)}ms (${runs} runs)`);');
+    lines.push('}');
+    lines.push('');
+    lines.push('(async () => {');
+
+    for (const block of benchBlocks) {
+      const name = block.name || 'Benchmark';
+      lines.push(`  console.log("── ${name.replace(/"/g, '\\"')} ──");`);
+      for (const stmt of block.body) {
+        if (stmt.type === 'FunctionDeclaration') {
+          const fnName = stmt.name;
+          const displayName = fnName.replace(/_/g, ' ');
+          this.pushScope();
+          for (const p of (stmt.params || [])) {
+            const pName = typeof p === 'string' ? p : (p.name || p.identifier);
+            if (pName) this.declareVar(pName);
+          }
+          const body = this.genBlockBody(stmt.body);
+          this.popScope();
+          lines.push(`  await __runBench(${JSON.stringify(displayName)}, async () => {`);
+          lines.push(body);
+          lines.push('  });');
+        } else {
+          lines.push('  ' + this.generateStatement(stmt));
+        }
+      }
+      lines.push('');
+    }
+
+    lines.push('})();');
+    return lines.join('\n');
+  }
+
   _getAiRuntime() {
     return `// AI Client Runtime
 function __createAI(config) {

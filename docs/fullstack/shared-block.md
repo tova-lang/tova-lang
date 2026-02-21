@@ -63,7 +63,7 @@ One of the most important uses of the shared block is validation. By putting val
 ```tova
 shared {
   fn validate_email(email: String) -> Bool {
-    email.contains("@") && email.contains(".") && email.length() > 5
+    email.contains("@") and email.contains(".") and email.length() > 5
   }
 
   fn validate_password(password: String) -> Bool {
@@ -71,7 +71,7 @@ shared {
   }
 
   fn validate_username(name: String) -> Bool {
-    name.length() >= 2 && name.length() <= 50
+    name.length() >= 2 and name.length() <= 50
   }
 }
 ```
@@ -216,7 +216,7 @@ shared {
 shared {
   type Post { id: Int, title: String, author_id: Int }
   fn validate_title(title: String) -> Bool {
-    title.length() > 0 && title.length() <= 200
+    title.length() > 0 and title.length() <= 200
   }
 }
 ```
@@ -233,7 +233,7 @@ Shared code should be **pure** -- no side effects, no database calls, no DOM acc
 // Good: pure validation
 shared {
   fn is_valid_age(age: Int) -> Bool {
-    age >= 0 && age <= 150
+    age >= 0 and age <= 150
   }
 }
 

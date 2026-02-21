@@ -162,7 +162,7 @@ fn parse_age(input) {
   n = parse_int(input)
   if n.isErr() { return Err("not a number") }
   age = n.unwrap()
-  if age < 0 || age > 150 { return Err("age out of range") }
+  if age < 0 or age > 150 { return Err("age out of range") }
   Ok(age)
 }
 ```

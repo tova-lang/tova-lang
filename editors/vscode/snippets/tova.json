@@ -1,0 +1,195 @@
+{
+  "Function Declaration": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:name}(${2:params}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Function declaration"
+  },
+  "Function with Return Type": {
+    "prefix": "fnr",
+    "body": [
+      "fn ${1:name}(${2:params}) -> ${3:Type} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Function declaration with return type"
+  },
+  "Match Expression": {
+    "prefix": "match",
+    "body": [
+      "match ${1:value} {",
+      "\t${2:pattern} => ${3:expr}",
+      "\t_ => ${0:expr}",
+      "}"
+    ],
+    "description": "Match expression"
+  },
+  "For Loop": {
+    "prefix": "for",
+    "body": [
+      "for ${1:item} in ${2:collection} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "For-in loop"
+  },
+  "Component": {
+    "prefix": "comp",
+    "body": [
+      "component ${1:Name} {",
+      "\tstate ${2:count} = ${3:0}",
+      "",
+      "\t<div>",
+      "\t\t$0",
+      "\t</div>",
+      "}"
+    ],
+    "description": "Component declaration"
+  },
+  "State Declaration": {
+    "prefix": "state",
+    "body": [
+      "state ${1:name} = ${0:value}"
+    ],
+    "description": "Reactive state declaration"
+  },
+  "Effect": {
+    "prefix": "effect",
+    "body": [
+      "effect {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Reactive effect block"
+  },
+  "Route": {
+    "prefix": "route",
+    "body": [
+      "route ${1|GET,POST,PUT,DELETE,PATCH|} \"${2:/path}\" {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Server route handler"
+  },
+  "Type Declaration": {
+    "prefix": "type",
+    "body": [
+      "type ${1:Name} {",
+      "\t${0:variant}",
+      "}"
+    ],
+    "description": "Algebraic data type"
+  },
+  "Pipe": {
+    "prefix": "pipe",
+    "body": [
+      "${1:value}",
+      "\t|> ${2:fn}($0)"
+    ],
+    "description": "Pipe expression"
+  },
+  "If Statement": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "If statement"
+  },
+  "If-Else Statement": {
+    "prefix": "ife",
+    "body": [
+      "if ${1:condition} {",
+      "\t$2",
+      "} else {",
+      "\t$0",
+      "}"
+    ],
+    "description": "If-else statement"
+  },
+  "Guard Clause": {
+    "prefix": "guard",
+    "body": [
+      "guard ${1:condition} else {",
+      "\t${0:return}",
+      "}"
+    ],
+    "description": "Guard clause"
+  },
+  "Server Block": {
+    "prefix": "server",
+    "body": [
+      "server {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Server block"
+  },
+  "Import": {
+    "prefix": "import",
+    "body": [
+      "import { ${1:name} } from \"${0:module}\""
+    ],
+    "description": "Import statement"
+  },
+  "Test": {
+    "prefix": "test",
+    "body": [
+      "fn test_${1:name}() {",
+      "\t$0",
+      "\tassert(${2:true})",
+      "}"
+    ],
+    "description": "Test function"
+  },
+  "Async Function": {
+    "prefix": "afn",
+    "body": [
+      "async fn ${1:name}(${2:params}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Async function declaration"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "While loop"
+  },
+  "Loop": {
+    "prefix": "loop",
+    "body": [
+      "loop {",
+      "\t$0",
+      "\tbreak",
+      "}"
+    ],
+    "description": "Infinite loop (use break to exit)"
+  },
+  "Mutable Variable": {
+    "prefix": "mut",
+    "body": [
+      "mut ${1:name} = ${0:value}"
+    ],
+    "description": "Mutable variable declaration"
+  },
+  "Try-Catch": {
+    "prefix": "try",
+    "body": [
+      "try {",
+      "\t$0",
+      "} catch ${1:err} {",
+      "\tprint(${1:err})",
+      "}"
+    ],
+    "description": "Try-catch block"
+  }
+}

@@ -8,6 +8,7 @@ import { Analyzer } from '../analyzer/analyzer.js';
 import { TokenType } from '../lexer/tokens.js';
 import { Formatter } from '../formatter/formatter.js';
 import { TypeRegistry } from '../analyzer/type-registry.js';
+import { BUILTIN_NAMES, BUILTIN_FUNCTIONS } from '../stdlib/inline.js';
 
 class TovaLanguageServer {
   static MAX_CACHE_SIZE = 100; // max cached diagnostics entries
@@ -117,6 +118,7 @@ class TovaLanguageServer {
         case 'textDocument/signatureHelp': return this._onSignatureHelp(msg);
         case 'textDocument/formatting': return this._onFormatting(msg);
         case 'textDocument/rename': return this._onRename(msg);
+        case 'textDocument/codeAction': return this._onCodeAction(msg);
         case 'textDocument/references': return this._onReferences(msg);
         case 'workspace/symbol': return this._onWorkspaceSymbol(msg);
         default: return this._respondError(msg.id, -32601, `Method not found: ${method}`);
@@ -153,6 +155,9 @@ class TovaLanguageServer {
         hoverProvider: true,
         signatureHelpProvider: {
           triggerCharacters: ['(', ','],
+        },
+        codeActionProvider: {
+          codeActionKinds: ['quickfix'],
         },
         documentFormattingProvider: true,
         renameProvider: { prepareProvider: false },
@@ -242,7 +247,7 @@ class TovaLanguageServer {
           },
           severity,
           source: 'tova',
-          message: w.message,
+          message: w.hint ? `${w.message} (hint: ${w.hint})` : w.message,
         };
         // Add unnecessary tag for unused variables
         if (w.message.includes('declared but never used')) {
@@ -333,6 +338,8 @@ class TovaLanguageServer {
     if (msg.includes('Non-exhaustive match')) return 2;
     // Type mismatches in strict mode → Error (1)
     if (msg.includes('Type mismatch')) return 1;
+    // Naming convention → Hint (4)
+    if (msg.includes('should use snake_case') || msg.includes('should use PascalCase')) return 4;
     // Default → Warning (2)
     return 2;
   }
@@ -415,7 +422,7 @@ class TovaLanguageServer {
 
     // Keywords
     const keywords = [
-      'fn', 'let', 'if', 'elif', 'else', 'for', 'while', 'in',
+      'fn', 'let', 'if', 'elif', 'else', 'for', 'while', 'loop', 'when', 'in',
       'return', 'match', 'type', 'import', 'from', 'true', 'false',
       'nil', 'server', 'client', 'shared', 'pub', 'mut',
       'try', 'catch', 'finally', 'break', 'continue', 'async', 'await',
@@ -427,15 +434,17 @@ class TovaLanguageServer {
       }
     }
 
-    // Built-in functions
-    const builtins = [
-      'print', 'len', 'range', 'enumerate', 'sum', 'sorted',
-      'reversed', 'zip', 'min', 'max', 'type_of', 'filter', 'map',
-      'Ok', 'Err', 'Some', 'None',
-    ];
-    for (const fn of builtins) {
-      if (fn.startsWith(prefix)) {
-        items.push({ label: fn, kind: 3 /* Function */, detail: 'Tova built-in' });
+    // Built-in functions (dynamically from stdlib) — with parameter info
+    for (const fn of BUILTIN_NAMES) {
+      if (fn.startsWith(prefix) && !fn.startsWith('__')) {
+        const detail = this._getBuiltinDetail(fn);
+        items.push({ label: fn, kind: 3 /* Function */, detail });
+      }
+    }
+    // Runtime types
+    for (const rt of ['Ok', 'Err', 'Some', 'None']) {
+      if (rt.startsWith(prefix)) {
+        items.push({ label: rt, kind: 3 /* Function */, detail: 'Tova built-in' });
       }
     }
 
@@ -444,7 +453,7 @@ class TovaLanguageServer {
     if (cached?.analyzer) {
       const symbols = this._collectSymbols(cached.analyzer);
       for (const sym of symbols) {
-        if (sym.name.startsWith(prefix) && !builtins.includes(sym.name)) {
+        if (sym.name.startsWith(prefix) && !BUILTIN_NAMES.has(sym.name)) {
           items.push({
             label: sym.name,
             kind: sym.kind === 'function' ? 3 : sym.kind === 'type' ? 22 : 6,
@@ -618,23 +627,291 @@ class TovaLanguageServer {
     const word = this._getWordAt(line, position.character);
     if (!word) return this._respond(msg.id, null);
 
-    // Check builtins
+    // Check builtins — comprehensive hover docs for all stdlib functions
     const builtinDocs = {
+      // Core
       'print': '`fn print(...args)` — Print values to console',
       'len': '`fn len(v)` — Get length of string, array, or object',
-      'range': '`fn range(start, end, step?)` — Generate array of numbers',
+      'range': '`fn range(start, end?, step?)` — Generate array of numbers',
       'enumerate': '`fn enumerate(arr)` — Returns [[index, value], ...]',
-      'sum': '`fn sum(arr)` — Sum all elements in array',
-      'sorted': '`fn sorted(arr, key?)` — Return sorted copy of array',
-      'reversed': '`fn reversed(arr)` — Return reversed copy of array',
-      'zip': '`fn zip(...arrays)` — Zip arrays together',
-      'min': '`fn min(arr)` — Minimum value in array',
-      'max': '`fn max(arr)` — Maximum value in array',
-      'type_of': '`fn type_of(v)` — Get Tova type name as string',
-      'Ok': '`Ok(value)` — Create a successful Result',
-      'Err': '`Err(error)` — Create an error Result',
-      'Some': '`Some(value)` — Create an Option with a value',
-      'None': '`None` — Empty Option value',
+      'type_of': '`fn type_of(v) -> String` — Get Tova type name as string',
+      // Result/Option
+      'Ok': '`Ok(value) -> Result` — Create a successful Result\n\nMethods: `.map(fn)`, `.flatMap(fn)`, `.andThen(fn)`, `.unwrap()`, `.unwrapOr(default)`, `.isOk()`, `.isErr()`, `.mapErr(fn)`',
+      'Err': '`Err(error) -> Result` — Create an error Result\n\nMethods: `.unwrapOr(default)`, `.isOk()`, `.isErr()`, `.mapErr(fn)`, `.unwrapErr()`',
+      'Some': '`Some(value) -> Option` — Create an Option with a value\n\nMethods: `.map(fn)`, `.flatMap(fn)`, `.andThen(fn)`, `.unwrap()`, `.unwrapOr(default)`, `.isSome()`, `.isNone()`, `.filter(fn)`',
+      'None': '`None` — Empty Option value\n\nMethods: `.unwrapOr(default)`, `.isSome()`, `.isNone()`',
+      // Collections
+      'filter': '`fn filter(arr, fn) -> [T]` — Filter array by predicate',
+      'map': '`fn map(arr, fn) -> [U]` — Transform each element',
+      'find': '`fn find(arr, fn) -> T?` — Find first matching element (nil if none)',
+      'find_index': '`fn find_index(arr, fn) -> Int?` — Find index of first match (nil if none)',
+      'any': '`fn any(arr, fn) -> Bool` — True if any element matches predicate',
+      'all': '`fn all(arr, fn) -> Bool` — True if all elements match predicate',
+      'flat_map': '`fn flat_map(arr, fn) -> [U]` — Map and flatten one level',
+      'reduce': '`fn reduce(arr, fn, init?) -> T` — Reduce array to single value',
+      'sum': '`fn sum(arr) -> Float` — Sum all elements in array',
+      'min': '`fn min(arr) -> T?` — Minimum value in array',
+      'max': '`fn max(arr) -> T?` — Maximum value in array',
+      'sorted': '`fn sorted(arr, key?) -> [T]` — Return sorted copy of array',
+      'reversed': '`fn reversed(arr) -> [T]` — Return reversed copy',
+      'zip': '`fn zip(...arrays) -> [[T]]` — Zip arrays together',
+      'unique': '`fn unique(arr) -> [T]` — Remove duplicates',
+      'group_by': '`fn group_by(arr, fn) -> {String: [T]}` — Group elements by key function',
+      'chunk': '`fn chunk(arr, n) -> [[T]]` — Split array into chunks of size n',
+      'flatten': '`fn flatten(arr) -> [T]` — Flatten one level of nesting',
+      'take': '`fn take(arr, n) -> [T]` — Take first n elements',
+      'drop': '`fn drop(arr, n) -> [T]` — Drop first n elements',
+      'first': '`fn first(arr) -> T?` — First element (nil if empty)',
+      'last': '`fn last(arr) -> T?` — Last element (nil if empty)',
+      'count': '`fn count(arr, fn) -> Int` — Count elements matching predicate',
+      'partition': '`fn partition(arr, fn) -> [[T], [T]]` — Split into [matching, non-matching]',
+      'includes': '`fn includes(arr, value) -> Bool` — Check if array contains value',
+      'compact': '`fn compact(arr) -> [T]` — Remove nil values',
+      'rotate': '`fn rotate(arr, n) -> [T]` — Rotate array by n positions',
+      'insert_at': '`fn insert_at(arr, idx, val) -> [T]` — Insert value at index',
+      'remove_at': '`fn remove_at(arr, idx) -> [T]` — Remove element at index',
+      'update_at': '`fn update_at(arr, idx, val) -> [T]` — Replace element at index',
+      // Math
+      'abs': '`fn abs(n) -> Float` — Absolute value',
+      'floor': '`fn floor(n) -> Int` — Round down',
+      'ceil': '`fn ceil(n) -> Int` — Round up',
+      'round': '`fn round(n) -> Int` — Round to nearest integer',
+      'clamp': '`fn clamp(n, lo, hi) -> Float` — Clamp value to range [lo, hi]',
+      'sqrt': '`fn sqrt(n) -> Float` — Square root',
+      'pow': '`fn pow(base, exp) -> Float` — Exponentiation',
+      'random': '`fn random() -> Float` — Random number in [0, 1)',
+      'random_int': '`fn random_int(lo, hi) -> Int` — Random integer in [lo, hi]',
+      'random_float': '`fn random_float(lo, hi) -> Float` — Random float in [lo, hi)',
+      'sign': '`fn sign(n) -> Int` — Sign of number (-1, 0, or 1)',
+      'trunc': '`fn trunc(n) -> Int` — Truncate toward zero',
+      'gcd': '`fn gcd(a, b) -> Int` — Greatest common divisor',
+      'lcm': '`fn lcm(a, b) -> Int` — Least common multiple',
+      'factorial': '`fn factorial(n) -> Int` — Factorial (nil for negative)',
+      'hypot': '`fn hypot(a, b) -> Float` — Hypotenuse length',
+      'lerp': '`fn lerp(a, b, t) -> Float` — Linear interpolation',
+      'divmod': '`fn divmod(a, b) -> [Int, Int]` — Quotient and remainder',
+      'avg': '`fn avg(arr) -> Float` — Average of array values',
+      'is_nan': '`fn is_nan(n) -> Bool` — Check if value is NaN',
+      'is_finite': '`fn is_finite(n) -> Bool` — Check if value is finite',
+      'is_close': '`fn is_close(a, b, tol?) -> Bool` — Check if values are approximately equal',
+      'PI': '`PI: Float` — Mathematical constant pi (3.14159...)',
+      'E': '`E: Float` — Euler\'s number (2.71828...)',
+      'INF': '`INF: Float` — Positive infinity',
+      // Trig
+      'sin': '`fn sin(n) -> Float` — Sine (radians)',
+      'cos': '`fn cos(n) -> Float` — Cosine (radians)',
+      'tan': '`fn tan(n) -> Float` — Tangent (radians)',
+      'asin': '`fn asin(n) -> Float` — Arcsine',
+      'acos': '`fn acos(n) -> Float` — Arccosine',
+      'atan': '`fn atan(n) -> Float` — Arctangent',
+      'atan2': '`fn atan2(y, x) -> Float` — Two-argument arctangent',
+      'to_radians': '`fn to_radians(deg) -> Float` — Convert degrees to radians',
+      'to_degrees': '`fn to_degrees(rad) -> Float` — Convert radians to degrees',
+      // Logarithmic
+      'log': '`fn log(n) -> Float` — Natural logarithm',
+      'log2': '`fn log2(n) -> Float` — Base-2 logarithm',
+      'log10': '`fn log10(n) -> Float` — Base-10 logarithm',
+      'exp': '`fn exp(n) -> Float` — e raised to the power n',
+      // String
+      'trim': '`fn trim(s) -> String` — Remove leading/trailing whitespace',
+      'trim_start': '`fn trim_start(s) -> String` — Remove leading whitespace',
+      'trim_end': '`fn trim_end(s) -> String` — Remove trailing whitespace',
+      'split': '`fn split(s, sep) -> [String]` — Split string by separator',
+      'join': '`fn join(arr, sep) -> String` — Join array elements with separator',
+      'replace': '`fn replace(s, from, to) -> String` — Replace all occurrences',
+      'replace_first': '`fn replace_first(s, from, to) -> String` — Replace first occurrence',
+      'repeat': '`fn repeat(s, n) -> String` — Repeat string n times',
+      'upper': '`fn upper(s) -> String` — Convert to uppercase',
+      'lower': '`fn lower(s) -> String` — Convert to lowercase',
+      'contains': '`fn contains(s, sub) -> Bool` — Check if string contains substring',
+      'starts_with': '`fn starts_with(s, prefix) -> Bool` — Check if string starts with prefix',
+      'ends_with': '`fn ends_with(s, suffix) -> Bool` — Check if string ends with suffix',
+      'chars': '`fn chars(s) -> [String]` — Split string into individual characters',
+      'words': '`fn words(s) -> [String]` — Split by whitespace',
+      'lines': '`fn lines(s) -> [String]` — Split by newlines',
+      'capitalize': '`fn capitalize(s) -> String` — Capitalize first letter',
+      'title_case': '`fn title_case(s) -> String` — Capitalize each word',
+      'snake_case': '`fn snake_case(s) -> String` — Convert to snake_case',
+      'camel_case': '`fn camel_case(s) -> String` — Convert to camelCase',
+      'kebab_case': '`fn kebab_case(s) -> String` — Convert to kebab-case',
+      'pad_start': '`fn pad_start(s, n, fill?) -> String` — Pad start to length n',
+      'pad_end': '`fn pad_end(s, n, fill?) -> String` — Pad end to length n',
+      'char_at': '`fn char_at(s, i) -> String?` — Character at index (nil if out of bounds)',
+      'index_of': '`fn index_of(s, sub) -> Int?` — Index of first occurrence (nil if not found)',
+      'last_index_of': '`fn last_index_of(s, sub) -> Int?` — Index of last occurrence',
+      'count_of': '`fn count_of(s, sub) -> Int` — Count occurrences of substring',
+      'reverse_str': '`fn reverse_str(s) -> String` — Reverse a string',
+      'substr': '`fn substr(s, start, end?) -> String` — Extract substring',
+      'center': '`fn center(s, n, fill?) -> String` — Center string in field of width n',
+      'slugify': '`fn slugify(s) -> String` — Convert to URL-safe slug',
+      'truncate': '`fn truncate(s, n, suffix?) -> String` — Truncate with ellipsis',
+      'escape_html': '`fn escape_html(s) -> String` — Escape HTML entities',
+      'unescape_html': '`fn unescape_html(s) -> String` — Unescape HTML entities',
+      'dedent': '`fn dedent(s) -> String` — Remove common leading whitespace',
+      'indent_str': '`fn indent_str(s, n, ch?) -> String` — Indent each line',
+      'word_wrap': '`fn word_wrap(s, width) -> String` — Wrap text at word boundaries',
+      'fmt': '`fn fmt(template, ...args) -> String` — Format string with `{}` placeholders',
+      'is_empty': '`fn is_empty(v) -> Bool` — Check if string, array, or object is empty',
+      // Object
+      'keys': '`fn keys(obj) -> [String]` — Object keys',
+      'values': '`fn values(obj) -> [T]` — Object values',
+      'entries': '`fn entries(obj) -> [[String, T]]` — Object entries as [key, value] pairs',
+      'merge': '`fn merge(...objs) -> Object` — Merge objects (later values win)',
+      'freeze': '`fn freeze(obj) -> Object` — Make object immutable',
+      'clone': '`fn clone(obj) -> Object` — Deep clone',
+      'has_key': '`fn has_key(obj, key) -> Bool` — Check if object has key',
+      'get': '`fn get(obj, path, default?) -> T` — Get nested value by dot path',
+      'pick': '`fn pick(obj, keys) -> Object` — Select subset of keys',
+      'omit': '`fn omit(obj, keys) -> Object` — Remove subset of keys',
+      'map_values': '`fn map_values(obj, fn) -> Object` — Transform all values',
+      'from_entries': '`fn from_entries(pairs) -> Object` — Create object from [key, value] pairs',
+      // Type Conversion
+      'to_int': '`fn to_int(v) -> Int?` — Parse value to integer (nil on failure)',
+      'to_float': '`fn to_float(v) -> Float?` — Parse value to float (nil on failure)',
+      'to_string': '`fn to_string(v) -> String` — Convert any value to string',
+      'to_bool': '`fn to_bool(v) -> Bool` — Convert value to boolean',
+      // Assertions
+      'assert': '`fn assert(cond, msg?)` — Assert condition is true',
+      'assert_eq': '`fn assert_eq(a, b, msg?)` — Assert values are equal',
+      'assert_ne': '`fn assert_ne(a, b, msg?)` — Assert values are not equal',
+      // Async
+      'sleep': '`fn sleep(ms) -> Promise` — Wait for ms milliseconds',
+      'parallel': '`fn parallel(list) -> Promise` — Run promises concurrently (Promise.all)',
+      'timeout': '`fn timeout(promise, ms) -> Promise` — Reject if promise exceeds timeout',
+      'retry': '`fn retry(fn, {times?, delay?, backoff?}) -> Promise` — Retry async function',
+      // Functional
+      'compose': '`fn compose(...fns) -> Function` — Right-to-left function composition',
+      'pipe_fn': '`fn pipe_fn(...fns) -> Function` — Left-to-right function composition',
+      'identity': '`fn identity(x) -> T` — Return value unchanged',
+      'memoize': '`fn memoize(fn) -> Function` — Cache function results',
+      'debounce': '`fn debounce(fn, ms) -> Function` — Debounce function calls',
+      'throttle': '`fn throttle(fn, ms) -> Function` — Throttle function calls',
+      'once': '`fn once(fn) -> Function` — Only call function once',
+      'negate': '`fn negate(fn) -> Function` — Return a negated predicate',
+      'partial': '`fn partial(fn, ...args) -> Function` — Partially apply arguments',
+      'curry': '`fn curry(fn, arity?) -> Function` — Curry a function',
+      'flip': '`fn flip(fn) -> Function` — Swap first two arguments',
+      // Error Handling
+      'try_fn': '`fn try_fn(fn) -> Result` — Wrap function call in Result',
+      'try_async': '`fn try_async(fn) -> Result` — Wrap async call in Result',
+      'filter_ok': '`fn filter_ok(arr) -> [T]` — Extract Ok values from Result array',
+      'filter_err': '`fn filter_err(arr) -> [E]` — Extract Err values from Result array',
+      // Randomness
+      'choice': '`fn choice(arr) -> T?` — Random element from array',
+      'sample': '`fn sample(arr, n) -> [T]` — Random n elements from array',
+      'shuffle': '`fn shuffle(arr) -> [T]` — Randomly reorder array',
+      // JSON
+      'json_parse': '`fn json_parse(s) -> Result` — Parse JSON string (returns Result)',
+      'json_stringify': '`fn json_stringify(v) -> String` — Convert to JSON string',
+      'json_pretty': '`fn json_pretty(v) -> String` — Convert to pretty-printed JSON',
+      // Encoding
+      'base64_encode': '`fn base64_encode(s) -> String` — Encode string to base64',
+      'base64_decode': '`fn base64_decode(s) -> String` — Decode base64 string',
+      'url_encode': '`fn url_encode(s) -> String` — URL-encode string',
+      'url_decode': '`fn url_decode(s) -> String` — URL-decode string',
+      'hex_encode': '`fn hex_encode(s) -> String` — Encode string to hex',
+      'hex_decode': '`fn hex_decode(s) -> String` — Decode hex string',
+      // Number Formatting
+      'format_number': '`fn format_number(n, {separator?, decimals?}) -> String` — Format number with separators',
+      'to_hex': '`fn to_hex(n) -> String` — Convert number to hex string',
+      'to_binary': '`fn to_binary(n) -> String` — Convert number to binary string',
+      'to_octal': '`fn to_octal(n) -> String` — Convert number to octal string',
+      'to_fixed': '`fn to_fixed(n, decimals) -> Float` — Round to fixed decimal places',
+      // Itertools
+      'pairwise': '`fn pairwise(arr) -> [[T, T]]` — Adjacent pairs',
+      'combinations': '`fn combinations(arr, r) -> [[T]]` — All r-combinations',
+      'permutations': '`fn permutations(arr, r?) -> [[T]]` — All permutations',
+      'intersperse': '`fn intersperse(arr, sep) -> [T]` — Insert separator between elements',
+      'interleave': '`fn interleave(...arrs) -> [T]` — Interleave multiple arrays',
+      'repeat_value': '`fn repeat_value(val, n) -> [T]` — Create array of n copies',
+      'sliding_window': '`fn sliding_window(arr, n) -> [[T]]` — Sliding window of size n',
+      'zip_with': '`fn zip_with(a, b, fn) -> [U]` — Zip two arrays with combining function',
+      'frequencies': '`fn frequencies(arr) -> {String: Int}` — Count occurrences of each element',
+      'scan': '`fn scan(arr, fn, init) -> [T]` — Running accumulation',
+      'min_by': '`fn min_by(arr, fn) -> T?` — Minimum by key function',
+      'max_by': '`fn max_by(arr, fn) -> T?` — Maximum by key function',
+      'sum_by': '`fn sum_by(arr, fn) -> Float` — Sum by key function',
+      'product': '`fn product(arr) -> Float` — Product of all elements',
+      'binary_search': '`fn binary_search(arr, target, key?) -> Int` — Binary search (-1 if not found)',
+      'is_sorted': '`fn is_sorted(arr, key?) -> Bool` — Check if array is sorted',
+      // Set Operations
+      'intersection': '`fn intersection(a, b) -> [T]` — Elements in both arrays',
+      'difference': '`fn difference(a, b) -> [T]` — Elements in a but not b',
+      'symmetric_difference': '`fn symmetric_difference(a, b) -> [T]` — Elements in either but not both',
+      'is_subset': '`fn is_subset(a, b) -> Bool` — Check if a is subset of b',
+      'is_superset': '`fn is_superset(a, b) -> Bool` — Check if a is superset of b',
+      // Statistics
+      'mean': '`fn mean(arr) -> Float` — Arithmetic mean',
+      'median': '`fn median(arr) -> Float?` — Median value',
+      'mode': '`fn mode(arr) -> T?` — Most frequent value',
+      'stdev': '`fn stdev(arr) -> Float` — Standard deviation',
+      'variance': '`fn variance(arr) -> Float` — Variance',
+      'percentile': '`fn percentile(arr, p) -> Float?` — p-th percentile',
+      // Validation
+      'is_email': '`fn is_email(s) -> Bool` — Check if string is valid email',
+      'is_url': '`fn is_url(s) -> Bool` — Check if string is valid URL',
+      'is_numeric': '`fn is_numeric(s) -> Bool` — Check if string is numeric',
+      'is_alpha': '`fn is_alpha(s) -> Bool` — Check if string is alphabetic',
+      'is_alphanumeric': '`fn is_alphanumeric(s) -> Bool` — Check if string is alphanumeric',
+      'is_uuid': '`fn is_uuid(s) -> Bool` — Check if string is valid UUID',
+      'is_hex': '`fn is_hex(s) -> Bool` — Check if string is valid hex',
+      // URL
+      'uuid': '`fn uuid() -> String` — Generate random UUID v4',
+      'parse_url': '`fn parse_url(s) -> Result` — Parse URL into components',
+      'build_url': '`fn build_url(parts) -> String` — Build URL from components',
+      'parse_query': '`fn parse_query(s) -> Object` — Parse query string',
+      'build_query': '`fn build_query(obj) -> String` — Build query string from object',
+      // Regex
+      'regex_test': '`fn regex_test(s, pattern, flags?) -> Bool` — Test if string matches regex',
+      'regex_match': '`fn regex_match(s, pattern, flags?) -> Result` — First regex match',
+      'regex_find_all': '`fn regex_find_all(s, pattern, flags?) -> [Match]` — All regex matches',
+      'regex_replace': '`fn regex_replace(s, pattern, replacement, flags?) -> String` — Replace by regex',
+      'regex_split': '`fn regex_split(s, pattern, flags?) -> [String]` — Split by regex',
+      'regex_capture': '`fn regex_capture(s, pattern, flags?) -> Result` — Named capture groups',
+      // Date/Time
+      'now': '`fn now() -> Int` — Current timestamp in milliseconds',
+      'now_iso': '`fn now_iso() -> String` — Current time as ISO 8601 string',
+      'date_parse': '`fn date_parse(s) -> Result` — Parse date string',
+      'date_format': '`fn date_format(d, fmt) -> String` — Format date (iso, date, time, datetime, or custom)',
+      'date_add': '`fn date_add(d, amount, unit) -> Date` — Add time to date',
+      'date_diff': '`fn date_diff(d1, d2, unit) -> Int` — Difference between dates',
+      'date_from': '`fn date_from(parts) -> Date` — Create date from {year, month, day, ...}',
+      'date_part': '`fn date_part(d, part) -> Int` — Extract part (year, month, day, ...)',
+      'time_ago': '`fn time_ago(d) -> String` — Human-readable relative time',
+      // I/O
+      'read': '`fn read(source, opts?) -> Table` — Read CSV, JSON, JSONL, or URL into Table',
+      'write': '`fn write(data, dest, opts?)` — Write Table/array to CSV, JSON, JSONL',
+      // Scripting
+      'env': '`fn env(key?, fallback?) -> String?` — Get environment variable',
+      'args': '`fn args() -> [String]` — Get CLI arguments',
+      'exit': '`fn exit(code?)` — Exit process',
+      'exists': '`fn exists(path) -> Bool` — Check if file/directory exists',
+      'read_text': '`fn read_text(path) -> Result` — Read file as string',
+      'write_text': '`fn write_text(path, content, opts?) -> Result` — Write string to file',
+      'mkdir': '`fn mkdir(dir) -> Result` — Create directory (recursive)',
+      'ls': '`fn ls(dir?, opts?) -> [String]` — List directory contents',
+      'cwd': '`fn cwd() -> String` — Current working directory',
+      'read_stdin': '`fn read_stdin() -> String` — Read all of stdin (for piped input)',
+      'read_lines': '`fn read_lines() -> [String]` — Read stdin as array of lines',
+      'script_path': '`fn script_path() -> String?` — Absolute path of running .tova script',
+      'script_dir': '`fn script_dir() -> String?` — Directory containing running .tova script',
+      'parse_args': '`fn parse_args(argv) -> {flags, positional}` — Parse CLI args into flags and positional args',
+      'color': '`fn color(text, name) -> String` — ANSI color (red/green/yellow/blue/magenta/cyan/white/gray)',
+      'bold': '`fn bold(text) -> String` — Bold ANSI text',
+      'dim': '`fn dim(text) -> String` — Dim ANSI text',
+      'on_signal': '`fn on_signal(name, callback)` — Register signal handler (e.g. "SIGINT")',
+      'file_stat': '`fn file_stat(path) -> Result<{size, mode, mtime, atime, isDir, isFile, isSymlink}>` — File metadata',
+      'file_size': '`fn file_size(path) -> Result<Int>` — File size in bytes',
+      'path_join': '`fn path_join(...parts) -> String` — Join path segments',
+      'path_dirname': '`fn path_dirname(path) -> String` — Directory portion of path',
+      'path_basename': '`fn path_basename(path, ext?) -> String` — File name portion of path',
+      'path_resolve': '`fn path_resolve(path) -> String` — Resolve to absolute path',
+      'path_ext': '`fn path_ext(path) -> String` — File extension (e.g. ".js")',
+      'path_relative': '`fn path_relative(from, to) -> String` — Relative path between two paths',
+      'symlink': '`fn symlink(target, path) -> Result` — Create symbolic link',
+      'readlink': '`fn readlink(path) -> Result<String>` — Read symbolic link target',
+      'is_symlink': '`fn is_symlink(path) -> Bool` — Check if path is a symbolic link',
+      'spawn': '`fn spawn(cmd, args?, opts?) -> Promise<Result<{stdout, stderr, exitCode}>>` — Async shell command',
     };
 
     if (builtinDocs[word]) {
@@ -818,6 +1095,133 @@ class TovaLanguageServer {
     }
   }
 
+  // ─── Code Actions ──────────────────────────────────────
+
+  _onCodeAction(msg) {
+    const { textDocument, range, context } = msg.params;
+    const doc = this._documents.get(textDocument.uri);
+    if (!doc) return this._respond(msg.id, []);
+
+    const actions = [];
+    const diagnostics = context.diagnostics || [];
+
+    for (const diag of diagnostics) {
+      const message = diag.message || '';
+
+      // Unused variable: offer "prefix with _"
+      if (message.includes('declared but never used')) {
+        const match = message.match(/'([^']+)'/);
+        if (match) {
+          const varName = match[1];
+          const line = doc.text.split('\n')[diag.range.start.line] || '';
+          const wordRegex = new RegExp(`\\b${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+          const wordMatch = wordRegex.exec(line);
+          if (wordMatch) {
+            actions.push({
+              title: `Prefix '${varName}' with _`,
+              kind: 'quickfix',
+              diagnostics: [diag],
+              edit: {
+                changes: {
+                  [textDocument.uri]: [{
+                    range: {
+                      start: { line: diag.range.start.line, character: wordMatch.index },
+                      end: { line: diag.range.start.line, character: wordMatch.index + varName.length },
+                    },
+                    newText: `_${varName}`,
+                  }],
+                },
+              },
+            });
+          }
+        }
+      }
+
+      // "Did you mean?" suggestion: offer replacement
+      if (message.includes('is not defined') && message.includes('hint: did you mean')) {
+        const nameMatch = message.match(/'([^']+)' is not defined/);
+        const suggMatch = message.match(/did you mean '([^']+)'/);
+        if (nameMatch && suggMatch) {
+          const oldName = nameMatch[1];
+          const newName = suggMatch[1];
+          const line = doc.text.split('\n')[diag.range.start.line] || '';
+          const wordRegex = new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+          const wordMatch = wordRegex.exec(line);
+          if (wordMatch) {
+            actions.push({
+              title: `Replace '${oldName}' with '${newName}'`,
+              kind: 'quickfix',
+              isPreferred: true,
+              diagnostics: [diag],
+              edit: {
+                changes: {
+                  [textDocument.uri]: [{
+                    range: {
+                      start: { line: diag.range.start.line, character: wordMatch.index },
+                      end: { line: diag.range.start.line, character: wordMatch.index + oldName.length },
+                    },
+                    newText: newName,
+                  }],
+                },
+              },
+            });
+          }
+        }
+      }
+
+      // Naming convention: offer rename
+      if (message.includes('should use snake_case') || message.includes('should use PascalCase')) {
+        const nameMatch = message.match(/'([^']+)'/);
+        const hintMatch = (diag.message || '').match(/Rename '([^']+)' to '([^']+)'/);
+        if (nameMatch && hintMatch) {
+          const oldName = hintMatch[1];
+          const newName = hintMatch[2];
+          const line = doc.text.split('\n')[diag.range.start.line] || '';
+          const wordRegex = new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+          const wordMatch = wordRegex.exec(line);
+          if (wordMatch) {
+            actions.push({
+              title: `Rename '${oldName}' to '${newName}'`,
+              kind: 'quickfix',
+              diagnostics: [diag],
+              edit: {
+                changes: {
+                  [textDocument.uri]: [{
+                    range: {
+                      start: { line: diag.range.start.line, character: wordMatch.index },
+                      end: { line: diag.range.start.line, character: wordMatch.index + oldName.length },
+                    },
+                    newText: newName,
+                  }],
+                },
+              },
+            });
+          }
+        }
+      }
+
+      // Type mismatch with toString hint
+      if (message.includes('Type mismatch') && message.includes('hint: try toString')) {
+        actions.push({
+          title: 'Wrap with toString()',
+          kind: 'quickfix',
+          diagnostics: [diag],
+        });
+      }
+
+      // Type mismatch with Ok() hint
+      if (message.includes('Type mismatch') && message.includes('hint: try Ok(value)')) {
+        actions.push({
+          title: 'Wrap with Ok()',
+          kind: 'quickfix',
+          diagnostics: [diag],
+        });
+      }
+    }
+
+    this._respond(msg.id, actions);
+  }
+
   // ─── Rename ─────────────────────────────────────────────
 
   _onRename(msg) {
@@ -924,6 +1328,21 @@ class TovaLanguageServer {
       return path;
     }
     return uri;
+  }
+
+  _getBuiltinDetail(name) {
+    const src = BUILTIN_FUNCTIONS[name];
+    if (!src) return 'Tova built-in';
+    // Constants (const PI = ...)
+    const constMatch = src.match(/^const\s+\w+\s*=/);
+    if (constMatch) return 'const';
+    // Functions — extract params from source
+    const fnMatch = src.match(/^(?:async\s+)?function\s+\w+\s*\(([^)]*)\)/);
+    if (fnMatch) {
+      const params = fnMatch[1].trim();
+      return params ? `fn(${params})` : 'fn()';
+    }
+    return 'Tova built-in';
   }
 
   _getWordAt(line, character) {

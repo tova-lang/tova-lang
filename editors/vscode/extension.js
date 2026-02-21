@@ -5,7 +5,7 @@ const path = require('path');
 let client;
 
 function activate(context) {
-  // Find the tova binary or server script
+  // Find the tova LSP server script
   const serverModule = path.join(__dirname, '..', '..', 'src', 'lsp', 'server.js');
 
   const serverOptions = {
@@ -30,6 +30,14 @@ function activate(context) {
 
   client = new LanguageClient('tova-lsp', 'Tova Language Server', serverOptions, clientOptions);
   client.start();
+
+  // Register debug adapter
+  try {
+    const { registerDebugAdapter } = require('./debug-adapter');
+    registerDebugAdapter(context);
+  } catch {
+    // Debug adapter optional — may fail if vscode APIs not available
+  }
 }
 
 function deactivate() {

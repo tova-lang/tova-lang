@@ -435,8 +435,9 @@ describe('Lexer — Operator edge cases', () => {
     expect(lexThrows('a & b')).toThrow(/Unexpected character.*&/);
   });
 
-  test('single | throws', () => {
-    expect(lexThrows('a | b')).toThrow(/Unexpected character.*\|/);
+  test('single | is valid BAR token for union types', () => {
+    const tokens = new Lexer('a | b', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'BAR')).toBe(true);
   });
 
   test('unexpected character @ throws', () => {

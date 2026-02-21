@@ -656,8 +656,9 @@ describe('Lexer — & and | edge cases in JSX', () => {
     expect(tokens.some(t => t.type === TokenType.PIPE)).toBe(true);
   });
 
-  test('single | without > throws', () => {
-    expect(lexThrows('a | b')).toThrow(/Unexpected character.*\|/);
+  test('single | without > is valid BAR token', () => {
+    const tokens = new Lexer('a | b', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'BAR')).toBe(true);
   });
 
   test('single & without & throws outside JSX', () => {

@@ -1,6 +1,6 @@
 # CLI Tool
 
-This example builds command-line utilities in Tova without any server or client blocks. It demonstrates that Tova is a general-purpose scripting language: argument dispatch with if/else chains, pipe-based data transformation, Result/Option error handling, and file I/O for reading CSV and writing JSON.
+This example builds command-line utilities in Tova without any server or client blocks. It demonstrates that Tova is a general-purpose scripting language: argument dispatch with if/elif chains, pipe-based data transformation, Result/Option error handling, and file I/O for reading CSV and writing JSON.
 
 ## The Full Application
 
@@ -127,14 +127,14 @@ fn main(args: [String]) {
   } else {
     cmd = args |> first()
 
-    if cmd == "convert" && args |> len() == 3 {
+    if cmd == "convert" and args |> len() == 3 {
       input = args[1]
       output = args[2]
       match convert_csv_to_json(input, output) {
         Ok(msg) => print(msg)
         Err(e) => print("Error: {e}")
       }
-    } else if cmd == "analyze" && args |> len() == 3 && args[2] == "--json" {
+    } elif cmd == "analyze" and args |> len() == 3 and args[2] == "--json" {
       log_path = args[1]
       match analyze_logs(log_path) {
         Ok(report) => {
@@ -143,29 +143,29 @@ fn main(args: [String]) {
         }
         Err(e) => print("Error: {e}")
       }
-    } else if cmd == "analyze" && args |> len() == 2 {
+    } elif cmd == "analyze" and args |> len() == 2 {
       log_path = args[1]
       match analyze_logs(log_path) {
         Ok(report) => print(format_report(report))
         Err(e) => print("Error: {e}")
       }
-    } else if cmd == "slugify" && args |> len() >= 2 {
+    } elif cmd == "slugify" and args |> len() >= 2 {
       words = args |> skip(1)
       result = words |> join(" ") |> slugify()
       print(result)
-    } else if cmd == "parse-env" && args |> len() == 2 {
+    } elif cmd == "parse-env" and args |> len() == 2 {
       file_path = args[1]
       lines = read(file_path) |> split("\n")
       lines
         |> filter(fn(line) line |> len() > 0)
-        |> filter(fn(line) !(line |> starts_with("#")))
+        |> filter(fn(line) not (line |> starts_with("#")))
         |> map(fn(line) {
           match parse_key_value(line) {
             Some((key, value)) => print("{key} => {value}")
             None => print("Skipping invalid line: {line}")
           }
         })
-    } else if cmd == "help" {
+    } elif cmd == "help" {
       print_usage()
     } else {
       print("Unknown command: {cmd}")
@@ -201,21 +201,21 @@ tova run cli.tova parse-env .env
 
 This is a pure script — no `server {}`, no `client {}`, no `shared {}`. Tova works as a standalone scripting language. The `main(args)` function is the entry point, receiving command-line arguments as an array.
 
-### Argument Dispatch with If/Else
+### Argument Dispatch with If/Elif
 
-The core dispatch extracts the first argument and uses if/else chains to route commands:
+The core dispatch extracts the first argument and uses if/elif chains to route commands:
 
 ```tova
 cmd = args |> first()
 
-if cmd == "convert" && args |> len() == 3 {
+if cmd == "convert" and args |> len() == 3 {
   input = args[1]
   output = args[2]
   // ...
-} else if cmd == "analyze" && args |> len() == 2 {
+} elif cmd == "analyze" and args |> len() == 2 {
   log_path = args[1]
   // ...
-} else if cmd == "slugify" && args |> len() >= 2 {
+} elif cmd == "slugify" and args |> len() >= 2 {
   words = args |> skip(1)
   // ...
 }
@@ -284,6 +284,6 @@ write(report, "report.json")       // Writes structured JSON
 
 **Guard clauses for validation.** `guard condition else { return Err(...) }` provides early returns that keep the happy path unindented.
 
-**If/else argument dispatch.** Checking `args |> len()` and accessing by index gives you straightforward argument parsing without an argument-parsing library.
+**If/elif argument dispatch.** Checking `args |> len()` and accessing by index gives you straightforward argument parsing without an argument-parsing library.
 
 **Pipes for readability.** Data flows left-to-right through transformation chains, whether operating on tables or strings.

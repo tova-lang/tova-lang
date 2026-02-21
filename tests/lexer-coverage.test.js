@@ -269,8 +269,9 @@ describe('Additional lexer coverage', () => {
   });
 
   // Operators
-  test('single pipe throws', () => {
-    expect(lexThrows('x | y')).toThrow(/Unexpected character.*\|/);
+  test('single pipe is valid BAR token', () => {
+    const tokens = new Lexer('x | y', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'BAR')).toBe(true);
   });
 
   test('pipe operator |>', () => {

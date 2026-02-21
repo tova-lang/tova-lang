@@ -128,7 +128,7 @@ export class Parser {
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
           tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
-          tok.type === TokenType.EXTERN || tok.type === TokenType.VAR ||
+          tok.type === TokenType.EXTERN || tok.type === TokenType.VAR || tok.type === TokenType.MUT ||
           tok.type === TokenType.STATE || tok.type === TokenType.ROUTE ||
           tok.type === TokenType.IDENTIFIER) {
         return;
@@ -145,6 +145,17 @@ export class Parser {
     // Uppercase tag is always a component reference, never a comparison variable
     if (/^[A-Z]/.test(next.value)) return true;
     const afterIdent = this.peek(2);
+    // Negative check: if afterIdent is a comparison/logical operator, this is NOT JSX
+    // This catches `a < b && c > d` being misread as JSX
+    if (afterIdent.type === TokenType.LESS ||
+        afterIdent.type === TokenType.LESS_EQUAL ||
+        afterIdent.type === TokenType.GREATER_EQUAL ||
+        afterIdent.type === TokenType.AND_AND ||
+        afterIdent.type === TokenType.OR_OR ||
+        afterIdent.type === TokenType.EQUAL ||
+        afterIdent.type === TokenType.NOT_EQUAL) {
+      return false;
+    }
     // JSX patterns: <div>, <div/>, <div attr=...>, <div on:click=...>
     // After the tag name, we can see >, /, an attribute name (identifier or keyword), or :
     return afterIdent.type === TokenType.GREATER ||
@@ -181,7 +192,54 @@ export class Parser {
       combined.partialAST = new AST.Program(body);
       throw combined;
     }
-    return new AST.Program(body);
+    const program = new AST.Program(body);
+    this._attachDocstrings(program);
+    return program;
+  }
+
+  _attachDocstrings(program) {
+    // Build a map of docstring line ranges from raw tokens
+    const docTokens = this.rawTokens.filter(t => t.type === TokenType.DOCSTRING);
+    if (docTokens.length === 0) return;
+
+    // Group consecutive docstring lines
+    const groups = [];
+    let current = [docTokens[0]];
+    for (let i = 1; i < docTokens.length; i++) {
+      if (docTokens[i].line === current[current.length - 1].line + 1) {
+        current.push(docTokens[i]);
+      } else {
+        groups.push(current);
+        current = [docTokens[i]];
+      }
+    }
+    groups.push(current);
+
+    // Map: endLine → docstring text
+    const docsByEndLine = new Map();
+    for (const group of groups) {
+      const endLine = group[group.length - 1].line;
+      const text = group.map(t => t.value).join('\n');
+      docsByEndLine.set(endLine, text);
+    }
+
+    // Walk top-level nodes and attach docstrings
+    const docTypes = new Set(['FunctionDeclaration', 'TypeDeclaration', 'InterfaceDeclaration', 'Assignment', 'TraitDeclaration']);
+    const walk = (nodes) => {
+      for (const node of nodes) {
+        if (!node || !node.loc) continue;
+        if (docTypes.has(node.type)) {
+          const doc = docsByEndLine.get(node.loc.line - 1);
+          if (doc) node.docstring = doc;
+        }
+        // Walk into blocks
+        if (node.body && Array.isArray(node.body)) walk(node.body);
+        if (node.type === 'ServerBlock' || node.type === 'ClientBlock' || node.type === 'SharedBlock') {
+          if (node.body) walk(node.body);
+        }
+      }
+    };
+    walk(program.body);
   }
 
   parseTopLevel() {
@@ -198,6 +256,13 @@ export class Parser {
       const next = this.peek(1);
       if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
         return this.parseTestBlock();
+      }
+    }
+    // bench block: bench "name" { ... } or bench { ... }
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'bench') {
+      const next = this.peek(1);
+      if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
+        return this.parseBenchBlock();
       }
     }
     return this.parseStatement();
@@ -223,6 +288,28 @@ export class Parser {
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close test block");
     return new AST.TestBlock(name, body, l);
+  }
+
+  parseBenchBlock() {
+    const l = this.loc();
+    this.advance(); // consume 'bench'
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
+    this.expect(TokenType.LBRACE, "Expected '{' after bench block name");
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close bench block");
+    return new AST.BenchBlock(name, body, l);
   }
 
   // ─── Full-stack blocks ────────────────────────────────────
@@ -1333,14 +1420,20 @@ export class Parser {
   parseStatement() {
     // pub modifier: pub fn, pub type, pub x = ...
     if (this.check(TokenType.PUB)) return this.parsePubDeclaration();
+    if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FOR) {
+      this.advance(); // consume async
+      return this.parseForStatement(null, true);
+    }
     if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) return this.parseAsyncFunctionDeclaration();
     if (this.check(TokenType.FN) && this.peek(1).type === TokenType.IDENTIFIER) return this.parseFunctionDeclaration();
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
+    if (this.check(TokenType.MUT)) this.error("'mut' is not supported in Tova. Use 'var' for mutable variables");
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
     if (this.check(TokenType.LET)) return this.parseLetDestructure();
     if (this.check(TokenType.IF)) return this.parseIfStatement();
     if (this.check(TokenType.FOR)) return this.parseForStatement();
     if (this.check(TokenType.WHILE)) return this.parseWhileStatement();
+    if (this.check(TokenType.LOOP)) return this.parseLoopStatement();
     if (this.check(TokenType.RETURN)) return this.parseReturnStatement();
     if (this.check(TokenType.IMPORT)) return this.parseImport();
     if (this.check(TokenType.MATCH)) return this.parseMatchAsStatement();
@@ -1353,6 +1446,18 @@ export class Parser {
     if (this.check(TokenType.TRAIT)) return this.parseTraitDeclaration();
     if (this.check(TokenType.DEFER)) return this.parseDeferStatement();
     if (this.check(TokenType.EXTERN)) return this.parseExternDeclaration();
+
+    // Labeled loops: name: for/while/loop
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.COLON) {
+      const afterColon = this.peek(2).type;
+      if (afterColon === TokenType.FOR || afterColon === TokenType.WHILE || afterColon === TokenType.LOOP) {
+        const label = this.advance().value; // consume identifier
+        this.advance(); // consume colon
+        if (this.check(TokenType.FOR)) return this.parseForStatement(label);
+        if (this.check(TokenType.WHILE)) return this.parseWhileStatement(label);
+        if (this.check(TokenType.LOOP)) return this.parseLoopStatement(label);
+      }
+    }
 
     return this.parseExpressionOrAssignment();
   }
@@ -1472,6 +1577,18 @@ export class Parser {
     const l = this.loc();
     this.expect(TokenType.FN);
     const name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+
+    // Parse optional type parameters: fn name<T, U>(...)
+    let typeParams = [];
+    if (this.check(TokenType.LESS)) {
+      this.advance(); // consume <
+      while (!this.check(TokenType.GREATER) && !this.isAtEnd()) {
+        typeParams.push(this.expect(TokenType.IDENTIFIER, "Expected type parameter name").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.GREATER, "Expected '>' after type parameters");
+    }
+
     this.expect(TokenType.LPAREN, "Expected '(' after function name");
     const params = this.parseParameterList();
     this.expect(TokenType.RPAREN, "Expected ')' after parameters");
@@ -1482,7 +1599,7 @@ export class Parser {
     }
 
     const body = this.parseBlock();
-    return new AST.FunctionDeclaration(name, params, body, returnType, l);
+    return new AST.FunctionDeclaration(name, params, body, returnType, l, false, typeParams);
   }
 
   parseAsyncFunctionDeclaration() {
@@ -1490,6 +1607,18 @@ export class Parser {
     this.expect(TokenType.ASYNC);
     this.expect(TokenType.FN);
     const name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+
+    // Parse optional type parameters: async fn name<T, U>(...)
+    let typeParams = [];
+    if (this.check(TokenType.LESS)) {
+      this.advance(); // consume <
+      while (!this.check(TokenType.GREATER) && !this.isAtEnd()) {
+        typeParams.push(this.expect(TokenType.IDENTIFIER, "Expected type parameter name").value);
+        if (!this.match(TokenType.COMMA)) break;
+      }
+      this.expect(TokenType.GREATER, "Expected '>' after type parameters");
+    }
+
     this.expect(TokenType.LPAREN, "Expected '(' after function name");
     const params = this.parseParameterList();
     this.expect(TokenType.RPAREN, "Expected ')' after parameters");
@@ -1500,19 +1629,29 @@ export class Parser {
     }
 
     const body = this.parseBlock();
-    return new AST.FunctionDeclaration(name, params, body, returnType, l, true);
+    return new AST.FunctionDeclaration(name, params, body, returnType, l, true, typeParams);
   }
 
   parseBreakStatement() {
     const l = this.loc();
     this.expect(TokenType.BREAK);
-    return new AST.BreakStatement(l);
+    // Optional label: break outer
+    let label = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().line === l.line) {
+      label = this.advance().value;
+    }
+    return new AST.BreakStatement(l, label);
   }
 
   parseContinueStatement() {
     const l = this.loc();
     this.expect(TokenType.CONTINUE);
-    return new AST.ContinueStatement(l);
+    // Optional label: continue outer
+    let label = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().line === l.line) {
+      label = this.advance().value;
+    }
+    return new AST.ContinueStatement(l, label);
   }
 
   parseGuardStatement() {
@@ -1609,15 +1748,32 @@ export class Parser {
 
   parseTypeAnnotation() {
     const l = this.loc();
+    const first = this._parseSingleTypeAnnotation();
+
+    // Union types: Type | Type | Type
+    if (this.check(TokenType.BAR)) {
+      const members = [first];
+      while (this.match(TokenType.BAR)) {
+        members.push(this._parseSingleTypeAnnotation());
+      }
+      return new AST.UnionTypeAnnotation(members, l);
+    }
+
+    return first;
+  }
+
+  // Parse a single type annotation without union (used as union member)
+  _parseSingleTypeAnnotation() {
+    const l = this.loc();
 
     // [Type] — array type shorthand
     if (this.match(TokenType.LBRACKET)) {
-      const elementType = this.parseTypeAnnotation();
+      const elementType = this._parseSingleTypeAnnotation();
       this.expect(TokenType.RBRACKET, "Expected ']' in array type");
       return new AST.ArrayTypeAnnotation(elementType, l);
     }
 
-    // (Type, Type) — tuple type or (Type, Type) -> ReturnType — function type
+    // (Type, Type) — tuple type or function type
     if (this.check(TokenType.LPAREN)) {
       this.advance();
       const types = [];
@@ -1626,7 +1782,6 @@ export class Parser {
         if (!this.match(TokenType.COMMA)) break;
       }
       this.expect(TokenType.RPAREN, "Expected ')' in type annotation");
-      // Check for -> to distinguish function type from tuple type
       if (this.match(TokenType.THIN_ARROW)) {
         const returnType = this.parseTypeAnnotation();
         return new AST.FunctionTypeAnnotation(types, returnType, l);
@@ -1636,7 +1791,6 @@ export class Parser {
 
     const name = this.expect(TokenType.IDENTIFIER, "Expected type name").value;
 
-    // Generics: Type<A, B>
     let typeParams = [];
     if (this.match(TokenType.LESS)) {
       do {
@@ -1689,7 +1843,7 @@ export class Parser {
         return new AST.RefinementType(name, typeExpr, predicate, l);
       }
 
-      return new AST.TypeAlias(name, typeExpr, l);
+      return new AST.TypeAlias(name, typeParams, typeExpr, l);
     }
 
     this.expect(TokenType.LBRACE, "Expected '{' to open type body");
@@ -1773,6 +1927,9 @@ export class Parser {
     } else if (this.check(TokenType.LPAREN)) {
       // Tuple destructuring: let (a, b) = expr
       pattern = this.parseTuplePattern();
+    } else if (this.check(TokenType.IDENTIFIER)) {
+      const name = this.current().value;
+      this.error(`Use '${name} = value' for binding or 'var ${name} = value' for mutable. 'let' is only for destructuring: let {a, b} = obj`);
     } else {
       this.error("Expected '{', '[', or '(' after 'let' for destructuring");
     }
@@ -1846,8 +2003,14 @@ export class Parser {
     const consequent = this.parseBlock();
 
     const alternates = [];
-    while (this.check(TokenType.ELIF)) {
-      this.advance();
+    while (this.check(TokenType.ELIF) ||
+           (this.check(TokenType.ELSE) && this.peek(1).type === TokenType.IF)) {
+      if (this.check(TokenType.ELIF)) {
+        this.advance();
+      } else {
+        this.advance(); // else
+        this.advance(); // if
+      }
       const elifCond = this.parseExpression();
       const elifBody = this.parseBlock();
       alternates.push({ condition: elifCond, body: elifBody });
@@ -1861,7 +2024,7 @@ export class Parser {
     return new AST.IfStatement(condition, consequent, alternates, elseBody, l);
   }
 
-  parseForStatement() {
+  parseForStatement(label = null, isAsync = false) {
     const l = this.loc();
     this.expect(TokenType.FOR);
 
@@ -1899,6 +2062,13 @@ export class Parser {
 
     this.expect(TokenType.IN, "Expected 'in' after for variable");
     const iterable = this.parseExpression();
+
+    // Optional when guard: for user in users when user.active { ... }
+    let guard = null;
+    if (this.match(TokenType.WHEN)) {
+      guard = this.parseExpression();
+    }
+
     const body = this.parseBlock();
 
     let elseBody = null;
@@ -1906,15 +2076,22 @@ export class Parser {
       elseBody = this.parseBlock();
     }
 
-    return new AST.ForStatement(variable, iterable, body, elseBody, l);
+    return new AST.ForStatement(variable, iterable, body, elseBody, l, guard, label, isAsync);
   }
 
-  parseWhileStatement() {
+  parseWhileStatement(label = null) {
     const l = this.loc();
     this.expect(TokenType.WHILE);
     const condition = this.parseExpression();
     const body = this.parseBlock();
-    return new AST.WhileStatement(condition, body, l);
+    return new AST.WhileStatement(condition, body, l, label);
+  }
+
+  parseLoopStatement(label = null) {
+    const l = this.loc();
+    this.expect(TokenType.LOOP);
+    const body = this.parseBlock();
+    return new AST.LoopStatement(body, label, l);
   }
 
   parseTryCatch() {
@@ -2049,6 +2226,23 @@ export class Parser {
         const value = this.parseExpression();
         return new AST.Assignment([expr], [value], l);
       }
+      // Destructuring without let: {name, age} = user  or  [a, b] = list
+      if (expr.type === 'ObjectLiteral') {
+        const pattern = new AST.ObjectPattern(
+          expr.properties.map(p => ({ key: typeof p.key === 'string' ? p.key : p.key.name || p.key, value: typeof p.key === 'string' ? p.key : p.key.name || p.key })),
+          expr.loc
+        );
+        const value = this.parseExpression();
+        return new AST.LetDestructure(pattern, value, l);
+      }
+      if (expr.type === 'ArrayLiteral') {
+        const pattern = new AST.ArrayPattern(
+          expr.elements.map(e => e.type === 'Identifier' ? e.name : '_'),
+          expr.loc
+        );
+        const value = this.parseExpression();
+        return new AST.LetDestructure(pattern, value, l);
+      }
       this.error("Invalid assignment target");
     }
 
@@ -2077,8 +2271,14 @@ export class Parser {
     const consequent = this.parseBlock();
 
     const alternates = [];
-    while (this.check(TokenType.ELIF)) {
-      this.advance();
+    while (this.check(TokenType.ELIF) ||
+           (this.check(TokenType.ELSE) && this.peek(1).type === TokenType.IF)) {
+      if (this.check(TokenType.ELIF)) {
+        this.advance();
+      } else {
+        this.advance(); // else
+        this.advance(); // if
+      }
       const elifCond = this.parseExpression();
       const elifBody = this.parseBlock();
       alternates.push({ condition: elifCond, body: elifBody });
@@ -2452,9 +2652,9 @@ export class Parser {
         const name = this.advance().value;
         this.advance(); // :
         const value = this.parseExpression();
-        args.push(new AST.NamedArgument(name, value, this.loc()));
+        args.push(new AST.NamedArgument(name, this._maybeWrapItLambda(value), this.loc()));
       } else {
-        args.push(this.parseExpression());
+        args.push(this._maybeWrapItLambda(this.parseExpression()));
       }
       if (!this.match(TokenType.COMMA)) break;
     }
@@ -2566,8 +2766,8 @@ export class Parser {
     // Identifier (or arrow lambda: x => expr)
     if (this.check(TokenType.IDENTIFIER)) {
       const name = this.advance().value;
-      // Check for arrow lambda: x => expr
-      if (this.check(TokenType.ARROW)) {
+      // Check for arrow lambda: x => expr or x -> expr
+      if (this.check(TokenType.ARROW) || this.check(TokenType.THIN_ARROW)) {
         this.advance();
         const body = this.parseExpression();
         return new AST.LambdaExpression(
@@ -2951,10 +3151,10 @@ export class Parser {
 
     this.expect(TokenType.LPAREN);
 
-    // Empty parens: () => expr
+    // Empty parens: () => expr or () -> expr
     if (this.check(TokenType.RPAREN)) {
       this.advance();
-      if (this.check(TokenType.ARROW)) {
+      if (this.check(TokenType.ARROW) || this.check(TokenType.THIN_ARROW)) {
         this.advance();
         const body = this.parseExpression();
         return new AST.LambdaExpression([], body, l);
@@ -2997,14 +3197,18 @@ export class Parser {
 
       if (isLambda && this.check(TokenType.RPAREN)) {
         this.advance(); // )
-        if (this.check(TokenType.ARROW)) {
+        if (this.check(TokenType.ARROW) || this.check(TokenType.THIN_ARROW)) {
           this.advance(); // =>
           const body = this.check(TokenType.LBRACE) ? this.parseBlock() : this.parseExpression();
           return new AST.LambdaExpression(params, body, l);
         }
+        // Helpful hint: user may have typed = instead of -> or =>
+        if (this.check(TokenType.ASSIGN) || this.check(TokenType.EQUAL)) {
+          this.error("Use '->' or '=>' for arrow functions: (x, y) -> expr");
+        }
       }
     } catch (e) {
-      // Not a lambda, backtrack
+      // Speculative parse failure — expected during backtracking, not a real error
     }
 
     // Backtrack and parse as parenthesized expression or tuple
@@ -3027,5 +3231,39 @@ export class Parser {
 
     this.expect(TokenType.RPAREN, "Expected ')'");
     return expr;
+  }
+
+  // ─── Implicit `it` parameter support ─────────────────────
+
+  _containsFreeIt(node) {
+    if (!node) return false;
+    if (node.type === 'Identifier' && node.name === 'it') return true;
+    if (node.type === 'LambdaExpression' || node.type === 'FunctionDeclaration') return false;
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue;
+      const val = node[key];
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          if (item && typeof item === 'object' && this._containsFreeIt(item)) return true;
+        }
+      } else if (val && typeof val === 'object' && val.type) {
+        if (this._containsFreeIt(val)) return true;
+      }
+    }
+    return false;
+  }
+
+  _maybeWrapItLambda(node) {
+    if (node.type === 'Identifier' && node.name === 'it') return node;
+    if (node.type === 'LambdaExpression') return node;
+    if (node.type === 'FunctionDeclaration') return node;
+    if (this._containsFreeIt(node)) {
+      const loc = node.loc || this.loc();
+      return new AST.LambdaExpression(
+        [new AST.Parameter('it', null, null, loc)],
+        node, loc
+      );
+    }
+    return node;
   }
 }

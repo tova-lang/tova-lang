@@ -129,16 +129,17 @@ describe('Edge — Match with array patterns', () => {
 });
 
 describe('Edge — If-expression with elif chains', () => {
-  test('if-elif-else expression generates IIFE', () => {
+  test('if-elif-else expression with single expressions generates nested ternary', () => {
     const code = compileShared('x = if a { 1 } elif b { 2 } elif c { 3 } else { 4 }');
-    expect(code).toContain('(() => {');
-    expect(code).toContain('if (a)');
-    expect(code).toContain('else if (b)');
-    expect(code).toContain('else if (c)');
-    expect(code).toContain('return 1;');
-    expect(code).toContain('return 2;');
-    expect(code).toContain('return 3;');
-    expect(code).toContain('return 4;');
+    // P4 optimization: all branches are single expressions → nested ternary
+    expect(code).toContain('?');
+    expect(code).toContain('(a)');
+    expect(code).toContain('(b)');
+    expect(code).toContain('(c)');
+    expect(code).toContain('1');
+    expect(code).toContain('2');
+    expect(code).toContain('3');
+    expect(code).toContain('4');
   });
 });
 
@@ -224,19 +225,19 @@ describe('Edge — Spread in arrays', () => {
 });
 
 describe('Edge — Chained comparison', () => {
-  test('1 < x < 10 becomes && chain with temp vars', () => {
+  test('1 < x < 10 becomes inline && chain for simple operands', () => {
     const code = compileShared('x = 1 < y < 10');
-    // Uses temp vars to avoid evaluating intermediate operands twice
-    expect(code).toMatch(/1 < \(__cmp_\d+ = y\)/);
-    expect(code).toMatch(/__cmp_\d+ < 10/);
+    // P4 optimization: simple operands → inline without temp vars
+    expect(code).toContain('(1 < y)');
+    expect(code).toContain('(y < 10)');
     expect(code).toContain('&&');
   });
 
-  test('three-way chained comparison', () => {
+  test('three-way chained comparison with simple operands', () => {
     const code = compileShared('x = 0 <= y < z <= 100');
-    expect(code).toMatch(/0 <= \(__cmp_\d+ = y\)/);
-    expect(code).toMatch(/__cmp_\d+ < \(__cmp_\d+ = z\)/);
-    expect(code).toMatch(/__cmp_\d+ <= 100/);
+    expect(code).toContain('(0 <= y)');
+    expect(code).toContain('(y < z)');
+    expect(code).toContain('(z <= 100)');
     expect(code).toContain('&&');
   });
 });
@@ -285,9 +286,10 @@ describe('Edge — Optional chaining', () => {
 });
 
 describe('Edge — Null coalescing', () => {
-  test('a ?? b generates NaN-safe coalescing', () => {
+  test('a ?? b generates NaN-safe coalescing (inline for simple expressions)', () => {
     const code = compileShared('x = a ?? "default"');
-    expect(code).toContain('__tova_v != null && __tova_v === __tova_v');
+    // P4 optimization: simple left side → inline without IIFE
+    expect(code).toContain('a != null && a === a');
     expect(code).toContain('"default"');
   });
 });

@@ -205,7 +205,7 @@ shared {
   type User { id: Int, name: String, email: String }
 
   fn validate_email(email: String) -> Bool {
-    email.contains("@") && email.length() > 3
+    email.contains("@") and email.length() > 3
   }
 }
 
