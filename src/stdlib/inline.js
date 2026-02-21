@@ -80,6 +80,21 @@ export const BUILTIN_FUNCTIONS = {
   assert_eq: `function assert_eq(a, b, msg) { if (a !== b) throw new Error(msg || \`Assertion failed: \${JSON.stringify(a)} !== \${JSON.stringify(b)}\`); }`,
   assert_ne: `function assert_ne(a, b, msg) { if (a === b) throw new Error(msg || \`Assertion failed: values should not be equal: \${JSON.stringify(a)}\`); }`,
   assert: `function assert(cond, msg) { if (!cond) throw new Error(msg || "Assertion failed"); }`,
+  assert_throws: `function assert_throws(fn, expected) {
+  try { fn(); } catch (e) {
+    if (expected !== undefined) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (typeof expected === 'string' && !msg.includes(expected)) {
+        throw new Error("Expected error containing \\"" + expected + "\\" but got \\"" + msg + "\\"");
+      }
+      if (expected instanceof RegExp && !expected.test(msg)) {
+        throw new Error("Expected error matching " + expected + " but got \\"" + msg + "\\"");
+      }
+    }
+    return e;
+  }
+  throw new Error("Expected function to throw" + (expected ? " \\"" + expected + "\\"" : "") + " but it did not");
+}`,
 
   // ── Missing from module files (synced to BUILTIN_FUNCTIONS) ──
   find_index: `function find_index(arr, fn) { const i = arr.findIndex(fn); return i === -1 ? null : i; }`,
@@ -519,6 +534,145 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
 }`,
   regex_builder: `function regex_builder() { return new RegexBuilder(); }`,
 
+  // ── Namespace modules ──────────────────────────────────
+  math: `const math = Object.freeze({
+  sin(n) { return Math.sin(n); },
+  cos(n) { return Math.cos(n); },
+  tan(n) { return Math.tan(n); },
+  asin(n) { return Math.asin(n); },
+  acos(n) { return Math.acos(n); },
+  atan(n) { return Math.atan(n); },
+  atan2(y, x) { return Math.atan2(y, x); },
+  log(n) { return Math.log(n); },
+  log2(n) { return Math.log2(n); },
+  log10(n) { return Math.log10(n); },
+  exp(n) { return Math.exp(n); },
+  abs(n) { return Math.abs(n); },
+  floor(n) { return Math.floor(n); },
+  ceil(n) { return Math.ceil(n); },
+  round(n) { return Math.round(n); },
+  sqrt(n) { return Math.sqrt(n); },
+  pow(b, e) { return Math.pow(b, e); },
+  clamp(n, lo, hi) { return Math.min(Math.max(n, lo), hi); },
+  random() { return Math.random(); },
+  sign(n) { return Math.sign(n); },
+  trunc(n) { return Math.trunc(n); },
+  hypot(a, b) { return Math.hypot(a, b); },
+  lerp(a, b, t) { return a + (b - a) * t; },
+  gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a; },
+  lcm(a, b) { if (a === 0 && b === 0) return 0; let x = Math.abs(a), y = Math.abs(b); while (y) { const t = y; y = x % y; x = t; } return Math.abs(a * b) / x; },
+  factorial(n) { if (n < 0) return null; if (n <= 1) return 1; let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; },
+  PI: Math.PI,
+  E: Math.E,
+  INF: Infinity
+});`,
+
+  str: `const str = Object.freeze({
+  upper(s) { return s.toUpperCase(); },
+  lower(s) { return s.toLowerCase(); },
+  trim(s) { return s.trim(); },
+  trim_start(s) { return s.trimStart(); },
+  trim_end(s) { return s.trimEnd(); },
+  split(s, sep) { return s.split(sep); },
+  join(arr, sep) { return arr.join(sep); },
+  replace(s, from, to) { return typeof from === 'string' ? s.replaceAll(from, to) : s.replace(from, to); },
+  repeat(s, n) { return s.repeat(n); },
+  contains(s, sub) { return s.includes(sub); },
+  starts_with(s, prefix) { return s.startsWith(prefix); },
+  ends_with(s, suffix) { return s.endsWith(suffix); },
+  chars(s) { return [...s]; },
+  words(s) { return s.split(/\\s+/).filter(Boolean); },
+  lines(s) { return s.split('\\n'); },
+  capitalize(s) { return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s; },
+  title_case(s) { return s.replace(/\\b\\w/g, c => c.toUpperCase()); },
+  snake_case(s) { return s.replace(/[-\\s]+/g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/^_/, ''); },
+  camel_case(s) { return s.replace(/[-_\\s]+(.)?/g, (_, c) => c ? c.toUpperCase() : '').replace(/^[A-Z]/, c => c.toLowerCase()); },
+  kebab_case(s) { return s.replace(/[-\\s]+/g, '-').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().replace(/^-/, ''); },
+  index_of(s, sub) { const i = s.indexOf(sub); return i === -1 ? null : i; },
+  last_index_of(s, sub) { const i = s.lastIndexOf(sub); return i === -1 ? null : i; },
+  pad_start(s, n, fill) { return s.padStart(n, fill || ' '); },
+  pad_end(s, n, fill) { return s.padEnd(n, fill || ' '); },
+  center(s, n, fill) { if (s.length >= n) return s; const f = fill || ' '; const total = n - s.length; const left = Math.floor(total / 2); const right = total - left; return f.repeat(Math.ceil(left / f.length)).slice(0, left) + s + f.repeat(Math.ceil(right / f.length)).slice(0, right); },
+  slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); },
+  escape_html(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); },
+  unescape_html(s) { return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"); }
+});`,
+
+  arr: `const arr = Object.freeze({
+  sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; },
+  reversed(a) { return [...a].reverse(); },
+  unique(a) { return [...new Set(a)]; },
+  chunk(a, n) { const r = []; for (let i = 0; i < a.length; i += n) r.push(a.slice(i, i + n)); return r; },
+  flatten(a) { return a.flat(); },
+  take(a, n) { return a.slice(0, n); },
+  drop(a, n) { return a.slice(n); },
+  first(a) { return a.length > 0 ? a[0] : null; },
+  last(a) { return a.length > 0 ? a[a.length - 1] : null; },
+  count(a, fn) { return a.filter(fn).length; },
+  partition(a, fn) { const y = [], n = []; for (const v of a) { (fn(v) ? y : n).push(v); } return [y, n]; },
+  group_by(a, fn) { const r = {}; for (const v of a) { const k = fn(v); if (!r[k]) r[k] = []; r[k].push(v); } return r; },
+  zip_with(a, b, fn) { const m = Math.min(a.length, b.length); const r = []; for (let i = 0; i < m; i++) r.push(fn ? fn(a[i], b[i]) : [a[i], b[i]]); return r; },
+  frequencies(a) { const r = {}; for (const v of a) { const k = String(v); r[k] = (r[k] || 0) + 1; } return r; },
+  scan(a, fn, init) { const r = []; let acc = init; for (const v of a) { acc = fn(acc, v); r.push(acc); } return r; },
+  min_by(a, fn) { if (a.length === 0) return null; let best = a[0], bestK = fn(a[0]); for (let i = 1; i < a.length; i++) { const k = fn(a[i]); if (k < bestK) { best = a[i]; bestK = k; } } return best; },
+  max_by(a, fn) { if (a.length === 0) return null; let best = a[0], bestK = fn(a[0]); for (let i = 1; i < a.length; i++) { const k = fn(a[i]); if (k > bestK) { best = a[i]; bestK = k; } } return best; },
+  sum_by(a, fn) { let s = 0; for (const v of a) s += fn(v); return s; },
+  compact(a) { return a.filter(v => v != null); },
+  rotate(a, n) { if (a.length === 0) return []; const k = ((n % a.length) + a.length) % a.length; return [...a.slice(k), ...a.slice(0, k)]; },
+  insert_at(a, idx, val) { const r = [...a]; r.splice(idx, 0, val); return r; },
+  remove_at(a, idx) { const r = [...a]; r.splice(idx, 1); return r; },
+  binary_search(a, target, keyFn) { let lo = 0, hi = a.length - 1; while (lo <= hi) { const mid = (lo + hi) >> 1; const val = keyFn ? keyFn(a[mid]) : a[mid]; if (val === target) return mid; if (val < target) lo = mid + 1; else hi = mid - 1; } return -1; },
+  is_sorted(a, keyFn) { for (let i = 1; i < a.length; i++) { const x = keyFn ? keyFn(a[i - 1]) : a[i - 1]; const y = keyFn ? keyFn(a[i]) : a[i]; if (x > y) return false; } return true; }
+});`,
+
+  dt: `const dt = Object.freeze({
+  now() { return Date.now(); },
+  now_iso() { return new Date().toISOString(); },
+  parse(s) { const d = new Date(s); return isNaN(d.getTime()) ? Err('Invalid date: ' + s) : Ok(d); },
+  format(d, fmt) { if (typeof d === 'number') d = new Date(d); if (fmt === 'iso') return d.toISOString(); if (fmt === 'date') return d.toISOString().slice(0, 10); if (fmt === 'time') return d.toTimeString().slice(0, 8); if (fmt === 'datetime') return d.toISOString().slice(0, 10) + ' ' + d.toTimeString().slice(0, 8); return fmt.replace('YYYY', String(d.getFullYear())).replace('MM', String(d.getMonth() + 1).padStart(2, '0')).replace('DD', String(d.getDate()).padStart(2, '0')).replace('HH', String(d.getHours()).padStart(2, '0')).replace('mm', String(d.getMinutes()).padStart(2, '0')).replace('ss', String(d.getSeconds()).padStart(2, '0')); },
+  add(d, amount, unit) { if (typeof d === 'number') d = new Date(d); const r = new Date(d.getTime()); if (unit === 'years') r.setFullYear(r.getFullYear() + amount); else if (unit === 'months') r.setMonth(r.getMonth() + amount); else if (unit === 'days') r.setDate(r.getDate() + amount); else if (unit === 'hours') r.setHours(r.getHours() + amount); else if (unit === 'minutes') r.setMinutes(r.getMinutes() + amount); else if (unit === 'seconds') r.setSeconds(r.getSeconds() + amount); return r; },
+  diff(d1, d2, unit) { if (typeof d1 === 'number') d1 = new Date(d1); if (typeof d2 === 'number') d2 = new Date(d2); const ms = d2.getTime() - d1.getTime(); if (unit === 'seconds') return Math.floor(ms / 1000); if (unit === 'minutes') return Math.floor(ms / 60000); if (unit === 'hours') return Math.floor(ms / 3600000); if (unit === 'days') return Math.floor(ms / 86400000); if (unit === 'months') return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()); if (unit === 'years') return d2.getFullYear() - d1.getFullYear(); return ms; },
+  from(parts) { return new Date(parts.year || 0, (parts.month || 1) - 1, parts.day || 1, parts.hour || 0, parts.minute || 0, parts.second || 0); },
+  part(d, p) { if (typeof d === 'number') d = new Date(d); if (p === 'year') return d.getFullYear(); if (p === 'month') return d.getMonth() + 1; if (p === 'day') return d.getDate(); if (p === 'hour') return d.getHours(); if (p === 'minute') return d.getMinutes(); if (p === 'second') return d.getSeconds(); if (p === 'weekday') return d.getDay(); return null; },
+  time_ago(d) { if (typeof d === 'number') d = new Date(d); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return s + ' seconds ago'; const m = Math.floor(s / 60); if (m < 60) return m + (m === 1 ? ' minute ago' : ' minutes ago'); const h = Math.floor(m / 60); if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago'); const dy = Math.floor(h / 24); if (dy < 30) return dy + (dy === 1 ? ' day ago' : ' days ago'); const mo = Math.floor(dy / 30); if (mo < 12) return mo + (mo === 1 ? ' month ago' : ' months ago'); const yr = Math.floor(mo / 12); return yr + (yr === 1 ? ' year ago' : ' years ago'); }
+});`,
+
+  re: `const re = Object.freeze({
+  test(s, pattern, flags) { return new RegExp(pattern, flags).test(s); },
+  match(s, pattern, flags) { const m = s.match(new RegExp(pattern, flags)); if (!m) return Err('No match'); return Ok({ match: m[0], index: m.index, groups: m.slice(1) }); },
+  find_all(s, pattern, flags) { const r = new RegExp(pattern, (flags || '') + (flags && flags.includes('g') ? '' : 'g')); const results = []; let m; while ((m = r.exec(s)) !== null) { results.push({ match: m[0], index: m.index, groups: m.slice(1) }); } return results; },
+  replace(s, pattern, replacement, flags) { return s.replace(new RegExp(pattern, flags || 'g'), replacement); },
+  split(s, pattern, flags) { return s.split(new RegExp(pattern, flags)); },
+  capture(s, pattern, flags) { const m = s.match(new RegExp(pattern, flags)); if (!m) return Err('No match'); if (!m.groups) return Err('No named groups'); return Ok(m.groups); }
+});`,
+
+  json: `const json = Object.freeze({
+  parse(s) { try { return Ok(JSON.parse(s)); } catch (e) { return Err(e.message); } },
+  stringify(v) { return JSON.stringify(v); },
+  pretty(v) { return JSON.stringify(v, null, 2); }
+});`,
+
+  fs: `const fs = Object.freeze({
+  read_text(path, enc) { try { return Ok(require('fs').readFileSync(path, enc || 'utf-8')); } catch (e) { return Err(e.message); } },
+  write_text(path, content, opts) { try { const f = require('fs'); if (opts && opts.append) f.appendFileSync(path, content); else f.writeFileSync(path, content); return Ok(path); } catch (e) { return Err(e.message); } },
+  exists(path) { return require('fs').existsSync(path); },
+  is_dir(path) { try { return require('fs').statSync(path).isDirectory(); } catch { return false; } },
+  is_file(path) { try { return require('fs').statSync(path).isFile(); } catch { return false; } },
+  ls(dir, opts) { const f = require('fs'); const p = require('path'); const d = dir || '.'; const entries = f.readdirSync(d); if (opts && opts.full) return entries.map(e => p.join(d, e)); return entries; },
+  mkdir(dir) { try { require('fs').mkdirSync(dir, { recursive: true }); return Ok(dir); } catch (e) { return Err(e.message); } },
+  rm(path, opts) { try { require('fs').rmSync(path, { recursive: !!(opts && opts.recursive), force: !!(opts && opts.force) }); return Ok(path); } catch (e) { return Err(e.message); } },
+  cp(src, dest, opts) { try { const f = require('fs'); if (opts && opts.recursive) { f.cpSync(src, dest, { recursive: true }); } else { f.copyFileSync(src, dest); } return Ok(dest); } catch (e) { return Err(e.message); } },
+  mv(src, dest) { try { require('fs').renameSync(src, dest); return Ok(dest); } catch (e) { return Err(e.message); } },
+  glob_files(pattern, opts) { if (typeof Bun !== 'undefined' && Bun.Glob) { const glob = new Bun.Glob(pattern); return [...glob.scanSync(opts && opts.cwd || '.')]; } const f = require('fs'); if (f.globSync) return f.globSync(pattern, opts); return []; }
+});`,
+
+  url: `const url = Object.freeze({
+  parse(s) { try { const u = new URL(s); return Ok({ protocol: u.protocol.replace(':', ''), host: u.host, pathname: u.pathname, search: u.search, hash: u.hash }); } catch (e) { return Err('Invalid URL: ' + s); } },
+  build(parts) { let u = (parts.protocol || 'https') + '://' + (parts.host || ''); u += parts.pathname || '/'; if (parts.search) u += (parts.search.startsWith('?') ? '' : '?') + parts.search; if (parts.hash) u += (parts.hash.startsWith('#') ? '' : '#') + parts.hash; return u; },
+  parse_query(s) { const r = {}; const qs = s.startsWith('?') ? s.slice(1) : s; if (!qs) return r; for (const pair of qs.split('&')) { const [k, ...v] = pair.split('='); r[decodeURIComponent(k)] = decodeURIComponent(v.join('=')); } return r; },
+  build_query(obj) { return Object.entries(obj).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); }
+});`,
+
   // ── Channel-based async ───────────────────────────────
   Channel: `class Channel {
   constructor(capacity) {
@@ -613,10 +767,179 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
     if (result === false) { throw new Error('Property failed on input: ' + JSON.stringify(args)); }
   }
 }`,
+
+  // ── Mock / Spy Utilities ────────────────────────────────
+  create_spy: `function create_spy(impl) {
+  const spy = function(...args) {
+    spy.calls.push(args);
+    spy.call_count++;
+    spy.called = true;
+    spy.last_args = args;
+    if (spy._impl) return spy._impl(...args);
+    return spy._return_value;
+  };
+  spy.calls = [];
+  spy.call_count = 0;
+  spy.called = false;
+  spy.last_args = null;
+  spy._impl = impl || null;
+  spy._return_value = undefined;
+  spy.returns = function(val) { spy._return_value = val; spy._impl = null; return spy; };
+  spy.reset = function() { spy.calls = []; spy.call_count = 0; spy.called = false; spy.last_args = null; };
+  spy.called_with = function(...expected) {
+    return spy.calls.some(function(call) {
+      return expected.length === call.length && expected.every(function(v, i) { return v === call[i]; });
+    });
+  };
+  return spy;
+}`,
+  create_mock: `function create_mock(return_value) {
+  return create_spy(typeof return_value === 'function' ? return_value : function() { return return_value; });
+}`,
+
+  // ── Advanced Collections ────────────────────────────────
+  OrderedDict: `class OrderedDict {
+  constructor(entries) { this._map = new Map(entries || []); }
+  get(key) { return this._map.has(key) ? this._map.get(key) : null; }
+  set(key, value) { const m = new Map(this._map); m.set(key, value); return new OrderedDict([...m]); }
+  delete(key) { const m = new Map(this._map); m.delete(key); return new OrderedDict([...m]); }
+  has(key) { return this._map.has(key); }
+  keys() { return [...this._map.keys()]; }
+  values() { return [...this._map.values()]; }
+  entries() { return [...this._map.entries()]; }
+  get length() { return this._map.size; }
+  [Symbol.iterator]() { return this._map[Symbol.iterator](); }
+  toString() { return 'OrderedDict(' + this._map.size + ' entries)'; }
+}`,
+
+  DefaultDict: `class DefaultDict {
+  constructor(defaultFn) { this._map = new Map(); this._default = defaultFn; }
+  get(key) { if (!this._map.has(key)) { this._map.set(key, this._default()); } return this._map.get(key); }
+  set(key, value) { this._map.set(key, value); return this; }
+  has(key) { return this._map.has(key); }
+  delete(key) { this._map.delete(key); return this; }
+  keys() { return [...this._map.keys()]; }
+  values() { return [...this._map.values()]; }
+  entries() { return [...this._map.entries()]; }
+  get length() { return this._map.size; }
+  [Symbol.iterator]() { return this._map[Symbol.iterator](); }
+  toString() { return 'DefaultDict(' + this._map.size + ' entries)'; }
+}`,
+
+  Counter: `class Counter {
+  constructor(items) { this._counts = new Map(); if (items) { for (const item of items) { this._counts.set(item, (this._counts.get(item) || 0) + 1); } } }
+  count(item) { return this._counts.get(item) || 0; }
+  total() { let s = 0; for (const v of this._counts.values()) s += v; return s; }
+  most_common(n) { const sorted = [...this._counts.entries()].sort((a, b) => b[1] - a[1]); return n !== undefined ? sorted.slice(0, n) : sorted; }
+  keys() { return [...this._counts.keys()]; }
+  values() { return [...this._counts.values()]; }
+  entries() { return [...this._counts.entries()]; }
+  has(item) { return this._counts.has(item); }
+  get length() { return this._counts.size; }
+  [Symbol.iterator]() { return this._counts[Symbol.iterator](); }
+  toString() { return 'Counter(' + this._counts.size + ' items)'; }
+}`,
+
+  Deque: `class Deque {
+  constructor(items) { this._items = items ? [...items] : []; }
+  push_back(val) { return new Deque([...this._items, val]); }
+  push_front(val) { return new Deque([val, ...this._items]); }
+  pop_back() { if (this._items.length === 0) return [null, this]; return [this._items[this._items.length - 1], new Deque(this._items.slice(0, -1))]; }
+  pop_front() { if (this._items.length === 0) return [null, this]; return [this._items[0], new Deque(this._items.slice(1))]; }
+  peek_front() { return this._items.length > 0 ? this._items[0] : null; }
+  peek_back() { return this._items.length > 0 ? this._items[this._items.length - 1] : null; }
+  get length() { return this._items.length; }
+  toArray() { return [...this._items]; }
+  [Symbol.iterator]() { return this._items[Symbol.iterator](); }
+  toString() { return 'Deque(' + this._items.length + ' items)'; }
+}`,
+
+  collections: `const collections = Object.freeze({
+  OrderedDict, DefaultDict, Counter, Deque
+});`,
 };
 
 // All known builtin names for matching
 export const BUILTIN_NAMES = new Set(Object.keys(BUILTIN_FUNCTIONS));
+
+// ─── Stdlib Dependency Graph ──────────────────────────────────
+// Maps each builtin to the builtins it depends on (must be emitted first).
+// This replaces scattered ad-hoc dependency checks throughout the codebase.
+export const STDLIB_DEPS = {
+  // iter() requires the Seq class
+  iter: ['Seq'],
+  // collections namespace requires all collection classes
+  collections: ['OrderedDict', 'DefaultDict', 'Counter', 'Deque'],
+  // Table operations may use Table
+  describe: ['Table'],
+  // Some builtins reference Result/Option types (Ok, Err, Some, None)
+  // These are provided by RESULT_OPTION, not the builtin map, so no dep here
+  // Namespace modules that use builtins internally
+  json: ['Ok', 'Err'],
+  re: ['Ok', 'Err'],
+  dt: ['Ok', 'Err'],
+  fs: ['Ok', 'Err'],
+  url: ['Ok', 'Err'],
+  parse_url: ['Ok', 'Err'],
+  regex_match: ['Ok', 'Err'],
+  regex_capture: ['Ok', 'Err'],
+  json_parse: ['Ok', 'Err'],
+  date_parse: ['Ok', 'Err'],
+  read_text: ['Ok', 'Err'],
+  try_fn: ['Ok', 'Err'],
+  try_async: ['Ok', 'Err'],
+  // Seq uses Some/None
+  Seq: ['Some', 'None'],
+  // compare family
+  compare: ['Less', 'Equal', 'Greater'],
+  compare_by: ['Less', 'Equal', 'Greater'],
+  // mock/spy
+  create_mock: ['create_spy'],
+};
+
+// Resolve all transitive dependencies for a set of used names
+export function resolveStdlibDeps(usedNames) {
+  const resolved = new Set(usedNames);
+  const queue = [...usedNames];
+  while (queue.length > 0) {
+    const name = queue.pop();
+    const deps = STDLIB_DEPS[name];
+    if (deps) {
+      for (const dep of deps) {
+        if (!resolved.has(dep)) {
+          resolved.add(dep);
+          queue.push(dep);
+        }
+      }
+    }
+  }
+  return resolved;
+}
+
+// Topological sort: emit dependencies before dependents
+function _topoSort(names) {
+  const result = [];
+  const visited = new Set();
+  const visiting = new Set();
+
+  function visit(name) {
+    if (visited.has(name)) return;
+    if (visiting.has(name)) return; // circular — break
+    visiting.add(name);
+    const deps = STDLIB_DEPS[name];
+    if (deps) {
+      for (const dep of deps) {
+        if (names.has(dep)) visit(dep);
+      }
+    }
+    visiting.delete(name);
+    visited.add(name);
+    result.push(name);
+  }
+
+  for (const name of names) visit(name);
+  return result;
+}
 
 // Legacy compat: full stdlib as a single string (derived from BUILTIN_FUNCTIONS)
 // Only includes non-internal, non-table functions for backward compat with tests/playground
@@ -629,19 +952,17 @@ const _LEGACY_NAMES = [
   'keys', 'values', 'entries', 'merge', 'freeze', 'clone', 'sleep',
   'upper', 'lower', 'contains', 'starts_with', 'ends_with', 'chars', 'words',
   'lines', 'capitalize', 'title_case', 'snake_case', 'camel_case',
-  'assert_eq', 'assert_ne', 'assert',
+  'assert_eq', 'assert_ne', 'assert', 'assert_throws',
+  'create_spy', 'create_mock',
 ];
 export const BUILTINS = _LEGACY_NAMES.map(n => BUILTIN_FUNCTIONS[n]).join('\n');
 
 // Build stdlib containing only the functions that are actually used
 export function buildSelectiveStdlib(usedNames) {
+  // Resolve transitive dependencies and topologically sort
+  const withDeps = resolveStdlibDeps(usedNames);
+  const ordered = _topoSort(withDeps);
   const parts = [];
-  // Ensure Seq class is emitted before iter (dependency order)
-  const ordered = [...usedNames].sort((a, b) => {
-    if (a === 'Seq' && b === 'iter') return -1;
-    if (a === 'iter' && b === 'Seq') return 1;
-    return 0;
-  });
   for (const name of ordered) {
     if (BUILTIN_FUNCTIONS[name]) {
       parts.push(BUILTIN_FUNCTIONS[name]);

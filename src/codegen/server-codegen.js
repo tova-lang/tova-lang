@@ -156,7 +156,7 @@ export class ServerCodegen extends BaseCodegen {
     const modelDecls = [];
     const aiConfigs = []; // { name: string|null, config: object }
 
-    const collectFromBody = (stmts, groupPrefix = null, groupMiddlewares = []) => {
+    const collectFromBody = (stmts, groupPrefix = null, groupMiddlewares = [], groupVersion = null) => {
       for (const stmt of stmts) {
         if (stmt.type === 'RouteDeclaration') {
           const route = stmt;
@@ -165,6 +165,7 @@ export class ServerCodegen extends BaseCodegen {
               ...route,
               path: groupPrefix + route.path,
               _groupMiddlewares: groupMiddlewares.length > 0 ? [...groupMiddlewares] : undefined,
+              _version: groupVersion || undefined,
             };
             routes.push(prefixedRoute);
           } else {
@@ -196,7 +197,8 @@ export class ServerCodegen extends BaseCodegen {
         } else if (stmt.type === 'RouteGroupDeclaration') {
           const prefix = groupPrefix ? groupPrefix + stmt.prefix : stmt.prefix;
           const grpMw = [...groupMiddlewares]; // inherit parent group middlewares
-          collectFromBody(stmt.body, prefix, grpMw);
+          const ver = stmt.version || groupVersion; // inherit or override version
+          collectFromBody(stmt.body, prefix, grpMw, ver);
         } else if (stmt.type === 'RateLimitDeclaration') {
           rateLimitConfig = stmt.config;
         } else if (stmt.type === 'LifecycleHookDeclaration') {
@@ -240,8 +242,8 @@ export class ServerCodegen extends BaseCodegen {
 
     // Collect type declarations from shared blocks for model/ORM generation
     const sharedTypes = new Map(); // typeName -> { fields: [{ name, type }] }
-    for (const sb of sharedBlocks) {
-      for (const stmt of sb.body) {
+    const _collectTypes = (stmts) => {
+      for (const stmt of stmts) {
         if (stmt.type === 'TypeDeclaration' && stmt.variants) {
           const fields = [];
           for (const v of stmt.variants) {
@@ -254,6 +256,13 @@ export class ServerCodegen extends BaseCodegen {
           }
         }
       }
+    };
+    for (const sb of sharedBlocks) {
+      _collectTypes(sb.body);
+    }
+    // Also collect types from server blocks (for body: Type validation)
+    for (const block of serverBlocks) {
+      _collectTypes(block.body);
     }
 
     // Separate group-only middlewares from global middlewares
@@ -788,12 +797,12 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     lines.push('// ── Router ──');
     lines.push('const __routes = [];');
-    lines.push('function __addRoute(method, path, handler) {');
+    lines.push('function __addRoute(method, path, handler, version) {');
     lines.push('  let pattern = path');
     lines.push('    .replace(/\\*([a-zA-Z_][a-zA-Z0-9_]*)/g, "(?<$1>.+)")');
     lines.push('    .replace(/\\*$/g, "(.*)")');
     lines.push('    .replace(/:([^/]+)/g, "(?<$1>[^/]+)");');
-    lines.push('  __routes.push({ method, regex: new RegExp(`^${pattern}$`), handler, _path: path });');
+    lines.push('  __routes.push({ method, regex: new RegExp(`^${pattern}$`), handler, _path: path, _version: version || null });');
     lines.push('}');
     lines.push('');
 
@@ -1699,6 +1708,10 @@ export class ServerCodegen extends BaseCodegen {
         const validateDec = decorators.find(d => d.name === 'validate');
         const uploadDec = decorators.find(d => d.name === 'upload');
 
+        // T9-5: Version info for route
+        const routeVersion = route._version;
+        const versionArg = routeVersion ? `, ${JSON.stringify(String(routeVersion.version || ''))}` : '';
+
         lines.push(`__addRoute(${JSON.stringify(method)}, ${JSON.stringify(path)}, async (req, params) => {`);
 
         // Auth decorator check
@@ -1739,6 +1752,68 @@ export class ServerCodegen extends BaseCodegen {
           const advChecks = this._genAdvancedValidationCode(validateDec.args[0]);
           for (const check of advChecks) lines.push(check);
           lines.push(`  if (__validationErrors.length > 0) return Response.json({ error: "Validation failed", details: __validationErrors }, { status: 400 });`);
+        }
+
+        // T9-1: Route-level body type validation — route POST "/api/users" body: User => handler
+        if (route.bodyType && ['POST', 'PUT', 'PATCH'].includes(method)) {
+          const typeName = route.bodyType.name || (route.bodyType.elementType && route.bodyType.elementType.name);
+          if (typeName && sharedTypes.has(typeName)) {
+            const typeInfo = sharedTypes.get(typeName);
+            if (!uploadDec && !validateDec) {
+              lines.push(`  const __body = (await __parseBody(req)) || {};`);
+            }
+            const isArray = route.bodyType.type === 'ArrayTypeAnnotation';
+            if (isArray) {
+              lines.push(`  if (!Array.isArray(__body)) return Response.json({ error: "Request body must be an array of ${typeName}" }, { status: 400 });`);
+              lines.push(`  const __bodyTypeErrors = [];`);
+              lines.push(`  for (let __i = 0; __i < __body.length; __i++) {`);
+              lines.push(`    const __item = __body[__i];`);
+              for (const f of typeInfo.fields) {
+                if (f.name === 'id') continue;
+                switch (f.type) {
+                  case 'String':
+                    lines.push(`    if (__item.${f.name} !== undefined && typeof __item.${f.name} !== "string") __bodyTypeErrors.push(\`[${f.name}] at index \${__i} must be a string\`);`);
+                    break;
+                  case 'Int':
+                    lines.push(`    if (__item.${f.name} !== undefined && !Number.isInteger(__item.${f.name})) __bodyTypeErrors.push(\`[${f.name}] at index \${__i} must be an integer\`);`);
+                    break;
+                  case 'Float':
+                    lines.push(`    if (__item.${f.name} !== undefined && typeof __item.${f.name} !== "number") __bodyTypeErrors.push(\`[${f.name}] at index \${__i} must be a number\`);`);
+                    break;
+                  case 'Bool':
+                    lines.push(`    if (__item.${f.name} !== undefined && typeof __item.${f.name} !== "boolean") __bodyTypeErrors.push(\`[${f.name}] at index \${__i} must be a boolean\`);`);
+                    break;
+                }
+              }
+              lines.push(`  }`);
+              lines.push(`  if (__bodyTypeErrors.length > 0) return Response.json({ error: "Validation failed for ${typeName}[]", details: __bodyTypeErrors }, { status: 400 });`);
+            } else {
+              lines.push(`  const __bodyTypeErrors = [];`);
+              for (const f of typeInfo.fields) {
+                if (f.name === 'id') continue;
+                switch (f.type) {
+                  case 'String':
+                    lines.push(`  if (__body.${f.name} !== undefined && typeof __body.${f.name} !== "string") __bodyTypeErrors.push("${f.name} must be a string");`);
+                    break;
+                  case 'Int':
+                    lines.push(`  if (__body.${f.name} !== undefined && !Number.isInteger(__body.${f.name})) __bodyTypeErrors.push("${f.name} must be an integer");`);
+                    break;
+                  case 'Float':
+                    lines.push(`  if (__body.${f.name} !== undefined && typeof __body.${f.name} !== "number") __bodyTypeErrors.push("${f.name} must be a number");`);
+                    break;
+                  case 'Bool':
+                    lines.push(`  if (__body.${f.name} !== undefined && typeof __body.${f.name} !== "boolean") __bodyTypeErrors.push("${f.name} must be a boolean");`);
+                    break;
+                }
+              }
+              // Check for required fields (non-id fields without defaults)
+              for (const f of typeInfo.fields) {
+                if (f.name === 'id') continue;
+                lines.push(`  if (__body.${f.name} === undefined || __body.${f.name} === null) __bodyTypeErrors.push("${f.name} is required");`);
+              }
+              lines.push(`  if (__bodyTypeErrors.length > 0) return Response.json({ error: "Validation failed for type ${typeName}", details: __bodyTypeErrors }, { status: 400 });`);
+            }
+          }
         }
 
         // Type-safe body deserialization: if a param has a shared type annotation, auto-validate
@@ -1857,9 +1932,65 @@ export class ServerCodegen extends BaseCodegen {
           this._emitHandlerCall(lines, `${handler}(req, params)`, timeoutMs);
         }
 
-        lines.push(`  if (__result instanceof Response) return __result;`);
-        lines.push(`  return Response.json(__result);`);
-        lines.push(`});`);
+        // T9-3: Detect generator-based streaming — if handler uses yield, wrap in streaming response
+        const isGeneratorHandler = route.handler.type === 'Identifier'
+          ? (handlerDecl && this._containsYield(handlerDecl.body))
+          : (route.handler.type === 'FunctionDeclaration' || route.handler.type === 'LambdaExpression')
+            ? this._containsYield(route.handler.body || route.handler)
+            : false;
+
+        if (isGeneratorHandler) {
+          lines.push(`  if (__result && typeof __result[Symbol.asyncIterator] === "function") {`);
+          lines.push(`    const __encoder = new TextEncoder();`);
+          lines.push(`    const __stream = new ReadableStream({`);
+          lines.push(`      async start(controller) {`);
+          lines.push(`        try {`);
+          lines.push(`          for await (const __chunk of __result) {`);
+          lines.push(`            const __data = typeof __chunk === "string" ? __chunk : JSON.stringify(__chunk);`);
+          lines.push(`            controller.enqueue(__encoder.encode(\`data: \${__data}\\n\\n\`));`);
+          lines.push(`          }`);
+          lines.push(`        } finally { controller.close(); }`);
+          lines.push(`      }`);
+          lines.push(`    });`);
+          lines.push(`    return new Response(__stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" } });`);
+          lines.push(`  }`);
+          lines.push(`  if (__result && typeof __result[Symbol.iterator] === "function" && typeof __result !== "string") {`);
+          lines.push(`    const __encoder = new TextEncoder();`);
+          lines.push(`    const __chunks = [...__result];`);
+          lines.push(`    const __stream = new ReadableStream({`);
+          lines.push(`      start(controller) {`);
+          lines.push(`        for (const __chunk of __chunks) {`);
+          lines.push(`          const __data = typeof __chunk === "string" ? __chunk : JSON.stringify(__chunk);`);
+          lines.push(`          controller.enqueue(__encoder.encode(\`data: \${__data}\\n\\n\`));`);
+          lines.push(`        }`);
+          lines.push(`        controller.close();`);
+          lines.push(`      }`);
+          lines.push(`    });`);
+          lines.push(`    return new Response(__stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" } });`);
+          lines.push(`  }`);
+        }
+        // T9-5: API versioning — add version headers to responses
+        if (routeVersion) {
+          const ver = JSON.stringify(String(routeVersion.version || ''));
+          lines.push(`  const __addVersionHeaders = (res) => {`);
+          lines.push(`    const h = new Headers(res.headers);`);
+          lines.push(`    h.set("API-Version", ${ver});`);
+          if (routeVersion.deprecated) {
+            lines.push(`    h.set("Deprecation", "true");`);
+            if (routeVersion.sunset) {
+              lines.push(`    h.set("Sunset", ${JSON.stringify(String(routeVersion.sunset))});`);
+            }
+            lines.push(`    h.set("Link", '</api/v' + (parseInt(${ver}) + 1) + req.url.replace(/\\/api\\/v\\d+/, "") + '>; rel="successor-version"');`);
+          }
+          lines.push(`    return new Response(res.body, { status: res.status, headers: h });`);
+          lines.push(`  };`);
+          lines.push(`  if (__result instanceof Response) return __addVersionHeaders(__result);`);
+          lines.push(`  return __addVersionHeaders(Response.json(__result));`);
+        } else {
+          lines.push(`  if (__result instanceof Response) return __result;`);
+          lines.push(`  return Response.json(__result);`);
+        }
+        lines.push(`}${versionArg});`);
         lines.push('');
       }
     }
@@ -1928,46 +2059,66 @@ export class ServerCodegen extends BaseCodegen {
           lines.push('  ],');
         }
 
-        // Request body schema for POST/PUT/PATCH
-        if (['post', 'put', 'patch'].includes(method) && handlerDecl) {
-          const bodyParams = handlerDecl.params.filter(p => p.name !== 'req' && !pathParams.includes(p.name));
-          if (bodyParams.length > 0) {
-            lines.push('  requestBody: {');
-            lines.push('    content: { "application/json": { schema: { type: "object", properties: {');
-            for (const bp of bodyParams) {
-              const ta = bp.typeAnnotation;
-              if (ta && ta.name && sharedTypes.has(ta.name)) {
-                lines.push(`      ${bp.name}: { "$ref": "#/components/schemas/${ta.name}" },`);
-              } else if (ta) {
-                let jsonType;
-                switch (ta.name) {
-                  case 'Int': jsonType = '"integer"'; break;
-                  case 'Float': jsonType = '"number"'; break;
-                  case 'Bool': jsonType = '"boolean"'; break;
-                  default: jsonType = '"string"'; break;
-                }
-                lines.push(`      ${bp.name}: { type: ${jsonType} },`);
+        // Request body schema for POST/PUT/PATCH — prefer route-level bodyType, fall back to handler params
+        if (['post', 'put', 'patch'].includes(method)) {
+          if (route.bodyType) {
+            // T9-1: Route-level body type annotation
+            const bt = route.bodyType;
+            if (bt.type === 'ArrayTypeAnnotation' && bt.elementType) {
+              const elName = bt.elementType.name;
+              if (sharedTypes.has(elName)) {
+                lines.push(`  requestBody: { required: true, content: { "application/json": { schema: { type: "array", items: { "$ref": "#/components/schemas/${elName}" } } } } },`);
               } else {
-                lines.push(`      ${bp.name}: { type: "string" },`);
+                lines.push(`  requestBody: { required: true, content: { "application/json": { schema: { type: "array", items: ${tovaTypeToJsonSchema(elName)} } } } },`);
               }
+            } else if (bt.type === 'TypeAnnotation' && sharedTypes.has(bt.name)) {
+              lines.push(`  requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/${bt.name}" } } } },`);
+            } else if (bt.type === 'TypeAnnotation') {
+              lines.push(`  requestBody: { required: true, content: { "application/json": { schema: ${tovaTypeToJsonSchema(bt.name)} } } },`);
             }
-            lines.push('    } } } },');
-            lines.push('  },');
+          } else if (handlerDecl) {
+            const bodyParams = handlerDecl.params.filter(p => p.name !== 'req' && !pathParams.includes(p.name));
+            if (bodyParams.length > 0) {
+              lines.push('  requestBody: {');
+              lines.push('    content: { "application/json": { schema: { type: "object", properties: {');
+              for (const bp of bodyParams) {
+                const ta = bp.typeAnnotation;
+                if (ta && ta.name && sharedTypes.has(ta.name)) {
+                  lines.push(`      ${bp.name}: { "$ref": "#/components/schemas/${ta.name}" },`);
+                } else if (ta) {
+                  let jsonType;
+                  switch (ta.name) {
+                    case 'Int': jsonType = '"integer"'; break;
+                    case 'Float': jsonType = '"number"'; break;
+                    case 'Bool': jsonType = '"boolean"'; break;
+                    default: jsonType = '"string"'; break;
+                  }
+                  lines.push(`      ${bp.name}: { type: ${jsonType} },`);
+                } else {
+                  lines.push(`      ${bp.name}: { type: "string" },`);
+                }
+              }
+              lines.push('    } } } },');
+              lines.push('  },');
+            }
           }
         }
 
-        // Response schema from return type
-        if (handlerDecl && handlerDecl.returnType) {
-          const rt = handlerDecl.returnType;
+        // Response schema — prefer route-level responseType (T9-2), fall back to handler return type
+        const responseType = route.responseType || (handlerDecl && handlerDecl.returnType);
+        if (responseType) {
+          const rt = responseType;
           if (rt.type === 'ArrayTypeAnnotation' && rt.elementType) {
             const elName = rt.elementType.name;
             if (sharedTypes.has(elName)) {
               lines.push(`  responses: { "200": { description: "Success", content: { "application/json": { schema: { type: "array", items: { "$ref": "#/components/schemas/${elName}" } } } } } },`);
             } else {
-              lines.push('  responses: { "200": { description: "Success" } },');
+              lines.push(`  responses: { "200": { description: "Success", content: { "application/json": { schema: { type: "array", items: ${tovaTypeToJsonSchema(elName)} } } } } },`);
             }
           } else if (rt.type === 'TypeAnnotation' && sharedTypes.has(rt.name)) {
             lines.push(`  responses: { "200": { description: "Success", content: { "application/json": { schema: { "$ref": "#/components/schemas/${rt.name}" } } } } },`);
+          } else if (rt.type === 'TypeAnnotation') {
+            lines.push(`  responses: { "200": { description: "Success", content: { "application/json": { schema: ${tovaTypeToJsonSchema(rt.name)} } } } },`);
           } else {
             lines.push('  responses: { "200": { description: "Success" } },');
           }
@@ -1990,6 +2141,32 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('    <script>SwaggerUIBundle({ url: "/openapi.json", dom_id: "#swagger-ui" });<\\/script>');
       lines.push('    </body></html>`;');
       lines.push('  return new Response(html, { headers: { "Content-Type": "text/html" } });');
+      lines.push('});');
+      lines.push('');
+    }
+
+    // T9-5: API versions endpoint — list available versions
+    const versionedRoutes = routes.filter(r => r._version);
+    if (versionedRoutes.length > 0) {
+      const versionMap = new Map();
+      for (const r of versionedRoutes) {
+        const v = String(r._version.version || '');
+        if (!versionMap.has(v)) {
+          versionMap.set(v, { version: v, deprecated: !!r._version.deprecated, sunset: r._version.sunset || null });
+        }
+      }
+      lines.push('// ── API Versions ──');
+      lines.push('__addRoute("GET", "/api/versions", async () => {');
+      lines.push('  return Response.json({');
+      lines.push('    versions: [');
+      for (const [, info] of versionMap) {
+        const parts = [`version: ${JSON.stringify(info.version)}`];
+        if (info.deprecated) parts.push('deprecated: true');
+        if (info.sunset) parts.push(`sunset: ${JSON.stringify(info.sunset)}`);
+        lines.push(`      { ${parts.join(', ')} },`);
+      }
+      lines.push('    ]');
+      lines.push('  });');
       lines.push('});');
       lines.push('');
     }
@@ -2502,7 +2679,7 @@ export class ServerCodegen extends BaseCodegen {
 
   generateTests(testBlocks) {
     const lines = [];
-    lines.push('import { describe, test, expect } from "bun:test";');
+    lines.push('import { describe, test, expect, beforeEach, afterEach } from "bun:test";');
     lines.push('');
     lines.push('// ── Test Helpers ──');
     lines.push('async function request(method, path, options = {}) {');
@@ -2527,7 +2704,31 @@ export class ServerCodegen extends BaseCodegen {
 
     for (const block of testBlocks) {
       const name = block.name || 'Tests';
+      const blockTimeout = block.timeout || null;
       lines.push(`describe(${JSON.stringify(name)}, () => {`);
+
+      // Emit beforeEach if defined
+      if (block.beforeEach && block.beforeEach.length > 0) {
+        lines.push('  beforeEach(async () => {');
+        this.pushScope();
+        for (const s of block.beforeEach) {
+          lines.push('    ' + this.generateStatement(s));
+        }
+        this.popScope();
+        lines.push('  });');
+      }
+
+      // Emit afterEach if defined
+      if (block.afterEach && block.afterEach.length > 0) {
+        lines.push('  afterEach(async () => {');
+        this.pushScope();
+        for (const s of block.afterEach) {
+          lines.push('    ' + this.generateStatement(s));
+        }
+        this.popScope();
+        lines.push('  });');
+      }
+
       for (const stmt of block.body) {
         if (stmt.type === 'FunctionDeclaration') {
           const fnName = stmt.name;
@@ -2539,9 +2740,10 @@ export class ServerCodegen extends BaseCodegen {
           }
           const body = this.genBlockBody(stmt.body);
           this.popScope();
+          const timeoutArg = blockTimeout ? `, ${blockTimeout}` : '';
           lines.push(`  test(${JSON.stringify(displayName)}, async () => {`);
           lines.push(body);
-          lines.push('  });');
+          lines.push(`  }${timeoutArg});`);
         } else {
           lines.push('  ' + this.generateStatement(stmt));
         }

@@ -120,6 +120,7 @@ class TovaLanguageServer {
         case 'textDocument/rename': return this._onRename(msg);
         case 'textDocument/codeAction': return this._onCodeAction(msg);
         case 'textDocument/references': return this._onReferences(msg);
+        case 'textDocument/inlayHint': return this._onInlayHint(msg);
         case 'workspace/symbol': return this._onWorkspaceSymbol(msg);
         default: return this._respondError(msg.id, -32601, `Method not found: ${method}`);
       }
@@ -162,6 +163,7 @@ class TovaLanguageServer {
         documentFormattingProvider: true,
         renameProvider: { prepareProvider: false },
         referencesProvider: true,
+        inlayHintProvider: true,
         workspaceSymbolProvider: true,
       },
     });
@@ -249,6 +251,7 @@ class TovaLanguageServer {
           source: 'tova',
           message: w.hint ? `${w.message} (hint: ${w.hint})` : w.message,
         };
+        if (w.code) diag.code = w.code;
         // Add unnecessary tag for unused variables
         if (w.message.includes('declared but never used')) {
           diag.tags = [1]; // Unnecessary
@@ -1217,12 +1220,230 @@ class TovaLanguageServer {
           diagnostics: [diag],
         });
       }
+
+      // Type mismatch with Some() hint
+      if (message.includes('Type mismatch') && message.includes('hint: try Some(value)')) {
+        actions.push({
+          title: 'Wrap with Some()',
+          kind: 'quickfix',
+          diagnostics: [diag],
+        });
+      }
+
+      // Type mismatch: try toInt/toFloat/floor/round
+      if (message.includes('Type mismatch') && message.includes('hint: try toInt')) {
+        actions.push({
+          title: 'Convert with toInt()',
+          kind: 'quickfix',
+          diagnostics: [diag],
+        });
+      }
+      if (message.includes('Type mismatch') && message.includes('hint: try toFloat')) {
+        actions.push({
+          title: 'Convert with toFloat()',
+          kind: 'quickfix',
+          diagnostics: [diag],
+        });
+      }
+      if (message.includes('hint: try floor(value)')) {
+        actions.push({
+          title: 'Convert with floor()',
+          kind: 'quickfix',
+          diagnostics: [diag],
+        });
+      }
+
+      // Immutable variable: offer to change declaration to var
+      if (message.includes('Cannot reassign immutable variable')) {
+        const nameMatch = message.match(/variable '([^']+)'/);
+        if (nameMatch) {
+          const varName = nameMatch[1];
+          // Find the line where the variable is first declared
+          const docLines = doc.text.split('\n');
+          for (let i = 0; i < docLines.length; i++) {
+            const declMatch = docLines[i].match(new RegExp(`(?<![\\w])${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=`));
+            if (declMatch && i < diag.range.start.line) {
+              const col = declMatch.index;
+              actions.push({
+                title: `Make '${varName}' mutable (add 'var')`,
+                kind: 'quickfix',
+                isPreferred: true,
+                diagnostics: [diag],
+                edit: {
+                  changes: {
+                    [textDocument.uri]: [{
+                      range: {
+                        start: { line: i, character: col },
+                        end: { line: i, character: col },
+                      },
+                      newText: 'var ',
+                    }],
+                  },
+                },
+              });
+              break;
+            }
+          }
+        }
+      }
+
+      // Cannot use operator on immutable variable
+      if (message.includes("Cannot use") && message.includes("on immutable variable")) {
+        const nameMatch = message.match(/variable '([^']+)'/);
+        if (nameMatch) {
+          const varName = nameMatch[1];
+          const docLines = doc.text.split('\n');
+          for (let i = 0; i < docLines.length; i++) {
+            const declMatch = docLines[i].match(new RegExp(`(?<![\\w])${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=`));
+            if (declMatch && i < diag.range.start.line) {
+              const col = declMatch.index;
+              actions.push({
+                title: `Make '${varName}' mutable (add 'var')`,
+                kind: 'quickfix',
+                isPreferred: true,
+                diagnostics: [diag],
+                edit: {
+                  changes: {
+                    [textDocument.uri]: [{
+                      range: {
+                        start: { line: i, character: col },
+                        end: { line: i, character: col },
+                      },
+                      newText: 'var ',
+                    }],
+                  },
+                },
+              });
+              break;
+            }
+          }
+        }
+      }
+
+      // await outside async: offer to add 'async' to the function
+      if (message.includes("'await' can only be used inside an async function")) {
+        const docLines = doc.text.split('\n');
+        // Search backward for the enclosing 'fn' declaration
+        for (let i = diag.range.start.line; i >= 0; i--) {
+          const fnMatch = docLines[i].match(/(\s*)fn\s+/);
+          if (fnMatch) {
+            const col = fnMatch.index + fnMatch[1].length;
+            actions.push({
+              title: 'Add async to function',
+              kind: 'quickfix',
+              isPreferred: true,
+              diagnostics: [diag],
+              edit: {
+                changes: {
+                  [textDocument.uri]: [{
+                    range: {
+                      start: { line: i, character: col },
+                      end: { line: i, character: col },
+                    },
+                    newText: 'async ',
+                  }],
+                },
+              },
+            });
+            break;
+          }
+        }
+      }
+
+      // Non-exhaustive match: offer to add wildcard arm
+      if (message.includes('Non-exhaustive match')) {
+        const variantMatch = message.match(/missing '([^']+)'/);
+        if (variantMatch) {
+          actions.push({
+            title: `Add '_ => ...' catch-all arm`,
+            kind: 'quickfix',
+            diagnostics: [diag],
+          });
+        }
+      }
+
+      // 'throw' is not a Tova keyword
+      if (message.includes("'throw' is not a Tova keyword")) {
+        const line = doc.text.split('\n')[diag.range.start.line] || '';
+        const throwMatch = line.match(/\bthrow\b/);
+        if (throwMatch) {
+          actions.push({
+            title: "Replace 'throw' with 'Err()'",
+            kind: 'quickfix',
+            isPreferred: true,
+            diagnostics: [diag],
+            edit: {
+              changes: {
+                [textDocument.uri]: [{
+                  range: {
+                    start: { line: diag.range.start.line, character: throwMatch.index },
+                    end: { line: diag.range.start.line, character: throwMatch.index + 5 },
+                  },
+                  newText: 'return Err(',
+                }],
+              },
+            },
+          });
+        }
+      }
+
+      // 'mut' not supported: offer 'var'
+      if (message.includes("'mut' is not supported") || message.includes("Use 'var' for mutable")) {
+        const line = doc.text.split('\n')[diag.range.start.line] || '';
+        const mutMatch = line.match(/\bmut\b/);
+        if (mutMatch) {
+          actions.push({
+            title: "Replace 'mut' with 'var'",
+            kind: 'quickfix',
+            isPreferred: true,
+            diagnostics: [diag],
+            edit: {
+              changes: {
+                [textDocument.uri]: [{
+                  range: {
+                    start: { line: diag.range.start.line, character: mutMatch.index },
+                    end: { line: diag.range.start.line, character: mutMatch.index + 3 },
+                  },
+                  newText: 'var',
+                }],
+              },
+            },
+          });
+        }
+      }
+
+      // Suppress unused variable with tova-ignore comment
+      if (message.includes('declared but never used')) {
+        const nameMatch = message.match(/'([^']+)'/);
+        if (nameMatch) {
+          const lineNum = diag.range.start.line;
+          const docLines = doc.text.split('\n');
+          const lineContent = docLines[lineNum] || '';
+          const indent = lineContent.match(/^(\s*)/)[1];
+          actions.push({
+            title: `Suppress with // tova-ignore W001`,
+            kind: 'quickfix',
+            diagnostics: [diag],
+            edit: {
+              changes: {
+                [textDocument.uri]: [{
+                  range: {
+                    start: { line: lineNum, character: 0 },
+                    end: { line: lineNum, character: 0 },
+                  },
+                  newText: `${indent}// tova-ignore W001\n`,
+                }],
+              },
+            },
+          });
+        }
+      }
     }
 
     this._respond(msg.id, actions);
   }
 
-  // ─── Rename ─────────────────────────────────────────────
+  // ─── Rename (scope-aware) ────────────────────────────────
 
   _onRename(msg) {
     const { position, textDocument, newName } = msg.params;
@@ -1233,10 +1454,88 @@ class TovaLanguageServer {
     const oldName = this._getWordAt(line, position.character);
     if (!oldName) return this._respond(msg.id, null);
 
-    // Find all occurrences of the identifier in the document
+    const cached = this._diagnosticsCache.get(textDocument.uri);
+    if (!cached || !cached.analyzer || !cached.analyzer.globalScope) {
+      // Fallback to naive rename if no scope info
+      return this._naiveRename(msg.id, textDocument.uri, doc.text, oldName, newName);
+    }
+
+    // Find which scope defines the binding the cursor is on
+    const cursorLine = position.line + 1;   // LSP 0-based to 1-based
+    const cursorCol = position.character + 1;
+    const cursorScope = cached.analyzer.globalScope.findScopeAtPosition(cursorLine, cursorCol);
+    if (!cursorScope) {
+      return this._naiveRename(msg.id, textDocument.uri, doc.text, oldName, newName);
+    }
+
+    // Walk up from cursor scope to find where this name is defined
+    let definingScope = null;
+    let scope = cursorScope;
+    while (scope) {
+      if (scope.symbols && scope.symbols.has(oldName)) {
+        definingScope = scope;
+        break;
+      }
+      scope = scope.parent;
+    }
+
+    if (!definingScope) {
+      return this._naiveRename(msg.id, textDocument.uri, doc.text, oldName, newName);
+    }
+
+    // Collect edits: for each occurrence, check if it resolves to the same defining scope
     const edits = [];
     const docLines = doc.text.split('\n');
-    const wordRegex = new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+    const escaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp('\\b' + escaped + '\\b', 'g');
+
+    for (let i = 0; i < docLines.length; i++) {
+      let match;
+      while ((match = wordRegex.exec(docLines[i])) !== null) {
+        const matchLine = i + 1;   // 1-based
+        const matchCol = match.index + 1;
+        // Find the narrowest scope at this location
+        const matchScope = cached.analyzer.globalScope.findScopeAtPosition(matchLine, matchCol);
+        if (!matchScope) continue;
+
+        // Walk up from matchScope to see if the name resolves to definingScope
+        let resolvedScope = null;
+        let s = matchScope;
+        while (s) {
+          if (s.symbols && s.symbols.has(oldName)) {
+            resolvedScope = s;
+            break;
+          }
+          s = s.parent;
+        }
+
+        if (resolvedScope === definingScope) {
+          edits.push({
+            range: {
+              start: { line: i, character: match.index },
+              end: { line: i, character: match.index + oldName.length },
+            },
+            newText: newName,
+          });
+        }
+      }
+    }
+
+    // If scope-aware rename found nothing (e.g. positional info gaps), fall back
+    if (edits.length === 0) {
+      return this._naiveRename(msg.id, textDocument.uri, doc.text, oldName, newName);
+    }
+
+    this._respond(msg.id, {
+      changes: { [textDocument.uri]: edits },
+    });
+  }
+
+  _naiveRename(id, uri, text, oldName, newName) {
+    const edits = [];
+    const docLines = text.split('\n');
+    const escaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp('\\b' + escaped + '\\b', 'g');
 
     for (let i = 0; i < docLines.length; i++) {
       let match;
@@ -1251,8 +1550,8 @@ class TovaLanguageServer {
       }
     }
 
-    this._respond(msg.id, {
-      changes: { [textDocument.uri]: edits },
+    this._respond(id, {
+      changes: { [uri]: edits },
     });
   }
 
@@ -1314,6 +1613,150 @@ class TovaLanguageServer {
     }
 
     this._respond(msg.id, results.slice(0, 100));
+  }
+
+  // ─── Inlay Hints ─────────────────────────────────────────
+
+  _onInlayHint(msg) {
+    const { textDocument, range } = msg.params;
+    const cached = this._diagnosticsCache.get(textDocument.uri);
+    const doc = this._documents.get(textDocument.uri);
+    if (!cached || !cached.analyzer || !doc) return this._respond(msg.id, []);
+
+    const hints = [];
+    const docLines = doc.text.split('\n');
+    const startLine = range.start.line;
+    const endLine = range.end.line;
+
+    // ─── Type hints for variable bindings ─────────────
+    // Match: `name = expr` and `var name = expr` (but NOT `name: Type = expr` which already has annotation)
+    const bindingRegex = /^(\s*)(?:var\s+)?([a-zA-Z_]\w*)\s*=\s*(.+)/;
+    const hasAnnotation = /^(\s*)(?:var\s+)?[a-zA-Z_]\w*\s*:\s*\w/;
+
+    for (let i = startLine; i <= endLine && i < docLines.length; i++) {
+      const line = docLines[i];
+
+      // Skip lines that already have type annotations
+      if (hasAnnotation.test(line)) continue;
+
+      const bindMatch = bindingRegex.exec(line);
+      if (bindMatch) {
+        const varName = bindMatch[2];
+        // Skip private/special names
+        if (varName.startsWith('_') || varName === '_') continue;
+        // Skip keywords that look like assignments
+        if (['fn', 'if', 'for', 'while', 'match', 'type', 'import', 'return', 'let'].includes(varName)) continue;
+
+        // Look up the symbol's inferred type
+        const sym = this._findSymbolAtPosition(cached.analyzer, varName, { line: i, character: bindMatch[1].length + (line.includes('var ') ? 4 : 0) })
+                 || this._findSymbolInScopes(cached.analyzer, varName);
+        if (sym) {
+          let typeStr = null;
+          if (sym.inferredType) {
+            typeStr = sym.inferredType;
+          } else if (sym.typeAnnotation) {
+            typeStr = sym.typeAnnotation;
+          } else if (sym.type && typeof sym.type === 'object' && sym.type.name) {
+            typeStr = sym.type.name;
+          } else if (sym.kind === 'function') {
+            typeStr = 'Function';
+          }
+
+          if (typeStr && typeStr !== 'Unknown' && typeStr !== 'Any') {
+            // Position: right after the variable name
+            const nameEnd = line.indexOf(varName) + varName.length;
+            hints.push({
+              position: { line: i, character: nameEnd },
+              label: `: ${typeStr}`,
+              kind: 1, // Type
+              paddingLeft: false,
+              paddingRight: true,
+            });
+          }
+        }
+      }
+
+      // ─── Parameter name hints at call sites ─────────
+      // Match function calls: name(arg1, arg2, ...)
+      const callRegex = /\b([a-zA-Z_]\w*)\s*\(/g;
+      let callMatch;
+      while ((callMatch = callRegex.exec(line)) !== null) {
+        const funcName = callMatch[1];
+        // Skip keywords that look like function calls
+        if (['if', 'for', 'while', 'match', 'fn', 'catch', 'switch'].includes(funcName)) continue;
+
+        // Look up function signature
+        const funcSym = this._findSymbolInScopes(cached.analyzer, funcName);
+        const params = funcSym?._params;
+        if (!params || params.length === 0) continue;
+
+        // Parse the arguments (simplified — handles nested parens but not all edge cases)
+        const argsStart = callMatch.index + callMatch[0].length;
+        const argPositions = this._parseCallArgPositions(line, argsStart);
+
+        for (let ai = 0; ai < argPositions.length && ai < params.length; ai++) {
+          const argPos = argPositions[ai];
+          const argText = line.slice(argPos.start, argPos.end).trim();
+          // Don't show hint if the argument is already the parameter name
+          if (argText === params[ai]) continue;
+          // Don't show hints for single-argument calls with obvious context
+          if (params.length === 1 && argText.length <= 3) continue;
+          // Don't show for self parameter
+          if (params[ai] === 'self') continue;
+
+          hints.push({
+            position: { line: i, character: argPos.start },
+            label: `${params[ai]}:`,
+            kind: 2, // Parameter
+            paddingLeft: false,
+            paddingRight: true,
+          });
+        }
+      }
+    }
+
+    this._respond(msg.id, hints);
+  }
+
+  /**
+   * Parse positions of arguments in a function call, handling nested parens.
+   * Starts just after the opening '(' character.
+   */
+  _parseCallArgPositions(line, startIdx) {
+    const positions = [];
+    let depth = 0;
+    let argStart = startIdx;
+    let inStr = null;
+
+    for (let i = startIdx; i < line.length; i++) {
+      const ch = line[i];
+      if (inStr) {
+        if (ch === '\\') { i++; continue; }
+        if (ch === inStr) inStr = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === '`') { inStr = ch; continue; }
+      if (ch === '(' || ch === '[' || ch === '{') { depth++; continue; }
+      if (ch === ')' || ch === ']' || ch === '}') {
+        if (depth === 0) {
+          // End of argument list
+          if (i > argStart) {
+            positions.push({ start: argStart, end: i });
+          }
+          break;
+        }
+        depth--;
+        continue;
+      }
+      if (ch === ',' && depth === 0) {
+        positions.push({ start: argStart, end: i });
+        argStart = i + 1;
+        // Skip whitespace after comma
+        while (argStart < line.length && line[argStart] === ' ') argStart++;
+      }
+    }
+
+    return positions;
   }
 
   // ─── Utilities ────────────────────────────────────────────

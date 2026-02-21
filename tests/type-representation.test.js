@@ -46,8 +46,8 @@ describe('Type System — Primitive Types', () => {
     expect(Type.INT.isAssignableTo(Type.FLOAT)).toBe(true);
   });
 
-  test('assignability — Float to Int (backward compat)', () => {
-    expect(Type.FLOAT.isAssignableTo(Type.INT)).toBe(true);
+  test('assignability — Float to Int requires explicit conversion', () => {
+    expect(Type.FLOAT.isAssignableTo(Type.INT)).toBe(false);
   });
 
   test('assignability — to Any', () => {
@@ -339,13 +339,15 @@ describe('typesCompatible', () => {
 
   test('Type objects', () => {
     expect(typesCompatible(Type.INT, Type.INT)).toBe(true);
-    expect(typesCompatible(Type.INT, Type.FLOAT)).toBe(true);
+    expect(typesCompatible(Type.INT, Type.FLOAT)).toBe(false); // Float->Int narrowing not implicit
+    expect(typesCompatible(Type.FLOAT, Type.INT)).toBe(true);  // Int->Float widening is safe
     expect(typesCompatible(Type.INT, Type.STRING)).toBe(false);
   });
 
   test('string bridge', () => {
     expect(typesCompatible('Int', 'Int')).toBe(true);
-    expect(typesCompatible('Int', 'Float')).toBe(true);
+    expect(typesCompatible('Int', 'Float')).toBe(false); // Float->Int narrowing not implicit
+    expect(typesCompatible('Float', 'Int')).toBe(true);  // Int->Float widening is safe
     expect(typesCompatible('Int', 'String')).toBe(false);
   });
 });

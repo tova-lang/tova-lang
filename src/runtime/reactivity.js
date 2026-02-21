@@ -447,20 +447,36 @@ export function createErrorBoundary(options = {}) {
   return { error, run, reset };
 }
 
-export function ErrorBoundary({ fallback, children, onError, onReset, retry = 0 }) {
+let __errorBoundaryIdCounter = 0;
+
+export function ErrorBoundary({ fallback, children, onError, onReset, onErrorCleared, retry = 0 }) {
   const [error, setError] = createSignal(null);
   const [retryCount, setRetryCount] = createSignal(0);
+  const boundaryId = ++__errorBoundaryIdCounter;
+  let lastErrorId = 0;
 
   function handleError(e) {
     const stack = buildComponentStack();
-    if (e && typeof e === 'object') e.__tovaComponentStack = stack;
+    const errorId = `EB${boundaryId}-${++lastErrorId}`;
+
+    if (e && typeof e === 'object') {
+      e.__tovaComponentStack = stack;
+      e.__tovaErrorId = errorId;
+    }
+
     if (retryCount() < retry) {
       setRetryCount(c => c + 1);
       setError(null); // clear to re-trigger render
       return;
     }
     setError(e);
-    if (onError) onError({ error: e, componentStack: stack });
+    if (onError) onError({ error: e, componentStack: stack, errorId, retryCount: retryCount() });
+  }
+
+  function resetBoundary() {
+    setRetryCount(0);
+    setError(null);
+    if (onReset) onReset();
   }
 
   // Return a reactive wrapper that switches between children and fallback
@@ -479,14 +495,14 @@ export function ErrorBoundary({ fallback, children, onError, onReset, retry = 0 
       if (err) {
         // Render fallback — if fallback itself throws, propagate to parent boundary
         try {
+          const errorId = err && typeof err === 'object' ? err.__tovaErrorId : null;
           return typeof fallback === 'function'
             ? fallback({
                 error: err,
-                reset: () => {
-                  setRetryCount(0);
-                  setError(null);
-                  if (onReset) onReset();
-                },
+                errorId,
+                retryCount: retryCount(),
+                componentStack: err && typeof err === 'object' ? err.__tovaComponentStack : [],
+                reset: resetBoundary,
               })
             : fallback;
         } catch (fallbackError) {
@@ -497,11 +513,67 @@ export function ErrorBoundary({ fallback, children, onError, onReset, retry = 0 
           return null;
         }
       }
+      // Children rendered successfully — fire onErrorCleared if we recovered from an error
+      if (onErrorCleared && lastErrorId > 0 && retryCount() === 0) {
+        queueMicrotask(() => onErrorCleared());
+      }
       return childContent;
     },
   };
 
   return vnode;
+}
+
+// Built-in ErrorInfo component — renders a formatted error display
+// Usage: <ErrorBoundary fallback={fn(props) ErrorInfo(props)} />
+export function ErrorInfo({ error, errorId, componentStack, reset, retryCount }) {
+  const message = error instanceof Error ? error.message : String(error);
+  const stackTrace = error instanceof Error && error.stack ? error.stack : '';
+  const compStack = (componentStack || []).join(' > ');
+
+  const children = [
+    tova_el('h3', { style: { margin: '0 0 8px 0', color: '#e53e3e' } }, ['Something went wrong']),
+    tova_el('p', { style: { margin: '4px 0', fontFamily: 'monospace', fontSize: '14px' } }, [message]),
+  ];
+
+  if (compStack) {
+    children.push(
+      tova_el('p', { style: { margin: '4px 0', fontSize: '12px', color: '#718096' } }, [
+        'Component: ', compStack
+      ])
+    );
+  }
+
+  if (errorId) {
+    children.push(
+      tova_el('p', { style: { margin: '4px 0', fontSize: '11px', color: '#a0aec0' } }, [
+        'Error ID: ', errorId
+      ])
+    );
+  }
+
+  if (stackTrace) {
+    children.push(
+      tova_el('details', { style: { marginTop: '8px', fontSize: '12px' } }, [
+        tova_el('summary', { style: { cursor: 'pointer', color: '#4a5568' } }, ['Stack trace']),
+        tova_el('pre', { style: { margin: '4px 0', padding: '8px', background: '#1a202c', color: '#e2e8f0', borderRadius: '4px', overflow: 'auto', fontSize: '11px', maxHeight: '200px' } }, [stackTrace]),
+      ])
+    );
+  }
+
+  if (reset) {
+    children.push(
+      tova_el('button', {
+        style: { marginTop: '8px', padding: '6px 16px', background: '#3182ce', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' },
+        onClick: reset,
+      }, [retryCount > 0 ? 'Retry again' : 'Try again'])
+    );
+  }
+
+  return tova_el('div', {
+    style: { padding: '16px', border: '1px solid #fed7d7', borderRadius: '8px', background: '#fff5f5', color: '#2d3748', fontFamily: 'system-ui, -apple-system, sans-serif' },
+    role: 'alert',
+  }, children);
 }
 
 // ─── Dynamic Component ──────────────────────────────────
@@ -629,6 +701,100 @@ export function tova_fragment(children) {
   return { __tova: true, tag: '__fragment', props: {}, children };
 }
 
+// ─── Transitions ──────────────────────────────────────────
+// CSS transition directives for mount/unmount animations.
+// Usage: tova_transition(vnode, "fade", { duration: 300 })
+
+const TRANSITION_DEFAULTS = {
+  fade: { duration: 200, easing: 'ease' },
+  slide: { duration: 300, easing: 'ease-out', axis: 'y' },
+  scale: { duration: 200, easing: 'ease' },
+  fly: { duration: 300, easing: 'ease-out', x: 0, y: -20 },
+};
+
+function getTransitionCSS(name, config, phase) {
+  const opts = { ...TRANSITION_DEFAULTS[name], ...config };
+  const dur = opts.duration + 'ms';
+  const ease = opts.easing;
+
+  switch (name) {
+    case 'fade':
+      if (phase === 'enter-from' || phase === 'leave-to') {
+        return { opacity: '0', transition: `opacity ${dur} ${ease}` };
+      }
+      return { opacity: '1', transition: `opacity ${dur} ${ease}` };
+
+    case 'slide': {
+      const axis = opts.axis || 'y';
+      const prop = axis === 'x' ? 'translateX' : 'translateY';
+      const dist = (opts.distance || 20) + 'px';
+      if (phase === 'enter-from' || phase === 'leave-to') {
+        return { transform: `${prop}(${dist})`, opacity: '0', transition: `transform ${dur} ${ease}, opacity ${dur} ${ease}` };
+      }
+      return { transform: `${prop}(0)`, opacity: '1', transition: `transform ${dur} ${ease}, opacity ${dur} ${ease}` };
+    }
+
+    case 'scale':
+      if (phase === 'enter-from' || phase === 'leave-to') {
+        return { transform: 'scale(0)', opacity: '0', transition: `transform ${dur} ${ease}, opacity ${dur} ${ease}` };
+      }
+      return { transform: 'scale(1)', opacity: '1', transition: `transform ${dur} ${ease}, opacity ${dur} ${ease}` };
+
+    case 'fly': {
+      const x = (opts.x || 0) + 'px';
+      const y = (opts.y || -20) + 'px';
+      if (phase === 'enter-from' || phase === 'leave-to') {
+        return { transform: `translate(${x}, ${y})`, opacity: '0', transition: `transform ${dur} ${ease}, opacity ${dur} ${ease}` };
+      }
+      return { transform: 'translate(0, 0)', opacity: '1', transition: `transform ${dur} ${ease}, opacity ${dur} ${ease}` };
+    }
+
+    default:
+      return {};
+  }
+}
+
+export function tova_transition(vnode, name, config = {}) {
+  if (!vnode || !vnode.__tova) return vnode;
+  vnode._transition = { name, config };
+  return vnode;
+}
+
+// Apply enter transition to a DOM element after render
+function applyEnterTransition(el, trans) {
+  if (!trans) return;
+  const fromStyles = getTransitionCSS(trans.name, trans.config, 'enter-from');
+  const toStyles = getTransitionCSS(trans.name, trans.config, 'enter-to');
+
+  // Set initial state
+  Object.assign(el.style, fromStyles);
+
+  // Force reflow, then apply target state
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      Object.assign(el.style, toStyles);
+    });
+  });
+}
+
+// Apply leave transition and return a Promise that resolves when done
+function applyLeaveTransition(el, trans) {
+  if (!trans) return Promise.resolve();
+  const duration = (trans.config && trans.config.duration) || TRANSITION_DEFAULTS[trans.name]?.duration || 200;
+  const toStyles = getTransitionCSS(trans.name, trans.config, 'leave-to');
+  Object.assign(el.style, toStyles);
+
+  return new Promise(resolve => {
+    const handler = () => {
+      el.removeEventListener('transitionend', handler);
+      resolve();
+    };
+    el.addEventListener('transitionend', handler);
+    // Fallback timeout in case transitionend doesn't fire
+    setTimeout(resolve, duration + 50);
+  });
+}
+
 // Inject a key prop into a vnode for keyed reconciliation
 export function tova_keyed(key, vnode) {
   if (vnode && vnode.__tova) {
@@ -739,8 +905,17 @@ function insertRendered(parent, rendered, ref, owner) {
 // Clear a marker's content from the DOM and reset __tovaNodes
 function clearMarkerContent(marker) {
   for (const node of marker.__tovaNodes) {
-    disposeNode(node);
-    if (node.parentNode) node.parentNode.removeChild(node);
+    // If element has a leave transition, animate out before removing
+    if (node.__tovaTransition && node.nodeType === 1) {
+      const el = node;
+      applyLeaveTransition(el, el.__tovaTransition).then(() => {
+        disposeNode(el);
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    } else {
+      disposeNode(node);
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }
   }
   marker.__tovaNodes = [];
 }
@@ -930,6 +1105,12 @@ export function render(vnode) {
 
   // Store vnode reference for patching
   el.__vnode = vnode;
+
+  // Apply enter transition if present
+  if (vnode._transition) {
+    el.__tovaTransition = vnode._transition;
+    applyEnterTransition(el, vnode._transition);
+  }
 
   return el;
 }

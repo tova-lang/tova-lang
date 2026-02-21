@@ -1,8 +1,11 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs';
+import { join } from 'path';
 
 function parse(source) {
   const lexer = new Lexer(source, '<test>');
@@ -277,5 +280,202 @@ pub fn fibonacci(n) {
     expect(output).toContain('export function fibonacci(n)');
     expect(output).toContain('fibonacci');
     expect(output).toContain('return');
+  });
+});
+
+// ─── T6-1: Module Detection via CodeGenerator ──────────────────
+
+function compileModule(source, filename = '<test>') {
+  const lexer = new Lexer(source, filename);
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, filename);
+  const ast = parser.parse();
+  const gen = new CodeGenerator(ast, filename);
+  return gen.generate();
+}
+
+describe('T6-1 — Module mode detection (CodeGenerator)', () => {
+  test('file with only top-level code is detected as module', () => {
+    const output = compileModule(`
+pub fn add(a, b) { a + b }
+pub fn sub(a, b) { a - b }
+`);
+    expect(output.isModule).toBe(true);
+  });
+
+  test('module output has shared code but empty server/client', () => {
+    const output = compileModule(`
+pub fn add(a, b) { a + b }
+`);
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('function add(a, b)');
+    expect(output.server).toBe('');
+    expect(output.client).toBe('');
+  });
+
+  test('file with shared block is NOT a module', () => {
+    const output = compileModule(`
+shared {
+  fn add(a, b) { a + b }
+}
+`);
+    expect(output.isModule).toBeUndefined();
+  });
+
+  test('file with server block is NOT a module', () => {
+    const output = compileModule(`
+server {
+  fn handler() { "ok" }
+}
+`);
+    expect(output.isModule).toBeUndefined();
+  });
+
+  test('file with client block is NOT a module', () => {
+    const output = compileModule(`
+client {
+  component App {
+    <div>"Hello"</div>
+  }
+}
+`);
+    expect(output.isModule).toBeUndefined();
+  });
+
+  test('module preserves export prefix for pub declarations', () => {
+    const output = compileModule(`
+pub fn public_api(x) { x }
+fn internal_helper() { 42 }
+`);
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('export function public_api');
+    expect(output.shared).not.toMatch(/export function internal_helper/);
+    expect(output.shared).toContain('function internal_helper');
+  });
+
+  test('module with imports and functions', () => {
+    const output = compileModule(`
+pub fn greet(name) { "Hello, " + name }
+pub PI = 3.14159
+`);
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('function greet');
+    expect(output.shared).toContain('3.14159');
+  });
+
+  test('module with type declarations', () => {
+    const output = compileModule(`
+pub type Point {
+  x: Int
+  y: Int
+}
+
+pub fn origin() {
+  Point(0, 0)
+}
+`);
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('Point');
+    expect(output.shared).toContain('origin');
+  });
+
+  test('source mappings are populated for module files', () => {
+    const output = compileModule(`
+pub fn foo() { 42 }
+`);
+    expect(output.isModule).toBe(true);
+    expect(output.sourceMappings).toBeDefined();
+  });
+
+  test('multiple pub/private items — correct export count', () => {
+    const output = compileModule(`
+pub fn public_a() { 1 }
+pub fn public_b() { 2 }
+fn private_c() { 3 }
+pub CONST_X = 10
+`);
+    expect(output.isModule).toBe(true);
+    const shared = output.shared;
+    const exportCount = (shared.match(/^export /gm) || []).length;
+    expect(exportCount).toBe(3); // public_a, public_b, CONST_X
+  });
+});
+
+// ─── T6-5: tova init ────────────────────────────────────────
+
+describe('T6-5 — tova init (structure verification)', () => {
+  const tmpDir = join(import.meta.dir, '__tmp_init_test__');
+
+  beforeAll(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterAll(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('tova.toml can be created with correct structure', async () => {
+    const { stringifyTOML } = await import('../src/config/toml.js');
+    const name = 'test-project';
+    const tomlContent = stringifyTOML({
+      project: {
+        name,
+        version: '0.1.0',
+        description: '',
+        entry: 'src',
+      },
+      build: {
+        output: '.tova-out',
+      },
+      dev: {
+        port: 3000,
+      },
+      dependencies: {},
+      npm: {},
+    });
+    writeFileSync(join(tmpDir, 'tova.toml'), tomlContent);
+    expect(existsSync(join(tmpDir, 'tova.toml'))).toBe(true);
+    const content = readFileSync(join(tmpDir, 'tova.toml'), 'utf-8');
+    expect(content).toContain('test-project');
+    expect(content).toContain('[project]');
+    expect(content).toContain('[build]');
+  });
+
+  test('.gitignore has proper entries', () => {
+    const gitignore = join(tmpDir, '.gitignore');
+    writeFileSync(gitignore, `node_modules/\n.tova-out/\npackage.json\nbun.lock\n*.db\n`);
+    const content = readFileSync(gitignore, 'utf-8');
+    expect(content).toContain('node_modules/');
+    expect(content).toContain('.tova-out/');
+  });
+});
+
+// ─── T6-3: Export semantics via CodeGenerator ───────────────
+
+describe('T6-3 — Pub/private export semantics (full CodeGenerator)', () => {
+  test('pub function gets export keyword in module', () => {
+    const output = compileModule('pub fn helper() { 1 }');
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('export function helper');
+  });
+
+  test('non-pub function does NOT get export keyword in module', () => {
+    const output = compileModule('fn internal() { 2 }');
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('function internal');
+    expect(output.shared).not.toMatch(/export function internal/);
+  });
+
+  test('pub constant gets export keyword in module', () => {
+    const output = compileModule('pub MAX = 100');
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('export const MAX');
+  });
+
+  test('pub var gets export keyword in module', () => {
+    const output = compileModule('pub var count = 0');
+    expect(output.isModule).toBe(true);
+    expect(output.shared).toContain('export let count');
   });
 });

@@ -13,15 +13,12 @@ export class Lexer {
     this.length = source.length;
     this._depth = _depth;
 
-    // JSX context tracking for unquoted text support
+    // JSX context tracking (consolidated state machine)
     this._jsxStack = [];          // stack of 'tag' or 'cfblock' entries
-    this._jsxTagOpening = false;  // true when < starts a JSX opening tag
-    this._jsxSelfClosing = false; // true when / seen inside JSX tag (before >)
-    this._jsxClosingTag = false;  // true when </ detected
+    this._jsxTagMode = null;      // null | 'open' | 'close' — current tag parsing state
+    this._jsxSelfClosing = false; // true when / seen in opening tag (before >)
     this._jsxExprDepth = 0;       // brace depth for {expr} inside JSX
-    this._jsxControlFlowPending = false; // true after if/for/elif/else keyword in JSX
-    this._cfParenDepth = 0;       // () and [] nesting in control flow condition
-    this._cfBraceDepth = 0;       // {} nesting for expression braces (key={...})
+    this._jsxCF = null;           // null | { paren: 0, brace: 0 } — control flow state
   }
 
   error(message) {
@@ -108,16 +105,18 @@ export class Lexer {
   scanToken() {
     // In JSX children mode, scan raw text instead of normal tokens
     if (this._jsxStack.length > 0 && this._jsxExprDepth === 0 &&
-        !this._jsxTagOpening && !this._jsxClosingTag &&
-        !this._jsxControlFlowPending) {
+        !this._jsxTagMode && !this._jsxCF) {
       return this._scanInJSXChildren();
     }
 
     const ch = this.peek();
 
-    // Skip whitespace (not newlines)
+    // Skip whitespace (not newlines) — batch skip for consecutive whitespace
     if (this.isWhitespace(ch)) {
       this.advance();
+      while (this.pos < this.length && this.isWhitespace(this.source[this.pos])) {
+        this.advance();
+      }
       return;
     }
 
@@ -176,6 +175,11 @@ export class Lexer {
 
     // Strings
     if (ch === '"') {
+      // Triple-quote multiline strings: """..."""
+      if (this.peek(1) === '"' && this.peek(2) === '"') {
+        this.scanTripleQuoteString();
+        return;
+      }
       this.scanString();
       return;
     }
@@ -236,12 +240,13 @@ export class Lexer {
       return;
     }
     if (ch === '<') {
-      // In JSX children, set flags directly (heuristic may fail after STRING tokens)
+      // In JSX children, set tag mode directly (heuristic may fail after STRING tokens)
       const nextCh = this.peek(1);
       if (nextCh === '/') {
-        this._jsxClosingTag = true;
-      } else if (this.isAlpha(nextCh)) {
-        this._jsxTagOpening = true;
+        this._jsxTagMode = 'close';
+      } else if (nextCh === '>' || this.isAlpha(nextCh)) {
+        // <tag or <> (fragment)
+        this._jsxTagMode = 'open';
       }
       this.scanOperator();
       return;
@@ -257,10 +262,8 @@ export class Lexer {
       }
       if (['if', 'for', 'elif', 'else'].includes(word)) {
         this.scanIdentifier();
-        // After keyword, enter control flow pending mode for normal scanning
-        this._jsxControlFlowPending = true;
-        this._cfParenDepth = 0;
-        this._cfBraceDepth = 0;
+        // After keyword, enter control flow mode for normal scanning
+        this._jsxCF = { paren: 0, brace: 0 };
         return;
       }
     }
@@ -457,31 +460,32 @@ export class Lexer {
         const exprStartLine = this.line - 1; // 0-based offset for sub-lexer
         const exprStartCol = this.column - 1;
         let depth = 1;
-        let exprSource = '';
+        // Use array-based building to avoid O(n^2) string concatenation
+        const exprParts = [];
         while (this.pos < this.length && depth > 0) {
           const ch = this.peek();
           // Skip over string literals so braces inside them don't affect depth
           if (ch === '"' || ch === "'" || ch === '`') {
             const quote = ch;
-            exprSource += this.advance(); // opening quote
+            exprParts.push(this.advance()); // opening quote
             let strDepth = 0; // track interpolation depth inside nested strings
             while (this.pos < this.length) {
               if (this.peek() === '\\') {
-                exprSource += this.advance(); // backslash
-                if (this.pos < this.length) exprSource += this.advance(); // escaped char
+                exprParts.push(this.advance()); // backslash
+                if (this.pos < this.length) exprParts.push(this.advance()); // escaped char
               } else if (quote === '"' && this.peek() === '{') {
                 strDepth++;
-                exprSource += this.advance();
+                exprParts.push(this.advance());
               } else if (quote === '"' && this.peek() === '}' && strDepth > 0) {
                 strDepth--;
-                exprSource += this.advance();
+                exprParts.push(this.advance());
               } else if (this.peek() === quote && strDepth === 0) {
                 break;
               } else {
-                exprSource += this.advance();
+                exprParts.push(this.advance());
               }
             }
-            if (this.pos < this.length) exprSource += this.advance(); // closing quote
+            if (this.pos < this.length) exprParts.push(this.advance()); // closing quote
             continue;
           }
           if (ch === '{') depth++;
@@ -489,8 +493,9 @@ export class Lexer {
             depth--;
             if (depth === 0) break;
           }
-          exprSource += this.advance();
+          exprParts.push(this.advance());
         }
+        const exprSource = exprParts.join('');
 
         if (this.peek() !== '}') {
           this.error('Unterminated string interpolation');
@@ -527,6 +532,218 @@ export class Lexer {
       }
       this.tokens.push(new Token(TokenType.STRING_TEMPLATE, parts, startLine, startCol));
     }
+  }
+
+  scanTripleQuoteString() {
+    const startLine = this.line;
+    const startCol = this.column;
+    this.advance(); // first "
+    this.advance(); // second "
+    this.advance(); // third "
+
+    // Skip a leading newline immediately after opening """
+    if (this.pos < this.length && this.peek() === '\n') {
+      this.advance();
+    } else if (this.pos < this.length && this.peek() === '\r' && this.peek(1) === '\n') {
+      this.advance();
+      this.advance();
+    }
+
+    const parts = [];
+    let current = '';
+
+    while (this.pos < this.length) {
+      // Check for closing """
+      if (this.peek() === '"' && this.peek(1) === '"' && this.peek(2) === '"') {
+        break;
+      }
+
+      // Escape sequences (same as regular strings)
+      if (this.peek() === '\\') {
+        this.advance();
+        if (this.pos >= this.length) {
+          this.error('Unterminated multiline string');
+        }
+        const esc = this.advance();
+        switch (esc) {
+          case 'n': current += '\n'; break;
+          case 't': current += '\t'; break;
+          case 'r': current += '\r'; break;
+          case '\\': current += '\\'; break;
+          case '"': current += '"'; break;
+          case '{': current += '{'; break;
+          case '}': current += '}'; break;
+          default: current += '\\' + esc;
+        }
+        continue;
+      }
+
+      // String interpolation: {expr}
+      if (this.peek() === '{') {
+        this.advance(); // {
+        if (current.length > 0) {
+          parts.push({ type: 'text', value: current });
+          current = '';
+        }
+
+        const exprStartLine = this.line - 1;
+        const exprStartCol = this.column - 1;
+        let depth = 1;
+        let exprSource = '';
+        while (this.pos < this.length && depth > 0) {
+          const ch = this.peek();
+          if (ch === '"' || ch === "'" || ch === '`') {
+            const quote = ch;
+            exprSource += this.advance();
+            let strDepth = 0;
+            while (this.pos < this.length) {
+              if (this.peek() === '\\') {
+                exprSource += this.advance();
+                if (this.pos < this.length) exprSource += this.advance();
+              } else if (quote === '"' && this.peek() === '{') {
+                strDepth++;
+                exprSource += this.advance();
+              } else if (quote === '"' && this.peek() === '}' && strDepth > 0) {
+                strDepth--;
+                exprSource += this.advance();
+              } else if (this.peek() === quote && strDepth === 0) {
+                break;
+              } else {
+                exprSource += this.advance();
+              }
+            }
+            if (this.pos < this.length) exprSource += this.advance();
+            continue;
+          }
+          if (ch === '{') depth++;
+          if (ch === '}') {
+            depth--;
+            if (depth === 0) break;
+          }
+          exprSource += this.advance();
+        }
+
+        if (this.peek() !== '}') {
+          this.error('Unterminated string interpolation in multiline string');
+        }
+        this.advance(); // }
+
+        if (this._depth + 1 > Lexer.MAX_INTERPOLATION_DEPTH) {
+          this.error('String interpolation nested too deeply (max ' + Lexer.MAX_INTERPOLATION_DEPTH + ' levels)');
+        }
+        const subLexer = new Lexer(exprSource, this.filename, exprStartLine, exprStartCol, this._depth + 1);
+        const exprTokens = subLexer.tokenize();
+        exprTokens.pop();
+
+        parts.push({ type: 'expr', tokens: exprTokens, source: exprSource });
+        continue;
+      }
+
+      current += this.advance();
+    }
+
+    if (this.pos >= this.length || this.peek() !== '"') {
+      this.error('Unterminated multiline string (expected closing \"\"\")')
+    }
+    this.advance(); // first closing "
+    this.advance(); // second closing "
+    this.advance(); // third closing "
+
+    // Auto-dedent: find the indentation of the closing """ line
+    // Look back in `current` for the last newline to get the indentation
+    let rawContent = current;
+    if (parts.length === 0) {
+      // Simple string, no interpolation — auto-dedent
+      const dedented = this._dedentTripleQuote(rawContent);
+      this.tokens.push(new Token(TokenType.STRING, dedented, startLine, startCol));
+    } else {
+      // Template string — dedent text parts
+      if (current.length > 0) {
+        parts.push({ type: 'text', value: current });
+      }
+      const dedentedParts = this._dedentTripleQuoteParts(parts);
+      if (dedentedParts.length === 1 && dedentedParts[0].type === 'text') {
+        this.tokens.push(new Token(TokenType.STRING, dedentedParts[0].value, startLine, startCol));
+      } else {
+        this.tokens.push(new Token(TokenType.STRING_TEMPLATE, dedentedParts, startLine, startCol));
+      }
+    }
+  }
+
+  _dedentTripleQuote(text) {
+    // Remove trailing whitespace-only line (the line before closing """)
+    if (text.endsWith('\n')) {
+      text = text.slice(0, -1);
+    } else {
+      // Check for trailing whitespace-only content after last newline
+      const lastNl = text.lastIndexOf('\n');
+      if (lastNl !== -1) {
+        const lastLine = text.slice(lastNl + 1);
+        if (lastLine.trim() === '') {
+          text = text.slice(0, lastNl);
+        }
+      }
+    }
+
+    const lines = text.split('\n');
+    // Find minimum indentation of non-empty lines
+    let minIndent = Infinity;
+    for (const line of lines) {
+      if (line.trim().length === 0) continue;
+      const indent = line.match(/^[ \t]*/)[0].length;
+      if (indent < minIndent) minIndent = indent;
+    }
+    if (minIndent === Infinity) minIndent = 0;
+
+    // Strip the common indentation
+    return lines.map(line => {
+      if (line.trim().length === 0) return '';
+      return line.slice(minIndent);
+    }).join('\n');
+  }
+
+  _dedentTripleQuoteParts(parts) {
+    // Collect all text to determine minimum indent
+    let allText = '';
+    for (const p of parts) {
+      if (p.type === 'text') allText += p.value;
+      else allText += 'X'; // placeholder for expressions
+    }
+
+    // Remove trailing whitespace-only line
+    if (allText.endsWith('\n')) {
+      // Trim trailing newline from last text part
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (parts[i].type === 'text' && parts[i].value.endsWith('\n')) {
+          parts[i] = { type: 'text', value: parts[i].value.slice(0, -1) };
+          break;
+        }
+      }
+    }
+
+    // Find minimum indentation from text parts
+    let minIndent = Infinity;
+    for (const p of parts) {
+      if (p.type !== 'text') continue;
+      const lines = p.value.split('\n');
+      for (const line of lines) {
+        if (line.trim().length === 0) continue;
+        const indent = line.match(/^[ \t]*/)[0].length;
+        if (indent < minIndent) minIndent = indent;
+      }
+    }
+    if (minIndent === Infinity || minIndent === 0) return parts;
+
+    // Dedent text parts
+    return parts.map(p => {
+      if (p.type !== 'text') return p;
+      const lines = p.value.split('\n');
+      const dedented = lines.map(line => {
+        if (line.trim().length === 0) return '';
+        return line.slice(Math.min(minIndent, line.match(/^[ \t]*/)[0].length));
+      }).join('\n');
+      return { type: 'text', value: dedented };
+    });
   }
 
   scanSimpleString() {
@@ -633,6 +850,13 @@ export class Lexer {
       return;
     }
 
+    // f-string: f"Hello, {name}!" — explicit interpolation sigil
+    // Delegates to scanString() which already handles interpolation
+    if (value === 'f' && this.pos < this.length && this.peek() === '"') {
+      this.scanString();
+      return;
+    }
+
     // Special case: "style {" → read raw CSS block
     if (value === 'style') {
       const savedPos = this.pos;
@@ -680,29 +904,29 @@ export class Lexer {
     switch (ch) {
       case '(':
         this.tokens.push(new Token(TokenType.LPAREN, '(', startLine, startCol));
-        if (this._jsxControlFlowPending) this._cfParenDepth++;
+        if (this._jsxCF) this._jsxCF.paren++;
         break;
       case ')':
         this.tokens.push(new Token(TokenType.RPAREN, ')', startLine, startCol));
-        if (this._jsxControlFlowPending && this._cfParenDepth > 0) this._cfParenDepth--;
+        if (this._jsxCF && this._jsxCF.paren > 0) this._jsxCF.paren--;
         break;
       case '{':
         this.tokens.push(new Token(TokenType.LBRACE, '{', startLine, startCol));
-        if (this._jsxControlFlowPending) {
-          if (this._cfBraceDepth > 0) {
+        if (this._jsxCF) {
+          if (this._jsxCF.brace > 0) {
             // Nested brace inside expression (e.g., key={obj.field})
-            this._cfBraceDepth++;
-          } else if (this._cfParenDepth > 0) {
+            this._jsxCF.brace++;
+          } else if (this._jsxCF.paren > 0) {
             // Inside parens, this is an expression brace
-            this._cfBraceDepth++;
+            this._jsxCF.brace++;
           } else {
             // Check if prev token is ASSIGN (key={...}) or FOR (destructuring: for {a,b} in ...)
             const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
             if (prev && (prev.type === TokenType.ASSIGN || prev.type === TokenType.FOR)) {
-              this._cfBraceDepth++;
+              this._jsxCF.brace++;
             } else {
               // This is the block opener for the control flow body
-              this._jsxControlFlowPending = false;
+              this._jsxCF = null;
               this._jsxStack.push('cfblock');
             }
           }
@@ -712,19 +936,19 @@ export class Lexer {
         break;
       case '}':
         this.tokens.push(new Token(TokenType.RBRACE, '}', startLine, startCol));
-        if (this._jsxControlFlowPending && this._cfBraceDepth > 0) {
-          this._cfBraceDepth--;
+        if (this._jsxCF && this._jsxCF.brace > 0) {
+          this._jsxCF.brace--;
         } else if (this._jsxExprDepth > 0) {
           this._jsxExprDepth--;
         }
         break;
       case '[':
         this.tokens.push(new Token(TokenType.LBRACKET, '[', startLine, startCol));
-        if (this._jsxControlFlowPending) this._cfParenDepth++;
+        if (this._jsxCF) this._jsxCF.paren++;
         break;
       case ']':
         this.tokens.push(new Token(TokenType.RBRACKET, ']', startLine, startCol));
-        if (this._jsxControlFlowPending && this._cfParenDepth > 0) this._cfParenDepth--;
+        if (this._jsxCF && this._jsxCF.paren > 0) this._jsxCF.paren--;
         break;
       case ',':
         this.tokens.push(new Token(TokenType.COMMA, ',', startLine, startCol));
@@ -766,7 +990,7 @@ export class Lexer {
           this.tokens.push(new Token(TokenType.SLASH_ASSIGN, '/=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.SLASH, '/', startLine, startCol));
-          if (this._jsxTagOpening) this._jsxSelfClosing = true;
+          if (this._jsxTagMode === 'open') this._jsxSelfClosing = true;
         }
         break;
 
@@ -797,12 +1021,26 @@ export class Lexer {
           this.tokens.push(new Token(TokenType.LESS_EQUAL, '<=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.LESS, '<', startLine, startCol));
-          // Don't override flags already set by _scanInJSXChildren
-          if (!this._jsxClosingTag && !this._jsxTagOpening) {
+          // Don't override tag mode already set by _scanInJSXChildren
+          if (!this._jsxTagMode) {
             if (this.peek() === '/') {
-              this._jsxClosingTag = true;
+              this._jsxTagMode = 'close';
+            } else if (this.peek() === '>') {
+              // Fragment: <> — use same heuristic as _isJSXStart
+              // to avoid false positives in expressions
+              if (this._jsxStack.length > 0) {
+                this._jsxTagMode = 'open';
+              } else {
+                const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
+                const valueTypes = [TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING,
+                  TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
+                  TokenType.TRUE, TokenType.FALSE, TokenType.NIL];
+                if (!prev || !valueTypes.includes(prev.type)) {
+                  this._jsxTagMode = 'open';
+                }
+              }
             } else if (this._isJSXStart()) {
-              this._jsxTagOpening = true;
+              this._jsxTagMode = 'open';
             }
           }
         }
@@ -816,15 +1054,15 @@ export class Lexer {
           // JSX state transitions on >
           if (this._jsxSelfClosing) {
             // Self-closing tag: <br/> — don't push to stack
-            this._jsxTagOpening = false;
+            this._jsxTagMode = null;
             this._jsxSelfClosing = false;
-          } else if (this._jsxClosingTag) {
-            // Closing tag: </div> — pop 'tag' from stack
-            this._jsxClosingTag = false;
+          } else if (this._jsxTagMode === 'close') {
+            // Closing tag: </div> or </> — pop 'tag' from stack
+            this._jsxTagMode = null;
             if (this._jsxStack.length > 0) this._jsxStack.pop();
-          } else if (this._jsxTagOpening) {
-            // Opening tag: <div> — push 'tag' to stack (entering children mode)
-            this._jsxTagOpening = false;
+          } else if (this._jsxTagMode === 'open') {
+            // Opening tag: <div> or <> — push 'tag' to stack (entering children mode)
+            this._jsxTagMode = null;
             this._jsxStack.push('tag');
           }
         }

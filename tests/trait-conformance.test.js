@@ -181,23 +181,24 @@ describe('Trait Conformance Checking', () => {
 // ─── Float Narrowing ──────────────────────────────────────
 
 describe('Float Narrowing', () => {
-  test('Float to Int assignment warns in strict mode', () => {
-    const warnings = getWarnings(`
-      fn test_fn() {
-        var x = 10
-        x = 3.14
-      }
-    `, { strict: true });
-    expect(warnings.some(w => w.message.includes('Potential data loss'))).toBe(true);
-  });
-
-  test('Float to Int assignment does not warn in non-strict mode', () => {
+  test('Float to Int assignment warns with type mismatch', () => {
+    // Float->Int is now always a type mismatch (use floor/round to convert)
     const warnings = getWarnings(`
       fn test_fn() {
         var x = 10
         x = 3.14
       }
     `);
-    expect(warnings.some(w => w.message.includes('Potential data loss'))).toBe(false);
+    expect(warnings.some(w => w.message.includes('Type mismatch'))).toBe(true);
+  });
+
+  test('Int to Float assignment is fine (widening)', () => {
+    const warnings = getWarnings(`
+      fn test_fn() {
+        var x = 3.14
+        x = 10
+      }
+    `);
+    expect(warnings.some(w => w.message.includes('Type mismatch'))).toBe(false);
   });
 });

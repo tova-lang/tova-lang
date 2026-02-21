@@ -179,7 +179,7 @@ export class ClientCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
     lines.push(`import { rpc } from './runtime/rpc.js';`);
 
     // Hoist import lines from shared code to the top of the module
@@ -362,26 +362,26 @@ export class ClientCodegen extends BaseCodegen {
 
   _generateEffect(body) {
     const hasRPC = this._containsRPC(body);
-    let code;
+    const p = [];
     if (hasRPC) {
-      code = `createEffect(() => {\n`;
-      code += `${this.i()}  (async () => {\n`;
+      p.push(`createEffect(() => {\n`);
+      p.push(`${this.i()}  (async () => {\n`);
       this.indent += 2;
       const prevAsync = this._asyncContext;
       this._asyncContext = true;
-      code += this.genBlockStatements(body);
+      p.push(this.genBlockStatements(body));
       this._asyncContext = prevAsync;
       this.indent -= 2;
-      code += `\n${this.i()}  })();\n`;
-      code += `${this.i()}});`;
+      p.push(`\n${this.i()}  })();\n`);
+      p.push(`${this.i()}});`);
     } else {
-      code = `createEffect(() => {\n`;
+      p.push(`createEffect(() => {\n`);
       this.indent++;
-      code += this.genBlockStatements(body);
+      p.push(this.genBlockStatements(body));
       this.indent--;
-      code += `\n${this.i()}});`;
+      p.push(`\n${this.i()}});`);
     }
-    return code;
+    return p.join('');
   }
 
   // Generate a short hash from component name + CSS content (for CSS scoping)
@@ -424,20 +424,21 @@ export class ClientCodegen extends BaseCodegen {
     const savedState = new Set(this.stateNames);
     const savedComputed = new Set(this.computedNames);
 
-    let code = `function ${comp.name}(${paramStr}) {\n`;
+    const p = [];
+    p.push(`function ${comp.name}(${paramStr}) {\n`);
     this.indent++;
 
     // Generate reactive prop accessors — each prop is accessed through __props getter
     // This ensures parent signal changes propagate reactively to the child
     if (hasParams) {
-      for (const p of comp.params) {
-        this.computedNames.add(p.name);
-        const def = p.default || p.defaultValue;
+      for (const param of comp.params) {
+        this.computedNames.add(param.name);
+        const def = param.default || param.defaultValue;
         if (def) {
           const defaultExpr = this.genExpression(def);
-          code += `${this.i()}const ${p.name} = () => __props.${p.name} !== undefined ? __props.${p.name} : ${defaultExpr};\n`;
+          p.push(`${this.i()}const ${param.name} = () => __props.${param.name} !== undefined ? __props.${param.name} : ${defaultExpr};\n`);
         } else {
-          code += `${this.i()}const ${p.name} = () => __props.${p.name};\n`;
+          p.push(`${this.i()}const ${param.name} = () => __props.${param.name};\n`);
         }
       }
     }
@@ -448,7 +449,7 @@ export class ClientCodegen extends BaseCodegen {
     const bodyItems = [];
 
     for (const node of comp.body) {
-      if (node.type === 'JSXElement' || node.type === 'JSXFor' || node.type === 'JSXIf') {
+      if (node.type === 'JSXElement' || node.type === 'JSXFragment' || node.type === 'JSXFor' || node.type === 'JSXIf') {
         jsxElements.push(node);
       } else if (node.type === 'ComponentStyleBlock') {
         styleBlocks.push(node);
@@ -464,7 +465,7 @@ export class ClientCodegen extends BaseCodegen {
       const scopeId = this._genScopeId(comp.name, rawCSS);
       this._currentScopeId = scopeId;
       const scopedCSS = this._scopeCSS(rawCSS, `[data-tova-${scopeId}]`);
-      code += `${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`;
+      p.push(`${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`);
     }
 
     // Generate body items in order (state, computed, effect, other statements)
@@ -472,38 +473,38 @@ export class ClientCodegen extends BaseCodegen {
       if (node.type === 'StateDeclaration') {
         this.stateNames.add(node.name);
         const init = this.genExpression(node.initialValue);
-        code += `${this.i()}const [${node.name}, set${capitalize(node.name)}] = createSignal(${init});\n`;
+        p.push(`${this.i()}const [${node.name}, set${capitalize(node.name)}] = createSignal(${init});\n`);
       } else if (node.type === 'ComputedDeclaration') {
         this.computedNames.add(node.name);
         const expr = this.genExpression(node.expression);
-        code += `${this.i()}const ${node.name} = createComputed(() => ${expr});\n`;
+        p.push(`${this.i()}const ${node.name} = createComputed(() => ${expr});\n`);
       } else if (node.type === 'EffectDeclaration') {
         this.indent++;
         const effectCode = this._generateEffect(node.body);
         this.indent--;
-        code += `${this.i()}${effectCode}\n`;
+        p.push(`${this.i()}${effectCode}\n`);
       } else {
-        code += this.generateStatement(node) + '\n';
+        p.push(this.generateStatement(node) + '\n');
       }
     }
 
     // Generate JSX return
     if (jsxElements.length === 1) {
-      code += `${this.i()}return ${this.genJSX(jsxElements[0])};\n`;
+      p.push(`${this.i()}return ${this.genJSX(jsxElements[0])};\n`);
     } else if (jsxElements.length > 1) {
       const children = jsxElements.map(el => this.genJSX(el)).join(', ');
-      code += `${this.i()}return tova_fragment([${children}]);\n`;
+      p.push(`${this.i()}return tova_fragment([${children}]);\n`);
     }
 
     this.indent--;
-    code += `}`;
+    p.push(`}`);
 
     // Restore scoped names and scope id
     this.stateNames = savedState;
     this.computedNames = savedComputed;
     this._currentScopeId = savedScopeId;
 
-    return code;
+    return p.join('');
   }
 
   generateStore(store) {
@@ -528,54 +529,55 @@ export class ClientCodegen extends BaseCodegen {
       }
     }
 
-    let code = `const ${store.name} = (() => {\n`;
+    const p = [];
+    p.push(`const ${store.name} = (() => {\n`);
     this.indent++;
 
     // Generate state signals
     for (const s of storeStates) {
       const init = this.genExpression(s.initialValue);
-      code += `${this.i()}const [${s.name}, set${capitalize(s.name)}] = createSignal(${init});\n`;
+      p.push(`${this.i()}const [${s.name}, set${capitalize(s.name)}] = createSignal(${init});\n`);
     }
 
     // Generate computed values
     for (const c of storeComputeds) {
       const expr = this.genExpression(c.expression);
-      code += `${this.i()}const ${c.name} = createComputed(() => ${expr});\n`;
+      p.push(`${this.i()}const ${c.name} = createComputed(() => ${expr});\n`);
     }
 
     // Generate functions
     for (const fn of storeFunctions) {
-      code += this.genFunctionDeclaration(fn) + '\n';
+      p.push(this.genFunctionDeclaration(fn) + '\n');
     }
 
     // Build return object with getters/setters
-    code += `${this.i()}return {\n`;
+    p.push(`${this.i()}return {\n`);
     this.indent++;
 
     for (const s of storeStates) {
-      code += `${this.i()}get ${s.name}() { return ${s.name}(); },\n`;
-      code += `${this.i()}set ${s.name}(v) { set${capitalize(s.name)}(v); },\n`;
+      p.push(`${this.i()}get ${s.name}() { return ${s.name}(); },\n`);
+      p.push(`${this.i()}set ${s.name}(v) { set${capitalize(s.name)}(v); },\n`);
     }
 
     for (const c of storeComputeds) {
-      code += `${this.i()}get ${c.name}() { return ${c.name}(); },\n`;
+      p.push(`${this.i()}get ${c.name}() { return ${c.name}(); },\n`);
     }
 
     for (const fn of storeFunctions) {
-      code += `${this.i()}${fn.name},\n`;
+      p.push(`${this.i()}${fn.name},\n`);
     }
 
     this.indent--;
-    code += `${this.i()}};\n`;
+    p.push(`${this.i()}};\n`);
 
     this.indent--;
-    code += `${this.i()}})();`;
+    p.push(`${this.i()}})();`);
 
     // Restore state/computed names
     this.stateNames = savedState;
     this.computedNames = savedComputed;
 
-    return code;
+    return p.join('');
   }
 
   // Check if an AST expression references any signal/computed name
@@ -626,6 +628,7 @@ export class ClientCodegen extends BaseCodegen {
 
     switch (node.type) {
       case 'JSXElement': return this.genJSXElement(node);
+      case 'JSXFragment': return this.genJSXFragment(node);
       case 'JSXText': return this.genJSXText(node);
       case 'JSXExpression': {
         // If expression reads a signal, wrap as () => expr for fine-grained reactivity
@@ -705,10 +708,24 @@ export class ClientCodegen extends BaseCodegen {
             events.change = `(e) => { set${capitalize(exprName)}(${valueExpr}); }`;
           }
         }
+      } else if (attr.name === 'show') {
+        // show={condition} → toggles display:none instead of removing from DOM
+        const expr = this.genExpression(attr.value);
+        const reactive = this._exprReadsSignal(attr.value);
+        const displayExpr = `(${expr}) ? "" : "none"`;
+        // Store show directive to merge with style later
+        node._showDirective = { expr: displayExpr, reactive };
       } else if (attr.name.startsWith('class:')) {
         // Conditional class: class:active={cond}
         const className = attr.name.slice(6);
         classDirectives.push({ className, condition: this.genExpression(attr.value), node: attr.value });
+      } else if (attr.name.startsWith('transition:')) {
+        // transition:fade, transition:slide={duration: 300}, etc.
+        const transName = attr.name.slice(11); // 'fade', 'slide', 'scale', 'fly'
+        const config = attr.value.type === 'BooleanLiteral' ? '{}' : this.genExpression(attr.value);
+        // Store transition info for element wrapping
+        if (!node._transitions) node._transitions = [];
+        node._transitions.push({ name: transName, config });
       } else if (attr.name.startsWith('on:')) {
         const eventName = attr.name.slice(3);
         events[eventName] = this.genExpression(attr.value);
@@ -732,6 +749,24 @@ export class ClientCodegen extends BaseCodegen {
       const isReactive = classDirectives.some(d => this._exprReadsSignal(d.node));
       const classExpr = `[${parts.join(', ')}].filter(Boolean).join(" ")`;
       attrs.className = isReactive ? `() => ${classExpr}` : classExpr;
+    }
+
+    // Merge show directive with style (show toggles display:none)
+    if (node._showDirective) {
+      const { expr: displayExpr, reactive } = node._showDirective;
+      if (attrs.style) {
+        // Merge with existing style object
+        const existing = attrs.style;
+        if (reactive) {
+          attrs.style = `() => Object.assign({}, ${existing}, { display: ${displayExpr} })`;
+        } else {
+          attrs.style = `Object.assign({}, ${existing}, { display: ${displayExpr} })`;
+        }
+      } else {
+        attrs.style = reactive
+          ? `() => ({ display: ${displayExpr} })`
+          : `{ display: ${displayExpr} }`;
+      }
     }
 
     // Add scoped CSS attribute to HTML elements (not components)
@@ -805,12 +840,22 @@ export class ClientCodegen extends BaseCodegen {
 
     const tag = JSON.stringify(node.tag);
 
+    let result;
     if (node.selfClosing || node.children.length === 0) {
-      return `tova_el(${tag}, ${propsStr})`;
+      result = `tova_el(${tag}, ${propsStr})`;
+    } else {
+      const children = node.children.map(c => this.genJSX(c)).join(', ');
+      result = `tova_el(${tag}, ${propsStr}, [${children}])`;
     }
 
-    const children = node.children.map(c => this.genJSX(c)).join(', ');
-    return `tova_el(${tag}, ${propsStr}, [${children}])`;
+    // Wrap with transition directives if present
+    if (node._transitions && node._transitions.length > 0) {
+      for (const t of node._transitions) {
+        result = `tova_transition(${result}, "${t.name}", ${t.config})`;
+      }
+    }
+
+    return result;
   }
 
   genJSXText(node) {
@@ -877,6 +922,11 @@ export class ClientCodegen extends BaseCodegen {
 
     // Wrap in reactive closure so the runtime creates a dynamic block
     return `() => ${result}`;
+  }
+
+  genJSXFragment(node) {
+    const children = node.children.map(c => this.genJSX(c)).join(', ');
+    return `tova_fragment([${children}])`;
   }
 
   // Override to add await for piped RPC calls

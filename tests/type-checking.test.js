@@ -149,10 +149,17 @@ describe('Type Checking — Variable Reassignment', () => {
     expect(warnings.filter(w => w.message.includes('Type mismatch'))).toEqual([]);
   });
 
-  test('Int/Float are compatible for reassignment', () => {
-    const warnings = getWarnings(`
+  test('Float->Int reassignment warns about data loss', () => {
+    expect(hasWarning(`
       var x = 42
       x = 3.14
+    `, "Type mismatch: 'x' is Int, but assigned Float")).toBe(true);
+  });
+
+  test('Int->Float reassignment is compatible (widening)', () => {
+    const warnings = getWarnings(`
+      var x = 3.14
+      x = 42
     `);
     expect(warnings.filter(w => w.message.includes('Type mismatch'))).toEqual([]);
   });
@@ -338,7 +345,8 @@ describe('Type Checking — Helpers', () => {
     const analyzer = new Analyzer({ type: 'Program', body: [] }, '<test>');
     expect(analyzer._typesCompatible('Int', 'Int')).toBe(true);
     expect(analyzer._typesCompatible('Int', 'String')).toBe(false);
-    expect(analyzer._typesCompatible('Int', 'Float')).toBe(true);
+    expect(analyzer._typesCompatible('Int', 'Float')).toBe(false); // Float->Int requires explicit conversion
+    expect(analyzer._typesCompatible('Float', 'Int')).toBe(true); // Int->Float widening is safe
     expect(analyzer._typesCompatible(null, 'Int')).toBe(true);
     expect(analyzer._typesCompatible('Any', 'String')).toBe(true);
     expect(analyzer._typesCompatible('Nil', 'Option')).toBe(true);

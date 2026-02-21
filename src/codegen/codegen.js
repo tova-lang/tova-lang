@@ -3,9 +3,27 @@
 // Blocks with the same name are merged; different names produce separate output files.
 
 import { SharedCodegen } from './shared-codegen.js';
-import { ServerCodegen } from './server-codegen.js';
-import { ClientCodegen } from './client-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
+
+// Lazy-loaded codegen modules — only imported when server/client blocks exist
+let _ServerCodegen = null;
+let _ClientCodegen = null;
+
+function getServerCodegen() {
+  if (!_ServerCodegen) {
+    // Dynamic require avoids loading server-codegen.js for client-only builds
+    _ServerCodegen = import.meta.require('./server-codegen.js').ServerCodegen;
+  }
+  return _ServerCodegen;
+}
+
+function getClientCodegen() {
+  if (!_ClientCodegen) {
+    // Dynamic require avoids loading client-codegen.js for server-only builds
+    _ClientCodegen = import.meta.require('./client-codegen.js').ClientCodegen;
+  }
+  return _ClientCodegen;
+}
 
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>') {
@@ -46,7 +64,30 @@ export class CodeGenerator {
       }
     }
 
+    // Detect module mode: no blocks, only top-level statements
+    const isModule = sharedBlocks.length === 0 && serverBlocks.length === 0
+      && clientBlocks.length === 0 && testBlocks.length === 0
+      && benchBlocks.length === 0 && dataBlocks.length === 0
+      && topLevel.length > 0;
+
+    if (isModule) {
+      const moduleGen = new SharedCodegen();
+      moduleGen.setSourceFile(this.filename);
+      const moduleCode = topLevel.map(s => moduleGen.generateStatement(s)).join('\n');
+      const helpers = moduleGen.generateHelpers();
+      const combined = [helpers, moduleCode].filter(s => s.trim()).join('\n').trim();
+      return {
+        shared: combined,
+        server: '',
+        client: '',
+        isModule: true,
+        sourceMappings: moduleGen.getSourceMappings(),
+        _sourceFile: this.filename,
+      };
+    }
+
     const sharedGen = new SharedCodegen();
+    sharedGen.setSourceFile(this.filename);
 
     // All shared blocks (regardless of name) are merged into one shared output
     const sharedCode = sharedBlocks.map(b => sharedGen.generate(b)).join('\n');
@@ -92,7 +133,7 @@ export class CodeGenerator {
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
-      const gen = new ServerCodegen();
+      const gen = new (getServerCodegen())();
       const key = name || 'default';
       // Build peer blocks map (all named blocks except self)
       let peerBlocks = null;
@@ -110,7 +151,7 @@ export class CodeGenerator {
     // Generate client outputs (one per named group)
     const clients = {};
     for (const [name, blocks] of clientGroups) {
-      const gen = new ClientCodegen();
+      const gen = new (getClientCodegen())();
       const key = name || 'default';
       clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins);
     }
@@ -118,7 +159,7 @@ export class CodeGenerator {
     // Generate tests if test blocks exist
     let testCode = '';
     if (testBlocks.length > 0) {
-      const testGen = new ServerCodegen();
+      const testGen = new (getServerCodegen())();
       testCode = testGen.generateTests(testBlocks);
 
       // Add __handleRequest export to server code
@@ -131,7 +172,7 @@ export class CodeGenerator {
     // Generate benchmarks if bench blocks exist
     let benchCode = '';
     if (benchBlocks.length > 0) {
-      const benchGen = new ServerCodegen();
+      const benchGen = new (getServerCodegen())();
       benchCode = benchGen.generateBench(benchBlocks);
     }
 
@@ -147,6 +188,7 @@ export class CodeGenerator {
         server: servers['default'] || '',
         client: clients['default'] || '',
         sourceMappings,
+        _sourceFile: this.filename,
       };
       if (testCode) result.test = testCode;
       if (benchCode) result.bench = benchCode;
@@ -162,6 +204,7 @@ export class CodeGenerator {
       clients,   // { "admin": code, "dashboard": code, ... }
       multiBlock: true,
       sourceMappings,
+      _sourceFile: this.filename,
     };
     if (testCode) result.test = testCode;
     if (benchCode) result.bench = benchCode;
@@ -177,6 +220,12 @@ export class CodeGenerator {
       }
       if (node.type === 'CallExpression' && node.callee && node.callee.type === 'Identifier' && BUILTIN_NAMES.has(node.callee.name)) {
         targetSet.add(node.callee.name);
+      }
+      // Track namespace builtin usage: math.sin() or math.PI
+      if (node.type === 'MemberExpression' &&
+          node.object.type === 'Identifier' &&
+          BUILTIN_NAMES.has(node.object.name)) {
+        targetSet.add(node.object.name);
       }
       for (const key of Object.keys(node)) {
         if (key === 'loc' || key === 'type') continue;

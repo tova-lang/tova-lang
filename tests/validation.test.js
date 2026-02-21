@@ -284,10 +284,10 @@ describe('1. Type Representation Integration with Analyzer', () => {
       expect(analyzer._typesCompatible('Int', 'String')).toBe(false);
     });
 
-    test('numeric types are compatible', () => {
+    test('numeric types: Int->Float widening is safe, Float->Int is not', () => {
       const analyzer = analyzeRaw('x = 1');
-      expect(analyzer._typesCompatible('Int', 'Float')).toBe(true);
-      expect(analyzer._typesCompatible('Float', 'Int')).toBe(true);
+      expect(analyzer._typesCompatible('Int', 'Float')).toBe(false); // Float->Int narrowing
+      expect(analyzer._typesCompatible('Float', 'Int')).toBe(true);  // Int->Float widening
     });
 
     test('Any is compatible with everything', () => {
@@ -318,7 +318,8 @@ describe('1. Type Representation Integration with Analyzer', () => {
     test('array type string compatibility', () => {
       const analyzer = analyzeRaw('x = 1');
       expect(analyzer._typesCompatible('[Int]', '[Int]')).toBe(true);
-      expect(analyzer._typesCompatible('[Int]', '[Float]')).toBe(true); // numeric compat
+      expect(analyzer._typesCompatible('[Float]', '[Int]')).toBe(true); // Int->Float widening
+      expect(analyzer._typesCompatible('[Int]', '[Float]')).toBe(false); // Float->Int narrowing
       expect(analyzer._typesCompatible('[Int]', '[String]')).toBe(false);
     });
 

@@ -20,6 +20,8 @@
     "test:codegen": "bun test tests/codegen.test.js",
     "build:embed": "bun scripts/embed-runtime.js",
     "build:binary": "bun scripts/build-binary.js",
+    "sync-stdlib": "bun scripts/sync-stdlib.js",
+    "sync-stdlib:check": "bun scripts/sync-stdlib.js --check",
     "prepublishOnly": "bun scripts/embed-runtime.js && bun test"
   },
   "engines": {

@@ -5,13 +5,23 @@ export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
 
   constructor(tokens, filename = '<stdin>') {
-    this.tokens = tokens.filter(t => t.type !== TokenType.NEWLINE && t.type !== TokenType.DOCSTRING && t.type !== TokenType.SEMICOLON);
-    this.rawTokens = tokens;
+    this.tokens = tokens;
     this.filename = filename;
     this.pos = 0;
     this.errors = [];
     this._expressionDepth = 0;
     this.docstrings = this.extractDocstrings(tokens);
+    this._skipInsignificant();
+  }
+
+  _isInsignificant(type) {
+    return type === TokenType.NEWLINE || type === TokenType.DOCSTRING || type === TokenType.SEMICOLON;
+  }
+
+  _skipInsignificant() {
+    while (this.pos < this.tokens.length && this._isInsignificant(this.tokens[this.pos].type)) {
+      this.pos++;
+    }
   }
 
   extractDocstrings(tokens) {
@@ -26,12 +36,13 @@ export class Parser {
 
   // ─── Helpers ───────────────────────────────────────────────
 
-  error(message) {
+  error(message, code = null) {
     const tok = this.current();
     const err = new Error(
       `${this.filename}:${tok.line}:${tok.column} — Parse error: ${message}\n  Got: ${tok.type} (${JSON.stringify(tok.value)})`
     );
     err.loc = { line: tok.line, column: tok.column, file: this.filename };
+    if (code) err.code = code;
     throw err;
   }
 
@@ -40,13 +51,23 @@ export class Parser {
   }
 
   peek(offset = 0) {
-    const idx = this.pos + offset;
-    return idx < this.tokens.length ? this.tokens[idx] : this.tokens[this.tokens.length - 1];
+    // Fast path: offset 0 is just the current position (always significant after skip)
+    if (offset === 0) return this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
+    // General path: skip over insignificant tokens
+    let count = 0;
+    for (let idx = this.pos + 1; idx < this.tokens.length; idx++) {
+      if (!this._isInsignificant(this.tokens[idx].type)) {
+        count++;
+        if (count === offset) return this.tokens[idx];
+      }
+    }
+    return this.tokens[this.tokens.length - 1];
   }
 
   advance() {
     const tok = this.current();
     this.pos++;
+    this._skipInsignificant();
     return tok;
   }
 
@@ -85,6 +106,7 @@ export class Parser {
   }
 
   _synchronize() {
+    const startPos = this.pos;
     this.advance(); // skip the problematic token
     while (!this.isAtEnd()) {
       const tok = this.current();
@@ -98,13 +120,18 @@ export class Parser {
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
           tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
-          tok.type === TokenType.EXTERN) {
+          tok.type === TokenType.EXTERN ||
+          tok.type === TokenType.VAR || tok.type === TokenType.ASYNC) {
         return;
       }
       if (tok.type === TokenType.RBRACE) {
         this.advance();
         return;
       }
+      this.advance();
+    }
+    // Safety: if we didn't advance at all, force advance to avoid infinite loop
+    if (this.pos === startPos && !this.isAtEnd()) {
       this.advance();
     }
   }
@@ -141,6 +168,8 @@ export class Parser {
   _looksLikeJSX() {
     if (!this.check(TokenType.LESS)) return false;
     const next = this.peek(1);
+    // Fragment: <>
+    if (next.type === TokenType.GREATER) return true;
     if (next.type !== TokenType.IDENTIFIER) return false;
     // Uppercase tag is always a component reference, never a comparison variable
     if (/^[A-Z]/.test(next.value)) return true;
@@ -177,7 +206,9 @@ export class Parser {
 
   parse() {
     const body = [];
+    const maxErrors = 50; // Stop after 50 errors to avoid cascading noise
     while (!this.isAtEnd()) {
+      if (this.errors.length >= maxErrors) break;
       try {
         const stmt = this.parseTopLevel();
         if (stmt) body.push(stmt);
@@ -187,9 +218,14 @@ export class Parser {
       }
     }
     if (this.errors.length > 0) {
+      const program = new AST.Program(body);
+      this._attachDocstrings(program);
       const combined = new Error(this.errors.map(e => e.message).join('\n'));
       combined.errors = this.errors;
-      combined.partialAST = new AST.Program(body);
+      combined.partialAST = program;
+      if (this.errors.length >= maxErrors) {
+        combined.truncated = true;
+      }
       throw combined;
     }
     const program = new AST.Program(body);
@@ -199,7 +235,7 @@ export class Parser {
 
   _attachDocstrings(program) {
     // Build a map of docstring line ranges from raw tokens
-    const docTokens = this.rawTokens.filter(t => t.type === TokenType.DOCSTRING);
+    const docTokens = this.tokens.filter(t => t.type === TokenType.DOCSTRING);
     if (docTokens.length === 0) return;
 
     // Group consecutive docstring lines
@@ -275,10 +311,44 @@ export class Parser {
     if (this.check(TokenType.STRING)) {
       name = this.advance().value;
     }
+    // Parse optional timeout=N
+    let timeout = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'timeout' && this.peek(1).type === TokenType.ASSIGN) {
+      this.advance(); // consume 'timeout'
+      this.advance(); // consume '='
+      const tok = this.expect(TokenType.NUMBER, "Expected number after timeout=");
+      timeout = Number(tok.value);
+    }
     this.expect(TokenType.LBRACE, "Expected '{' after test block name");
     const body = [];
+    let beforeEach = null;
+    let afterEach = null;
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       try {
+        // Check for before_each { ... }
+        if (this.check(TokenType.IDENTIFIER) && this.current().value === 'before_each' && this.peek(1).type === TokenType.LBRACE) {
+          this.advance(); // consume 'before_each'
+          this.expect(TokenType.LBRACE, "Expected '{' after before_each");
+          beforeEach = [];
+          while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+            const s = this.parseStatement();
+            if (s) beforeEach.push(s);
+          }
+          this.expect(TokenType.RBRACE, "Expected '}' to close before_each");
+          continue;
+        }
+        // Check for after_each { ... }
+        if (this.check(TokenType.IDENTIFIER) && this.current().value === 'after_each' && this.peek(1).type === TokenType.LBRACE) {
+          this.advance(); // consume 'after_each'
+          this.expect(TokenType.LBRACE, "Expected '{' after after_each");
+          afterEach = [];
+          while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+            const s = this.parseStatement();
+            if (s) afterEach.push(s);
+          }
+          this.expect(TokenType.RBRACE, "Expected '}' to close after_each");
+          continue;
+        }
         const stmt = this.parseStatement();
         if (stmt) body.push(stmt);
       } catch (e) {
@@ -287,7 +357,7 @@ export class Parser {
       }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close test block");
-    return new AST.TestBlock(name, body, l);
+    return new AST.TestBlock(name, body, l, { timeout, beforeEach, afterEach });
   }
 
   parseBenchBlock() {
@@ -747,6 +817,28 @@ export class Parser {
     const l = this.loc();
     this.advance(); // consume 'routes'
     const prefix = this.expect(TokenType.STRING, "Expected route group prefix string").value;
+
+    // Optional version config: routes "/api/v2" version: "2" deprecated: true { ... }
+    let version = null;
+    while (this.check(TokenType.IDENTIFIER) && !this.isAtEnd()) {
+      const key = this.current().value;
+      if (key === 'version' || key === 'deprecated' || key === 'sunset') {
+        this.advance(); // consume key
+        this.expect(TokenType.COLON, `Expected ':' after '${key}'`);
+        const value = this.parseExpression();
+        if (!version) version = {};
+        if (key === 'version') {
+          version.version = value.value !== undefined ? value.value : value;
+        } else if (key === 'deprecated') {
+          version.deprecated = value.value !== undefined ? value.value : true;
+        } else if (key === 'sunset') {
+          version.sunset = value.value !== undefined ? value.value : value;
+        }
+      } else {
+        break;
+      }
+    }
+
     this.expect(TokenType.LBRACE, "Expected '{' after route group prefix");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
@@ -759,7 +851,7 @@ export class Parser {
       }
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close route group");
-    return new AST.RouteGroupDeclaration(prefix, body, l);
+    return new AST.RouteGroupDeclaration(prefix, body, l, version);
   }
 
   parseRateLimitConfig() {
@@ -1006,6 +1098,17 @@ export class Parser {
 
     const path = this.expect(TokenType.STRING, "Expected route path string");
 
+    // Optional body type annotation: route POST "/api/users" body: User => handler
+    let bodyType = null;
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'body') {
+      const next = this.peek(1);
+      if (next && next.type === TokenType.COLON) {
+        this.advance(); // consume 'body'
+        this.advance(); // consume ':'
+        bodyType = this.parseTypeAnnotation();
+      }
+    }
+
     // Optional decorators: route GET "/path" with auth, role("admin") => handler
     let decorators = [];
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'with') {
@@ -1026,10 +1129,17 @@ export class Parser {
       } while (this.match(TokenType.COMMA));
     }
 
+    // Optional response type annotation: route GET "/api/users" -> [User] => handler
+    let responseType = null;
+    if (this.check(TokenType.THIN_ARROW)) {
+      this.advance(); // consume '->'
+      responseType = this.parseTypeAnnotation();
+    }
+
     this.expect(TokenType.ARROW, "Expected '=>' after route path");
     const handler = this.parseExpression();
 
-    return new AST.RouteDeclaration(method, path.value, handler, l, decorators);
+    return new AST.RouteDeclaration(method, path.value, handler, l, decorators, bodyType, responseType);
   }
 
   // ─── Client-specific statements ───────────────────────────
@@ -1119,7 +1229,7 @@ export class Parser {
         this.advance();
         body.push(new AST.ComponentStyleBlock(css, sl));
       } else if (this.check(TokenType.LESS) && this._looksLikeJSX()) {
-        body.push(this.parseJSXElement());
+        body.push(this.parseJSXElementOrFragment());
       } else if (this.check(TokenType.STATE)) {
         body.push(this.parseState());
       } else if (this.check(TokenType.COMPUTED)) {
@@ -1143,6 +1253,96 @@ export class Parser {
     let result = text.replace(/\s+/g, ' ');
     if (result.trim() === '') return '';
     return result.trim();
+  }
+
+  parseJSXElementOrFragment() {
+    // Check if this is a fragment: <>...</>
+    if (this.check(TokenType.LESS) && this.peek(1).type === TokenType.GREATER) {
+      return this.parseJSXFragment();
+    }
+    return this.parseJSXElement();
+  }
+
+  parseJSXFragment() {
+    const l = this.loc();
+    this.expect(TokenType.LESS, "Expected '<'");
+    this.expect(TokenType.GREATER, "Expected '>' in fragment opening");
+
+    // Parse children until </>
+    const children = this.parseJSXFragmentChildren();
+
+    return new AST.JSXFragment(children, l);
+  }
+
+  parseJSXFragmentChildren() {
+    const children = [];
+
+    while (!this.isAtEnd()) {
+      // Closing fragment: </>
+      if (this.check(TokenType.LESS) && this.peek(1).type === TokenType.SLASH) {
+        // Check for </> (fragment close) vs </tag> (error)
+        if (this.peek(2).type === TokenType.GREATER) {
+          this.advance(); // <
+          this.advance(); // /
+          this.advance(); // >
+          break;
+        } else {
+          this.error("Unexpected closing tag inside fragment. Use </> to close a fragment");
+        }
+      }
+
+      // Nested element or fragment
+      if (this.check(TokenType.LESS)) {
+        if (this.peek(1).type === TokenType.GREATER) {
+          children.push(this.parseJSXFragment());
+        } else {
+          children.push(this.parseJSXElement());
+        }
+        continue;
+      }
+
+      // String literal as text
+      if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
+        const str = this.parseStringLiteral();
+        children.push(new AST.JSXText(str, this.loc()));
+        continue;
+      }
+
+      // Unquoted JSX text
+      if (this.check(TokenType.JSX_TEXT)) {
+        const tok = this.advance();
+        const text = this._collapseJSXWhitespace(tok.value);
+        if (text.length > 0) {
+          children.push(new AST.JSXText(new AST.StringLiteral(text, this.loc()), this.loc()));
+        }
+        continue;
+      }
+
+      // Expression in braces: {expr}
+      if (this.check(TokenType.LBRACE)) {
+        this.advance();
+        const expr = this.parseExpression();
+        this.expect(TokenType.RBRACE, "Expected '}' after JSX expression");
+        children.push(new AST.JSXExpression(expr, this.loc()));
+        continue;
+      }
+
+      // for loop inside JSX
+      if (this.check(TokenType.FOR)) {
+        children.push(this.parseJSXFor());
+        continue;
+      }
+
+      // if inside JSX
+      if (this.check(TokenType.IF)) {
+        children.push(this.parseJSXIf());
+        continue;
+      }
+
+      break;
+    }
+
+    return children;
   }
 
   parseJSXElement() {
@@ -1240,9 +1440,9 @@ export class Parser {
         break;
       }
 
-      // Nested element
+      // Nested element or fragment
       if (this.check(TokenType.LESS)) {
-        children.push(this.parseJSXElement());
+        children.push(this.parseJSXElementOrFragment());
         continue;
       }
 
@@ -1338,7 +1538,7 @@ export class Parser {
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       if (this.check(TokenType.LESS)) {
-        body.push(this.parseJSXElement());
+        body.push(this.parseJSXElementOrFragment());
       } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
         body.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
       } else if (this.check(TokenType.JSX_TEXT)) {
@@ -1364,7 +1564,7 @@ export class Parser {
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       if (this.check(TokenType.LESS)) {
-        body.push(this.parseJSXElement());
+        body.push(this.parseJSXElementOrFragment());
       } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
         body.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
       } else if (this.check(TokenType.JSX_TEXT)) {
@@ -1445,6 +1645,7 @@ export class Parser {
     if (this.check(TokenType.IMPL)) return this.parseImplDeclaration();
     if (this.check(TokenType.TRAIT)) return this.parseTraitDeclaration();
     if (this.check(TokenType.DEFER)) return this.parseDeferStatement();
+    if (this.check(TokenType.WITH)) return this.parseWithStatement();
     if (this.check(TokenType.EXTERN)) return this.parseExternDeclaration();
 
     // Labeled loops: name: for/while/loop
@@ -1552,6 +1753,16 @@ export class Parser {
       body = this.parseExpression();
     }
     return new AST.DeferStatement(body, l);
+  }
+
+  parseWithStatement() {
+    const l = this.loc();
+    this.expect(TokenType.WITH);
+    const expression = this.parseExpression();
+    this.expect(TokenType.AS, "Expected 'as' after with expression");
+    const name = this.expect(TokenType.IDENTIFIER, "Expected variable name after 'as'").value;
+    const body = this.parseBlock();
+    return new AST.WithStatement(expression, name, body, l);
   }
 
   parseExternDeclaration() {
@@ -1691,7 +1902,7 @@ export class Parser {
     while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
       const l = this.loc();
 
-      // Destructuring pattern parameter: {name, email} or [a, b]
+      // Destructuring pattern parameter: {name, email}: User or [head, ...tail]
       if (this.check(TokenType.LBRACE)) {
         this.advance();
         const properties = [];
@@ -1712,11 +1923,22 @@ export class Parser {
         const pattern = new AST.ObjectPattern(properties, l);
         const param = new AST.Parameter(null, null, null, l);
         param.destructure = pattern;
+        // Optional type annotation after destructure: {name, age}: User
+        if (this.match(TokenType.COLON)) {
+          param.typeAnnotation = this.parseTypeAnnotation();
+        }
         params.push(param);
       } else if (this.check(TokenType.LBRACKET)) {
         this.advance();
         const elements = [];
         while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+          // Support spread in array destructure: [head, ...tail]
+          if (this.check(TokenType.SPREAD)) {
+            this.advance(); // consume ...
+            const restName = this.expect(TokenType.IDENTIFIER, "Expected identifier after '...'").value;
+            elements.push('...' + restName);
+            break; // rest must be last
+          }
           elements.push(this.expect(TokenType.IDENTIFIER, "Expected element name").value);
           if (!this.match(TokenType.COMMA)) break;
         }
@@ -1724,6 +1946,10 @@ export class Parser {
         const pattern = new AST.ArrayPattern(elements, l);
         const param = new AST.Parameter(null, null, null, l);
         param.destructure = pattern;
+        // Optional type annotation after destructure: [head, ...tail]: [Int]
+        if (this.match(TokenType.COLON)) {
+          param.typeAnnotation = this.parseTypeAnnotation();
+        }
         params.push(param);
       } else {
         const name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
@@ -1841,6 +2067,20 @@ export class Parser {
         }
 
         return new AST.RefinementType(name, typeExpr, predicate, l);
+      }
+
+      // Simple enum syntax: type Color = Red | Green | Blue
+      // Detect when the type expression is a union of bare identifiers (PascalCase, no type params)
+      if (typeExpr.type === 'UnionTypeAnnotation') {
+        const isSimpleEnum = typeExpr.members.every(m =>
+          m.type === 'TypeAnnotation' && m.typeParams.length === 0 && /^[A-Z]/.test(m.name)
+        );
+        if (isSimpleEnum) {
+          const variants = typeExpr.members.map(m =>
+            new AST.TypeVariant(m.name, [], m.loc)
+          );
+          return new AST.TypeDeclaration(name, typeParams, variants, l);
+        }
       }
 
       return new AST.TypeAlias(name, typeParams, typeExpr, l);
@@ -2409,6 +2649,19 @@ export class Parser {
   parseMembership() {
     let left = this.parseRange();
 
+    // "is" / "is not" — type checking: value is String, value is not Nil
+    if (this.check(TokenType.IS)) {
+      const l = this.loc();
+      this.advance(); // is
+      let negated = false;
+      if (this.check(TokenType.NOT)) {
+        this.advance(); // not
+        negated = true;
+      }
+      const typeName = this.expect(TokenType.IDENTIFIER, "Expected type name after 'is'").value;
+      return new AST.IsExpression(left, typeName, negated, l);
+    }
+
     // "in" / "not in"
     if (this.check(TokenType.NOT) && this.peek(1).type === TokenType.IN) {
       const l = this.loc();
@@ -2531,6 +2784,12 @@ export class Parser {
       if (this.check(TokenType.DOT)) {
         const l = this.loc();
         this.advance();
+        // Tuple index access: t.0, t.1, etc.
+        if (this.check(TokenType.NUMBER) && Number.isInteger(this.current().value) && this.current().value >= 0) {
+          const idx = this.advance().value;
+          expr = new AST.MemberExpression(expr, new AST.NumberLiteral(idx, l), true, l);
+          continue;
+        }
         const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '.'").value;
         expr = new AST.MemberExpression(expr, prop, false, l);
         continue;

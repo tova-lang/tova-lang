@@ -537,6 +537,16 @@ export class DictComprehension {
   }
 }
 
+export class IsExpression {
+  constructor(value, typeName, negated, loc) {
+    this.type = 'IsExpression';
+    this.value = value;
+    this.typeName = typeName;     // string: "String", "Int", "Nil", etc.
+    this.negated = negated;       // true for "is not"
+    this.loc = loc;
+  }
+}
+
 export class MembershipExpression {
   constructor(value, collection, negated, loc) {
     this.type = 'MembershipExpression';
@@ -735,6 +745,14 @@ export class JSXSpreadAttribute {
   }
 }
 
+export class JSXFragment {
+  constructor(children, loc) {
+    this.type = 'JSXFragment';
+    this.children = children;     // Array of JSXElement, JSXText, JSXExpression, etc.
+    this.loc = loc;
+  }
+}
+
 export class JSXText {
   constructor(value, loc) {
     this.type = 'JSXText';
@@ -778,12 +796,14 @@ export class JSXIf {
 // ============================================================
 
 export class RouteDeclaration {
-  constructor(method, path, handler, loc, decorators = []) {
+  constructor(method, path, handler, loc, decorators = [], bodyType = null, responseType = null) {
     this.type = 'RouteDeclaration';
     this.method = method;   // GET, POST, PUT, DELETE, PATCH
     this.path = path;       // string literal
     this.handler = handler; // Identifier or FunctionDeclaration
     this.decorators = decorators; // Array of { name, args } for "with auth, role("admin")"
+    this.bodyType = bodyType;       // TypeAnnotation — request body type (e.g., body: User)
+    this.responseType = responseType; // TypeAnnotation — response type (e.g., -> [User])
     this.loc = loc;
   }
 }
@@ -869,10 +889,11 @@ export class MaxBodyDeclaration {
 }
 
 export class RouteGroupDeclaration {
-  constructor(prefix, body, loc) {
+  constructor(prefix, body, loc, version = null) {
     this.type = 'RouteGroupDeclaration';
     this.prefix = prefix; // string — URL prefix, e.g. "/api/v1"
     this.body = body;     // Array of server statements
+    this.version = version; // version config: { version, deprecated, sunset } or null
     this.loc = loc;
   }
 }
@@ -1004,10 +1025,13 @@ export class ModelDeclaration {
 }
 
 export class TestBlock {
-  constructor(name, body, loc) {
+  constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';
     this.name = name;       // optional string name
     this.body = body;       // Array of statements
+    this.timeout = options.timeout || null;  // optional timeout in ms
+    this.beforeEach = options.beforeEach || null; // Array of statements or null
+    this.afterEach = options.afterEach || null;   // Array of statements or null
     this.loc = loc;
   }
 }
@@ -1118,6 +1142,16 @@ export class TypeAlias {
 // ============================================================
 // Defer statement
 // ============================================================
+
+export class WithStatement {
+  constructor(expression, name, body, loc) {
+    this.type = 'WithStatement';
+    this.expression = expression; // resource expression
+    this.name = name;             // binding name (string)
+    this.body = body;             // BlockStatement
+    this.loc = loc;
+  }
+}
 
 export class DeferStatement {
   constructor(body, loc) {

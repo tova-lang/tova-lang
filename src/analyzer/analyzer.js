@@ -8,6 +8,7 @@ import {
   typeAnnotationToType, typeFromString, typesCompatible,
   isNumericType, isFloatNarrowing,
 } from './types.js';
+import { ErrorCode, WarningCode } from '../diagnostics/error-codes.js';
 
 const _JS_GLOBALS = new Set([
   'console', 'document', 'window', 'globalThis', 'self',
@@ -63,6 +64,9 @@ export class Analyzer {
     this._allScopes = []; // Track all scopes for unused variable checking
     this._functionReturnTypeStack = []; // Stack of expected return types for type checking
     this._asyncDepth = 0; // Track nesting inside async functions for await validation
+
+    // Propagate strict mode to the type system
+    Type.strictMode = this.strict;
 
     // Type registry for LSP
     this.typeRegistry = {
@@ -158,13 +162,17 @@ export class Analyzer {
       'path_join', 'path_dirname', 'path_basename', 'path_resolve', 'path_ext', 'path_relative',
       'symlink', 'readlink', 'is_symlink',
       'spawn',
+      // Namespace modules
+      'math', 'str', 'arr', 'dt', 're', 'json', 'fs', 'url',
+      // Advanced collections
+      'OrderedDict', 'DefaultDict', 'Counter', 'Deque', 'collections',
     ];
     for (const name of builtins) {
       this.globalScope.define(name, new Symbol(name, 'builtin', null, false, { line: 0, column: 0, file: '<builtin>' }));
     }
   }
 
-  error(message, loc, hint = null) {
+  error(message, loc, hint = null, opts = {}) {
     const l = loc || { line: 0, column: 0, file: this.filename };
     const e = {
       message,
@@ -173,10 +181,13 @@ export class Analyzer {
       column: l.column,
     };
     if (hint) e.hint = hint;
+    if (opts.code) e.code = opts.code;
+    if (opts.length) e.length = opts.length;
+    if (opts.fix) e.fix = opts.fix;
     this.errors.push(e);
   }
 
-  warn(message, loc, hint = null) {
+  warn(message, loc, hint = null, opts = {}) {
     const l = loc || { line: 0, column: 0, file: this.filename };
     const w = {
       message,
@@ -185,14 +196,17 @@ export class Analyzer {
       column: l.column,
     };
     if (hint) w.hint = hint;
+    if (opts.code) w.code = opts.code;
+    if (opts.length) w.length = opts.length;
+    if (opts.fix) w.fix = opts.fix;
     this.warnings.push(w);
   }
 
-  strictError(message, loc, hint = null) {
+  strictError(message, loc, hint = null, opts = {}) {
     if (this.strict) {
-      this.error(message, loc, hint);
+      this.error(message, loc, hint, opts);
     } else {
-      this.warn(message, loc, hint);
+      this.warn(message, loc, hint, opts);
     }
   }
 
@@ -231,7 +245,8 @@ export class Analyzer {
         this.warn(
           `${kind[0].toUpperCase() + kind.slice(1)} '${name}' should use PascalCase`,
           loc,
-          `Rename '${name}' to '${suggested}'`
+          `Rename '${name}' to '${suggested}'`,
+          { code: 'W100', length: name.length, fix: { description: `Rename to '${suggested}'`, replacement: suggested } }
         );
       }
     } else {
@@ -241,7 +256,8 @@ export class Analyzer {
         this.warn(
           `${kind[0].toUpperCase() + kind.slice(1)} '${name}' should use snake_case`,
           loc,
-          `Rename '${name}' to '${suggested}'`
+          `Rename '${name}' to '${suggested}'`,
+          { code: 'W100', length: name.length, fix: { description: `Rename to '${suggested}'`, replacement: suggested } }
         );
       }
     }
@@ -304,7 +320,11 @@ export class Analyzer {
         if (sym.kind === 'parameter') continue;
 
         if (!sym.used && sym.loc && sym.loc.line > 0) {
-          this.warn(`'${name}' is declared but never used`, sym.loc);
+          this.warn(`'${name}' is declared but never used`, sym.loc, "prefix with _ to suppress", {
+            code: 'W001',
+            length: name.length,
+            fix: { description: `Prefix with _ to suppress: _${name}`, replacement: `_${name}` },
+          });
         }
       }
     }
@@ -323,7 +343,11 @@ export class Analyzer {
         if (name === 'main') continue;
 
         if (!sym.used && sym.loc && sym.loc.line > 0) {
-          this.warn(`Function '${name}' is declared but never used`, sym.loc, "prefix with _ to suppress");
+          this.warn(`Function '${name}' is declared but never used`, sym.loc, "prefix with _ to suppress", {
+            code: 'W002',
+            length: name.length,
+            fix: { description: `Prefix with _ to suppress: _${name}`, replacement: `_${name}` },
+          });
         }
       }
     }
@@ -438,9 +462,94 @@ export class Analyzer {
         return null;
       case 'LogicalExpression':
         return 'Bool';
+      case 'PipeExpression':
+        return this._inferPipeType(expr);
+      case 'MemberExpression':
+        // Infer .length as Int
+        if (expr.property === 'length') return 'Int';
+        return null;
       default:
         return null;
     }
+  }
+
+  /**
+   * Infer the result type of a pipe expression like `arr |> filter(fn(x) x > 0) |> map(fn(x) x * 2)`.
+   * The left side provides the input type; the right side determines the output type.
+   */
+  _inferPipeType(expr) {
+    const inputType = this._inferType(expr.left);
+    const right = expr.right;
+
+    if (right.type === 'CallExpression' && right.callee.type === 'Identifier') {
+      const fnName = right.callee.name;
+
+      // Collection operations that preserve the array type
+      if (['filter', 'sorted', 'reversed', 'unique', 'take', 'drop', 'skip'].includes(fnName)) {
+        return inputType; // Same type as input
+      }
+
+      // map: transforms element type based on the mapper function
+      if (fnName === 'map') {
+        if (inputType && inputType.startsWith('[') && inputType.endsWith(']')) {
+          // Try to infer the return type from the mapper function
+          const mapperArg = right.arguments.length > 0 ? right.arguments[0] : null;
+          if (mapperArg) {
+            const mapperRetType = this._inferLambdaReturnType(mapperArg, inputType.slice(1, -1));
+            if (mapperRetType) return `[${mapperRetType}]`;
+          }
+        }
+        return inputType; // Fallback: preserve input type
+      }
+
+      // flat_map / flatten: reduce nesting
+      if (fnName === 'flat_map' || fnName === 'flatMap') {
+        if (inputType && inputType.startsWith('[') && inputType.endsWith(']')) {
+          return inputType; // Simplified: same element type
+        }
+      }
+      if (fnName === 'flatten') {
+        if (inputType && inputType.startsWith('[[') && inputType.endsWith(']]')) {
+          return inputType.slice(1, -1); // [[T]] -> [T]
+        }
+        return inputType;
+      }
+
+      // Reduction operations
+      if (fnName === 'reduce' || fnName === 'fold') return null; // Can't easily infer
+      if (fnName === 'join') return 'String';
+      if (fnName === 'count' || fnName === 'len' || fnName === 'length') return 'Int';
+      if (fnName === 'sum') return inputType === '[Float]' ? 'Float' : 'Int';
+      if (fnName === 'any' || fnName === 'all' || fnName === 'every' || fnName === 'some') return 'Bool';
+      if (fnName === 'first' || fnName === 'last' || fnName === 'find') {
+        if (inputType && inputType.startsWith('[') && inputType.endsWith(']')) {
+          return inputType.slice(1, -1); // [T] -> T
+        }
+      }
+
+      // For user-defined functions, fall back to checking their return type
+      const fnSym = this.currentScope.lookup(fnName);
+      if (fnSym && fnSym.kind === 'function' && fnSym.type) {
+        return this._typeAnnotationToString(fnSym.type);
+      }
+    }
+
+    // If we can't infer the right side, return null
+    return null;
+  }
+
+  /**
+   * Try to infer the return type of a lambda expression given the input element type.
+   */
+  _inferLambdaReturnType(lambdaExpr, inputElementType) {
+    if (!lambdaExpr) return null;
+    if (lambdaExpr.type === 'LambdaExpression') {
+      // For simple expression bodies, infer the result type
+      if (lambdaExpr.body && lambdaExpr.body.type !== 'BlockStatement') {
+        return this._inferType(lambdaExpr.body);
+      }
+    }
+    return null;
   }
 
   _typeAnnotationToString(ann) {
@@ -493,14 +602,29 @@ export class Analyzer {
     if (!expected || !actual) return true;
     if (expected === 'Any' || actual === 'Any') return true;
     if (expected === '_' || actual === '_') return true;
+    // Resolve type aliases before comparison
+    expected = this._resolveTypeAlias(expected);
+    actual = this._resolveTypeAlias(actual);
     // Exact match
     if (expected === actual) return true;
-    // Numeric compatibility: Int and Float are interchangeable
-    const numerics = new Set(['Int', 'Float']);
-    if (numerics.has(expected) && numerics.has(actual)) return true;
+    // Numeric compatibility: Int -> Float widening is safe; Float -> Int requires explicit conversion
+    if (expected === 'Float' && actual === 'Int') return true;
+    if (expected === 'Int' && actual === 'Float') return false; // caller should emit warning/error
     // Nil is compatible with Option
     if (actual === 'Nil' && (expected === 'Option' || expected.startsWith('Option'))) return true;
     if ((expected === 'Nil') && (actual === 'Option' || actual.startsWith('Option'))) return true;
+    // Union type compatibility: actual must be assignable to one of the expected union members
+    if (expected.includes(' | ')) {
+      const members = expected.split(' | ').map(m => m.trim());
+      return members.some(m => this._typesCompatible(m, actual));
+    }
+    // If actual is a union, every member must be compatible with expected
+    if (actual.includes(' | ')) {
+      const members = actual.split(' | ').map(m => m.trim());
+      return members.every(m => this._typesCompatible(expected, m));
+    }
+    // Nil is compatible with union types that include Nil
+    if (actual === 'Nil' && expected.includes('Nil')) return true;
     // Array compatibility: check element types
     if (expected.startsWith('[') && actual.startsWith('[')) {
       const expEl = expected.slice(1, -1);
@@ -734,7 +858,7 @@ export class Analyzer {
         return;
       case 'AwaitExpression':
         if (this._asyncDepth === 0) {
-          this.error("'await' can only be used inside an async function", node.loc);
+          this.error("'await' can only be used inside an async function", node.loc, "add 'async' to the enclosing function declaration", { code: 'E300' });
         }
         this.visitExpression(node.argument);
         return;
@@ -755,6 +879,8 @@ export class Analyzer {
         return;
       case 'JSXElement':
         return this.visitJSXElement(node);
+      case 'JSXFragment':
+        return this.visitJSXFragment(node);
       // Column expressions (for table operations) — no semantic analysis needed
       case 'ColumnExpression':
         return;
@@ -876,17 +1002,21 @@ export class Analyzer {
       const existing = this._lookupAssignTarget(target);
       if (existing) {
         if (!existing.mutable) {
-          this.error(`Cannot reassign immutable variable '${target}'. Use 'var' for mutable variables.`, node.loc);
+          this.error(`Cannot reassign immutable variable '${target}'. Use 'var' for mutable variables.`, node.loc, null, {
+            code: 'E202',
+            length: target.length,
+            fix: { description: `Change to 'var ${target}' at the original declaration to make it mutable` },
+          });
         }
         // Type check reassignment
         if (existing.inferredType && i < node.values.length) {
           const newType = this._inferType(node.values[i]);
           if (!this._typesCompatible(existing.inferredType, newType)) {
-            this.strictError(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc, this._conversionHint(existing.inferredType, newType));
+            this.strictError(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc, this._conversionHint(existing.inferredType, newType), { code: 'E102' });
           }
           // Float narrowing warning in strict mode
           if (this.strict && newType === 'Float' && existing.inferredType === 'Int') {
-            this.warn(`Potential data loss: assigning Float to Int variable '${target}'`, node.loc);
+            this.warn(`Potential data loss: assigning Float to Int variable '${target}'`, node.loc, "use floor() or round() for explicit conversion", { code: 'W204' });
           }
         }
         existing.used = true;
@@ -895,7 +1025,7 @@ export class Analyzer {
         const inferredType = i < node.values.length ? this._inferType(node.values[i]) : null;
         // Warn if this shadows a variable from an outer function scope
         if (this._existsInOuterScope(target)) {
-          this.warn(`Variable '${target}' shadows a binding in an outer scope`, node.loc);
+          this.warn(`Variable '${target}' shadows a binding in an outer scope`, node.loc, null, { code: 'W101', length: target.length });
         }
         try {
           const sym = new Symbol(target, 'variable', null, false, node.loc);
@@ -1011,7 +1141,7 @@ export class Analyzer {
       // Return path analysis: check that all paths return a value
       if (expectedReturn && node.body.type === 'BlockStatement') {
         if (!this._definitelyReturns(node.body)) {
-          this.warn(`Function '${node.name}' declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+          this.warn(`Function '${node.name}' declares return type ${expectedReturn} but not all code paths return a value`, node.loc, null, { code: 'W205' });
         }
       }
     } finally {
@@ -1119,7 +1249,7 @@ export class Analyzer {
         if (!builtinTraits.has(trait)) {
           const traitSym = this.currentScope.lookup(trait);
           if (!traitSym || !traitSym._interfaceMethods) {
-            this.warn(`Unknown trait '${trait}' in derive clause`, node.loc);
+            this.warn(`Unknown trait '${trait}' in derive clause`, node.loc, null, { code: 'W303' });
           }
         }
       }
@@ -1167,7 +1297,7 @@ export class Analyzer {
       let terminated = false;
       for (const stmt of node.body) {
         if (terminated) {
-          this.warn("Unreachable code after return/break/continue", stmt.loc || node.loc);
+          this.warn("Unreachable code after return/break/continue", stmt.loc || node.loc, null, { code: 'W201' });
           break; // Only warn once per block
         }
         this.visitNode(stmt);
@@ -1187,9 +1317,9 @@ export class Analyzer {
     // Constant conditional check
     if (node.condition && node.condition.type === 'BooleanLiteral') {
       if (node.condition.value === true) {
-        this.warn("Condition is always true", node.condition.loc || node.loc);
+        this.warn("Condition is always true", node.condition.loc || node.loc, null, { code: 'W202' });
       } else {
-        this.warn("Condition is always false — branch never executes", node.condition.loc || node.loc);
+        this.warn("Condition is always false — branch never executes", node.condition.loc || node.loc, null, { code: 'W203' });
       }
     }
 
@@ -1403,7 +1533,7 @@ export class Analyzer {
   visitWhileStatement(node) {
     // while false is suspicious (loop body never executes)
     if (node.condition && node.condition.type === 'BooleanLiteral' && node.condition.value === false) {
-      this.warn("Condition is always false — loop never executes", node.condition.loc || node.loc);
+      this.warn("Condition is always false — loop never executes", node.condition.loc || node.loc, null, { code: 'W203' });
     }
 
     this.visitExpression(node.condition);
@@ -1468,7 +1598,7 @@ export class Analyzer {
     }
     // Return must be inside a function
     if (this._functionReturnTypeStack.length === 0) {
-      this.error("'return' can only be used inside a function", node.loc);
+      this.error("'return' can only be used inside a function", node.loc, null, { code: 'E301' });
       return;
     }
     // Check return type against declared function return type
@@ -1477,7 +1607,7 @@ export class Analyzer {
       if (expectedReturn) {
         const actualType = node.value ? this._inferType(node.value) : 'Nil';
         if (!this._typesCompatible(expectedReturn, actualType)) {
-          this.error(`Type mismatch: function expects return type ${expectedReturn}, but got ${actualType}`, node.loc, this._conversionHint(expectedReturn, actualType));
+          this.error(`Type mismatch: function expects return type ${expectedReturn}, but got ${actualType}`, node.loc, this._conversionHint(expectedReturn, actualType), { code: 'E101' });
         }
       }
     }
@@ -1488,7 +1618,7 @@ export class Analyzer {
     if (node.target.type === 'Identifier') {
       const sym = this.currentScope.lookup(node.target.name);
       if (sym && !sym.mutable && sym.kind !== 'builtin') {
-        this.error(`Cannot use '${node.operator}' on immutable variable '${node.target.name}'`, node.loc);
+        this.error(`Cannot use '${node.operator}' on immutable variable '${node.target.name}'`, node.loc, `declare with 'var' to make mutable`, { code: 'E202' });
       }
       // Type check compound assignment
       if (sym && sym.inferredType) {
@@ -1527,7 +1657,7 @@ export class Analyzer {
   visitStateDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'client') {
-      this.error(`'state' can only be used inside a client block`, node.loc);
+      this.error(`'state' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
     }
     try {
       this.currentScope.define(node.name,
@@ -1541,7 +1671,7 @@ export class Analyzer {
   visitComputedDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'client') {
-      this.error(`'computed' can only be used inside a client block`, node.loc);
+      this.error(`'computed' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
     }
     try {
       this.currentScope.define(node.name,
@@ -1555,7 +1685,7 @@ export class Analyzer {
   visitEffectDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'client') {
-      this.error(`'effect' can only be used inside a client block`, node.loc);
+      this.error(`'effect' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
     }
     this.visitNode(node.body);
   }
@@ -1563,7 +1693,7 @@ export class Analyzer {
   visitComponentDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'client') {
-      this.error(`'component' can only be used inside a client block`, node.loc);
+      this.error(`'component' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
     }
     this._checkNamingConvention(node.name, 'component', node.loc);
     try {
@@ -1595,7 +1725,7 @@ export class Analyzer {
   visitStoreDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'client') {
-      this.error(`'store' can only be used inside a client block`, node.loc);
+      this.error(`'store' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
     }
     this._checkNamingConvention(node.name, 'store', node.loc);
     try {
@@ -1619,9 +1749,14 @@ export class Analyzer {
   visitRouteDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'route' can only be used inside a server block`, node.loc);
+      this.error(`'route' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     this.visitExpression(node.handler);
+
+    // Validate body type annotation is only used with POST/PUT/PATCH
+    if (node.bodyType && !['POST', 'PUT', 'PATCH'].includes(node.method.toUpperCase())) {
+      this.warn(`body type annotation on ${node.method} route is ignored — only POST, PUT, and PATCH routes parse request bodies`, node.loc);
+    }
 
     // Route param ↔ handler signature type safety
     if (node.handler.type === 'Identifier') {
@@ -1649,7 +1784,7 @@ export class Analyzer {
   visitMiddlewareDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'middleware' can only be used inside a server block`, node.loc);
+      this.error(`'middleware' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     try {
       this.currentScope.define(node.name,
@@ -1677,14 +1812,14 @@ export class Analyzer {
   visitHealthCheckDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'health' can only be used inside a server block`, node.loc);
+      this.error(`'health' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
   }
 
   visitCorsDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'cors' can only be used inside a server block`, node.loc);
+      this.error(`'cors' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1694,7 +1829,7 @@ export class Analyzer {
   visitErrorHandlerDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'on_error' can only be used inside a server block`, node.loc);
+      this.error(`'on_error' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
@@ -1716,7 +1851,7 @@ export class Analyzer {
   visitWebSocketDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'ws' can only be used inside a server block`, node.loc);
+      this.error(`'ws' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const [, handler] of Object.entries(node.handlers)) {
       if (!handler) continue;
@@ -1741,14 +1876,14 @@ export class Analyzer {
   visitStaticDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'static' can only be used inside a server block`, node.loc);
+      this.error(`'static' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
   }
 
   visitDiscoverDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'discover' can only be used inside a server block`, node.loc);
+      this.error(`'discover' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     this.visitExpression(node.urlExpression);
   }
@@ -1756,7 +1891,7 @@ export class Analyzer {
   visitAuthDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'auth' can only be used inside a server block`, node.loc);
+      this.error(`'auth' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1766,7 +1901,7 @@ export class Analyzer {
   visitMaxBodyDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'max_body' can only be used inside a server block`, node.loc);
+      this.error(`'max_body' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     this.visitExpression(node.limit);
   }
@@ -1774,7 +1909,7 @@ export class Analyzer {
   visitRouteGroupDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'routes' can only be used inside a server block`, node.loc);
+      this.error(`'routes' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const stmt of node.body) {
       this.visitNode(stmt);
@@ -1784,7 +1919,7 @@ export class Analyzer {
   visitRateLimitDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'rate_limit' can only be used inside a server block`, node.loc);
+      this.error(`'rate_limit' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1794,7 +1929,7 @@ export class Analyzer {
   visitLifecycleHookDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'on_${node.hook}' can only be used inside a server block`, node.loc);
+      this.error(`'on_${node.hook}' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
@@ -1816,7 +1951,7 @@ export class Analyzer {
   visitSubscribeDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'subscribe' can only be used inside a server block`, node.loc);
+      this.error(`'subscribe' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
@@ -1838,7 +1973,7 @@ export class Analyzer {
   visitEnvDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'env' can only be used inside a server block`, node.loc);
+      this.error(`'env' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     try {
       this.currentScope.define(node.name,
@@ -1854,7 +1989,7 @@ export class Analyzer {
   visitScheduleDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'schedule' can only be used inside a server block`, node.loc);
+      this.error(`'schedule' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     if (node.name) {
       try {
@@ -1884,7 +2019,7 @@ export class Analyzer {
   visitUploadDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'upload' can only be used inside a server block`, node.loc);
+      this.error(`'upload' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1894,7 +2029,7 @@ export class Analyzer {
   visitSessionDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'session' can only be used inside a server block`, node.loc);
+      this.error(`'session' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1904,7 +2039,7 @@ export class Analyzer {
   visitDbDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'db' can only be used inside a server block`, node.loc);
+      this.error(`'db' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1914,7 +2049,7 @@ export class Analyzer {
   visitTlsDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'tls' can only be used inside a server block`, node.loc);
+      this.error(`'tls' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1924,7 +2059,7 @@ export class Analyzer {
   visitCompressionDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'compression' can only be used inside a server block`, node.loc);
+      this.error(`'compression' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1934,7 +2069,7 @@ export class Analyzer {
   visitBackgroundJobDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'background' can only be used inside a server block`, node.loc);
+      this.error(`'background' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     try {
       this.currentScope.define(node.name,
@@ -1962,7 +2097,7 @@ export class Analyzer {
   visitCacheDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'cache' can only be used inside a server block`, node.loc);
+      this.error(`'cache' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -1972,7 +2107,7 @@ export class Analyzer {
   visitSseDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'sse' can only be used inside a server block`, node.loc);
+      this.error(`'sse' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('block');
@@ -1991,7 +2126,7 @@ export class Analyzer {
   visitModelDeclaration(node) {
     const ctx = this.currentScope.getContext();
     if (ctx !== 'server') {
-      this.error(`'model' can only be used inside a server block`, node.loc);
+      this.error(`'model' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
     }
     if (node.config) {
       for (const value of Object.values(node.config)) {
@@ -2020,7 +2155,7 @@ export class Analyzer {
 
     // Common mistake: using `throw` (not a Tova keyword)
     if (node.name === 'throw') {
-      this.warn("'throw' is not a Tova keyword — use Result for error handling, e.g. Err(\"message\")", node.loc, "try Err(value) instead of throw");
+      this.warn("'throw' is not a Tova keyword — use Result for error handling, e.g. Err(\"message\")", node.loc, "try Err(value) instead of throw", { code: 'W206' });
       return;
     }
 
@@ -2029,7 +2164,9 @@ export class Analyzer {
       if (!this._isKnownGlobal(node.name)) {
         const suggestion = this._findClosestMatch(node.name);
         const hint = suggestion ? `did you mean '${suggestion}'?` : null;
-        this.warn(`'${node.name}' is not defined`, node.loc, hint);
+        const fixOpts = { code: 'E200', length: node.name.length };
+        if (suggestion) fixOpts.fix = { description: `Replace with '${suggestion}'`, replacement: suggestion };
+        this.warn(`'${node.name}' is not defined`, node.loc, hint, fixOpts);
       }
     } else {
       sym.used = true;
@@ -2116,7 +2253,7 @@ export class Analyzer {
         this.visitNode(node.body);
         // Return path analysis for lambdas with block bodies and declared return types
         if (expectedReturn && !this._definitelyReturns(node.body)) {
-          this.warn(`Lambda declares return type ${expectedReturn} but not all code paths return a value`, node.loc);
+          this.warn(`Lambda declares return type ${expectedReturn} but not all code paths return a value`, node.loc, null, { code: 'W205' });
         }
       } else {
         // Single-expression body — always returns implicitly
@@ -2135,7 +2272,7 @@ export class Analyzer {
     for (const arm of node.arms) {
       // Warn about unreachable arms after catch-all
       if (catchAllSeen) {
-        this.warn("Unreachable match arm after catch-all pattern", arm.pattern.loc || arm.body.loc || node.loc);
+        this.warn("Unreachable match arm after catch-all pattern", arm.pattern.loc || arm.body.loc || node.loc, null, { code: 'W207' });
         continue; // Still visit remaining arms for completeness but skip analysis
       }
 
@@ -2213,7 +2350,7 @@ export class Analyzer {
         const allVariants = subjectType.getVariantNames();
         for (const v of allVariants) {
           if (!coveredVariants.has(v)) {
-            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${subjectType.name}'`, node.loc);
+            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${subjectType.name}'`, node.loc, `add a '${v}' arm or use '_ =>' as a catch-all`, { code: 'W200' });
           }
         }
         return; // Done — used precise ADT checking
@@ -2222,18 +2359,18 @@ export class Analyzer {
       // Check built-in Result/Option types
       if (coveredVariants.has('Ok') || coveredVariants.has('Err')) {
         if (!coveredVariants.has('Ok')) {
-          this.warn(`Non-exhaustive match: missing 'Ok' variant`, node.loc);
+          this.warn(`Non-exhaustive match: missing 'Ok' variant`, node.loc, "add an 'Ok(value) =>' arm", { code: 'W200' });
         }
         if (!coveredVariants.has('Err')) {
-          this.warn(`Non-exhaustive match: missing 'Err' variant`, node.loc);
+          this.warn(`Non-exhaustive match: missing 'Err' variant`, node.loc, "add an 'Err(e) =>' arm", { code: 'W200' });
         }
       }
       if (coveredVariants.has('Some') || coveredVariants.has('None')) {
         if (!coveredVariants.has('Some')) {
-          this.warn(`Non-exhaustive match: missing 'Some' variant`, node.loc);
+          this.warn(`Non-exhaustive match: missing 'Some' variant`, node.loc, "add a 'Some(value) =>' arm", { code: 'W200' });
         }
         if (!coveredVariants.has('None')) {
-          this.warn(`Non-exhaustive match: missing 'None' variant`, node.loc);
+          this.warn(`Non-exhaustive match: missing 'None' variant`, node.loc, "add a 'None =>' arm", { code: 'W200' });
         }
       }
 
@@ -2246,7 +2383,7 @@ export class Analyzer {
         const [typeName, typeVariants] = candidates[0];
         for (const v of typeVariants) {
           if (!coveredVariants.has(v)) {
-            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${typeName}'`, node.loc);
+            this.warn(`Non-exhaustive match: missing '${v}' variant from type '${typeName}'`, node.loc, `add a '${v}' arm or use '_ =>' as a catch-all`, { code: 'W200' });
           }
         }
       }
@@ -2370,6 +2507,24 @@ export class Analyzer {
     for (const child of node.children) {
       if (child.type === 'JSXElement') {
         this.visitJSXElement(child);
+      } else if (child.type === 'JSXFragment') {
+        this.visitJSXFragment(child);
+      } else if (child.type === 'JSXExpression') {
+        this.visitExpression(child.expression);
+      } else if (child.type === 'JSXFor') {
+        this.visitJSXFor(child);
+      } else if (child.type === 'JSXIf') {
+        this.visitJSXIf(child);
+      }
+    }
+  }
+
+  visitJSXFragment(node) {
+    for (const child of node.children) {
+      if (child.type === 'JSXElement') {
+        this.visitJSXElement(child);
+      } else if (child.type === 'JSXFragment') {
+        this.visitJSXFragment(child);
       } else if (child.type === 'JSXExpression') {
         this.visitExpression(child.expression);
       } else if (child.type === 'JSXFor') {
@@ -2604,6 +2759,37 @@ export class Analyzer {
     return typeStr;
   }
 
+  /**
+   * Resolve a type alias to its underlying type string.
+   * E.g., if `type UserList = [User]`, resolves 'UserList' -> '[User]'.
+   * For generic aliases like `type Callback<T> = fn(T) -> Result<T, String>`,
+   * resolves 'Callback<Int>' by substituting T=Int.
+   */
+  _resolveTypeAlias(typeStr) {
+    if (!typeStr) return typeStr;
+    const parsed = this._parseGenericType(typeStr);
+    const baseName = parsed.params.length > 0 ? parsed.base : typeStr;
+
+    // Look up the type in scope
+    const sym = this.currentScope.lookup(baseName);
+    if (!sym || sym.kind !== 'type' || !sym._typeAliasExpr) return typeStr;
+
+    // Resolve the alias
+    let resolved = this._typeAnnotationToString(sym._typeAliasExpr);
+    if (!resolved) return typeStr;
+
+    // Substitute type parameters if the alias is generic
+    if (sym._typeParams && sym._typeParams.length > 0 && parsed.params.length > 0) {
+      const bindings = new Map();
+      for (let i = 0; i < sym._typeParams.length && i < parsed.params.length; i++) {
+        bindings.set(sym._typeParams[i], parsed.params[i]);
+      }
+      resolved = this._substituteTypeParams(resolved, bindings);
+    }
+
+    return resolved;
+  }
+
   _checkBinaryExprTypes(node) {
     const op = node.operator;
     const leftType = this._inferType(node.left);
@@ -2680,7 +2866,7 @@ export class Analyzer {
       }
       if (crossedBoundary) {
         const sym = scope.symbols.get(name);
-        if (sym) return true;
+        if (sym && sym.kind !== 'builtin') return true;
       }
       scope = scope.parent;
     }
@@ -2790,16 +2976,16 @@ export class Analyzer {
         for (const required of traitSym._interfaceMethods) {
           const provided = providedMethods.get(required.name);
           if (!provided) {
-            this.warn(`Impl for '${typeName || 'type'}' missing required method '${required.name}' from trait '${node.traitName}'`, node.loc);
+            this.warn(`Impl for '${typeName || 'type'}' missing required method '${required.name}' from trait '${node.traitName}'`, node.loc, null, { code: 'W300' });
           } else {
             // Check parameter count matches (excluding self)
             if (required.paramCount > 0 && provided.paramCount !== required.paramCount) {
-              this.warn(`Method '${required.name}' in impl for '${typeName}' has ${provided.paramCount} parameters, but trait '${node.traitName}' expects ${required.paramCount}`, node.loc);
+              this.warn(`Method '${required.name}' in impl for '${typeName}' has ${provided.paramCount} parameters, but trait '${node.traitName}' expects ${required.paramCount}`, node.loc, null, { code: 'W301' });
             }
             // Check return type matches if both are annotated
             if (required.returnType && provided.returnType) {
               if (!provided.returnType.isAssignableTo(required.returnType)) {
-                this.warn(`Method '${required.name}' return type mismatch in impl for '${typeName}': expected ${required.returnType}, got ${provided.returnType}`, node.loc);
+                this.warn(`Method '${required.name}' return type mismatch in impl for '${typeName}': expected ${required.returnType}, got ${provided.returnType}`, node.loc, null, { code: 'W302' });
               }
             }
           }
@@ -2902,7 +3088,7 @@ export class Analyzer {
       scope = scope.parent;
     }
     if (!insideFunction) {
-      this.warn("'defer' used outside of a function", node.loc);
+      this.warn("'defer' used outside of a function", node.loc, null, { code: 'W208' });
     }
     if (node.body) {
       if (node.body.type === 'BlockStatement') {

@@ -25,10 +25,10 @@ export class PrimitiveType extends Type {
     if (target instanceof AnyType || target instanceof UnknownType) return true;
     if (target instanceof PrimitiveType) {
       if (this.name === target.name) return true;
-      // Int -> Float widening is always allowed
+      // Int -> Float widening is always allowed (safe)
       if (this.name === 'Int' && target.name === 'Float') return true;
-      // Float -> Int: allowed in non-strict (checked at call site)
-      if (this.name === 'Float' && target.name === 'Int') return true;
+      // Float -> Int narrowing: NOT implicitly allowed at type level.
+      // The analyzer emits warning/error with conversion hint.
     }
     return false;
   }
@@ -66,7 +66,15 @@ export class AnyType extends Type {
 
 export class UnknownType extends Type {
   equals(other) { return other instanceof UnknownType; }
-  isAssignableTo(_target) { return true; }
+  isAssignableTo(target) {
+    // In strict mode, unknown types are NOT assignable to concrete types
+    if (Type.strictMode) {
+      if (!target) return true;
+      if (target instanceof AnyType || target instanceof UnknownType) return true;
+      return false;
+    }
+    return true;
+  }
   toString() { return 'unknown'; }
 }
 
@@ -321,6 +329,10 @@ export class UnionType extends Type {
     return this.members.map(m => m.toString()).join(' | ');
   }
 }
+
+// ─── Strict Mode Flag ────────────────────────────────────
+
+Type.strictMode = false; // Set to true by analyzer in --strict mode
 
 // ─── Singleton Caching ────────────────────────────────────
 

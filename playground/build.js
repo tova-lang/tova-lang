@@ -83,6 +83,11 @@ function buildStringProto() {
   return stripModuleSyntax(sp);
 }
 
+function buildArrayProto() {
+  const ap = readFileSync(resolve(ROOT, 'src/runtime/array-proto.js'), 'utf-8');
+  return stripModuleSyntax(ap);
+}
+
 function getStdlib() {
   return `function print(...args) { console.log(...args); }
 function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
@@ -1225,7 +1230,7 @@ for pair in inputs {
 }
 
 // ─── Generate the full HTML ─────────────────────────────
-function generateHTML(compilerBundle, runtimeBundle, stringProto, stdlib, examples, reference, tutorial) {
+function generateHTML(compilerBundle, runtimeBundle, stringProto, arrayProto, stdlib, examples, reference, tutorial) {
   // Group examples by category
   const categories = [];
   const catMap = {};
@@ -1814,6 +1819,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 <script>
 var RUNTIME_CODE = ${JSON.stringify(runtimeBundle)};
 var STRING_PROTO_CODE = ${JSON.stringify(stringProto)};
+var ARRAY_PROTO_CODE = ${JSON.stringify(arrayProto)};
 var STDLIB_CODE = ${JSON.stringify(stdlib)};
 
 // ─── Tova Compiler Bundle ────────────────────────────
@@ -2366,7 +2372,7 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
   const codeToRun = result.code || result.shared || '';
   if (codeToRun.trim()) {
     try {
-      const fn = new Function('console', STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n' + codeToRun);
+      const fn = new Function('console', STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n' + ARRAY_PROTO_CODE + '\\n' + codeToRun);
       fn(fakeConsole);
     } catch (e) {
       logs.push({ type: 'error', args: ['Runtime Error: ' + e.message] });
@@ -2458,6 +2464,7 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
       RUNTIME_CODE + '\\n' +
       STDLIB_CODE + '\\n' +
       STRING_PROTO_CODE + '\\n' +
+      ARRAY_PROTO_CODE + '\\n' +
       'function rpc(name, args) { console.warn("[Playground] server." + name + "() is not available in playground mode"); return Promise.resolve(null); }\\n' +
       sharedCode + '\\n' +
       clientCode + '\\n' +
@@ -2885,7 +2892,7 @@ function exportAsHTML() {
         + 'button{cursor:pointer;padding:8px 16px;margin:4px;border-radius:6px;border:1px solid #ddd;background:#f5f5f5;font-size:14px}'
         + 'input[type="text"],input[type="number"]{padding:8px 12px;border:1px solid #ddd;border-radius:6px;margin:4px;font-size:14px}'
         + '</style></head><body><div id="app"></div>\\n<script>\\n'
-        + RUNTIME_CODE + '\\n' + STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n'
+        + RUNTIME_CODE + '\\n' + STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n' + ARRAY_PROTO_CODE + '\\n'
         + (result.shared || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '') + '\\n'
         + clientCode + '\\n'
         + 'if(typeof App==="function"){mount(App,document.getElementById("app"));}\\n'
@@ -3036,6 +3043,7 @@ const runtimeBundle = buildRuntimeBundle();
 console.log('  Runtime bundle: ' + (runtimeBundle.length / 1024).toFixed(1) + ' KB');
 
 const stringProto = buildStringProto();
+const arrayProto = buildArrayProto();
 const stdlib = getStdlib();
 const examples = getExamples();
 const reference = getReference();
@@ -3045,7 +3053,7 @@ console.log('  Examples: ' + examples.length + ' (in ' + [...new Set(examples.ma
 console.log('  Reference sections: ' + reference.length);
 console.log('  Tutorial steps: ' + tutorial.length);
 
-const html = generateHTML(compilerBundle, runtimeBundle, stringProto, stdlib, examples, reference, tutorial);
+const html = generateHTML(compilerBundle, runtimeBundle, stringProto, arrayProto, stdlib, examples, reference, tutorial);
 const outPath = resolve(import.meta.dir, 'index.html');
 writeFileSync(outPath, html);
 

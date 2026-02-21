@@ -1,5 +1,5 @@
 // Base code generation utilities shared across all codegen targets
-import { RESULT_OPTION, PROPAGATE, BUILTIN_NAMES } from '../stdlib/inline.js';
+import { RESULT_OPTION, PROPAGATE, BUILTIN_NAMES, STDLIB_DEPS } from '../stdlib/inline.js';
 import { PIPE_TARGET } from '../parser/ast.js';
 
 export class BaseCodegen {
@@ -15,8 +15,9 @@ export class BaseCodegen {
     this._traitDecls = new Map(); // traitName -> { methods: [...] }
     this._traitImpls = new Map(); // "TraitName:TypeName" -> ImplDeclaration node
     // Source map tracking
-    this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol}
+    this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol, sourceFile?}
     this._outputLineCount = 0;
+    this._sourceFile = null; // current source file for multi-file source maps
   }
 
   _uid() {
@@ -77,16 +78,33 @@ export class BaseCodegen {
     return '  '.repeat(this.indent);
   }
 
+  // Set current source file for multi-file source map tracking
+  setSourceFile(filename) {
+    this._sourceFile = filename;
+  }
+
   // Source map: record a mapping from source location to output line
   _addMapping(node, outputLine) {
     if (node && node.loc && node.loc.line) {
-      this._sourceMappings.push({
+      const mapping = {
         sourceLine: node.loc.line - 1, // 0-based
         sourceCol: (node.loc.column || 1) - 1, // 0-based
         outputLine,
         outputCol: this.indent * 2, // approximate column from indent
-      });
+      };
+      if (this._sourceFile) mapping.sourceFile = this._sourceFile;
+      this._sourceMappings.push(mapping);
     }
+  }
+
+  // Count newlines in a generated string to update output line tracking
+  _countLines(code) {
+    if (!code) return 0;
+    let count = 0;
+    for (let i = 0; i < code.length; i++) {
+      if (code.charCodeAt(i) === 10) count++;
+    }
+    return count;
   }
 
   // Get collected source mappings
@@ -98,13 +116,26 @@ export class BaseCodegen {
     return this._usedBuiltins;
   }
 
+  // Track a builtin and its transitive dependencies from the stdlib dependency graph
+  _trackBuiltin(name) {
+    this._usedBuiltins.add(name);
+    const deps = STDLIB_DEPS[name];
+    if (deps) {
+      for (const dep of deps) {
+        this._usedBuiltins.add(dep);
+      }
+    }
+  }
+
   getContainsHelper() {
-    return 'function __contains(col, val) {\n' +
-      '  if (Array.isArray(col) || typeof col === \'string\') return col.includes(val);\n' +
-      '  if (col instanceof Set || col instanceof Map) return col.has(val);\n' +
-      '  if (typeof col === \'object\' && col !== null) return val in col;\n' +
-      '  return false;\n' +
-      '}';
+    return [
+      'function __contains(col, val) {',
+      '  if (Array.isArray(col) || typeof col === \'string\') return col.includes(val);',
+      '  if (col instanceof Set || col instanceof Map) return col.has(val);',
+      '  if (typeof col === \'object\' && col !== null) return val in col;',
+      '  return false;',
+      '}',
+    ].join('\n');
   }
 
   genPropagateExpression(node) {
@@ -176,6 +207,7 @@ export class BaseCodegen {
       case 'TraitDeclaration': result = this.genTraitDeclaration(node); break;
       case 'TypeAlias': result = this.genTypeAlias(node); break;
       case 'DeferStatement': result = this.genDeferStatement(node); break;
+      case 'WithStatement': result = this.genWithStatement(node); break;
       case 'ExternDeclaration': result = `${this.i()}// extern: ${node.name}`; break;
       // Config declarations handled at block level — emit nothing in statement context
       case 'AiConfigDeclaration': result = ''; break;
@@ -189,10 +221,9 @@ export class BaseCodegen {
         result = `${this.i()}${this.genExpression(node)};`;
     }
 
-    // Track output line count
+    // Track output line count using fast character scan
     if (result) {
-      const newlines = result.split('\n').length - 1;
-      this._outputLineCount += newlines + 1; // +1 for the line itself (join with \n)
+      this._outputLineCount += this._countLines(result) + 1; // +1 for the join newline
     }
 
     return result;
@@ -222,6 +253,7 @@ export class BaseCodegen {
       case 'LogicalExpression': return this.genLogicalExpression(node);
       case 'ChainedComparison': return this.genChainedComparison(node);
       case 'MembershipExpression': return this.genMembershipExpression(node);
+      case 'IsExpression': return this.genIsExpression(node);
       case 'CallExpression': return this.genCallExpression(node);
       case 'MemberExpression': return this.genMemberExpression(node);
       case 'OptionalChain': return this.genOptionalChain(node);
@@ -354,10 +386,20 @@ export class BaseCodegen {
     }
     const body = this.genBlockBody(node.body);
     this.popScope();
+    const p = [];
+    p.push(`${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {`);
     if (hasPropagate) {
-      return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+      p.push(`${this.i()}  try {`);
+      p.push(body);
+      p.push(`${this.i()}  } catch (__e) {`);
+      p.push(`${this.i()}    if (__e && __e.__tova_propagate) return __e.value;`);
+      p.push(`${this.i()}    throw __e;`);
+      p.push(`${this.i()}  }`);
+    } else {
+      p.push(body);
     }
-    return `${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {\n${body}\n${this.i()}}`;
+    p.push(`${this.i()}}`);
+    return p.join('\n');
   }
 
   genParams(params) {
@@ -403,35 +445,36 @@ export class BaseCodegen {
   }
 
   genIfStatement(node) {
-    let code = `${this.i()}if (${this.genExpression(node.condition)}) {\n`;
+    const p = [];
+    p.push(`${this.i()}if (${this.genExpression(node.condition)}) {\n`);
     this.indent++;
     this.pushScope();
-    code += this.genBlockStatements(node.consequent);
+    p.push(this.genBlockStatements(node.consequent));
     this.popScope();
     this.indent--;
-    code += `\n${this.i()}}`;
+    p.push(`\n${this.i()}}`);
 
     for (const alt of node.alternates) {
-      code += ` else if (${this.genExpression(alt.condition)}) {\n`;
+      p.push(` else if (${this.genExpression(alt.condition)}) {\n`);
       this.indent++;
       this.pushScope();
-      code += this.genBlockStatements(alt.body);
+      p.push(this.genBlockStatements(alt.body));
       this.popScope();
       this.indent--;
-      code += `\n${this.i()}}`;
+      p.push(`\n${this.i()}}`);
     }
 
     if (node.elseBody) {
-      code += ` else {\n`;
+      p.push(` else {\n`);
       this.indent++;
       this.pushScope();
-      code += this.genBlockStatements(node.elseBody);
+      p.push(this.genBlockStatements(node.elseBody));
       this.popScope();
       this.indent--;
-      code += `\n${this.i()}}`;
+      p.push(`\n${this.i()}}`);
     }
 
-    return code;
+    return p.join('');
   }
 
   genForStatement(node) {
@@ -444,125 +487,129 @@ export class BaseCodegen {
       // for-else: run else if iterable was empty
       const tempVar = `__iter_${this._uid()}`;
       const enteredVar = `__entered_${this._uid()}`;
-      let code = `${this.i()}{\n`;
+      const p = [];
+      p.push(`${this.i()}{\n`);
       this.indent++;
-      code += `${this.i()}const ${tempVar} = ${iterExpr};\n`;
-      code += `${this.i()}let ${enteredVar} = false;\n`;
+      p.push(`${this.i()}const ${tempVar} = ${iterExpr};\n`);
+      p.push(`${this.i()}let ${enteredVar} = false;\n`);
       this.pushScope();
       for (const v of vars) this.declareVar(v);
       if (vars.length === 2) {
-        code += `${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${tempVar}) {\n`;
+        p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${tempVar}) {\n`);
       } else {
-        code += `${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${tempVar}) {\n`;
+        p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${tempVar}) {\n`);
       }
       this.indent++;
-      code += `${this.i()}${enteredVar} = true;\n`;
+      p.push(`${this.i()}${enteredVar} = true;\n`);
       if (node.guard) {
-        code += `${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`;
+        p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
       }
-      code += this.genBlockStatements(node.body);
+      p.push(this.genBlockStatements(node.body));
       this.indent--;
-      code += `\n${this.i()}}\n`;
+      p.push(`\n${this.i()}}\n`);
       this.popScope();
       this.pushScope();
-      code += `${this.i()}if (!${enteredVar}) {\n`;
+      p.push(`${this.i()}if (!${enteredVar}) {\n`);
       this.indent++;
-      code += this.genBlockStatements(node.elseBody);
+      p.push(this.genBlockStatements(node.elseBody));
       this.indent--;
-      code += `\n${this.i()}}\n`;
+      p.push(`\n${this.i()}}\n`);
       this.popScope();
       this.indent--;
-      code += `${this.i()}}`;
-      return code;
+      p.push(`${this.i()}}`);
+      return p.join('');
     }
 
     this.pushScope();
     for (const v of vars) this.declareVar(v);
-    let code;
+    const p = [];
     if (vars.length === 2) {
-      code = `${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${iterExpr}) {\n`;
+      p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${iterExpr}) {\n`);
     } else {
-      code = `${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${iterExpr}) {\n`;
+      p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${iterExpr}) {\n`);
     }
     this.indent++;
     if (node.guard) {
-      code += `${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`;
+      p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
     }
-    code += this.genBlockStatements(node.body);
+    p.push(this.genBlockStatements(node.body));
     this.indent--;
-    code += `\n${this.i()}}`;
+    p.push(`\n${this.i()}}`);
     this.popScope();
 
-    return code;
+    return p.join('');
   }
 
   genWhileStatement(node) {
     const labelPrefix = node.label ? `${node.label}: ` : '';
-    let code = `${this.i()}${labelPrefix}while (${this.genExpression(node.condition)}) {\n`;
+    const p = [];
+    p.push(`${this.i()}${labelPrefix}while (${this.genExpression(node.condition)}) {\n`);
     this.indent++;
     this.pushScope();
-    code += this.genBlockStatements(node.body);
+    p.push(this.genBlockStatements(node.body));
     this.popScope();
     this.indent--;
-    code += `\n${this.i()}}`;
-    return code;
+    p.push(`\n${this.i()}}`);
+    return p.join('');
   }
 
   genLoopStatement(node) {
     const labelPrefix = node.label ? `${node.label}: ` : '';
-    let code = `${this.i()}${labelPrefix}while (true) {\n`;
+    const p = [];
+    p.push(`${this.i()}${labelPrefix}while (true) {\n`);
     this.indent++;
     this.pushScope();
-    code += this.genBlockStatements(node.body);
+    p.push(this.genBlockStatements(node.body));
     this.popScope();
     this.indent--;
-    code += `\n${this.i()}}`;
-    return code;
+    p.push(`\n${this.i()}}`);
+    return p.join('');
   }
 
   genTryCatchStatement(node) {
-    let code = `${this.i()}try {\n`;
+    const p = [];
+    p.push(`${this.i()}try {\n`);
     this.indent++;
     this.pushScope();
     for (const stmt of node.tryBody) {
-      code += this.generateStatement(stmt) + '\n';
+      p.push(this.generateStatement(stmt) + '\n');
     }
     this.popScope();
     this.indent--;
 
     if (node.catchBody) {
       const catchVar = node.catchParam || '__err';
-      code += `${this.i()}} catch (${catchVar}) {\n`;
+      p.push(`${this.i()}} catch (${catchVar}) {\n`);
       this.pushScope();
       this.declareVar(catchVar);
       this.indent++;
       // Re-throw propagation sentinels so ? operator works through user try/catch
-      code += `${this.i()}if (${catchVar} && ${catchVar}.__tova_propagate) throw ${catchVar};\n`;
+      p.push(`${this.i()}if (${catchVar} && ${catchVar}.__tova_propagate) throw ${catchVar};\n`);
       for (const stmt of node.catchBody) {
-        code += this.generateStatement(stmt) + '\n';
+        p.push(this.generateStatement(stmt) + '\n');
       }
       this.popScope();
       this.indent--;
-      code += `${this.i()}}`;
+      p.push(`${this.i()}}`);
     }
 
     if (node.finallyBody) {
       if (!node.catchBody) {
         // try/finally without catch
-        code += `${this.i()}}`;
+        p.push(`${this.i()}}`);
       }
-      code += ` finally {\n`;
+      p.push(` finally {\n`);
       this.indent++;
       this.pushScope();
       for (const stmt of node.finallyBody) {
-        code += this.generateStatement(stmt) + '\n';
+        p.push(this.generateStatement(stmt) + '\n');
       }
       this.popScope();
       this.indent--;
-      code += `${this.i()}}`;
+      p.push(`${this.i()}}`);
     }
 
-    return code;
+    return p.join('');
   }
 
   genReturnStatement(node) {
@@ -577,14 +624,15 @@ export class BaseCodegen {
   }
 
   genBlock(node) {
-    let code = `{\n`;
+    const p = [];
+    p.push(`{\n`);
     this.indent++;
     this.pushScope();
-    code += this.genBlockStatements(node);
+    p.push(this.genBlockStatements(node));
     this.popScope();
     this.indent--;
-    code += `\n${this.i()}}`;
-    return code;
+    p.push(`\n${this.i()}}`);
+    return p.join('');
   }
 
   genBlockBody(block) {
@@ -655,23 +703,24 @@ export class BaseCodegen {
   }
 
   _genIfStatementWithReturns(node) {
-    let code = `${this.i()}if (${this.genExpression(node.condition)}) {\n`;
-    code += this._genBlockBodyReturns(node.consequent);
-    code += `\n${this.i()}}`;
+    const p = [];
+    p.push(`${this.i()}if (${this.genExpression(node.condition)}) {\n`);
+    p.push(this._genBlockBodyReturns(node.consequent));
+    p.push(`\n${this.i()}}`);
 
     for (const alt of node.alternates) {
-      code += ` else if (${this.genExpression(alt.condition)}) {\n`;
-      code += this._genBlockBodyReturns(alt.body);
-      code += `\n${this.i()}}`;
+      p.push(` else if (${this.genExpression(alt.condition)}) {\n`);
+      p.push(this._genBlockBodyReturns(alt.body));
+      p.push(`\n${this.i()}}`);
     }
 
     if (node.elseBody) {
-      code += ` else {\n`;
-      code += this._genBlockBodyReturns(node.elseBody);
-      code += `\n${this.i()}}`;
+      p.push(` else {\n`);
+      p.push(this._genBlockBodyReturns(node.elseBody));
+      p.push(`\n${this.i()}}`);
     }
 
-    return code;
+    return p.join('');
   }
 
   _genBlockBodyReturns(block) {
@@ -849,6 +898,41 @@ export class BaseCodegen {
     return `__contains(${col}, ${val})`;
   }
 
+  genIsExpression(node) {
+    const val = this.genExpression(node.value);
+    const op = node.negated ? '!==' : '===';
+    const notOp = node.negated ? '!' : '';
+
+    // Map Tova type names to JS runtime checks
+    switch (node.typeName) {
+      case 'String':
+        return `(typeof ${val} ${op} 'string')`;
+      case 'Int':
+        return node.negated
+          ? `(typeof ${val} !== 'number' || !Number.isInteger(${val}))`
+          : `(typeof ${val} === 'number' && Number.isInteger(${val}))`;
+      case 'Float':
+        return node.negated
+          ? `(typeof ${val} !== 'number' || Number.isInteger(${val}))`
+          : `(typeof ${val} === 'number' && !Number.isInteger(${val}))`;
+      case 'Bool':
+        return `(typeof ${val} ${op} 'boolean')`;
+      case 'Nil':
+        return `(${val} ${op} null)`;
+      case 'Array':
+        return `(${notOp}Array.isArray(${val}))`;
+      case 'Function':
+        return `(typeof ${val} ${op} 'function')`;
+      case 'Number':
+        return `(typeof ${val} ${op} 'number')`;
+      default:
+        // For ADT variants, check __tag; for classes, use instanceof
+        return node.negated
+          ? `(!(${val} != null && (${val}.__tag === '${node.typeName}' || ${val} instanceof (typeof ${node.typeName} !== 'undefined' ? ${node.typeName} : function(){}))))`
+          : `(${val} != null && (${val}.__tag === '${node.typeName}' || ${val} instanceof (typeof ${node.typeName} !== 'undefined' ? ${node.typeName} : function(){})))`;
+    }
+  }
+
   genCallExpression(node) {
     // Transform Foo.new(...) → new Foo(...)
     if (node.callee.type === 'MemberExpression' && !node.callee.computed && node.callee.property === 'new') {
@@ -857,23 +941,35 @@ export class BaseCodegen {
       return `new ${obj}(${args})`;
     }
 
-    // Track builtin usage for tree-shaking
+    // Track builtin usage for tree-shaking (with dependency resolution)
     if (node.callee.type === 'Identifier') {
       if (BUILTIN_NAMES.has(node.callee.name)) {
-        this._usedBuiltins.add(node.callee.name);
+        this._trackBuiltin(node.callee.name);
       }
       if (node.callee.name === 'Ok' || node.callee.name === 'Err' || node.callee.name === 'Some') {
         this._needsResultOption = true;
       }
-      // Seq is a dependency of iter — include Seq whenever iter is used
+      // Seq is a dependency of iter — handled by _trackBuiltin via STDLIB_DEPS
       if (node.callee.name === 'iter') {
-        this._usedBuiltins.add('Seq');
         this._needsResultOption = true; // Seq.first()/find() return Option
       }
 
       // Inline string/collection builtins to direct method calls
       const inlined = this._tryInlineBuiltin(node);
       if (inlined !== null) return inlined;
+    }
+
+    // Track namespace builtin usage: math.sin() → include 'math' namespace + deps
+    if (node.callee.type === 'MemberExpression' &&
+        node.callee.object.type === 'Identifier' &&
+        BUILTIN_NAMES.has(node.callee.object.name)) {
+      const ns = node.callee.object.name;
+      this._trackBuiltin(ns);
+      // Namespaces that depend on Ok/Err need Result/Option
+      const deps = STDLIB_DEPS[ns];
+      if (deps && (deps.includes('Ok') || deps.includes('Err'))) {
+        this._needsResultOption = true;
+      }
     }
 
     // Check for table operation calls with column expressions
@@ -993,6 +1089,10 @@ export class BaseCodegen {
   }
 
   genMemberExpression(node) {
+    // Track namespace builtin usage: math.PI → include 'math' namespace + deps
+    if (node.object.type === 'Identifier' && BUILTIN_NAMES.has(node.object.name)) {
+      this._trackBuiltin(node.object.name);
+    }
     const obj = this.genExpression(node.object);
     if (node.computed) {
       return `${obj}[${this.genExpression(node.property)}]`;
@@ -1334,9 +1434,18 @@ export class BaseCodegen {
       const body = this.genBlockBody(node.body);
       this.popScope();
       if (hasPropagate) {
-        return `${asyncPrefix}(${params}) => {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}}`;
+        const p = [];
+        p.push(`${asyncPrefix}(${params}) => {`);
+        p.push(`${this.i()}  try {`);
+        p.push(body);
+        p.push(`${this.i()}  } catch (__e) {`);
+        p.push(`${this.i()}    if (__e && __e.__tova_propagate) return __e.value;`);
+        p.push(`${this.i()}    throw __e;`);
+        p.push(`${this.i()}  }`);
+        p.push(`${this.i()}}`);
+        return p.join('\n');
       }
-      return `${asyncPrefix}(${params}) => {\n${body}\n${this.i()}}`;
+      return [`${asyncPrefix}(${params}) => {`, body, `${this.i()}}`].join('\n');
     }
 
     // Statement bodies (compound assignment, assignment in lambda)
@@ -1421,7 +1530,8 @@ export class BaseCodegen {
     const subject = this.genExpression(node.subject);
     const tempVar = '__match';
 
-    let code = `((${tempVar}) => {\n`;
+    const p = [];
+    p.push(`((${tempVar}) => {\n`);
     this.indent++;
 
     for (let idx = 0; idx < node.arms.length; idx++) {
@@ -1432,36 +1542,36 @@ export class BaseCodegen {
         if (idx === node.arms.length - 1 && !arm.guard) {
           // Default case
           if (arm.pattern.type === 'BindingPattern') {
-            code += `${this.i()}const ${arm.pattern.name} = ${tempVar};\n`;
+            p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
           }
           if (arm.body.type === 'BlockStatement') {
-            code += this.genBlockBody(arm.body) + '\n';
+            p.push(this.genBlockBody(arm.body) + '\n');
           } else {
-            code += `${this.i()}return ${this.genExpression(arm.body)};\n`;
+            p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
           }
           break;
         }
       }
 
       const keyword = idx === 0 ? 'if' : 'else if';
-      code += `${this.i()}${keyword} (${condition}) {\n`;
+      p.push(`${this.i()}${keyword} (${condition}) {\n`);
       this.indent++;
 
       // Bind variables from pattern
-      code += this.genPatternBindings(arm.pattern, tempVar);
+      p.push(this.genPatternBindings(arm.pattern, tempVar));
 
       if (arm.body.type === 'BlockStatement') {
-        code += this.genBlockBody(arm.body) + '\n';
+        p.push(this.genBlockBody(arm.body) + '\n');
       } else {
-        code += `${this.i()}return ${this.genExpression(arm.body)};\n`;
+        p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
       }
       this.indent--;
-      code += `${this.i()}}\n`;
+      p.push(`${this.i()}}\n`);
     }
 
     this.indent--;
-    code += `${this.i()}})(${subject})`;
-    return code;
+    p.push(`${this.i()}})(${subject})`);
+    return p.join('');
   }
 
   genIfExpression(node) {
@@ -1489,26 +1599,27 @@ export class BaseCodegen {
     }
 
     // Full IIFE for multi-statement branches
-    let code = `(() => {\n`;
+    const p = [];
+    p.push(`(() => {\n`);
     this.indent++;
 
-    code += `${this.i()}if (${this.genExpression(node.condition)}) {\n`;
-    code += this.genBlockBody(node.consequent);
-    code += `\n${this.i()}}`;
+    p.push(`${this.i()}if (${this.genExpression(node.condition)}) {\n`);
+    p.push(this.genBlockBody(node.consequent));
+    p.push(`\n${this.i()}}`);
 
     for (const alt of node.alternates) {
-      code += ` else if (${this.genExpression(alt.condition)}) {\n`;
-      code += this.genBlockBody(alt.body);
-      code += `\n${this.i()}}`;
+      p.push(` else if (${this.genExpression(alt.condition)}) {\n`);
+      p.push(this.genBlockBody(alt.body));
+      p.push(`\n${this.i()}}`);
     }
 
-    code += ` else {\n`;
-    code += this.genBlockBody(node.elseBody);
-    code += `\n${this.i()}}`;
+    p.push(` else {\n`);
+    p.push(this.genBlockBody(node.elseBody));
+    p.push(`\n${this.i()}}`);
 
     this.indent--;
-    code += `\n${this.i()}})()`;
-    return code;
+    p.push(`\n${this.i()}})()`);
+    return p.join('');
   }
 
   genPatternCondition(pattern, subject, guard) {
@@ -1725,14 +1836,15 @@ export class BaseCodegen {
   }
 
   genGuardStatement(node) {
-    let code = `${this.i()}if (!(${this.genExpression(node.condition)})) {\n`;
+    const p = [];
+    p.push(`${this.i()}if (!(${this.genExpression(node.condition)})) {\n`);
     this.indent++;
     this.pushScope();
-    code += this.genBlockStatements(node.elseBody);
+    p.push(this.genBlockStatements(node.elseBody));
     this.popScope();
     this.indent--;
-    code += `\n${this.i()}}`;
-    return code;
+    p.push(`\n${this.i()}}`);
+    return p.join('');
   }
 
   genInterfaceDeclaration(node) {
@@ -1933,6 +2045,28 @@ export class BaseCodegen {
     // If called outside genBlockBody (e.g., via genBlockStatements), generate a no-op comment.
     // The actual defer logic is emitted correctly when genBlockBody processes the enclosing function.
     return `${this.i()}/* defer */`;
+  }
+
+  genWithStatement(node) {
+    const expr = this.genExpression(node.expression);
+    const name = node.name;
+    this.declareVar(name);
+    const p = [];
+    p.push(`${this.i()}const ${name} = ${expr};`);
+    p.push(`${this.i()}try {`);
+    this.indent++;
+    this.pushScope();
+    p.push(this.genBlockStatements(node.body));
+    this.popScope();
+    this.indent--;
+    p.push(`${this.i()}} finally {`);
+    this.indent++;
+    p.push(`${this.i()}if (${name} != null && typeof ${name}.close === 'function') ${name}.close();`);
+    p.push(`${this.i()}else if (${name} != null && typeof ${name}.dispose === 'function') ${name}.dispose();`);
+    p.push(`${this.i()}else if (${name} != null && typeof ${name}[Symbol.dispose] === 'function') ${name}[Symbol.dispose]();`);
+    this.indent--;
+    p.push(`${this.i()}}`);
+    return p.join('\n');
   }
 
   // Check if a function body contains yield expressions (for generator detection)

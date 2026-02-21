@@ -77,6 +77,12 @@ export const TokenType = {
   // Extern
   EXTERN: 'EXTERN',
 
+  // Type checking
+  IS: 'IS',
+
+  // Resource management
+  WITH: 'WITH',
+
   // Full-stack keywords
   SERVER: 'SERVER',
   CLIENT: 'CLIENT',
@@ -199,6 +205,8 @@ export const Keywords = {
   'loop': TokenType.LOOP,
   'when': TokenType.WHEN,
   'extern': TokenType.EXTERN,
+  'is': TokenType.IS,
+  'with': TokenType.WITH,
   'server': TokenType.SERVER,
   'client': TokenType.CLIENT,
   'shared': TokenType.SHARED,

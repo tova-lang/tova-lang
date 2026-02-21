@@ -9,11 +9,13 @@ import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { Program } from '../src/parser/ast.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
-import { richError, formatDiagnostics, DiagnosticFormatter } from '../src/diagnostics/formatter.js';
+import { richError, formatDiagnostics, DiagnosticFormatter, formatSummary } from '../src/diagnostics/formatter.js';
+import { getExplanation, lookupCode } from '../src/diagnostics/error-codes.js';
 import { getFullStdlib, buildSelectiveStdlib, BUILTIN_NAMES, PROPAGATE } from '../src/stdlib/inline.js';
 import { Formatter } from '../src/formatter/formatter.js';
 import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
+import '../src/runtime/array-proto.js';
 import { resolveConfig } from '../src/config/resolve.js';
 import { writePackageJson } from '../src/config/package-json.js';
 import { addToSection, removeFromSection } from '../src/config/edit-toml.js';
@@ -45,12 +47,16 @@ Commands:
   repl             Start interactive Tova REPL
   lsp              Start Language Server Protocol server
   fmt <file>      Format a .tova file (--check to verify only)
-  test [dir]      Run test blocks in .tova files (--filter, --watch)
+  test [dir]      Run test blocks in .tova files (--filter, --watch, --coverage, --serial)
   bench [dir]     Run bench blocks in .tova files
   doc [dir]       Generate documentation from /// docstrings
+  init             Initialize a Tova project in the current directory
   migrate:create <name>   Create a new migration file
   migrate:up [file.tova]   Run pending migrations
   migrate:status [file.tova] Show migration status
+  upgrade          Upgrade Tova to the latest version
+  info             Show Tova version, Bun version, project config, and installed dependencies
+  explain <code>   Show detailed explanation for an error/warning code (e.g., tova explain E202)
 
 Options:
   --help, -h       Show this help message
@@ -111,6 +117,9 @@ async function main() {
     case 'new':
       newProject(args[1]);
       break;
+    case 'init':
+      initProject();
+      break;
     case 'install':
       await installDeps();
       break;
@@ -138,8 +147,43 @@ async function main() {
     case 'migrate:up':
       await migrateUp(args.slice(1));
       break;
+    case 'migrate:down':
+      await migrateDown(args.slice(1));
+      break;
+    case 'migrate:reset':
+      await migrateReset(args.slice(1));
+      break;
+    case 'migrate:fresh':
+      await migrateFresh(args.slice(1));
+      break;
     case 'migrate:status':
       await migrateStatus(args.slice(1));
+      break;
+    case 'explain': {
+      const code = args[1];
+      if (!code) {
+        console.error('Usage: tova explain <error-code>  (e.g., tova explain E202)');
+        process.exit(1);
+      }
+      const info = lookupCode(code);
+      if (!info) {
+        console.error(`Unknown error code: ${code}`);
+        process.exit(1);
+      }
+      const explanation = getExplanation(code);
+      console.log(`\n  ${code}: ${info.title} [${info.category}]\n`);
+      if (explanation) {
+        console.log(explanation);
+      } else {
+        console.log(`  No detailed explanation available yet for ${code}.\n`);
+      }
+      break;
+    }
+    case 'upgrade':
+      await upgradeCommand();
+      break;
+    case 'info':
+      await infoCommand();
       break;
     default:
       if (command.endsWith('.tova')) {
@@ -170,7 +214,7 @@ function compileTova(source, filename, options = {}) {
   if (warnings.length > 0) {
     const formatter = new DiagnosticFormatter(source, filename);
     for (const w of warnings) {
-      console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }));
+      console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }, { hint: w.hint, code: w.code, length: w.length, fix: w.fix }));
     }
   }
 
@@ -232,15 +276,23 @@ function formatFile(args) {
 async function runTests(args) {
   const filterPattern = args.find((a, i) => args[i - 1] === '--filter') || null;
   const watchMode = args.includes('--watch');
+  const coverageMode = args.includes('--coverage');
+  const serialMode = args.includes('--serial');
   const targetDir = args.find(a => !a.startsWith('--') && a !== filterPattern) || '.';
 
-  // Find all .tova files with test blocks
+  // Find all .tova files with test blocks + dedicated test files (*.test.tova, *_test.tova)
   const tovaFiles = findTovaFiles(resolve(targetDir));
   const testFiles = [];
 
   for (const file of tovaFiles) {
+    const base = basename(file);
+    // Dedicated test files are always included
+    if (base.endsWith('.test.tova') || base.endsWith('_test.tova')) {
+      testFiles.push(file);
+      continue;
+    }
     const source = readFileSync(file, 'utf-8');
-    // Quick check for test blocks
+    // Quick check for inline test blocks
     if (/\btest\s+["'{]/m.test(source) || /\btest\s*\{/m.test(source)) {
       testFiles.push(file);
     }
@@ -262,7 +314,17 @@ async function runTests(args) {
   for (const file of testFiles) {
     try {
       const source = readFileSync(file, 'utf-8');
-      const lexer = new Lexer(source, file);
+      const base = basename(file);
+      const isDedicatedTestFile = base.endsWith('.test.tova') || base.endsWith('_test.tova');
+
+      // For dedicated test files without explicit test blocks, wrap entire file in one
+      let sourceToCompile = source;
+      if (isDedicatedTestFile && !/\btest\s+["'{]/m.test(source) && !/\btest\s*\{/m.test(source)) {
+        const testName = base.replace(/\.(test|_test)\.tova$/, '').replace(/_test\.tova$/, '');
+        sourceToCompile = `test "${testName}" {\n${source}\n}`;
+      }
+
+      const lexer = new Lexer(sourceToCompile, file);
       const tokens = lexer.tokenize();
       const parser = new Parser(tokens, file);
       const ast = parser.parse();
@@ -299,6 +361,13 @@ async function runTests(args) {
   const bunArgs = ['test', ...compiledFiles];
   if (filterPattern) {
     bunArgs.push('-t', filterPattern);
+  }
+  if (coverageMode) {
+    bunArgs.push('--coverage');
+  }
+  if (serialMode) {
+    // Force sequential execution (bun runs files in parallel by default)
+    bunArgs.push('--concurrency', '1');
   }
 
   const runBunTest = () => {
@@ -481,14 +550,41 @@ async function runFile(filePath, options = {}) {
   const source = readFileSync(resolved, 'utf-8');
 
   try {
+    // Check if file has .tova imports — if so, compile dependencies and inline them
+    const hasTovaImports = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]*\.tova['"]/m.test(source);
+
     const output = compileTova(source, filePath, { strict: options.strict });
 
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     const stdlib = getRunStdlib();
-    let code = stdlib + '\n' + (output.shared || '') + '\n' + (output.server || output.client || '');
+
+    // Compile .tova dependencies and inline them
+    let depCode = '';
+    if (hasTovaImports) {
+      const importRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]*\.tova)['"]/gm;
+      let match;
+      const compiled = new Set();
+      while ((match = importRegex.exec(source)) !== null) {
+        const depPath = resolve(dirname(resolved), match[1]);
+        if (compiled.has(depPath)) continue;
+        compiled.add(depPath);
+        if (existsSync(depPath)) {
+          const depSource = readFileSync(depPath, 'utf-8');
+          const dep = compileTova(depSource, depPath, { strict: options.strict });
+          let depShared = dep.shared || '';
+          // Strip export keywords for inlining
+          depShared = depShared.replace(/^export /gm, '');
+          depCode += depShared + '\n';
+        }
+      }
+    }
+
+    let code = stdlib + '\n' + depCode + (output.shared || '') + '\n' + (output.server || output.client || '');
     // Strip 'export ' keywords — not valid inside AsyncFunction (used in tova build only)
     code = code.replace(/^export /gm, '');
+    // Strip import lines for .tova files (already inlined above)
+    code = code.replace(/^import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]*\.(?:tova|(?:shared\.)?js)['"];?\s*$/gm, '');
     // Auto-call main() if the compiled code defines a main function
     const scriptArgs = options.scriptArgs || [];
     if (/\bfunction\s+main\s*\(/.test(code)) {
@@ -545,6 +641,12 @@ async function buildProject(args) {
   const buildStart = Date.now();
   compilationCache.clear();
 
+  // Load incremental build cache
+  const noCache = args.includes('--no-cache');
+  const buildCache = new BuildCache(join(outDir, '.cache'));
+  if (!noCache) buildCache.load();
+  let skippedCount = 0;
+
   // Group files by directory for multi-file merging
   const dirGroups = groupFilesByDirectory(tovaFiles);
 
@@ -553,6 +655,36 @@ async function buildProject(args) {
     const relDir = relative(srcDir, dir) || '.';
     const groupStart = Date.now();
     try {
+      // Check incremental cache: skip if all files in this group are unchanged
+      if (!noCache) {
+        if (files.length === 1) {
+          const absFile = files[0];
+          const sourceContent = readFileSync(absFile, 'utf-8');
+          if (buildCache.isUpToDate(absFile, sourceContent)) {
+            const cached = buildCache.getCached(absFile);
+            if (cached) {
+              skippedCount++;
+              if (isVerbose && !isQuiet) {
+                console.log(`  ○ ${relative(srcDir, absFile)} (cached)`);
+              }
+              continue;
+            }
+          }
+        } else {
+          const dirKey = `dir:${dir}`;
+          if (buildCache.isGroupUpToDate(dirKey, files)) {
+            const cached = buildCache.getCached(dirKey);
+            if (cached) {
+              skippedCount++;
+              if (isVerbose && !isQuiet) {
+                console.log(`  ○ ${relative(srcDir, dir)}/ (${files.length} files, cached)`);
+              }
+              continue;
+            }
+          }
+        }
+      }
+
       const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
       if (!result) continue;
 
@@ -579,44 +711,80 @@ async function buildProject(args) {
         return code;
       };
 
-      // Write shared
-      if (output.shared && output.shared.trim()) {
-        const sharedPath = join(outDir, `${outBaseName}.shared.js`);
-        writeFileSync(sharedPath, generateSourceMap(output.shared, sharedPath));
-        if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', sharedPath)}${timing}`);
-      }
-
-      // Write default server
-      if (output.server) {
-        const serverPath = join(outDir, `${outBaseName}.server.js`);
-        writeFileSync(serverPath, generateSourceMap(output.server, serverPath));
-        if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}${timing}`);
-      }
-
-      // Write default client
-      if (output.client) {
-        const clientPath = join(outDir, `${outBaseName}.client.js`);
-        writeFileSync(clientPath, generateSourceMap(output.client, clientPath));
-        if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', clientPath)}${timing}`);
-      }
-
-      // Write named server blocks (multi-block)
-      if (output.multiBlock && output.servers) {
-        for (const [name, code] of Object.entries(output.servers)) {
-          if (name === 'default') continue;
-          const path = join(outDir, `${outBaseName}.server.${name}.js`);
-          writeFileSync(path, code);
-          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]${timing}`);
+      // Module files: write single <name>.js (not .shared.js)
+      if (output.isModule) {
+        if (output.shared && output.shared.trim()) {
+          const modulePath = join(outDir, `${outBaseName}.js`);
+          writeFileSync(modulePath, generateSourceMap(output.shared, modulePath));
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', modulePath)}${timing}`);
         }
-      }
+        // Update incremental build cache
+        if (!noCache) {
+          const outputPaths = {};
+          if (output.shared && output.shared.trim()) outputPaths.shared = join(outDir, `${outBaseName}.js`);
+          if (single) {
+            const absFile = files[0];
+            const sourceContent = readFileSync(absFile, 'utf-8');
+            buildCache.set(absFile, sourceContent, outputPaths);
+          } else {
+            buildCache.setGroup(`dir:${dir}`, files, outputPaths);
+          }
+        }
+      } else {
+        // Write shared
+        if (output.shared && output.shared.trim()) {
+          const sharedPath = join(outDir, `${outBaseName}.shared.js`);
+          writeFileSync(sharedPath, generateSourceMap(output.shared, sharedPath));
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', sharedPath)}${timing}`);
+        }
 
-      // Write named client blocks (multi-block)
-      if (output.multiBlock && output.clients) {
-        for (const [name, code] of Object.entries(output.clients)) {
-          if (name === 'default') continue;
-          const path = join(outDir, `${outBaseName}.client.${name}.js`);
-          writeFileSync(path, code);
-          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [client:${name}]${timing}`);
+        // Write default server
+        if (output.server) {
+          const serverPath = join(outDir, `${outBaseName}.server.js`);
+          writeFileSync(serverPath, generateSourceMap(output.server, serverPath));
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}${timing}`);
+        }
+
+        // Write default client
+        if (output.client) {
+          const clientPath = join(outDir, `${outBaseName}.client.js`);
+          writeFileSync(clientPath, generateSourceMap(output.client, clientPath));
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', clientPath)}${timing}`);
+        }
+
+        // Write named server blocks (multi-block)
+        if (output.multiBlock && output.servers) {
+          for (const [name, code] of Object.entries(output.servers)) {
+            if (name === 'default') continue;
+            const path = join(outDir, `${outBaseName}.server.${name}.js`);
+            writeFileSync(path, code);
+            if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]${timing}`);
+          }
+        }
+
+        // Write named client blocks (multi-block)
+        if (output.multiBlock && output.clients) {
+          for (const [name, code] of Object.entries(output.clients)) {
+            if (name === 'default') continue;
+            const path = join(outDir, `${outBaseName}.client.${name}.js`);
+            writeFileSync(path, code);
+            if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [client:${name}]${timing}`);
+          }
+        }
+
+        // Update incremental build cache
+        if (!noCache) {
+          const outputPaths = {};
+          if (output.shared && output.shared.trim()) outputPaths.shared = join(outDir, `${outBaseName}.shared.js`);
+          if (output.server) outputPaths.server = join(outDir, `${outBaseName}.server.js`);
+          if (output.client) outputPaths.client = join(outDir, `${outBaseName}.client.js`);
+          if (single) {
+            const absFile = files[0];
+            const sourceContent = readFileSync(absFile, 'utf-8');
+            buildCache.set(absFile, sourceContent, outputPaths);
+          } else {
+            buildCache.setGroup(`dir:${dir}`, files, outputPaths);
+          }
         }
       }
     } catch (err) {
@@ -625,11 +793,19 @@ async function buildProject(args) {
     }
   }
 
+  // Save incremental build cache and prune stale entries
+  if (!noCache) {
+    const dirKeys = [...dirGroups.keys()].map(d => `dir:${d}`);
+    buildCache.prune(tovaFiles, dirKeys);
+    buildCache.save();
+  }
+
   const dirCount = dirGroups.size;
   const totalElapsed = Date.now() - buildStart;
   if (!isQuiet) {
     const timingStr = isVerbose ? ` in ${totalElapsed}ms` : '';
-    console.log(`\n  Build complete. ${dirCount - errorCount}/${dirCount} directory group(s) succeeded${timingStr}.\n`);
+    const cachedStr = skippedCount > 0 ? ` (${skippedCount} cached)` : '';
+    console.log(`\n  Build complete. ${dirCount - errorCount}/${dirCount} directory group(s) succeeded${cachedStr}${timingStr}.\n`);
   }
   if (errorCount > 0) process.exit(1);
 
@@ -658,6 +834,27 @@ async function checkProject(args) {
   const checkStrict = args.includes('--strict');
   const isVerbose = args.includes('--verbose');
   const isQuiet = args.includes('--quiet');
+
+  // --explain <code>: show explanation for a specific error code inline with check output
+  const explainIdx = args.indexOf('--explain');
+  const explainCode = explainIdx >= 0 ? args[explainIdx + 1] : null;
+  if (explainCode) {
+    // If --explain is used standalone, just show the explanation
+    const info = lookupCode(explainCode);
+    if (!info) {
+      console.error(`Unknown error code: ${explainCode}`);
+      process.exit(1);
+    }
+    const explanation = getExplanation(explainCode);
+    console.log(`\n  ${explainCode}: ${info.title} [${info.category}]\n`);
+    if (explanation) {
+      console.log(explanation);
+    } else {
+      console.log(`  No detailed explanation available yet for ${explainCode}.\n`);
+    }
+    process.exit(0);
+  }
+
   const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
   const srcDir = resolve(explicitSrc || '.');
 
@@ -669,6 +866,7 @@ async function checkProject(args) {
 
   let totalErrors = 0;
   let totalWarnings = 0;
+  const seenCodes = new Set();
 
   for (const file of tovaFiles) {
     const relPath = relative(srcDir, file);
@@ -690,10 +888,12 @@ async function checkProject(args) {
       if (errors.length > 0 || warnings.length > 0) {
         const formatter = new DiagnosticFormatter(source, file);
         for (const e of errors) {
-          console.error(formatter.formatError(e.message, { line: e.line, column: e.column }, e.hint));
+          console.error(formatter.formatError(e.message, { line: e.line, column: e.column }, { hint: e.hint, code: e.code, length: e.length, fix: e.fix }));
+          if (e.code) seenCodes.add(e.code);
         }
         for (const w of warnings) {
-          console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }, w.hint));
+          console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }, { hint: w.hint, code: w.code, length: w.length, fix: w.fix }));
+          if (w.code) seenCodes.add(w.code);
         }
       }
 
@@ -703,12 +903,24 @@ async function checkProject(args) {
       }
     } catch (err) {
       totalErrors++;
-      console.error(`  ✗ ${relPath}: ${err.message}`);
+      if (err.errors) {
+        const source = readFileSync(file, 'utf-8');
+        console.error(richError(source, err, file));
+      } else {
+        console.error(`  ✗ ${relPath}: ${err.message}`);
+      }
     }
   }
 
   if (!isQuiet) {
-    console.log(`\n  ${tovaFiles.length} files checked, ${totalErrors} error(s), ${totalWarnings} warning(s)\n`);
+    console.log(`\n  ${tovaFiles.length} file${tovaFiles.length === 1 ? '' : 's'} checked, ${formatSummary(totalErrors, totalWarnings)}`);
+    // Show explain hint for encountered error codes
+    if (seenCodes.size > 0 && (totalErrors > 0 || totalWarnings > 0)) {
+      const codes = [...seenCodes].sort().slice(0, 5).join(', ');
+      const more = seenCodes.size > 5 ? ` and ${seenCodes.size - 5} more` : '';
+      console.log(`\n  Run \`tova explain <code>\` for details on: ${codes}${more}`);
+    }
+    console.log('');
   }
   if (totalErrors > 0) process.exit(1);
 }
@@ -1268,6 +1480,98 @@ tova add prettier --dev
   console.log(`    tova dev\n`);
 }
 
+// ─── Init (in-place) ────────────────────────────────────────
+
+function initProject() {
+  const projectDir = process.cwd();
+  const name = basename(projectDir);
+
+  if (existsSync(join(projectDir, 'tova.toml'))) {
+    console.error('Error: tova.toml already exists in this directory');
+    process.exit(1);
+  }
+
+  console.log(`\n  Initializing Tova project: ${name}\n`);
+
+  // tova.toml
+  const tomlContent = stringifyTOML({
+    project: {
+      name,
+      version: '0.1.0',
+      description: '',
+      entry: 'src',
+    },
+    build: {
+      output: '.tova-out',
+    },
+    dev: {
+      port: 3000,
+    },
+    dependencies: {},
+    npm: {},
+  });
+  writeFileSync(join(projectDir, 'tova.toml'), tomlContent);
+  console.log('  ✓ Created tova.toml');
+
+  // src/ directory
+  mkdirSync(join(projectDir, 'src'), { recursive: true });
+
+  // .gitignore (only if missing)
+  const gitignorePath = join(projectDir, '.gitignore');
+  if (!existsSync(gitignorePath)) {
+    writeFileSync(gitignorePath, `node_modules/
+.tova-out/
+package.json
+bun.lock
+*.db
+*.db-shm
+*.db-wal
+`);
+    console.log('  ✓ Created .gitignore');
+  }
+
+  // Starter app.tova (only if src/ has no .tova files)
+  const srcDir = join(projectDir, 'src');
+  const existingTova = existsSync(srcDir) ? readdirSync(srcDir).filter(f => f.endsWith('.tova')) : [];
+  if (existingTova.length === 0) {
+    writeFileSync(join(srcDir, 'app.tova'), `// ${name} — Built with Tova
+
+shared {
+  type Message {
+    text: String
+  }
+}
+
+server {
+  fn get_message() -> Message {
+    Message("Hello from Tova!")
+  }
+
+  route GET "/api/message" => get_message
+}
+
+client {
+  state message = ""
+
+  effect {
+    result = server.get_message()
+    message = result.text
+  }
+
+  component App {
+    <div class="app">
+      <h1>"{message}"</h1>
+      <p>"Edit src/app.tova to get started."</p>
+    </div>
+  }
+}
+`);
+    console.log('  ✓ Created src/app.tova');
+  }
+
+  console.log(`\n  Project initialized. Run 'tova dev' to start.\n`);
+}
+
 // ─── Package Management ─────────────────────────────────────
 
 async function installDeps() {
@@ -1614,6 +1918,170 @@ async function migrateUp(args) {
   }
 }
 
+async function migrateDown(args) {
+  const tovaFile = findTovaFile(args[0]);
+  const cfg = discoverDbConfig(tovaFile);
+  const db = await connectDb(cfg);
+
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS __migrations (
+      id INTEGER PRIMARY KEY ${db.driver === 'postgres' ? 'GENERATED ALWAYS AS IDENTITY' : 'AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT DEFAULT (${db.driver === 'postgres' ? "NOW()::TEXT" : "datetime('now')"})
+    )`);
+
+    const applied = await db.query('SELECT name FROM __migrations ORDER BY name DESC');
+    if (applied.length === 0) {
+      console.log('\n  No migrations to roll back.\n');
+      return;
+    }
+
+    const migrDir = resolve('migrations');
+    const lastMigration = applied[0].name;
+
+    console.log(`\n  Rolling back: ${lastMigration}...\n`);
+
+    const mod = await import(join(migrDir, lastMigration));
+    if (!mod.down) {
+      console.error(`  Error: ${lastMigration} has no 'down' export — cannot roll back`);
+      process.exit(1);
+    }
+
+    const sql = mod.down.trim();
+    if (sql) {
+      await db.exec(sql);
+    }
+
+    await db.exec(`DELETE FROM __migrations WHERE name = '${lastMigration}'`);
+    console.log(`  ✓ Rolled back: ${lastMigration}`);
+    console.log(`\n  Done.\n`);
+  } finally {
+    await db.close();
+  }
+}
+
+async function migrateReset(args) {
+  const tovaFile = findTovaFile(args[0]);
+  const cfg = discoverDbConfig(tovaFile);
+  const db = await connectDb(cfg);
+
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS __migrations (
+      id INTEGER PRIMARY KEY ${db.driver === 'postgres' ? 'GENERATED ALWAYS AS IDENTITY' : 'AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT DEFAULT (${db.driver === 'postgres' ? "NOW()::TEXT" : "datetime('now')"})
+    )`);
+
+    const applied = await db.query('SELECT name FROM __migrations ORDER BY name DESC');
+    if (applied.length === 0) {
+      console.log('\n  No migrations to roll back.\n');
+      return;
+    }
+
+    const migrDir = resolve('migrations');
+    console.log(`\n  Rolling back ${applied.length} migration(s)...\n`);
+
+    for (const row of applied) {
+      const file = row.name;
+      try {
+        const mod = await import(join(migrDir, file));
+        if (mod.down) {
+          const sql = mod.down.trim();
+          if (sql) {
+            await db.exec(sql);
+          }
+        } else {
+          console.error(`  ⚠ ${file} has no 'down' export — skipping rollback`);
+          continue;
+        }
+      } catch (e) {
+        console.error(`  ⚠ Error rolling back ${file}: ${e.message}`);
+        continue;
+      }
+      await db.exec(`DELETE FROM __migrations WHERE name = '${file}'`);
+      console.log(`  ✓ Rolled back: ${file}`);
+    }
+
+    console.log(`\n  Done. All migrations rolled back.\n`);
+  } finally {
+    await db.close();
+  }
+}
+
+async function migrateFresh(args) {
+  const tovaFile = findTovaFile(args[0]);
+  const cfg = discoverDbConfig(tovaFile);
+  const db = await connectDb(cfg);
+
+  try {
+    // Drop all tables
+    console.log('\n  Dropping all tables...\n');
+    if (db.driver === 'sqlite') {
+      const tables = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+      for (const t of tables) {
+        await db.exec(`DROP TABLE IF EXISTS "${t.name}"`);
+        console.log(`  ✓ Dropped: ${t.name}`);
+      }
+    } else if (db.driver === 'postgres') {
+      const tables = await db.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+      for (const t of tables) {
+        await db.exec(`DROP TABLE IF EXISTS "${t.tablename}" CASCADE`);
+        console.log(`  ✓ Dropped: ${t.tablename}`);
+      }
+    } else if (db.driver === 'mysql') {
+      const tables = await db.query("SHOW TABLES");
+      for (const t of tables) {
+        const tableName = Object.values(t)[0];
+        await db.exec(`DROP TABLE IF EXISTS \`${tableName}\``);
+        console.log(`  ✓ Dropped: ${tableName}`);
+      }
+    }
+
+    // Re-create migrations table and run all migrations
+    await db.exec(`CREATE TABLE IF NOT EXISTS __migrations (
+      id INTEGER PRIMARY KEY ${db.driver === 'postgres' ? 'GENERATED ALWAYS AS IDENTITY' : 'AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT DEFAULT (${db.driver === 'postgres' ? "NOW()::TEXT" : "datetime('now')"})
+    )`);
+
+    const migrDir = resolve('migrations');
+    if (!existsSync(migrDir)) {
+      console.log('  No migrations directory found.\n');
+      return;
+    }
+
+    const files = readdirSync(migrDir)
+      .filter(f => f.endsWith('.js'))
+      .sort();
+
+    if (files.length === 0) {
+      console.log('  No migration files found.\n');
+      return;
+    }
+
+    console.log(`\n  Running ${files.length} migration(s)...\n`);
+
+    for (const file of files) {
+      const mod = await import(join(migrDir, file));
+      if (!mod.up) {
+        console.error(`  Skipping ${file}: no 'up' export`);
+        continue;
+      }
+      const sql = mod.up.trim();
+      if (sql) {
+        await db.exec(sql);
+      }
+      const ph = db.driver === 'postgres' ? '$1' : '?';
+      await db.query(`INSERT INTO __migrations (name) VALUES (${ph})`, file);
+      console.log(`  ✓ ${file}`);
+    }
+
+    console.log(`\n  Done. Fresh database with ${files.length} migration(s) applied.\n`);
+  } finally {
+    await db.close();
+  }
+}
+
 async function migrateStatus(args) {
   const tovaFile = findTovaFile(args[0]);
   const cfg = discoverDbConfig(tovaFile);
@@ -1742,15 +2210,147 @@ async function startLsp() {
 
 async function startRepl() {
   const readline = await import('readline');
+
+  // ─── ANSI color helpers ──────────────────────────
+  const c = {
+    reset: '\x1b[0m',
+    keyword: '\x1b[35m',    // magenta
+    string: '\x1b[32m',     // green
+    number: '\x1b[33m',     // yellow
+    boolean: '\x1b[33m',    // yellow
+    comment: '\x1b[90m',    // gray
+    builtin: '\x1b[36m',    // cyan
+    type: '\x1b[34m',       // blue
+    nil: '\x1b[90m',        // gray
+    prompt: '\x1b[1;36m',   // bold cyan
+    result: '\x1b[90m',     // gray
+    typeHint: '\x1b[2;36m', // dim cyan
+  };
+
+  const KEYWORDS = new Set([
+    'fn', 'let', 'var', 'if', 'elif', 'else', 'for', 'while', 'loop', 'when',
+    'in', 'return', 'match', 'type', 'import', 'from', 'and', 'or', 'not',
+    'try', 'catch', 'finally', 'break', 'continue', 'async', 'await',
+    'guard', 'interface', 'derive', 'pub', 'impl', 'trait', 'defer',
+    'yield', 'extern', 'is', 'with', 'as', 'export', 'server', 'client', 'shared',
+  ]);
+
+  const TYPE_NAMES = new Set([
+    'Int', 'Float', 'String', 'Bool', 'Nil', 'Any', 'Result', 'Option',
+    'Function', 'List', 'Object', 'Promise',
+  ]);
+
+  const RUNTIME_NAMES = new Set(['Ok', 'Err', 'Some', 'None', 'true', 'false', 'nil']);
+
+  // ─── Syntax highlighter ──────────────────────────
+  function highlight(line) {
+    let out = '';
+    let i = 0;
+    while (i < line.length) {
+      // Comments
+      if (line[i] === '/' && line[i + 1] === '/') {
+        out += c.comment + line.slice(i) + c.reset;
+        break;
+      }
+      // Strings
+      if (line[i] === '"' || line[i] === "'" || line[i] === '`') {
+        const quote = line[i];
+        let j = i + 1;
+        // Handle triple-quoted strings
+        if (quote === '"' && line[j] === '"' && line[j + 1] === '"') {
+          j += 2;
+          while (j < line.length && !(line[j] === '"' && line[j + 1] === '"' && line[j + 2] === '"')) j++;
+          if (j < line.length) j += 3;
+          out += c.string + line.slice(i, j) + c.reset;
+          i = j;
+          continue;
+        }
+        while (j < line.length && line[j] !== quote) {
+          if (line[j] === '\\') j++;
+          j++;
+        }
+        if (j < line.length) j++;
+        out += c.string + line.slice(i, j) + c.reset;
+        i = j;
+        continue;
+      }
+      // Numbers
+      if (/[0-9]/.test(line[i]) && (i === 0 || !/[a-zA-Z_]/.test(line[i - 1]))) {
+        let j = i;
+        while (j < line.length && /[0-9._eExXbBoO]/.test(line[j])) j++;
+        out += c.number + line.slice(i, j) + c.reset;
+        i = j;
+        continue;
+      }
+      // Identifiers and keywords
+      if (/[a-zA-Z_]/.test(line[i])) {
+        let j = i;
+        while (j < line.length && /[a-zA-Z0-9_]/.test(line[j])) j++;
+        const word = line.slice(i, j);
+        if (KEYWORDS.has(word)) {
+          out += c.keyword + word + c.reset;
+        } else if (TYPE_NAMES.has(word)) {
+          out += c.type + word + c.reset;
+        } else if (RUNTIME_NAMES.has(word)) {
+          out += c.boolean + word + c.reset;
+        } else if (BUILTIN_NAMES.has(word)) {
+          out += c.builtin + word + c.reset;
+        } else {
+          out += word;
+        }
+        i = j;
+        continue;
+      }
+      out += line[i];
+      i++;
+    }
+    return out;
+  }
+
+  // ─── Tab completions ─────────────────────────────
+  const completionWords = [
+    ...KEYWORDS, ...TYPE_NAMES, ...RUNTIME_NAMES, ...BUILTIN_NAMES,
+    ':quit', ':exit', ':help', ':clear', ':type',
+  ];
+  const userDefinedNames = new Set();
+
+  function completer(line) {
+    const allWords = [...new Set([...completionWords, ...userDefinedNames])];
+    // Find the last word being typed
+    const match = line.match(/([a-zA-Z_:][a-zA-Z0-9_]*)$/);
+    if (!match) return [[], line];
+    const prefix = match[1];
+    const hits = allWords.filter(w => w.startsWith(prefix));
+    return [hits, prefix];
+  }
+
+  // ─── Type display helper ─────────────────────────
+  function inferType(val) {
+    if (val === null || val === undefined) return 'Nil';
+    if (Array.isArray(val)) {
+      if (val.length === 0) return '[_]';
+      const elemType = inferType(val[0]);
+      return `[${elemType}]`;
+    }
+    if (val?.__tag) return val.__tag;
+    if (typeof val === 'number') return Number.isInteger(val) ? 'Int' : 'Float';
+    if (typeof val === 'string') return 'String';
+    if (typeof val === 'boolean') return 'Bool';
+    if (typeof val === 'function') return 'Function';
+    if (typeof val === 'object') return 'Object';
+    return 'Unknown';
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: 'tova> ',
+    prompt: `${c.prompt}tova>${c.reset} `,
+    completer,
   });
 
   console.log(`\n  Tova REPL v${VERSION}`);
   console.log('  Type expressions to evaluate. Use :quit to exit.');
-  console.log('  Use _ to reference the last result.\n');
+  console.log('  Use _ to reference the last result. Tab for completions.\n');
 
   const context = {};
   const stdlib = getStdlibForRuntime();
@@ -1764,7 +2364,7 @@ async function startRepl() {
 
   rl.prompt();
 
-  rl.on('line', (line) => {
+  rl.on('line', async (line) => {
     const trimmed = line.trim();
 
     if (trimmed === ':quit' || trimmed === ':exit' || trimmed === ':q') {
@@ -1778,7 +2378,8 @@ async function startRepl() {
       console.log('  :help    Show this help');
       console.log('  :clear   Clear context');
       console.log('  :type    Show inferred type of expression');
-      console.log('  _        Reference the last result\n');
+      console.log('  _        Reference the last result');
+      console.log('  Tab      Autocomplete keywords, builtins, and variables\n');
       rl.prompt();
       return;
     }
@@ -1806,7 +2407,64 @@ async function startRepl() {
       for (const key of Object.keys(context)) delete context[key];
       delete context.__mutable;
       initFn.call(context);
+      userDefinedNames.clear();
       console.log('  Context cleared.\n');
+      rl.prompt();
+      return;
+    }
+
+    // Handle import statements
+    const tovaImportMatch = trimmed.match(/^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]*\.tova)['"]\s*$/);
+    const npmImportNamedMatch = !tovaImportMatch && trimmed.match(/^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]\s*$/);
+    const npmImportDefaultMatch = !tovaImportMatch && !npmImportNamedMatch && trimmed.match(/^import\s+([\w$]+)\s+from\s+['"]([^'"]+)['"]\s*$/);
+
+    if (tovaImportMatch) {
+      // .tova file import: compile and inject into context
+      const names = tovaImportMatch[1].split(',').map(n => n.trim()).filter(Boolean);
+      const modulePath = resolve(process.cwd(), tovaImportMatch[2]);
+      try {
+        if (!existsSync(modulePath)) {
+          throw new Error(`Module not found: ${tovaImportMatch[2]}`);
+        }
+        const modSource = readFileSync(modulePath, 'utf-8');
+        const modOutput = compileTova(modSource, modulePath);
+        let modCode = (modOutput.shared || '');
+        // Strip export keywords
+        modCode = modCode.replace(/^export /gm, '');
+        // REPL context: executing compiled Tova module code (intentional dynamic eval)
+        const modFn = new Function('__ctx', modCode + '\n' + names.map(n => `__ctx.${n} = ${n};`).join('\n'));
+        modFn(context);
+        console.log(`  Imported { ${names.join(', ')} } from ${tovaImportMatch[2]}`);
+      } catch (err) {
+        console.error(`  Error: ${err.message}`);
+      }
+      rl.prompt();
+      return;
+    }
+
+    if (npmImportNamedMatch || npmImportDefaultMatch) {
+      // npm/JS module import via dynamic import()
+      const moduleName = (npmImportNamedMatch || npmImportDefaultMatch)[2];
+      try {
+        const mod = await import(moduleName);
+        if (npmImportNamedMatch) {
+          const names = npmImportNamedMatch[1].split(',').map(n => n.trim()).filter(Boolean);
+          for (const name of names) {
+            if (name in mod) {
+              context[name] = mod[name];
+            } else {
+              console.error(`  Warning: '${name}' not found in '${moduleName}'`);
+            }
+          }
+          console.log(`  Imported { ${names.join(', ')} } from ${moduleName}`);
+        } else {
+          const name = npmImportDefaultMatch[1];
+          context[name] = mod.default || mod;
+          console.log(`  Imported ${name} from ${moduleName}`);
+        }
+      } catch (err) {
+        console.error(`  Error: ${err.message}`);
+      }
       rl.prompt();
       return;
     }
@@ -1828,7 +2486,7 @@ async function startRepl() {
     }
 
     if (braceDepth > 0) {
-      process.stdout.write('...  ');
+      process.stdout.write(`${c.prompt}...${c.reset}  `);
       return;
     }
 
@@ -1842,10 +2500,11 @@ async function startRepl() {
       if (code.trim()) {
         // Extract function/const/let names from compiled code
         const declaredInCode = new Set();
-        for (const m of code.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
-        for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+        for (const m of code.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) { declaredInCode.add(m[1]); userDefinedNames.add(m[1]); }
+        for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) { declaredInCode.add(m[1]); userDefinedNames.add(m[1]); }
         for (const m of code.matchAll(/\blet\s+([a-zA-Z_]\w*)/g)) {
           declaredInCode.add(m[1]);
+          userDefinedNames.add(m[1]);
           // Track mutable variables for proper let destructuring
           if (!context.__mutable) context.__mutable = new Set();
           context.__mutable.add(m[1]);
@@ -1894,7 +2553,8 @@ async function startRepl() {
           const result = fn(context);
           if (result !== undefined) {
             context._ = result; // Save as last result
-            console.log(' ', result);
+            const typeStr = inferType(result);
+            console.log(`  ${result} ${c.typeHint}: ${typeStr}${c.reset}`);
           }
         } catch (e) {
           // If return-wrapping fails, fall back to plain execution
@@ -2129,11 +2789,14 @@ async function productionBuild(srcDir, outDir) {
     console.log(`  index.html`);
   }
 
-  // Try to use Bun.build for minification if available
-  try {
-    const clientFiles = readdirSync(outDir).filter(f => f.startsWith('client.') && f.endsWith('.js'));
-    for (const f of clientFiles) {
-      const filePath = join(outDir, f);
+  // Minify all JS bundles using Bun's built-in transpiler
+  const jsFiles = readdirSync(outDir).filter(f => f.endsWith('.js') && !f.endsWith('.min.js'));
+  let minified = 0;
+  for (const f of jsFiles) {
+    const filePath = join(outDir, f);
+    const minPath = join(outDir, f.replace('.js', '.min.js'));
+    try {
+      // Use Bun.build for proper minification with tree-shaking
       const result = await Bun.build({
         entrypoints: [filePath],
         outdir: outDir,
@@ -2141,17 +2804,180 @@ async function productionBuild(srcDir, outDir) {
         naming: f.replace('.js', '.min.js'),
       });
       if (result.success) {
-        console.log(`  ${f.replace('.js', '.min.js')} (minified)`);
+        const originalSize = statSync(filePath).size;
+        const minSize = statSync(minPath).size;
+        const ratio = ((1 - minSize / originalSize) * 100).toFixed(0);
+        console.log(`  ${f.replace('.js', '.min.js')} (${_formatBytes(minSize)}, ${ratio}% smaller)`);
+        minified++;
+      }
+    } catch {
+      // Bun.build not available — fall back to simple whitespace stripping
+      try {
+        const source = readFileSync(filePath, 'utf-8');
+        const stripped = _simpleMinify(source);
+        writeFileSync(minPath, stripped);
+        const originalSize = Buffer.byteLength(source);
+        const minSize = Buffer.byteLength(stripped);
+        const ratio = ((1 - minSize / originalSize) * 100).toFixed(0);
+        console.log(`  ${f.replace('.js', '.min.js')} (${_formatBytes(minSize)}, ${ratio}% smaller)`);
+        minified++;
+      } catch {
+        // Skip files that can't be minified
       }
     }
-  } catch (e) {
-    // Bun.build not available, skip minification
+  }
+
+  if (minified === 0 && jsFiles.length > 0) {
+    console.log('  (minification skipped — Bun.build unavailable)');
   }
 
   console.log(`\n  Production build complete.\n`);
 }
 
+// Simple minification fallback: strip comments and collapse whitespace
+function _simpleMinify(code) {
+  // Strip single-line comments (but not URLs with //)
+  let result = code.replace(/(?<![:"'])\/\/[^\n]*/g, '');
+  // Strip multi-line comments
+  result = result.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Collapse multiple blank lines
+  result = result.replace(/\n{3,}/g, '\n\n');
+  // Trim trailing whitespace from each line
+  result = result.replace(/[ \t]+$/gm, '');
+  return result.trim();
+}
+
+function _formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ─── Incremental Build Cache ─────────────────────────────────
+
+class BuildCache {
+  constructor(cacheDir) {
+    this._cacheDir = cacheDir;
+    this._manifest = null; // { files: { [absPath]: { hash, outputs: {...} } } }
+  }
+
+  _manifestPath() {
+    return join(this._cacheDir, 'manifest.json');
+  }
+
+  _hashContent(content) {
+    return createHash('sha256').update(content).digest('hex').slice(0, 16);
+  }
+
+  load() {
+    try {
+      if (existsSync(this._manifestPath())) {
+        this._manifest = JSON.parse(readFileSync(this._manifestPath(), 'utf-8'));
+      }
+    } catch {
+      this._manifest = null;
+    }
+    if (!this._manifest) this._manifest = { files: {} };
+  }
+
+  save() {
+    mkdirSync(this._cacheDir, { recursive: true });
+    writeFileSync(this._manifestPath(), JSON.stringify(this._manifest, null, 2));
+  }
+
+  // Check if a source file is unchanged since last build
+  isUpToDate(absPath, sourceContent) {
+    if (!this._manifest) return false;
+    const entry = this._manifest.files[absPath];
+    if (!entry) return false;
+    return entry.hash === this._hashContent(sourceContent);
+  }
+
+  // Check if a multi-file group (directory) is unchanged since last build
+  isGroupUpToDate(dirKey, files) {
+    if (!this._manifest) return false;
+    const entry = this._manifest.files[dirKey];
+    if (!entry) return false;
+    return entry.hash === this._hashGroup(files);
+  }
+
+  // Hash multiple files together for group caching
+  _hashGroup(files) {
+    const hash = createHash('sha256');
+    for (const f of files.slice().sort()) {
+      hash.update(f);
+      hash.update(readFileSync(f, 'utf-8'));
+    }
+    return hash.digest('hex').slice(0, 16);
+  }
+
+  // Store compiled output for a multi-file group
+  setGroup(dirKey, files, outputs) {
+    if (!this._manifest) this._manifest = { files: {} };
+    this._manifest.files[dirKey] = {
+      hash: this._hashGroup(files),
+      outputs,
+      timestamp: Date.now(),
+    };
+  }
+
+  // Get cached compiled output for a source file
+  getCached(absPath) {
+    if (!this._manifest) return null;
+    const entry = this._manifest.files[absPath];
+    if (!entry || !entry.outputs) return null;
+    // Verify cached output files still exist on disk
+    for (const outFile of Object.values(entry.outputs)) {
+      if (outFile && !existsSync(outFile)) return null;
+    }
+    return entry.outputs;
+  }
+
+  // Store compiled output for a source file
+  set(absPath, sourceContent, outputs) {
+    if (!this._manifest) this._manifest = { files: {} };
+    this._manifest.files[absPath] = {
+      hash: this._hashContent(sourceContent),
+      outputs,
+      timestamp: Date.now(),
+    };
+  }
+
+  // Remove stale entries for files/dirs that no longer exist
+  prune(existingFiles, existingDirs) {
+    if (!this._manifest) return;
+    const existingSet = new Set(existingFiles);
+    const dirSet = existingDirs ? new Set(existingDirs) : null;
+    for (const key of Object.keys(this._manifest.files)) {
+      if (key.startsWith('dir:')) {
+        if (dirSet && !dirSet.has(key)) delete this._manifest.files[key];
+      } else if (!existingSet.has(key)) {
+        delete this._manifest.files[key];
+      }
+    }
+  }
+}
+
 // ─── Multi-file Import Support ───────────────────────────────
+
+// Determine the compiled JS extension for a .tova file.
+// Module files (no blocks) → '.js', app files → '.shared.js'
+function getCompiledExtension(tovaPath) {
+  // Check compilation cache first
+  if (compilationCache.has(tovaPath)) {
+    return compilationCache.get(tovaPath).isModule ? '.js' : '.shared.js';
+  }
+  // Quick-scan the source for block keywords
+  if (existsSync(tovaPath)) {
+    const src = readFileSync(tovaPath, 'utf-8');
+    // If the file contains top-level block keywords followed by '{', it's an app file
+    if (/^(?:shared|server|client|test|bench|data)\s*(?:\{|")/m.test(src)) {
+      return '.shared.js';
+    }
+    return '.js';
+  }
+  return '.shared.js'; // default fallback
+}
 
 const compilationCache = new Map();
 const compilationInProgress = new Set();
@@ -2266,8 +3092,9 @@ function compileWithImports(source, filename, srcDir) {
             }
           }
         }
-        // Rewrite the import path to .js
-        node.source = node.source.replace('.tova', '.shared.js');
+        // Rewrite the import path to .js (module) or .shared.js (app)
+        const ext = getCompiledExtension(importPath);
+        node.source = node.source.replace('.tova', ext);
       }
       if (node.type === 'ImportDefault' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
@@ -2278,7 +3105,8 @@ function compileWithImports(source, filename, srcDir) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
         }
-        node.source = node.source.replace('.tova', '.shared.js');
+        const ext2 = getCompiledExtension(importPath);
+        node.source = node.source.replace('.tova', ext2);
       }
       if (node.type === 'ImportWildcard' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
@@ -2289,7 +3117,8 @@ function compileWithImports(source, filename, srcDir) {
           const importSource = readFileSync(importPath, 'utf-8');
           compileWithImports(importSource, importPath, srcDir);
         }
-        node.source = node.source.replace('.tova', '.shared.js');
+        const ext3 = getCompiledExtension(importPath);
+        node.source = node.source.replace('.tova', ext3);
       }
     }
 
@@ -2480,8 +3309,9 @@ function mergeDirectory(dir, srcDir, options = {}) {
               }
             }
           }
-          // Rewrite to .js
-          node.source = node.source.replace('.tova', '.shared.js');
+          // Rewrite to .js (module) or .shared.js (app)
+          const ext = getCompiledExtension(importPath);
+          node.source = node.source.replace('.tova', ext);
         } else {
           // Same-directory import — remove it since files are merged
           node._removed = true;
@@ -2581,6 +3411,134 @@ function findFiles(dir, ext) {
     }
   }
   return results;
+}
+
+// ─── Upgrade Command ─────────────────────────────────────────
+
+async function upgradeCommand() {
+  console.log(`\n  Current version: Tova v${VERSION}\n`);
+  console.log('  Checking for updates...');
+
+  try {
+    // Check the npm registry for the latest version
+    const res = await fetch('https://registry.npmjs.org/tova/latest');
+    if (!res.ok) {
+      console.error('  Could not reach the npm registry. Check your network connection.');
+      process.exit(1);
+    }
+    const data = await res.json();
+    const latestVersion = data.version;
+
+    if (latestVersion === VERSION) {
+      console.log(`  Already on the latest version (v${VERSION}).\n`);
+      return;
+    }
+
+    console.log(`  New version available: v${latestVersion}\n`);
+    console.log('  Upgrading...');
+
+    // Detect the package manager used to install tova
+    const pm = detectPackageManager();
+    const installCmd = pm === 'bun' ? ['bun', ['add', '-g', 'tova@latest']]
+                     : pm === 'pnpm' ? ['pnpm', ['add', '-g', 'tova@latest']]
+                     : pm === 'yarn' ? ['yarn', ['global', 'add', 'tova@latest']]
+                     : ['npm', ['install', '-g', 'tova@latest']];
+
+    const proc = spawn(installCmd[0], installCmd[1], { stdio: 'inherit' });
+    const exitCode = await new Promise(res => proc.on('close', res));
+
+    if (exitCode === 0) {
+      console.log(`\n  Upgraded to Tova v${latestVersion}.\n`);
+    } else {
+      console.error(`\n  Upgrade failed (exit code ${exitCode}).`);
+      console.error(`  Try manually: ${installCmd[0]} ${installCmd[1].join(' ')}\n`);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(`  Upgrade failed: ${err.message}`);
+    console.error('  Try manually: bun add -g tova@latest\n');
+    process.exit(1);
+  }
+}
+
+function detectPackageManager() {
+  // Check if we're running under bun (most likely for Tova)
+  if (typeof Bun !== 'undefined') return 'bun';
+  // Check npm_config_user_agent for the package manager
+  const ua = process.env.npm_config_user_agent || '';
+  if (ua.includes('pnpm')) return 'pnpm';
+  if (ua.includes('yarn')) return 'yarn';
+  if (ua.includes('bun')) return 'bun';
+  return 'npm';
+}
+
+// ─── Info Command ────────────────────────────────────────────
+
+async function infoCommand() {
+  const config = resolveConfig(process.cwd());
+  const hasTOML = config._source === 'tova.toml';
+
+  console.log(`\n  ╦  ╦ ╦═╗ ╦`);
+  console.log(`  ║  ║ ║ ║ ╠╣`);
+  console.log(`  ╩═╝╚═╝╩═╝╩  v${VERSION}\n`);
+
+  // Bun version
+  let bunVersion = 'not found';
+  try {
+    const proc = Bun.spawnSync(['bun', '--version']);
+    bunVersion = proc.stdout.toString().trim();
+  } catch {}
+  console.log(`  Runtime:     Bun v${bunVersion}`);
+  console.log(`  Platform:    ${process.platform} ${process.arch}`);
+  console.log(`  Node compat: ${process.version}`);
+
+  // Project config
+  if (hasTOML) {
+    console.log(`\n  Project Config (tova.toml):`);
+    if (config.project?.name) console.log(`    Name:        ${config.project.name}`);
+    if (config.project?.version) console.log(`    Version:     ${config.project.version}`);
+    if (config.project?.entry) console.log(`    Entry:       ${config.project.entry}`);
+    if (config.build?.output) console.log(`    Output:      ${config.build.output}`);
+    if (config.build?.target) console.log(`    Target:      ${config.build.target}`);
+  } else {
+    console.log(`\n  No tova.toml found (using defaults).`);
+  }
+
+  // Installed dependencies
+  const pkgJsonPath = join(process.cwd(), 'package.json');
+  if (existsSync(pkgJsonPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+      const deps = Object.keys(pkg.dependencies || {});
+      const devDeps = Object.keys(pkg.devDependencies || {});
+
+      if (deps.length > 0 || devDeps.length > 0) {
+        console.log(`\n  Dependencies:`);
+        for (const dep of deps) {
+          console.log(`    ${dep}: ${pkg.dependencies[dep]}`);
+        }
+        if (devDeps.length > 0) {
+          console.log(`  Dev Dependencies:`);
+          for (const dep of devDeps) {
+            console.log(`    ${dep}: ${pkg.devDependencies[dep]}`);
+          }
+        }
+      } else {
+        console.log(`\n  No dependencies installed.`);
+      }
+    } catch {}
+  }
+
+  // Build output status
+  const outDir = resolve(config.build?.output || '.tova-out');
+  if (existsSync(outDir)) {
+    const files = findFiles(outDir, '.js');
+    console.log(`\n  Build output: ${relative('.', outDir)}/ (${files.length} file${files.length === 1 ? '' : 's'})`);
+  } else {
+    console.log(`\n  Build output: not built yet`);
+  }
+
+  console.log('');
 }
 
 main();
