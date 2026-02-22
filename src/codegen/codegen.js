@@ -4,25 +4,15 @@
 
 import { SharedCodegen } from './shared-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
-
-// Lazy-loaded codegen modules — only imported when server/client blocks exist
-let _ServerCodegen = null;
-let _ClientCodegen = null;
+import { ServerCodegen } from './server-codegen.js';
+import { ClientCodegen } from './client-codegen.js';
 
 function getServerCodegen() {
-  if (!_ServerCodegen) {
-    // Dynamic require avoids loading server-codegen.js for client-only builds
-    _ServerCodegen = import.meta.require('./server-codegen.js').ServerCodegen;
-  }
-  return _ServerCodegen;
+  return ServerCodegen;
 }
 
 function getClientCodegen() {
-  if (!_ClientCodegen) {
-    // Dynamic require avoids loading client-codegen.js for server-only builds
-    _ClientCodegen = import.meta.require('./client-codegen.js').ClientCodegen;
-  }
-  return _ClientCodegen;
+  return ClientCodegen;
 }
 
 export class CodeGenerator {

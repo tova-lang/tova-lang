@@ -1,6 +1,8 @@
 import { Scope, Symbol } from './scope.js';
 import { PIPE_TARGET } from '../parser/ast.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
+import { collectServerBlockFunctions, installServerAnalyzer } from './server-analyzer.js';
+import { installClientAnalyzer } from './client-analyzer.js';
 import {
   Type, PrimitiveType, NilType, AnyType, UnknownType,
   ArrayType, TupleType, FunctionType, RecordType, ADTType,
@@ -267,7 +269,6 @@ export class Analyzer {
     // Pre-pass: collect named server block functions for inter-server RPC validation
     const hasServerBlocks = this.ast.body.some(n => n.type === 'ServerBlock');
     if (hasServerBlocks) {
-      const { collectServerBlockFunctions, installServerAnalyzer } = import.meta.require('./server-analyzer.js');
       installServerAnalyzer(Analyzer);
       this.serverBlockFunctions = collectServerBlockFunctions(this.ast);
     } else {
@@ -734,7 +735,6 @@ export class Analyzer {
 
   _visitServerNode(node) {
     if (!Analyzer.prototype._serverAnalyzerInstalled) {
-      const { installServerAnalyzer } = import.meta.require('./server-analyzer.js');
       installServerAnalyzer(Analyzer);
     }
     const methodName = 'visit' + node.type;
@@ -743,7 +743,6 @@ export class Analyzer {
 
   _visitClientNode(node) {
     if (!Analyzer.prototype._clientAnalyzerInstalled) {
-      const { installClientAnalyzer } = import.meta.require('./client-analyzer.js');
       installClientAnalyzer(Analyzer);
     }
     const methodName = 'visit' + node.type;

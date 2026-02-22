@@ -1,5 +1,7 @@
 import { TokenType } from '../lexer/tokens.js';
 import * as AST from './ast.js';
+import { installServerParser } from './server-parser.js';
+import { installClientParser } from './client-parser.js';
 
 export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
@@ -295,14 +297,12 @@ export class Parser {
   parseTopLevel() {
     if (this.check(TokenType.SERVER)) {
       if (!Parser.prototype._serverParserInstalled) {
-        const { installServerParser } = import.meta.require('./server-parser.js');
         installServerParser(Parser);
       }
       return this.parseServerBlock();
     }
     if (this.check(TokenType.CLIENT)) {
       if (!Parser.prototype._clientParserInstalled) {
-        const { installClientParser } = import.meta.require('./client-parser.js');
         installClientParser(Parser);
       }
       return this.parseClientBlock();
