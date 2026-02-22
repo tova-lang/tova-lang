@@ -345,10 +345,8 @@ async function runTests(args) {
         const outDir = dirname(outPath);
         if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
-        // Include stdlib + shared code + test code
-        const stdlib = getFullStdlib();
-        const fullTest = result.test;
-        writeFileSync(outPath, fullTest);
+        // Shared code (top-level definitions) is now included by generateTests()
+        writeFileSync(outPath, result.test);
         compiledFiles.push(outPath);
         console.log(`  Compiled: ${relative('.', file)}`);
       }
@@ -883,9 +881,16 @@ async function checkProject(args) {
   }
 
   const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
-  const srcDir = resolve(explicitSrc || '.');
+  const srcPath = resolve(explicitSrc || '.');
 
-  const tovaFiles = findFiles(srcDir, '.tova');
+  // Support both single file and directory arguments
+  let tovaFiles;
+  if (existsSync(srcPath) && statSync(srcPath).isFile()) {
+    tovaFiles = srcPath.endsWith('.tova') ? [srcPath] : [];
+  } else {
+    tovaFiles = findFiles(srcPath, '.tova');
+  }
+  const srcDir = existsSync(srcPath) && statSync(srcPath).isFile() ? dirname(srcPath) : srcPath;
   if (tovaFiles.length === 0) {
     console.error('No .tova files found');
     process.exit(1);
@@ -2778,6 +2783,16 @@ async function productionBuild(srcDir, outDir) {
     const serverPath = join(outDir, `server.${hash}.js`);
     writeFileSync(serverPath, serverBundle);
     console.log(`  server.${hash}.js`);
+  }
+
+  // Write script bundle for plain scripts (no server/client blocks)
+  if (!allServerCode.trim() && !allClientCode.trim() && allSharedCode.trim()) {
+    const stdlib = getRunStdlib();
+    const scriptBundle = stdlib + '\n' + allSharedCode;
+    const hash = hashCode(scriptBundle);
+    const scriptPath = join(outDir, `script.${hash}.js`);
+    writeFileSync(scriptPath, scriptBundle);
+    console.log(`  script.${hash}.js`);
   }
 
   // Write client bundle

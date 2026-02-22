@@ -160,7 +160,7 @@ export class CodeGenerator {
     let testCode = '';
     if (testBlocks.length > 0) {
       const testGen = new (getServerCodegen())();
-      testCode = testGen.generateTests(testBlocks);
+      testCode = testGen.generateTests(testBlocks, combinedShared);
 
       // Add __handleRequest export to server code
       const defaultServer = servers['default'] || '';
@@ -173,7 +173,7 @@ export class CodeGenerator {
     let benchCode = '';
     if (benchBlocks.length > 0) {
       const benchGen = new (getServerCodegen())();
-      benchCode = benchGen.generateBench(benchBlocks);
+      benchCode = benchGen.generateBench(benchBlocks, combinedShared);
     }
 
     // Backward-compatible: if only unnamed blocks, return flat structure

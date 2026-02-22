@@ -2677,7 +2677,7 @@ export class ServerCodegen extends BaseCodegen {
     this._emitHandlerCall(lines, `__grpChain(req)`, timeoutMs);
   }
 
-  generateTests(testBlocks) {
+  generateTests(testBlocks, sharedCode) {
     const lines = [];
     lines.push('import { describe, test, expect } from "bun:test";');
     lines.push('');
@@ -2701,6 +2701,12 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  if (!condition) throw new Error(message || "Assertion failed");');
     lines.push('}');
     lines.push('');
+    // Include top-level definitions (functions, variables) so tests can reference them
+    if (sharedCode && sharedCode.trim()) {
+      lines.push('// ── Module Code ──');
+      lines.push(sharedCode);
+      lines.push('');
+    }
 
     for (const block of testBlocks) {
       const name = block.name || 'Tests';
@@ -2729,24 +2735,37 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('  });');
       }
 
-      for (const stmt of block.body) {
-        if (stmt.type === 'FunctionDeclaration') {
-          const fnName = stmt.name;
-          const displayName = fnName.replace(/_/g, ' ');
-          this.pushScope();
-          for (const p of (stmt.params || [])) {
-            const pName = typeof p === 'string' ? p : (p.name || p.identifier);
-            if (pName) this.declareVar(pName);
+      const hasFnTests = block.body.some(s => s.type === 'FunctionDeclaration');
+
+      if (hasFnTests) {
+        // Function declarations become individual test cases
+        for (const stmt of block.body) {
+          if (stmt.type === 'FunctionDeclaration') {
+            const fnName = stmt.name;
+            const displayName = fnName.replace(/_/g, ' ');
+            this.pushScope();
+            for (const p of (stmt.params || [])) {
+              const pName = typeof p === 'string' ? p : (p.name || p.identifier);
+              if (pName) this.declareVar(pName);
+            }
+            const body = this.genBlockBody(stmt.body);
+            this.popScope();
+            const timeoutArg = blockTimeout ? `, ${blockTimeout}` : '';
+            lines.push(`  test(${JSON.stringify(displayName)}, async () => {`);
+            lines.push(body);
+            lines.push(`  }${timeoutArg});`);
+          } else {
+            lines.push('  ' + this.generateStatement(stmt));
           }
-          const body = this.genBlockBody(stmt.body);
-          this.popScope();
-          const timeoutArg = blockTimeout ? `, ${blockTimeout}` : '';
-          lines.push(`  test(${JSON.stringify(displayName)}, async () => {`);
-          lines.push(body);
-          lines.push(`  }${timeoutArg});`);
-        } else {
-          lines.push('  ' + this.generateStatement(stmt));
         }
+      } else {
+        // No function declarations — wrap all statements in a single test case
+        const timeoutArg = blockTimeout ? `, ${blockTimeout}` : '';
+        lines.push(`  test(${JSON.stringify(name)}, async () => {`);
+        for (const stmt of block.body) {
+          lines.push('    ' + this.generateStatement(stmt));
+        }
+        lines.push(`  }${timeoutArg});`);
       }
       lines.push('});');
       lines.push('');
@@ -2755,10 +2774,16 @@ export class ServerCodegen extends BaseCodegen {
     return lines.join('\n');
   }
 
-  generateBench(benchBlocks) {
+  generateBench(benchBlocks, sharedCode) {
     const lines = [];
     lines.push('// ── Tova Benchmark Runner ──');
     lines.push('');
+    // Include top-level definitions (functions, variables) so benchmarks can reference them
+    if (sharedCode && sharedCode.trim()) {
+      lines.push('// ── Module Code ──');
+      lines.push(sharedCode);
+      lines.push('');
+    }
     lines.push('async function __runBench(name, fn, runs) {');
     lines.push('  runs = runs || 100;');
     lines.push('  // Warmup');
