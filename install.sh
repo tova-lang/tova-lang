@@ -28,6 +28,21 @@ detect_arch() {
   esac
 }
 
+download() {
+  URL="$1"
+  OUTPUT="$2"
+
+  if command -v curl > /dev/null 2>&1; then
+    # Use --progress-bar instead of -s to show download progress
+    curl -fL --progress-bar "$URL" -o "$OUTPUT"
+  elif command -v wget > /dev/null 2>&1; then
+    wget --show-progress -qO "$OUTPUT" "$URL" 2>&1
+  else
+    echo "Error: curl or wget is required"
+    exit 1
+  fi
+}
+
 main() {
   OS=$(detect_os)
   ARCH=$(detect_arch)
@@ -44,38 +59,77 @@ main() {
   fi
 
   if [ "$VERSION" = "latest" ]; then
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
+    BASE_URL="https://github.com/${REPO}/releases/latest/download"
   else
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
+    BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
   fi
 
   echo "Installing Tova..."
   echo "  Platform: ${OS}-${ARCH}"
-  echo "  Source:   ${DOWNLOAD_URL}"
+  echo ""
 
   mkdir -p "$INSTALL_DIR"
 
-  if command -v curl > /dev/null 2>&1; then
-    curl -fsSL "$DOWNLOAD_URL" -o "${INSTALL_DIR}/${BINARY_NAME}"
-  elif command -v wget > /dev/null 2>&1; then
-    wget -qO "${INSTALL_DIR}/${BINARY_NAME}" "$DOWNLOAD_URL"
+  TMPFILE="${INSTALL_DIR}/${BINARY_NAME}.download"
+  trap 'rm -f "$TMPFILE"' EXIT
+
+  # Try compressed version first (.gz), fall back to uncompressed
+  DOWNLOAD_URL="${BASE_URL}/${ASSET_NAME}.gz"
+  echo "  Downloading ${ASSET_NAME}.gz..."
+  if download "$DOWNLOAD_URL" "$TMPFILE" 2>/dev/null; then
+    # Decompress
+    if command -v gzip > /dev/null 2>&1; then
+      gzip -d -c "$TMPFILE" > "${INSTALL_DIR}/${BINARY_NAME}"
+    elif command -v gunzip > /dev/null 2>&1; then
+      gunzip -c "$TMPFILE" > "${INSTALL_DIR}/${BINARY_NAME}"
+    else
+      echo "Error: gzip is required to decompress the binary"
+      exit 1
+    fi
+    rm -f "$TMPFILE"
   else
-    echo "Error: curl or wget is required"
+    # Fall back to uncompressed binary
+    DOWNLOAD_URL="${BASE_URL}/${ASSET_NAME}"
+    echo "  Downloading ${ASSET_NAME}..."
+    if ! download "$DOWNLOAD_URL" "${INSTALL_DIR}/${BINARY_NAME}"; then
+      echo ""
+      echo "Error: Download failed."
+      echo "  URL: ${DOWNLOAD_URL}"
+      echo ""
+      echo "Please check:"
+      echo "  - Your internet connection"
+      echo "  - The release exists: https://github.com/${REPO}/releases"
+      exit 1
+    fi
+  fi
+
+  # Verify the downloaded file is not empty
+  if [ ! -s "${INSTALL_DIR}/${BINARY_NAME}" ]; then
+    echo "Error: Downloaded file is empty or corrupted"
+    rm -f "${INSTALL_DIR}/${BINARY_NAME}"
     exit 1
   fi
 
   chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
+  # Quick sanity check — run --version to verify binary works
+  if "${INSTALL_DIR}/${BINARY_NAME}" --version > /dev/null 2>&1; then
+    INSTALLED_VERSION=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>/dev/null || echo "unknown")
+    echo ""
+    echo "  Tova ${INSTALLED_VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"
+  else
+    echo ""
+    echo "  Tova installed to ${INSTALL_DIR}/${BINARY_NAME}"
+  fi
+
   # Add to PATH if not already there
   add_to_path
 
   echo ""
-  echo "Tova installed to ${INSTALL_DIR}/${BINARY_NAME}"
+  echo "  Run 'tova --version' to verify the installation."
   echo ""
-  echo "Run 'tova --version' to verify the installation."
-  echo ""
-  echo "Note: Some commands (dev, test) require Bun (https://bun.sh)."
-  echo "The standalone binary handles: run, build, new, repl, fmt, lsp"
+  echo "  Note: Some commands (dev, test) require Bun (https://bun.sh)."
+  echo "  The standalone binary handles: run, build, new, repl, fmt, lsp"
 }
 
 add_to_path() {

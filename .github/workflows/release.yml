@@ -62,10 +62,15 @@ jobs:
           mkdir -p dist
           bun build --compile --target=${{ matrix.target }} bin/tova.js --outfile dist/${{ matrix.asset }} --external postgres --external mysql2/promise --external bun:sqlite
 
+      - name: Compress binary
+        run: gzip -9 -k dist/${{ matrix.asset }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.gz
 
   release:
     needs: build
