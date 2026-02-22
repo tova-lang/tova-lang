@@ -4,7 +4,7 @@ title: Language Specification
 
 # Tova Language Specification
 
-Version 0.3.1. This document is the formal reference for the Tova programming language. It covers lexical structure, syntax, type system, evaluation semantics, and the compilation model.
+Version 0.3.2. This document is the formal reference for the Tova programming language. It covers lexical structure, syntax, type system, evaluation semantics, and the compilation model.
 
 ## 1. Lexical Structure
 
