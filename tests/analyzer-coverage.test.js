@@ -230,10 +230,11 @@ describe('StateDeclaration analysis', () => {
     expect(result).toBeDefined();
   });
 
-  test('state outside client block throws (at parse level for server)', () => {
-    // state is only parsed as a special statement inside client blocks,
-    // so putting it in a server block causes a parse error
-    expect(() => analyze('server { state count = 0 }')).toThrow();
+  test('state outside client block is treated as identifier (contextual keyword)', () => {
+    // state is a contextual keyword - only special inside client blocks,
+    // in server blocks it's treated as a regular identifier
+    const result = analyze('server { state count = 0 }');
+    expect(result).toBeDefined();
   });
 
   test('duplicate state name in client block throws', () => {
@@ -249,10 +250,11 @@ describe('ComputedDeclaration analysis', () => {
     expect(result).toBeDefined();
   });
 
-  test('computed outside client block throws (at parse level for server)', () => {
-    // computed is only parsed as a special statement inside client blocks,
-    // so putting it in a server block causes a parse error
-    expect(() => analyze('server { computed x = 1 }')).toThrow();
+  test('computed outside client block is treated as identifier (contextual keyword)', () => {
+    // computed is a contextual keyword - only special inside client blocks,
+    // in server blocks it's treated as a regular identifier
+    const result = analyze('server { computed x = 1 }');
+    expect(result).toBeDefined();
   });
 
   test('duplicate computed name throws', () => {

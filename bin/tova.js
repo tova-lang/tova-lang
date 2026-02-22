@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { Symbol } from '../src/analyzer/scope.js';
 import { Program } from '../src/parser/ast.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { richError, formatDiagnostics, DiagnosticFormatter, formatSummary } from '../src/diagnostics/formatter.js';
@@ -209,9 +210,15 @@ function compileTova(source, filename, options = {}) {
   const ast = parser.parse();
 
   const analyzer = new Analyzer(ast, filename, { strict: options.strict || false });
+  // Pre-define extra names in the analyzer scope (used by REPL for cross-line persistence)
+  if (options.knownNames) {
+    for (const name of options.knownNames) {
+      analyzer.globalScope.define(name, new Symbol(name, 'variable', null, true, { line: 0, column: 0, file: '<repl>' }));
+    }
+  }
   const { warnings } = analyzer.analyze();
 
-  if (warnings.length > 0) {
+  if (warnings.length > 0 && !options.suppressWarnings) {
     const formatter = new DiagnosticFormatter(source, filename);
     for (const w of warnings) {
       console.warn(formatter.formatWarning(w.message, { line: w.line, column: w.column }, { hint: w.hint, code: w.code, length: w.length, fix: w.fix }));
@@ -550,8 +557,22 @@ async function runFile(filePath, options = {}) {
   const source = readFileSync(resolved, 'utf-8');
 
   try {
-    // Check if file has .tova imports — if so, compile dependencies and inline them
-    const hasTovaImports = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]*\.tova['"]/m.test(source);
+    // Detect local .tova imports (with or without .tova extension)
+    const importDetectRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"]/gm;
+    let importMatch;
+    const tovaImportPaths = [];
+    while ((importMatch = importDetectRegex.exec(source)) !== null) {
+      const importSource = importMatch[1];
+      if (!importSource.startsWith('.') && !importSource.startsWith('/')) continue;
+      let depPath = resolve(dirname(resolved), importSource);
+      if (!depPath.endsWith('.tova') && existsSync(depPath + '.tova')) {
+        depPath = depPath + '.tova';
+      }
+      if (depPath.endsWith('.tova') && existsSync(depPath)) {
+        tovaImportPaths.push({ source: importSource, resolved: depPath });
+      }
+    }
+    const hasTovaImports = tovaImportPaths.length > 0;
 
     const output = compileTova(source, filePath, { strict: options.strict });
 
@@ -562,29 +583,29 @@ async function runFile(filePath, options = {}) {
     // Compile .tova dependencies and inline them
     let depCode = '';
     if (hasTovaImports) {
-      const importRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]*\.tova)['"]/gm;
-      let match;
       const compiled = new Set();
-      while ((match = importRegex.exec(source)) !== null) {
-        const depPath = resolve(dirname(resolved), match[1]);
-        if (compiled.has(depPath)) continue;
-        compiled.add(depPath);
-        if (existsSync(depPath)) {
-          const depSource = readFileSync(depPath, 'utf-8');
-          const dep = compileTova(depSource, depPath, { strict: options.strict });
-          let depShared = dep.shared || '';
-          // Strip export keywords for inlining
-          depShared = depShared.replace(/^export /gm, '');
-          depCode += depShared + '\n';
-        }
+      for (const imp of tovaImportPaths) {
+        if (compiled.has(imp.resolved)) continue;
+        compiled.add(imp.resolved);
+        const depSource = readFileSync(imp.resolved, 'utf-8');
+        const dep = compileTova(depSource, imp.resolved, { strict: options.strict });
+        let depShared = dep.shared || '';
+        depShared = depShared.replace(/^export /gm, '');
+        depCode += depShared + '\n';
       }
     }
 
     let code = stdlib + '\n' + depCode + (output.shared || '') + '\n' + (output.server || output.client || '');
     // Strip 'export ' keywords — not valid inside AsyncFunction (used in tova build only)
     code = code.replace(/^export /gm, '');
-    // Strip import lines for .tova files (already inlined above)
+    // Strip import lines for local modules (already inlined above)
     code = code.replace(/^import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]*\.(?:tova|(?:shared\.)?js)['"];?\s*$/gm, '');
+    if (hasTovaImports) {
+      for (const imp of tovaImportPaths) {
+        const escaped = imp.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        code = code.replace(new RegExp('^import\\s+(?:\\{[^}]*\\}|[\\w$]+|\\*\\s+as\\s+[\\w$]+)\\s+from\\s+[\'"]' + escaped + '[\'"];?\\s*$', 'gm'), '');
+      }
+    }
     // Auto-call main() if the compiled code defines a main function
     const scriptArgs = options.scriptArgs || [];
     if (/\bfunction\s+main\s*\(/.test(code)) {
@@ -689,8 +710,10 @@ async function buildProject(args) {
       if (!result) continue;
 
       const { output, single } = result;
-      // Use single-file basename for single-file dirs, directory name for multi-file
-      const outBaseName = single ? basename(files[0], '.tova') : dirName;
+      // Preserve relative directory structure in output (e.g., src/lib/math.tova → lib/math.js)
+      const outBaseName = single
+        ? relative(srcDir, files[0]).replace(/\.tova$/, '').replace(/\\/g, '/')
+        : (relDir === '.' ? dirName : relDir + '/' + dirName);
       const relLabel = single ? relative(srcDir, files[0]) : `${relDir}/ (${files.length} files merged)`;
       const elapsed = Date.now() - groupStart;
       const timing = isVerbose ? ` (${elapsed}ms)` : '';
@@ -710,6 +733,10 @@ async function buildProject(args) {
         }
         return code;
       };
+
+      // Ensure output subdirectory exists for nested paths (e.g., lib/math.js)
+      const outSubDir = dirname(join(outDir, outBaseName));
+      if (outSubDir !== outDir) mkdirSync(outSubDir, { recursive: true });
 
       // Module files: write single <name>.js (not .shared.js)
       if (output.isModule) {
@@ -2495,7 +2522,7 @@ async function startRepl() {
     buffer = '';
 
     try {
-      const output = compileTova(input, '<repl>');
+      const output = compileTova(input, '<repl>', { suppressWarnings: true });
       const code = output.shared || '';
       if (code.trim()) {
         // Extract function/const/let names from compiled code
@@ -2533,8 +2560,16 @@ async function startRepl() {
         const lines = code.trim().split('\n');
         const lastLine = lines[lines.length - 1].trim();
         let evalCode = code;
-        // If the last line looks like an expression (doesn't start with const/let/var/function/if/for/while/class)
-        if (!/^(const |let |var |function |if |for |while |class |try |switch )/.test(lastLine) && !lastLine.endsWith('{')) {
+        // For simple assignments (const x = expr;), echo the assigned value
+        const constAssignMatch = lastLine.match(/^(const|let)\s+([a-zA-Z_]\w*)\s*=\s*(.+);?$/);
+        if (constAssignMatch) {
+          const varName = constAssignMatch[2];
+          if (allSave) {
+            evalCode = `${code}\n${allSave}\nreturn ${varName};`;
+          } else {
+            evalCode = `${code}\nreturn ${varName};`;
+          }
+        } else if (!/^(const |let |var |function |if |for |while |class |try |switch )/.test(lastLine) && !lastLine.endsWith('{')) {
           // Replace the last statement with a return
           const allButLast = lines.slice(0, -1).join('\n');
           // Strip trailing semicolon from last line for the return

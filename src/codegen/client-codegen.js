@@ -595,7 +595,10 @@ export class ClientCodegen extends BaseCodegen {
       if (node.object.type === 'Identifier' && this.storeNames.has(node.object.name)) {
         return true; // Store property access is reactive (getters call signals)
       }
-      return this._exprReadsSignal(node.object);
+      return this._exprReadsSignal(node.object) || (node.computed && this._exprReadsSignal(node.property));
+    }
+    if (node.type === 'OptionalChain') {
+      return this._exprReadsSignal(node.object) || (node.computed && this._exprReadsSignal(node.property));
     }
     if (node.type === 'TemplateLiteral') {
       return node.parts.some(p => p.type === 'expr' && this._exprReadsSignal(p.value));
@@ -640,6 +643,7 @@ export class ClientCodegen extends BaseCodegen {
       }
       case 'JSXFor': return this.genJSXFor(node);
       case 'JSXIf': return this.genJSXIf(node);
+      case 'JSXMatch': return this.genJSXMatch(node);
       default: return this.genExpression(node);
     }
   }
@@ -667,7 +671,12 @@ export class ClientCodegen extends BaseCodegen {
         if (this.stateNames.has(exprName)) {
           // <select> fires 'change', all other inputs fire 'input'
           const eventName = node.tag === 'select' ? 'change' : 'input';
-          events[eventName] = `(e) => { set${capitalize(exprName)}(e.target.value); }`;
+          // For number/range inputs, coerce e.target.value to Number
+          const typeAttr = node.attributes.find(a => a.name === 'type');
+          const typeStr = typeAttr && typeAttr.value ? (typeAttr.value.value || '') : '';
+          const isNumeric = typeStr === 'number' || typeStr === 'range';
+          const valueExpr = isNumeric ? 'Number(e.target.value)' : 'e.target.value';
+          events[eventName] = `(e) => { set${capitalize(exprName)}(${valueExpr}); }`;
         }
       } else if (attr.name === 'bind:checked') {
         // Two-way binding: bind:checked={flag} → reactive checked + onChange
@@ -922,6 +931,39 @@ export class ClientCodegen extends BaseCodegen {
 
     // Wrap in reactive closure so the runtime creates a dynamic block
     return `() => ${result}`;
+  }
+
+  genJSXMatch(node) {
+    const subject = this.genExpression(node.subject);
+    const p = [];
+    p.push(`((__match) => { `);
+
+    for (let idx = 0; idx < node.arms.length; idx++) {
+      const arm = node.arms[idx];
+      const condition = this.genPatternCondition(arm.pattern, '__match', arm.guard);
+      const body = arm.body.map(c => this.genJSX(c));
+      const bodyExpr = body.length === 1 ? body[0] : `tova_fragment([${body.join(', ')}])`;
+
+      if (arm.pattern.type === 'WildcardPattern' || arm.pattern.type === 'BindingPattern') {
+        if (idx === node.arms.length - 1 && !arm.guard) {
+          // Default case
+          if (arm.pattern.type === 'BindingPattern') {
+            p.push(`const ${arm.pattern.name} = __match; `);
+          }
+          p.push(`return ${bodyExpr}; `);
+          break;
+        }
+      }
+
+      const keyword = idx === 0 ? 'if' : 'else if';
+      p.push(`${keyword} (${condition}) { `);
+      p.push(this.genPatternBindings(arm.pattern, '__match'));
+      p.push(`return ${bodyExpr}; } `);
+    }
+
+    p.push(`})(${subject})`);
+    // Wrap in reactive closure
+    return `() => ${p.join('')}`;
   }
 
   genJSXFragment(node) {

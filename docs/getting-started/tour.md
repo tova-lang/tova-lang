@@ -235,9 +235,9 @@ match list {
   _         => "many elements"
 }
 
-match url {
+match path {
   "/api" ++ rest => handle_api(rest)
-  "/static" ++ _ => serve_static(url)
+  "/static" ++ _ => serve_static(path)
   _              => not_found()
 }
 ```

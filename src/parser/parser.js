@@ -136,6 +136,20 @@ export class Parser {
     }
   }
 
+  // Full-stack keywords (route, state, computed, effect, component, store) are contextual —
+  // they act as keywords inside server/client blocks but can be used as identifiers elsewhere.
+  _isContextualKeyword() {
+    const t = this.current().type;
+    return t === TokenType.ROUTE || t === TokenType.STATE || t === TokenType.COMPUTED ||
+           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE;
+  }
+
+  _isContextualKeywordToken(token) {
+    const t = token.type;
+    return t === TokenType.ROUTE || t === TokenType.STATE || t === TokenType.COMPUTED ||
+           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE;
+  }
+
   _synchronizeBlock() {
     // Don't advance if already at } — that's the block closer we need
     if (!this.isAtEnd() && this.current().type !== TokenType.RBRACE) {
@@ -550,7 +564,7 @@ export class Parser {
       return this.parseForStatement(null, true);
     }
     if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) return this.parseAsyncFunctionDeclaration();
-    if (this.check(TokenType.FN) && this.peek(1).type === TokenType.IDENTIFIER) return this.parseFunctionDeclaration();
+    if (this.check(TokenType.FN) && (this.peek(1).type === TokenType.IDENTIFIER || this._isContextualKeywordToken(this.peek(1)))) return this.parseFunctionDeclaration();
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
     if (this.check(TokenType.MUT)) this.error("'mut' is not supported in Tova. Use 'var' for mutable variables");
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
@@ -712,7 +726,12 @@ export class Parser {
   parseFunctionDeclaration() {
     const l = this.loc();
     this.expect(TokenType.FN);
-    const name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+    let name;
+    if (this._isContextualKeyword()) {
+      name = this.advance().value;
+    } else {
+      name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+    }
 
     // Parse optional type parameters: fn name<T, U>(...)
     let typeParams = [];
@@ -742,7 +761,12 @@ export class Parser {
     const l = this.loc();
     this.expect(TokenType.ASYNC);
     this.expect(TokenType.FN);
-    const name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+    let name;
+    if (this._isContextualKeyword()) {
+      name = this.advance().value;
+    } else {
+      name = this.expect(TokenType.IDENTIFIER, "Expected function name").value;
+    }
 
     // Parse optional type parameters: async fn name<T, U>(...)
     let typeParams = [];
@@ -877,7 +901,12 @@ export class Parser {
         }
         params.push(param);
       } else {
-        const name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
+        let name;
+        if (this._isContextualKeyword()) {
+          name = this.advance().value;
+        } else {
+          name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
+        }
 
         let typeAnnotation = null;
         if (this.match(TokenType.COLON)) {
@@ -1947,7 +1976,8 @@ export class Parser {
     }
 
     // Keywords that can appear as identifiers in expression position
-    if (this.check(TokenType.SERVER) || this.check(TokenType.CLIENT) || this.check(TokenType.SHARED) || this.check(TokenType.DERIVE)) {
+    if (this.check(TokenType.SERVER) || this.check(TokenType.CLIENT) || this.check(TokenType.SHARED) || this.check(TokenType.DERIVE) ||
+        this._isContextualKeyword()) {
       const name = this.advance().value;
       return new AST.Identifier(name, l);
     }

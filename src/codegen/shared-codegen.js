@@ -22,7 +22,7 @@ export class SharedCodegen extends BaseCodegen {
       helpers.push(this.getPropagateHelper());
     }
     // Include only used builtin functions
-    const selectiveStdlib = buildSelectiveStdlib(this._usedBuiltins);
+    const selectiveStdlib = buildSelectiveStdlib(this.getUsedBuiltins());
     if (selectiveStdlib) helpers.push(selectiveStdlib);
     return helpers.join('\n');
   }

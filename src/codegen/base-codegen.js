@@ -10,6 +10,7 @@ export class BaseCodegen {
     this._needsContainsHelper = false; // track if __contains helper is needed
     this._needsPropagateHelper = false; // track if __propagate helper is needed
     this._usedBuiltins = new Set(); // track which stdlib builtins are actually used
+    this._userDefinedNames = new Set(); // track user-defined top-level names (to avoid stdlib conflicts)
     this._needsResultOption = false; // track if Ok/Err/Some/None are used
     this._variantFields = { 'Ok': ['value'], 'Err': ['error'], 'Some': ['value'] }; // map variant name -> [field names] for pattern destructuring
     this._traitDecls = new Map(); // traitName -> { methods: [...] }
@@ -113,6 +114,14 @@ export class BaseCodegen {
   }
 
   getUsedBuiltins() {
+    // Exclude builtins that the user has redefined at top level
+    if (this._userDefinedNames.size > 0) {
+      const filtered = new Set(this._usedBuiltins);
+      for (const name of this._userDefinedNames) {
+        filtered.delete(name);
+      }
+      return filtered;
+    }
     return this._usedBuiltins;
   }
 
@@ -300,6 +309,10 @@ export class BaseCodegen {
         return `${this.i()}${target} = ${this.genExpression(node.values[0])};`;
       }
       this.declareVar(target);
+      // Track top-level user definitions to avoid stdlib conflicts
+      if (this._scopes.length === 1 && BUILTIN_NAMES.has(target)) {
+        this._userDefinedNames.add(target);
+      }
       return `${this.i()}${exportPrefix}const ${target} = ${this.genExpression(node.values[0])};`;
     }
 

@@ -663,7 +663,7 @@ export {
   StateDeclaration, ComputedDeclaration, EffectDeclaration,
   ComponentDeclaration, ComponentStyleBlock, StoreDeclaration,
   JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment,
-  JSXText, JSXExpression, JSXFor, JSXIf,
+  JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch,
 } from './client-ast.js';
 
 // ============================================================

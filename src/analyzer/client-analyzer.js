@@ -130,6 +130,8 @@ export function installClientAnalyzer(AnalyzerClass) {
         this.visitJSXFor(child);
       } else if (child.type === 'JSXIf') {
         this.visitJSXIf(child);
+      } else if (child.type === 'JSXMatch') {
+        this.visitJSXMatch(child);
       }
     }
   };
@@ -146,6 +148,8 @@ export function installClientAnalyzer(AnalyzerClass) {
         this.visitJSXFor(child);
       } else if (child.type === 'JSXIf') {
         this.visitJSXIf(child);
+      } else if (child.type === 'JSXMatch') {
+        this.visitJSXMatch(child);
       }
     }
   };
@@ -184,6 +188,16 @@ export function installClientAnalyzer(AnalyzerClass) {
     }
     if (node.alternate) {
       for (const child of node.alternate) {
+        this.visitNode(child);
+      }
+    }
+  };
+
+  AnalyzerClass.prototype.visitJSXMatch = function(node) {
+    this.visitExpression(node.subject);
+    for (const arm of node.arms) {
+      // Visit pattern bindings in a child scope
+      for (const child of arm.body) {
         this.visitNode(child);
       }
     }

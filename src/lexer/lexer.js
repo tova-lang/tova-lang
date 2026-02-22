@@ -18,7 +18,8 @@ export class Lexer {
     this._jsxTagMode = null;      // null | 'open' | 'close' — current tag parsing state
     this._jsxSelfClosing = false; // true when / seen in opening tag (before >)
     this._jsxExprDepth = 0;       // brace depth for {expr} inside JSX
-    this._jsxCF = null;           // null | { paren: 0, brace: 0 } — control flow state
+    this._jsxCF = null;           // null | { paren: 0, brace: 0, keyword? } — control flow state
+    this._matchBlockDepth = 0;    // brace depth for match body inside JSX
   }
 
   error(message) {
@@ -104,8 +105,9 @@ export class Lexer {
 
   scanToken() {
     // In JSX children mode, scan raw text instead of normal tokens
+    // (but not inside matchblock — match bodies need normal scanning for patterns/arrows)
     if (this._jsxStack.length > 0 && this._jsxExprDepth === 0 &&
-        !this._jsxTagMode && !this._jsxCF) {
+        !this._jsxTagMode && !this._jsxCF && this._matchBlockDepth === 0) {
       return this._scanInJSXChildren();
     }
 
@@ -226,7 +228,7 @@ export class Lexer {
         while (wp < this.length && this.isAlphaNumeric(this.source[wp])) {
           word += this.source[wp]; wp++;
         }
-        if (['if', 'for', 'elif', 'else'].includes(word)) {
+        if (['if', 'for', 'elif', 'else', 'match'].includes(word)) {
           while (this.pos < pp) this.advance();
           return;
         }
@@ -254,16 +256,16 @@ export class Lexer {
     if (ch === '"') { this.scanString(); return; }
     if (ch === "'") { this.scanSimpleString(); return; }
 
-    // Check for JSX control flow keywords: if, for, elif, else
+    // Check for JSX control flow keywords: if, for, elif, else, match
     if (this.isAlpha(ch)) {
       let word = '', peekPos = this.pos;
       while (peekPos < this.length && this.isAlphaNumeric(this.source[peekPos])) {
         word += this.source[peekPos]; peekPos++;
       }
-      if (['if', 'for', 'elif', 'else'].includes(word)) {
+      if (['if', 'for', 'elif', 'else', 'match'].includes(word)) {
         this.scanIdentifier();
         // After keyword, enter control flow mode for normal scanning
-        this._jsxCF = { paren: 0, brace: 0 };
+        this._jsxCF = { paren: 0, brace: 0, keyword: word };
         return;
       }
     }
@@ -284,7 +286,7 @@ export class Lexer {
         while (pp < this.length && this.isAlphaNumeric(this.source[pp])) {
           word += this.source[pp]; pp++;
         }
-        if (['if', 'for', 'elif', 'else'].includes(word)) break;
+        if (['if', 'for', 'elif', 'else', 'match'].includes(word)) break;
       }
       text += this.advance();
     }
@@ -924,6 +926,11 @@ export class Lexer {
             const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
             if (prev && (prev.type === TokenType.ASSIGN || prev.type === TokenType.FOR)) {
               this._jsxCF.brace++;
+            } else if (this._jsxCF.keyword === 'match') {
+              // Match body: scan normally (patterns, =>, etc.) — not JSX children mode
+              this._jsxCF = null;
+              this._jsxStack.push('matchblock');
+              this._matchBlockDepth = 1;
             } else {
               // This is the block opener for the control flow body
               this._jsxCF = null;
@@ -932,12 +939,22 @@ export class Lexer {
           }
         } else if (this._jsxExprDepth > 0) {
           this._jsxExprDepth++;
+        } else if (this._matchBlockDepth > 0) {
+          this._matchBlockDepth++;
         }
         break;
       case '}':
         this.tokens.push(new Token(TokenType.RBRACE, '}', startLine, startCol));
         if (this._jsxCF && this._jsxCF.brace > 0) {
           this._jsxCF.brace--;
+        } else if (this._matchBlockDepth > 0) {
+          this._matchBlockDepth--;
+          if (this._matchBlockDepth === 0) {
+            // Match body closed — pop matchblock from JSX stack
+            if (this._jsxStack.length > 0 && this._jsxStack[this._jsxStack.length - 1] === 'matchblock') {
+              this._jsxStack.pop();
+            }
+          }
         } else if (this._jsxExprDepth > 0) {
           this._jsxExprDepth--;
         }

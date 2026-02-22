@@ -1,7 +1,7 @@
 // Client-specific parser methods for the Tova language
 // Extracted from parser.js for lazy loading — only loaded when client { } blocks are encountered.
 
-import { TokenType } from '../lexer/tokens.js';
+import { TokenType, Keywords } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 
 export function installClientParser(ParserClass) {
@@ -52,7 +52,7 @@ export function installClientParser(ParserClass) {
         body.push(this.parseState());
       } else if (this.check(TokenType.COMPUTED)) {
         body.push(this.parseComputed());
-      } else if (this.check(TokenType.FN) && this.peek(1).type === TokenType.IDENTIFIER) {
+      } else if (this.check(TokenType.FN) && (this.peek(1).type === TokenType.IDENTIFIER || this._isContextualKeywordToken(this.peek(1)))) {
         body.push(this.parseFunctionDeclaration());
       } else {
         this.error("Expected 'state', 'computed', or 'fn' inside store block");
@@ -226,6 +226,12 @@ export function installClientParser(ParserClass) {
         continue;
       }
 
+      // match inside JSX
+      if (this.check(TokenType.MATCH)) {
+        children.push(this.parseJSXMatch());
+        continue;
+      }
+
       break;
     }
 
@@ -270,11 +276,9 @@ export function installClientParser(ParserClass) {
 
   ParserClass.prototype.parseJSXAttribute = function() {
     const l = this.loc();
-    // Accept keywords as attribute names (type, class, for, etc. are valid HTML attributes)
+    // Accept keywords as attribute names (type, class, for, async, defer, etc. are valid HTML attributes)
     let name;
-    if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.TYPE) || this.check(TokenType.FOR) ||
-        this.check(TokenType.IN) || this.check(TokenType.AS) || this.check(TokenType.EXPORT) ||
-        this.check(TokenType.STATE) || this.check(TokenType.COMPUTED) || this.check(TokenType.ROUTE)) {
+    if (this.check(TokenType.IDENTIFIER) || (this.peek().value in Keywords)) {
       name = this.advance().value;
     } else {
       this.error("Expected attribute name");
@@ -283,7 +287,7 @@ export function installClientParser(ParserClass) {
     // Handle namespaced attributes: on:click, bind:value, class:active
     if (this.match(TokenType.COLON)) {
       let suffix;
-      if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.IN)) {
+      if (this.check(TokenType.IDENTIFIER) || (this.peek().value in Keywords)) {
         suffix = this.advance().value;
       } else {
         suffix = this.expect(TokenType.IDENTIFIER, "Expected name after ':'").value;
@@ -371,6 +375,12 @@ export function installClientParser(ParserClass) {
         continue;
       }
 
+      // match inside JSX
+      if (this.check(TokenType.MATCH)) {
+        children.push(this.parseJSXMatch());
+        continue;
+      }
+
       break;
     }
 
@@ -438,6 +448,12 @@ export function installClientParser(ParserClass) {
         this.advance();
         body.push(new AST.JSXExpression(this.parseExpression(), this.loc()));
         this.expect(TokenType.RBRACE);
+      } else if (this.check(TokenType.FOR)) {
+        body.push(this.parseJSXFor());
+      } else if (this.check(TokenType.IF)) {
+        body.push(this.parseJSXIf());
+      } else if (this.check(TokenType.MATCH)) {
+        body.push(this.parseJSXMatch());
       } else {
         break;
       }
@@ -464,6 +480,12 @@ export function installClientParser(ParserClass) {
         this.advance();
         body.push(new AST.JSXExpression(this.parseExpression(), this.loc()));
         this.expect(TokenType.RBRACE);
+      } else if (this.check(TokenType.FOR)) {
+        body.push(this.parseJSXFor());
+      } else if (this.check(TokenType.IF)) {
+        body.push(this.parseJSXIf());
+      } else if (this.check(TokenType.MATCH)) {
+        body.push(this.parseJSXMatch());
       } else {
         break;
       }
@@ -500,5 +522,56 @@ export function installClientParser(ParserClass) {
     }
 
     return new AST.JSXIf(condition, consequent, alternate, l, alternates);
+  };
+
+  ParserClass.prototype.parseJSXMatch = function() {
+    const l = this.loc();
+    this.expect(TokenType.MATCH);
+    const subject = this.parseExpression();
+    this.expect(TokenType.LBRACE, "Expected '{' to open JSX match body");
+
+    const arms = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const al = this.loc();
+      const pattern = this.parsePattern();
+
+      let guard = null;
+      if (this.match(TokenType.IF)) {
+        guard = this.parseExpression();
+      }
+
+      this.expect(TokenType.ARROW, "Expected '=>' in JSX match arm");
+
+      // Parse arm body as JSX children
+      const body = [];
+      if (this.check(TokenType.LESS)) {
+        body.push(this.parseJSXElementOrFragment());
+      } else if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
+        body.push(new AST.JSXText(this.parseStringLiteral(), this.loc()));
+      } else if (this.check(TokenType.JSX_TEXT)) {
+        const tok = this.advance();
+        const text = this._collapseJSXWhitespace(tok.value);
+        if (text.length > 0) {
+          body.push(new AST.JSXText(new AST.StringLiteral(text, this.loc()), this.loc()));
+        }
+      } else if (this.check(TokenType.LBRACE)) {
+        this.advance();
+        body.push(new AST.JSXExpression(this.parseExpression(), this.loc()));
+        this.expect(TokenType.RBRACE);
+      } else if (this.check(TokenType.FOR)) {
+        body.push(this.parseJSXFor());
+      } else if (this.check(TokenType.IF)) {
+        body.push(this.parseJSXIf());
+      } else {
+        // Fallback to regular expression (e.g., null, number literals)
+        body.push(new AST.JSXExpression(this.parseExpression(), this.loc()));
+      }
+
+      arms.push({ pattern, guard, body, loc: al });
+      this.match(TokenType.COMMA); // Optional comma between arms
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close JSX match body");
+    return new AST.JSXMatch(subject, arms, l);
   };
 }

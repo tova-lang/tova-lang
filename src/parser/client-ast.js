@@ -136,3 +136,12 @@ export class JSXIf {
     this.loc = loc;
   }
 }
+
+export class JSXMatch {
+  constructor(subject, arms, loc) {
+    this.type = 'JSXMatch';
+    this.subject = subject;     // expression being matched
+    this.arms = arms;           // Array of { pattern, guard, body: [JSXChild] }
+    this.loc = loc;
+  }
+}

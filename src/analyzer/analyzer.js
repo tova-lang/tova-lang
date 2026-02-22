@@ -953,6 +953,11 @@ export class Analyzer {
       const target = node.targets[i];
       const existing = this._lookupAssignTarget(target);
       if (existing) {
+        // Allow user code to shadow builtins (e.g., url = "/api")
+        if (existing.kind === 'builtin') {
+          this.currentScope.define(target, new Symbol(target, 'variable', null, false, node.loc));
+          continue;
+        }
         if (!existing.mutable) {
           this.error(`Cannot reassign immutable variable '${target}'. Use 'var' for mutable variables.`, node.loc, null, {
             code: 'E202',
