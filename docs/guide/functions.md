@@ -212,6 +212,84 @@ names = ["alice", "bob", "carol"]
 upper_names = names.map(x => x.upper())
 ```
 
+## Implicit `it` Parameter
+
+When a bare expression references `it` outside any function, Tova wraps it in a lambda with `it` as the parameter. This provides a concise shorthand for simple callbacks:
+
+```tova
+numbers = [1, -2, 3, -4, 5]
+positives = numbers.filter(it > 0)          // [1, 3, 5]
+doubled = numbers.map(it * 2)              // [2, -4, 6, -8, 10]
+```
+
+This desugars to:
+
+```tova
+positives = numbers.filter(fn(it) it > 0)
+doubled = numbers.map(fn(it) it * 2)
+```
+
+Works with pipes:
+
+```tova
+result = data
+  |> filter(it > 0)
+  |> map(it * 2)
+  |> sorted()
+```
+
+::: tip
+Use `it` for simple, single-expression callbacks. For multi-line or complex logic, an explicit `fn(x)` is clearer.
+:::
+
+## Generator Functions
+
+Functions that use `yield` become generators. They produce a sequence of values lazily, pausing between each `yield`:
+
+```tova
+fn fibonacci() {
+  var a = 0
+  var b = 1
+  loop {
+    yield a
+    a, b = b, a + b
+  }
+}
+
+gen = fibonacci()
+gen.next()    // { value: 0, done: false }
+gen.next()    // { value: 1, done: false }
+gen.next()    // { value: 1, done: false }
+gen.next()    // { value: 2, done: false }
+```
+
+Generators compile to JavaScript `function*` and can be iterated with `for...in`:
+
+```tova
+fn count_up(start, end) {
+  var i = start
+  while i <= end {
+    yield i
+    i += 1
+  }
+}
+
+for n in count_up(1, 5) {
+  print(n)    // 1, 2, 3, 4, 5
+}
+```
+
+Use `yield from` to delegate to another generator:
+
+```tova
+fn combined() {
+  yield from count_up(1, 3)
+  yield from count_up(10, 12)
+}
+
+// Produces: 1, 2, 3, 10, 11, 12
+```
+
 ## Named Arguments
 
 Named arguments are passed as a single object, so the function should use **object destructuring** to receive them:

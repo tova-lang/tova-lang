@@ -299,8 +299,8 @@ print("Squares: {squares}")
 evens = [x for x in range(1, 21) if x % 2 == 0]
 print("Evens: {evens}")
 
-// Nested comprehension
-pairs = [[x, y] for x in range(1, 4) for y in range(1, 4) if x != y]
+// Build pairs with flat_map
+pairs = flat_map(range(1, 4), fn(x) [[x, y] for y in range(1, 4) if x != y])
 print("Pairs: {pairs}")
 
 // Dict comprehension
@@ -783,13 +783,13 @@ fn list_map(lst, f) {
 fn list_to_array(lst) {
   var result = []
   var current = lst
-  while true {
+  while current != Empty {
     match current {
-      Empty => return result
       Cons(h, t) => {
         result = [...result, h]
         current = t
       }
+      _ => { current = Empty }
     }
   }
   result

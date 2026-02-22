@@ -28,16 +28,22 @@ Tova's standard library follows a few guiding principles:
 | **Math & Stats** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `log`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep`, `hypot`, `lerp`, `divmod`, `avg`, `mean`, `median`, `mode`, `stdev`, `variance`, `percentile`, `format_number`, `to_hex`, `to_binary`, `to_octal`, `to_fixed` | [Math & Stats](./math) |
 | **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone`, `has_key`, `get`, `from_entries`, `pick`, `omit`, `map_values` | [Objects & Utilities](./objects) |
 | **Functional** | `compose`, `pipe_fn`, `identity`, `memoize`, `debounce`, `throttle`, `once`, `negate`, `partial`, `curry`, `flip` | [Functional](./functional) |
-| **Regex** | `regex_test`, `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`, `regex_capture` | [Regex](./regex) |
+| **Regex** | `regex_test`, `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`, `regex_capture`, `regex_builder` | [Regex](./regex) |
 | **Validation** | `is_email`, `is_url`, `is_numeric`, `is_alpha`, `is_alphanumeric`, `is_uuid`, `is_hex` | [Validation](./validation) |
 | **URL & UUID** | `uuid`, `parse_url`, `build_url`, `parse_query`, `build_query` | [URL & UUID](./url) |
 | **Date & Time** | `now`, `now_iso`, `date_parse`, `date_format`, `date_add`, `date_diff`, `date_from`, `date_part`, `time_ago` | [Date & Time](./datetime) |
 | **JSON** | `json_parse`, `json_stringify`, `json_pretty` | [JSON](./json) |
 | **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode` | [Encoding](./encoding) |
-| **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `timeout`, `retry` | [Async & Error Handling](./async) |
-| **Result & Option** | `Ok`, `Err`, `Some`, `None`, `?` (propagation) | [Result & Option](./result-option) |
+| **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `race`, `timeout`, `retry`, `sleep` | [Async & Error Handling](./async) |
+| **Result & Option** | `Ok`, `Err`, `Some`, `None`, `?` (propagation), `filter_ok`, `filter_err` | [Result & Option](./result-option) |
 | **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
-| **Assertions** | `assert`, `assert_eq`, `assert_ne` | [Assertions](./assertions) |
+| **Assertions** | `assert`, `assert_eq`, `assert_ne`, `assert_throws`, `assert_snapshot` | [Assertions](./assertions) |
+| **Lazy Iterators** | `iter`, `Seq.filter`, `Seq.map`, `Seq.take`, `Seq.drop`, `Seq.zip`, `Seq.flat_map`, `Seq.enumerate`, `Seq.collect`, `Seq.reduce`, `Seq.first`, `Seq.count`, `Seq.forEach`, `Seq.any`, `Seq.all`, `Seq.find` | [Lazy Iterators](./iterators) |
+| **Advanced Collections** | `OrderedDict`, `DefaultDict`, `Counter`, `Deque` | [Advanced Collections](./advanced-collections) |
+| **Channels** | `Channel.new`, `ch.send`, `ch.receive`, `ch.close` | [Channels](./channels) |
+| **Scripting I/O** | `fs.exists`, `fs.read_text`, `fs.write_text`, `fs.ls`, `fs.mkdir`, `fs.rm`, `fs.glob_files`, `sh`, `exec`, `spawn`, `env`, `args`, `parse_args`, `exit`, `path_join`, `path_basename`, `path_dirname` | [Scripting I/O](./io) |
+| **Tables** | `Table`, `where`, `select`, `derive`, `sort_by`, `group_by`, `agg`, `join`, `pivot`, `unpivot`, `explode`, `peek`, `describe` | [Tables](./tables) |
+| **Testing** | `Gen.int`, `Gen.float`, `Gen.bool`, `Gen.string`, `Gen.array`, `Gen.oneOf`, `forAll`, `create_spy`, `create_mock` | [Testing](./testing) |
 
 ## Quick Reference
 

@@ -168,6 +168,10 @@ text = raw_input
   |> .join("; ")
 ```
 
+::: tip Implicit `it` Parameter
+For simple callbacks in pipe chains, you can use the implicit `it` parameter instead of writing full lambdas: `data |> filter(it > 0) |> map(it * 2)`. See [Functions: Implicit `it`](functions.md#implicit-it-parameter) for details.
+:::
+
 ## Pipes with Lambda Functions
 
 You can pipe into anonymous functions for inline transformations:

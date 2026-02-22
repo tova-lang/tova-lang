@@ -129,6 +129,58 @@ regex_split("a,b;c:d", "[,;:]")
 
 ---
 
+## Regex Builder
+
+### regex_builder
+
+```tova
+regex_builder() -> RegexBuilder
+```
+
+Creates a fluent builder for constructing complex regular expressions. Methods can be chained:
+
+| Method | Description |
+|--------|-------------|
+| `.literal(str)` | Match exact string (auto-escaped) |
+| `.digit()` | Match a digit (`\d`) |
+| `.digits()` | Match one or more digits (`\d+`) |
+| `.word()` | Match a word character (`\w`) |
+| `.words()` | Match one or more word characters (`\w+`) |
+| `.space()` | Match a whitespace character (`\s`) |
+| `.any()` | Match any character (`.`) |
+| `.group(str)` | Add a capturing group |
+| `.oneOf(str)` | Add a character class (`[...]`) |
+| `.optional()` | Make the previous token optional (`?`) |
+| `.oneOrMore()` | One or more of the previous token (`+`) |
+| `.zeroOrMore()` | Zero or more of the previous token (`*`) |
+| `.start()` | Anchor to start of string (`^`) |
+| `.end()` | Anchor to end of string (`$`) |
+| `.build(flags?)` | Compile to a RegExp |
+
+```tova
+// Build an email pattern
+email_re = regex_builder()
+  .words()
+  .literal("@")
+  .words()
+  .literal(".")
+  .words()
+  .build()
+
+// Build a date pattern
+date_re = regex_builder()
+  .start()
+  .group("\\d{4}")
+  .literal("-")
+  .group("\\d{2}")
+  .literal("-")
+  .group("\\d{2}")
+  .end()
+  .build()
+```
+
+---
+
 ## Pipeline Examples
 
 ```tova

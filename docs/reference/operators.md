@@ -99,6 +99,37 @@ if user not in banned_users {
 }
 ```
 
+## Type Checking Operators
+
+| Operator | Meaning | Example |
+|----------|---------|---------|
+| `is` | Type check (true if value is of type) | `x is String` |
+| `is not` | Negated type check | `x is not Nil` |
+
+The `is` operator tests the runtime type of a value. It works with built-in types and ADT variants:
+
+```tova
+value = "hello"
+value is String       // true
+value is Int          // false
+value is not Nil      // true
+```
+
+```tova
+// With ADT variants
+result = Ok(42)
+if result is Ok {
+  print("Success!")
+}
+
+option = Some("data")
+if option is not None {
+  print("Has value")
+}
+```
+
+Supported type checks: `String`, `Int`, `Float`, `Bool`, `Nil`, `Array`, `Function`, `Number`, and any custom ADT variant name.
+
 ## Assignment Operators
 
 | Operator | Meaning | Equivalent |
@@ -108,6 +139,7 @@ if user not in banned_users {
 | `-=` | Subtract and assign | `x = x - 10` |
 | `*=` | Multiply and assign | `x = x * 10` |
 | `/=` | Divide and assign | `x = x / 10` |
+| `%=` | Modulo and assign | `x = x % 10` |
 
 ```tova
 var counter = 0
@@ -259,7 +291,7 @@ Operators are listed from **highest** precedence (binds tightest) to **lowest** 
 | 9 | `+` `-` | Left | Addition, subtraction |
 | 8 | `..` `..=` | None | Range (exclusive, inclusive) |
 | 7 | `in` `not in` | Left | Membership test |
-| 6 | `<` `<=` `>` `>=` `==` `!=` | Left | Comparison (chainable) |
+| 6 | `<` `<=` `>` `>=` `==` `!=` `is` `is not` | Left | Comparison, type checking (chainable) |
 | 5 | `not` `!` | Right | Logical NOT |
 | 4 | `and` `&&` | Left | Logical AND |
 | 3 | `or` `\|\|` | Left | Logical OR |

@@ -672,3 +672,47 @@ For most cases, string interpolation is more readable:
 ```tova
 greeting = "Hello, {name}!"
 ```
+
+## Terminal Formatting
+
+Functions for styling text output in the terminal.
+
+### color
+
+```tova
+color(text, colorName) -> String
+```
+
+Wraps text with ANSI color codes for terminal output. Supported colors include `"red"`, `"green"`, `"blue"`, `"yellow"`, `"cyan"`, `"magenta"`, `"white"`, `"gray"`.
+
+```tova
+print(color("Error!", "red"))
+print(color("Success", "green"))
+print(color("Warning", "yellow"))
+```
+
+### bold
+
+```tova
+bold(text) -> String
+```
+
+Wraps text with ANSI bold codes for terminal output.
+
+```tova
+print(bold("Important message"))
+print(bold(color("Error!", "red")))
+```
+
+### dim
+
+```tova
+dim(text) -> String
+```
+
+Wraps text with ANSI dim codes for terminal output.
+
+```tova
+print(dim("Less important info"))
+print(dim("(optional)"))
+```

@@ -217,3 +217,7 @@ result = read("sales.csv")
 ```
 
 **Use `peek()` after `read()`.** When working with unfamiliar data, start with `read("file.csv") |> peek()` to see what the data looks like before building your pipeline.
+
+::: tip Scripting I/O
+For filesystem operations (`fs.exists`, `fs.read_text`, `fs.write_text`, `fs.mkdir`, etc.), shell commands (`sh`, `exec`, `spawn`), environment access (`env`, `args`, `exit`), and path utilities, see the [Scripting I/O](../stdlib/io.md) stdlib reference.
+:::

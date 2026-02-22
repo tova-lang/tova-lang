@@ -11,6 +11,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`as`](#as) | Alias in imports |
 | [`async`](#async) | Mark a function as asynchronous |
 | [`await`](#await) | Wait for an async result |
+| [`bench`](#bench) | Define a benchmark block |
 | [`break`](#break) | Exit a loop early |
 | [`catch`](#catch) | Handle errors from a try block |
 | [`client`](#client) | Define a client-side block |
@@ -33,10 +34,12 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`guard`](#guard) | Assert a condition or execute an else block |
 | [`if`](#if) | Conditional branch |
 | [`impl`](#impl) | Implement methods or traits for a type |
+| [`is`](#is) | Type-checking operator |
 | [`import`](#import) | Bring names from another module into scope |
 | [`in`](#in) | Membership test; iteration target in for loops |
 | [`interface`](#interface) | Define a structural type contract |
 | [`let`](#let) | Destructuring binding |
+| [`loop`](#loop) | Infinite loop |
 | [`match`](#match) | Pattern matching expression |
 | [`nil`](#nil) | The absence-of-value literal |
 | [`not`](#not) | Logical NOT (keyword form) |
@@ -51,13 +54,16 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`source`](#source) | Declare a data source in a data block |
 | [`state`](#state) | Declare a reactive state variable |
 | [`store`](#store) | Declare a reactive store |
+| [`test`](#test) | Define a test block |
 | [`trait`](#trait) | Define a named set of behaviors |
 | [`true`](#true) | Boolean true literal |
 | [`try`](#try) | Begin an error-handling block |
 | [`type`](#type) | Declare a custom type (struct or ADT) |
 | [`validate`](#validate) | Declare validation rules for a type in a data block |
 | [`var`](#var) | Declare a mutable variable |
+| [`when`](#when) | Guard condition in for loops |
 | [`while`](#while) | Loop while a condition is true |
+| [`with`](#with) | Resource management with cleanup |
 | [`yield`](#yield) | Yield a value from a generator |
 
 ## Contextual Keywords (HTTP Methods)
@@ -134,6 +140,17 @@ Suspends execution until an asynchronous value resolves.
 
 ```tova
 data = await fetch_data("/api/users")
+```
+
+### `bench`
+
+Defines a benchmark block inside a test file. Used to measure execution time of a code snippet.
+
+```tova
+bench "array sorting" {
+  data = range(1000) |> shuffle()
+  sorted(data)
+}
 ```
 
 ### `break`
@@ -377,6 +394,22 @@ if ready {
 label = if count == 1 { "item" } else { "items" }
 ```
 
+### `is`
+
+Type-checking operator. Tests whether a value is of a given type or ADT variant at runtime. Can be negated with `is not`.
+
+```tova
+value = "hello"
+value is String       // true
+value is Int          // false
+value is not Nil      // true
+
+// Works with ADT variants
+result = Ok(42)
+result is Ok          // true
+result is Err         // false
+```
+
 ### `impl`
 
 Implements methods or trait conformance for a type.
@@ -429,6 +462,36 @@ let [first, ...rest] = items
 ::: warning
 `let` is NOT used for simple variable declarations. Use `x = value` for simple bindings and `var x = value` for mutable variables.
 :::
+
+### `loop`
+
+Creates an infinite loop that runs until explicitly terminated with `break`. Useful for polling, event loops, and retry patterns.
+
+```tova
+var attempts = 0
+loop {
+  result = try_connect()
+  if result.isOk() {
+    break
+  }
+  attempts += 1
+  if attempts > 5 {
+    break
+  }
+}
+```
+
+Labels work with `loop` for nested loop control:
+
+```tova
+outer: loop {
+  inner: loop {
+    if done {
+      break outer
+    }
+  }
+}
+```
 
 ### `match`
 
@@ -590,6 +653,21 @@ store TodoStore {
 }
 ```
 
+### `test`
+
+Defines a test block with a description string and body containing assertions. Tests are discovered and run by `tova test`.
+
+```tova
+test "addition works" {
+  assert_eq(1 + 1, 2)
+}
+
+test "string interpolation" {
+  name = "world"
+  assert_eq("Hello, {name}!", "Hello, world!")
+}
+```
+
 ### `trait`
 
 Defines a named set of behavior (similar to a typeclass or protocol).
@@ -661,6 +739,23 @@ var counter = 0
 counter += 1
 ```
 
+### `when`
+
+Guard condition in `for` loops. Filters elements before the loop body executes, acting as an inline filter.
+
+```tova
+for item in items when item.active {
+  process(item)
+}
+
+// Equivalent to:
+for item in items {
+  if item.active {
+    process(item)
+  }
+}
+```
+
 ### `while`
 
 Loops while a condition is true.
@@ -671,6 +766,18 @@ while i < 10 {
   print(i)
   i += 1
 }
+```
+
+### `with`
+
+Resource management statement. Opens a resource and guarantees cleanup when the block exits, similar to a try/finally pattern.
+
+```tova
+with open("data.txt") as file {
+  content = file.read()
+  process(content)
+}
+// file is automatically cleaned up here
 ```
 
 ### `yield`

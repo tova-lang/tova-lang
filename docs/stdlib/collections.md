@@ -937,6 +937,58 @@ update_at(["a", "b", "c"], 2, "z")    // ["a", "b", "z"]
 
 ---
 
+## Ordering
+
+### Ordering Type
+
+The `Ordering` type represents the result of comparing two values:
+
+| Variant | Description |
+|---------|-------------|
+| `Less` | First value is smaller |
+| `Equal` | Values are equal |
+| `Greater` | First value is larger |
+
+### compare
+
+```tova
+compare(a, b) -> Ordering
+```
+
+Compares two values and returns their ordering.
+
+```tova
+compare(1, 2)        // Less
+compare(5, 5)        // Equal
+compare("b", "a")    // Greater
+```
+
+Useful for custom sort functions:
+
+```tova
+items |> sorted(fn(a, b) {
+  match compare(a.priority, b.priority) {
+    Equal => compare(a.name, b.name)
+    result => result
+  }
+})
+```
+
+### compare_by
+
+```tova
+compare_by(a, b, fn) -> Ordering
+```
+
+Compares two values by applying a key function first, then comparing the results.
+
+```tova
+compare_by(user_a, user_b, fn(u) u.age)    // compare by age
+compare_by("hello", "hi", fn(s) len(s))    // compare by length
+```
+
+---
+
 ## Pipeline Examples
 
 These functions compose beautifully with the pipe operator `|>`:

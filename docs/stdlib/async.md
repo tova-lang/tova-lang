@@ -73,6 +73,30 @@ results = await parallel([
 // [users_response, posts_response, comments_response]
 ```
 
+### race
+
+```tova
+race(promises) -> Promise
+```
+
+Returns a promise that resolves or rejects as soon as the first promise in the list settles. The result is the value (or error) from the first promise to complete.
+
+```tova
+// Use the fastest API response
+result = await race([
+  fetch("https://api1.example.com/data"),
+  fetch("https://api2.example.com/data")
+])
+```
+
+```tova
+// Implement a timeout using race
+result = await race([
+  fetch("/api/slow"),
+  sleep(5000) |> fn() Err("Timed out")
+])
+```
+
 ### timeout
 
 ```tova
@@ -116,6 +140,26 @@ data = await retry(
   { times: 5, delay: 200, backoff: 2 }
 )
 // Delays: 200ms, 400ms, 800ms, 1600ms between retries
+```
+
+### sleep
+
+```tova
+sleep(ms) -> Promise
+```
+
+Returns a promise that resolves after `ms` milliseconds. Useful for delays, polling intervals, and timeouts.
+
+```tova
+// Wait 1 second
+await sleep(1000)
+
+// Polling with delay
+loop {
+  status = await check_status()
+  if status == "ready" { break }
+  await sleep(500)
+}
 ```
 
 ---

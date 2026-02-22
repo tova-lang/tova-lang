@@ -25,14 +25,15 @@ token = NUMBER | STRING | STRING_TEMPLATE | BOOLEAN | NIL
       | DOCSTRING | NEWLINE | EOF ;
 
 keyword = "var" | "let" | "fn" | "return" | "if" | "elif" | "else"
-        | "for" | "while" | "match" | "type" | "import" | "from"
-        | "export" | "as" | "and" | "or" | "not" | "in"
+        | "for" | "while" | "loop" | "match" | "type" | "import" | "from"
+        | "export" | "as" | "and" | "or" | "not" | "in" | "is"
         | "true" | "false" | "nil" | "try" | "catch" | "finally"
         | "break" | "continue" | "async" | "await" | "guard"
         | "interface" | "derive" | "pub" | "impl" | "trait"
-        | "defer" | "yield" | "extern"
+        | "defer" | "yield" | "extern" | "when" | "with"
         | "server" | "client" | "shared" | "route"
-        | "state" | "computed" | "effect" | "component" | "store" ;
+        | "state" | "computed" | "effect" | "component" | "store"
+        | "test" | "bench" ;
 
 http_method = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" ;
 ```
@@ -90,7 +91,7 @@ operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "&&" | "||" | "!" | "|>"
          | "=>" | "->" | "." | ".." | "..=" | "..."
          | ":" | "::" | "?" | "?." | "??"
-         | "+=" | "-=" | "*=" | "/=" ;
+         | "+=" | "-=" | "*=" | "/=" | "%=" ;
 
 delimiter = "(" | ")" | "{" | "}" | "[" | "]" | "," | ";" ;
 ```
@@ -223,6 +224,8 @@ statement = assignment
           | if_statement
           | for_statement
           | while_statement
+          | loop_statement
+          | with_statement
           | try_catch_statement
           | expression_statement ;
 
@@ -257,10 +260,17 @@ if_statement = "if" expression block
                { "elif" expression block }
                [ "else" block ] ;
 
-for_statement = "for" IDENTIFIER [ "," IDENTIFIER ] "in" expression block
+for_statement = "for" for_target [ "," IDENTIFIER ] "in" expression
+                [ "when" expression ] block
                 [ "else" block ] ;
 
+for_target = IDENTIFIER | array_pattern | object_pattern ;
+
 while_statement = "while" expression block ;
+
+loop_statement = [ IDENTIFIER ":" ] "loop" block ;
+
+with_statement = "with" expression "as" IDENTIFIER block ;
 
 try_catch_statement = "try" "{" { statement } "}"
                       "catch" [ IDENTIFIER ] "{" { statement } "}" ;
@@ -287,7 +297,8 @@ logical_and    = logical_not { ( "and" | "&&" ) logical_not } ;
 
 logical_not    = ( "not" | "!" ) logical_not | comparison ;
 
-comparison     = membership { ( "<" | "<=" | ">" | ">=" | "==" | "!=" ) membership } ;
+comparison     = membership { ( "<" | "<=" | ">" | ">=" | "==" | "!=" ) membership }
+               | membership ( "is" | "is" "not" ) IDENTIFIER ;
 
 membership     = range_expr { ( "in" | "not" "in" ) range_expr } ;
 

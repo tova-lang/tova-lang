@@ -31,6 +31,65 @@ pattern = 'no {interpolation} here'   // literal: no {interpolation} here
 regex = '\d+\.\d+'
 ```
 
+### Triple-Quoted Strings (Multiline)
+
+Triple-quoted strings `"""..."""` span multiple lines and support interpolation. Indentation is auto-dedented based on the closing `"""`:
+
+```tova
+message = """
+  Hello, {name}!
+  Welcome to Tova.
+  Today is {date}.
+  """
+// Leading whitespace is stripped based on closing """ indentation
+```
+
+Triple-quoted strings are ideal for multi-line text blocks, templates, and embedded content.
+
+### Raw Strings
+
+Prefix a string with `r` to disable escape sequence processing:
+
+```tova
+path = r"C:\Users\Alice\Documents"     // backslashes are literal
+regex_str = r"\d+\.\d+"               // no need to double-escape
+```
+
+Raw strings are useful for file paths, regex patterns, and any text where backslashes should remain literal.
+
+### F-Strings
+
+Prefix a string with `f` to explicitly mark it as interpolated:
+
+```tova
+name = "Alice"
+greeting = f"Hello, {name}!"    // "Hello, Alice!"
+```
+
+F-strings are semantically identical to regular double-quoted strings. The `f` prefix is optional and serves as a visual marker that interpolation is used.
+
+### Regex Literals
+
+Tova supports regex literals using `/pattern/flags` syntax:
+
+```tova
+pattern = /\d+/g
+email_re = /^[\w.]+@[\w.]+\.\w+$/i
+
+// Available flags: g (global), i (case-insensitive), m (multiline),
+//                  s (dotAll), u (unicode), y (sticky)
+```
+
+Regex literals compile to JavaScript `RegExp` objects and work with the [regex stdlib functions](../stdlib/regex.md):
+
+```tova
+if regex_test("hello123", /\d+/) {
+  print("Contains digits")
+}
+
+matches = regex_find_all("a1b2c3", /\d/)
+```
+
 ### Escape Sequences
 
 Both string types support the following escape sequences:

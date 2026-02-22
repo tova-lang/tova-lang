@@ -111,6 +111,34 @@ fn test_validation() {
 
 ---
 
+## assert_snapshot
+
+```tova
+assert_snapshot(value, name?) -> Nil
+```
+
+Compares a value against a previously stored snapshot. On first run, creates the snapshot. On subsequent runs, asserts the value matches the stored snapshot. The optional `name` parameter provides a label for the snapshot file.
+
+```tova
+test "user serialization" {
+  user = User(1, "Alice", "alice@example.com")
+  assert_snapshot(user.to_json())
+}
+
+test "rendering output" {
+  html = render(Greeting("World"))
+  assert_snapshot(html, "greeting-output")
+}
+```
+
+To update snapshots when output intentionally changes:
+
+```bash
+tova test --update-snapshots
+```
+
+---
+
 ## Usage in Tests
 
 Assertions are the primary tool for writing Tova tests. Tova test files use `fn test_*()` naming conventions:

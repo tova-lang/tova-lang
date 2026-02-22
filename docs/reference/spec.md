@@ -37,15 +37,16 @@ Spaces (U+0020) and tabs (U+0009) are insignificant whitespace. They separate to
 The following identifiers are reserved as keywords and may not be used as variable or function names:
 
 ```
-and       as        async     await     break     catch
-client    component computed  continue  data      defer
-derive    effect    elif      else      export    extern
-false     finally   fn        for       from      guard
-if        impl      import    in        interface let
-match     nil       not       or        pipeline  pub
-refresh   return    route     server    shared    source
-state     store     trait     true      try       type
-validate  var       while     yield
+and       as        async     await     bench     break
+catch     client    component computed  continue  data
+defer     derive    effect    elif      else      export
+extern    false     finally   fn        for       from
+guard     if        impl      import    in        interface
+is        let       loop      match     nil       not
+or        pipeline  pub       refresh   return    route
+server    shared    source    state     store     test
+trait     true      try       type      validate  var
+when      while     with      yield
 ```
 
 The following identifiers are contextual keywords, reserved only within `server {}` blocks for route declarations:

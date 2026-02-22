@@ -559,3 +559,42 @@ fn find_by_name(users, name) {
   if result == null { None } else { Some(result) }
 }
 ```
+
+---
+
+## Collection Helpers
+
+### filter_ok
+
+```tova
+filter_ok(results) -> [T]
+```
+
+Filters an array of `Result` values, returning only the unwrapped `Ok` values and discarding any `Err` entries.
+
+```tova
+results = [Ok(1), Err("bad"), Ok(2), Err("fail"), Ok(3)]
+filter_ok(results)    // [1, 2, 3]
+```
+
+### filter_err
+
+```tova
+filter_err(results) -> [E]
+```
+
+Filters an array of `Result` values, returning only the unwrapped `Err` values and discarding any `Ok` entries.
+
+```tova
+results = [Ok(1), Err("bad"), Ok(2), Err("fail"), Ok(3)]
+filter_err(results)    // ["bad", "fail"]
+```
+
+These are useful when processing batches of results:
+
+```tova
+results = urls |> map(fn(url) try_fn(fn() fetch(url)))
+successes = filter_ok(results)
+failures = filter_err(results)
+print("{len(successes)} succeeded, {len(failures)} failed")
+```

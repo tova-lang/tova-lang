@@ -219,6 +219,49 @@ type Handler = (Request) -> Response
 type Pair = (String, Int)
 ```
 
+## Union Types
+
+Define a type that can be one of several other types:
+
+```tova
+type StringOrInt = String | Int
+type Primitive = String | Int | Float | Bool
+```
+
+Union types are checked at compile time and work with type narrowing:
+
+```tova
+fn display(value: String | Int) {
+  if value is String {
+    print("String: {value}")
+  } elif value is Int {
+    print("Number: {value}")
+  }
+}
+```
+
+## Refinement Types
+
+Refine an existing type with validation predicates using `where`:
+
+```tova
+type Email = String where {
+  it |> contains("@")
+  it |> contains(".")
+}
+
+type PositiveInt = Int where {
+  it > 0
+}
+
+type Percentage = Float where {
+  it >= 0.0
+  it <= 100.0
+}
+```
+
+Each line in the `where` block is a predicate that must return `true`. The `it` keyword refers to the value being validated. Refinement types compile to runtime validator functions.
+
 ## Tuples
 
 Tova supports tuple types for grouping a fixed number of values:
@@ -233,6 +276,71 @@ Access elements by position:
 ```tova
 x = point.0    // 10
 y = point.1    // 20
+```
+
+Destructure tuples with `let`:
+
+```tova
+let (x, y) = point
+print(x)    // 10
+print(y)    // 20
+
+let (name, age) = ("Alice", 30)
+```
+
+## Runtime Type Checking
+
+The `is` operator tests whether a value is of a given type at runtime. Use `is not` for the negated form:
+
+```tova
+value = "hello"
+value is String       // true
+value is Int          // false
+value is not Nil      // true
+```
+
+### With ADT Variants
+
+`is` works with custom type variants:
+
+```tova
+result = Ok(42)
+result is Ok          // true
+result is Err         // false
+
+option = Some("data")
+option is Some        // true
+option is None        // false
+```
+
+### Supported Type Checks
+
+| Type | Checks for |
+|------|-----------|
+| `String` | String values |
+| `Int` | Integer numbers |
+| `Float` | Floating-point numbers |
+| `Number` | Any numeric value (Int or Float) |
+| `Bool` | Boolean values |
+| `Nil` | The `nil` value |
+| `Array` | Array values |
+| `Function` | Function values |
+| *VariantName* | Any custom ADT variant (e.g., `Ok`, `Some`, `Circle`) |
+
+### Type Narrowing
+
+The compiler narrows the type of a variable after an `is` check:
+
+```tova
+fn process(value) {
+  if value is String {
+    // value is known to be a String here
+    print(value.upper())
+  } elif value is Int {
+    // value is known to be an Int here
+    print(value * 2)
+  }
+}
 ```
 
 ## Type.new() for JavaScript Constructors

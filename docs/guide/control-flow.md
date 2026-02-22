@@ -85,6 +85,24 @@ for i, fruit in fruits {
 // 2: cherry
 ```
 
+### Destructuring in For Loops
+
+You can destructure array and object elements directly in the loop variable:
+
+```tova
+points = [[1, 2], [3, 4], [5, 6]]
+for [x, y] in points {
+  print("x={x}, y={y}")
+}
+```
+
+```tova
+users = [{ name: "Alice", age: 30 }, { name: "Bob", age: 25 }]
+for { name, age } in users {
+  print("{name} is {age}")
+}
+```
+
 ### Over Ranges
 
 Use `range()` to iterate over a sequence of numbers:
@@ -119,6 +137,83 @@ for item in items {
 ```
 
 This is a clean alternative to using a flag variable.
+
+### When Guard
+
+Add a `when` clause to filter elements before the loop body executes:
+
+```tova
+for user in users when user.active {
+  send_notification(user)
+}
+```
+
+This is equivalent to wrapping the body in an `if`, but more concise:
+
+```tova
+// Equivalent without when
+for user in users {
+  if user.active {
+    send_notification(user)
+  }
+}
+```
+
+The `when` guard works with any boolean expression:
+
+```tova
+for n in range(100) when n % 3 == 0 and n % 5 == 0 {
+  print("{n} is divisible by both 3 and 5")
+}
+```
+
+## Loop (Infinite Loop)
+
+The `loop` keyword creates an infinite loop that runs until explicitly terminated with `break`:
+
+```tova
+var attempts = 0
+loop {
+  result = try_connect()
+  if result.isOk() {
+    print("Connected!")
+    break
+  }
+  attempts += 1
+  if attempts > 5 {
+    print("Failed after 5 attempts")
+    break
+  }
+}
+```
+
+`loop` is useful for polling, event loops, and retry patterns where the exit condition is complex:
+
+```tova
+// Event loop
+loop {
+  event = poll_event()
+  match event {
+    Quit => break
+    KeyPress(key) => handle_key(key)
+    _ => {}
+  }
+}
+```
+
+Labeled loops work with `loop` for nested loop control:
+
+```tova
+outer: loop {
+  data = fetch_batch()
+  for item in data {
+    if item.is_done() {
+      break outer
+    }
+    process(item)
+  }
+}
+```
 
 ## While Loops
 
@@ -282,6 +377,34 @@ fn setup() {
   // 2. db.close() runs second
 }
 ```
+
+## With (Resource Management)
+
+The `with` statement binds a resource to a name and ensures cleanup when the block exits. It compiles to a try/finally pattern:
+
+```tova
+with open("data.txt") as file {
+  content = file.read()
+  process(content)
+}
+// file is automatically cleaned up here
+```
+
+This is similar to `defer` but scoped to a specific resource:
+
+```tova
+// with statement (preferred for single resources)
+with acquire_lock(resource) as lock {
+  modify(resource)
+}
+
+// Equivalent using defer
+lock = acquire_lock(resource)
+defer release(lock)
+modify(resource)
+```
+
+Use `with` when you have a clear open/close resource pattern. Use `defer` when you need more flexible cleanup scheduling.
 
 ## Try / Catch / Finally
 

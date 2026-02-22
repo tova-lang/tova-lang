@@ -2,6 +2,16 @@
 
 This page documents the lexical elements of the Tova programming language -- the fundamental building blocks from which all programs are composed.
 
+## Shebang
+
+Tova source files may begin with a shebang line for use as executable scripts. The shebang is ignored by the compiler:
+
+```tova
+#!/usr/bin/env tova
+
+print("Hello from a Tova script!")
+```
+
 ## Comments
 
 Tova supports three styles of comments:
@@ -25,6 +35,27 @@ Block comments are **nestable**. The following is valid:
 ```
 
 Line comments (`//`) and docstring comments (`///`) extend to the end of the line. Block comments (`/* ... */`) can span any number of lines and can be nested to any depth, making them useful for temporarily disabling large sections of code.
+
+### Docstrings
+
+Docstring comments (`///`) are preserved in the AST and attach to the following declaration. They provide documentation metadata used by tooling (LSP hover info, generated docs):
+
+```tova
+/// Calculates the distance between two points.
+/// Returns the Euclidean distance as a Float.
+fn distance(a: Point, b: Point) -> Float {
+  sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+}
+
+/// A user in the system.
+type User {
+  id: Int
+  name: String
+  email: String
+}
+```
+
+Multiple consecutive `///` lines are combined into a single docstring.
 
 ## Identifiers
 
@@ -144,6 +175,45 @@ escaped = "She said \"hello\""
 path = "C:\\Users\\name"
 literal_brace = "Use \{curly braces\} literally"
 ```
+
+### Triple-Quoted Strings
+
+Triple-quoted strings `"""..."""` span multiple lines and support interpolation. Indentation is automatically dedented based on the position of the closing `"""`:
+
+```tova
+message = """
+  Hello, {name}!
+  Welcome to Tova.
+  """
+```
+
+### Raw Strings
+
+Prefix a string with `r` to disable escape sequence processing. Backslashes are treated as literal characters:
+
+```tova
+path = r"C:\Users\Alice\Documents"
+regex_str = r"\d+\.\d+"
+```
+
+### F-Strings
+
+The `f` prefix explicitly marks a string as interpolated. Semantically identical to a regular double-quoted string:
+
+```tova
+greeting = f"Hello, {name}!"
+```
+
+### Regex Literals
+
+Regex literals use `/pattern/flags` syntax and compile to JavaScript `RegExp` objects:
+
+```tova
+digits = /\d+/g
+email_re = /^[\w.]+@[\w.]+\.\w+$/i
+```
+
+Available flags: `g` (global), `i` (case-insensitive), `m` (multiline), `s` (dotAll), `u` (unicode), `y` (sticky).
 
 ## Boolean Literals
 
