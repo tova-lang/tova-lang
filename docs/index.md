@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Tova
-  text: A Modern Full-Stack Language
-  tagline: Write frontend and backend in one file. Transpiles to JavaScript with zero runtime overhead.
+  text: A Modern Programming Language
+  tagline: Clean syntax, powerful types, and batteries included. Write scripts, CLI tools, data pipelines, AI apps, and full-stack web — all in one language.
   actions:
     - theme: brand
       text: Get Started
@@ -14,65 +14,80 @@ hero:
       link: https://github.com/tovalang/tova
 
 features:
-  - title: Full-Stack in One File
-    details: Write server routes, database queries, and reactive UI in a single .tova file. The compiler splits code automatically.
-  - title: Automatic RPC
-    details: Call server functions from the client as if they were local. Tova generates the HTTP bridge at compile time.
-  - title: Fine-Grained Reactivity
-    details: Signals-based UI with automatic dependency tracking. No virtual DOM — only the exact DOM nodes that need updating change.
-  - title: Pattern Matching
-    details: Exhaustive match expressions with destructuring, ranges, guards, and string patterns. The compiler warns on missing cases.
+  - title: Clean, Expressive Syntax
+    details: Readable, concise, and safe by default. Pipe operators, pattern matching, implicit returns, and no semicolons needed.
   - title: Batteries Included
-    details: 60+ stdlib functions, Result/Option types, built-in test runner, formatter, REPL, LSP server, and VS Code extension.
-  - title: Clean Syntax
-    details: Python-like readability with Rust-like safety. No semicolons needed, implicit returns, and expressive type system.
+    details: 60+ stdlib functions, Result/Option types, Tables/DataFrames, file I/O, built-in test runner, REPL, LSP server, and VS Code extension.
+  - title: AI Built In
+    details: Multi-provider AI support (Anthropic, OpenAI, Ollama). ask, chat, embed, extract, and classify — all as language-level operations.
+  - title: Pattern Matching & Types
+    details: Algebraic data types, generics, interfaces, and exhaustive match with destructuring, ranges, guards, and string patterns.
+  - title: Scripting & Data
+    details: CSV/JSON/JSONL/TSV I/O, file system ops, shell execution, and Tables for data pipelines. Great for scripts and CLI tools.
+  - title: Full-Stack Web
+    details: Server + client in one file, automatic RPC, fine-grained reactivity, JSX components, and zero-config dev server.
 ---
 
 <div style="max-width: 688px; margin: 2rem auto; padding: 0 24px;">
 
 ## Quick Taste
 
-```tova
-// A full-stack counter in one file
+### Script
 
+```tova
+// Read a CSV file, transform it, and write the result
+data = read("sales.csv")
+  |> filter(fn(row) row.revenue > 1000)
+  |> sort_by(.region)
+  |> group_by(.region, fn(rows) {
+    { total: sum_by(rows, .revenue), count: len(rows) }
+  })
+
+write(data, "summary.json")
+print("Wrote {len(data)} regions")
+```
+
+### CLI Tool
+
+```tova
+// A command-line tool with pattern-matched subcommands
+match args() {
+  ["add", name]       => add_task(name)
+  ["done", id]        => complete_task(to_int(id))
+  ["list"]            => list_tasks() |> each(fn(t) print(t))
+  ["list", "--done"]  => list_tasks() |> filter(.done) |> each(fn(t) print(t))
+  _                   => print("Usage: tasks <add|done|list>")
+}
+```
+
+### Full-Stack Web
+
+```tova
 shared {
-  type Action = Increment | Decrement | Reset
+  type Todo { id: Int, text: String, done: Bool }
 }
 
 server {
-  var count = 0
-
-  route GET "/count" {
-    respond({ count: count })
-  }
-
-  route POST "/update" {
-    match body.action {
-      Increment => count += 1
-      Decrement => count -= 1
-      Reset => count = 0
-    }
-    respond({ count: count })
+  var todos = []
+  fn all_todos() -> [Todo] { todos }
+  fn add_todo(text: String) -> Todo {
+    t = Todo(len(todos) + 1, text, false)
+    todos = [...todos, t]
+    t
   }
 }
 
 client {
-  state count = 0
+  state todos = []
+  state draft = ""
 
-  fn update(action) {
-    result = await fetch("/update", {
-      method: "POST",
-      body: { action: action }
-    })
-    count = result.count
-  }
+  effect { todos = server.all_todos() }
 
   component App() {
     <div>
-      <h1>"Count: {count}"</h1>
-      <button onClick={fn() update(Increment)}>"+"</button>
-      <button onClick={fn() update(Decrement)}>"-"</button>
-      <button onClick={fn() update(Reset)}>"Reset"</button>
+      <input value={draft} on:input={fn(e) draft = e.target.value} />
+      <button on:click={fn() { server.add_todo(draft); draft = ""; todos = server.all_todos() }}>"Add"</button>
+      <ul>for t in todos { <li>"{t.text}"</li> }</ul>
     </div>
   }
 }

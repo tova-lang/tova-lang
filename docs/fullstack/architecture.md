@@ -1,6 +1,8 @@
-# Architecture Overview
+# Full-Stack Architecture Overview
 
-Tova is a full-stack language where a single `.tova` file contains everything needed for both the server and the client. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
+Tova is a general-purpose language that transpiles to JavaScript. You can use it for scripting, CLI tools, data pipelines, and AI-powered applications with no server or client blocks at all. See the [I/O guide](/guide/io), [Tables & Data guide](/guide/data), and [CLI Tool example](/examples/cli-tool) for non-web usage.
+
+When you need a web application, Tova's full-stack architecture lets you write server and client code in a single `.tova` file. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
 
 ## The Four-Block Model
 

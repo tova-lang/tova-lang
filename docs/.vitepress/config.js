@@ -17,7 +17,7 @@ try {
 
 export default defineConfig({
   title: 'Tova',
-  description: 'A modern full-stack language that transpiles to JavaScript',
+  description: 'A modern programming language for scripting, data, AI, and full-stack web',
   base: '/tova-lang/',
   head: [
     ['link', { rel: 'icon', href: '/tova-lang/favicon.ico' }],
@@ -31,10 +31,10 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started/' },
       { text: 'Tutorial', link: '/tutorial' },
       { text: 'Reference', link: '/reference/syntax' },
-      { text: 'Full-Stack', link: '/fullstack/architecture' },
       { text: 'Stdlib', link: '/stdlib/' },
-      { text: 'Tooling', link: '/tooling/cli' },
       { text: 'Examples', link: '/examples/' },
+      { text: 'Tooling', link: '/tooling/cli' },
+      { text: 'Full-Stack', link: '/fullstack/architecture' },
       { text: 'Architecture', link: '/architecture/patterns' },
       { text: 'Playground', link: '/playground' },
     ],
@@ -210,16 +210,13 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/examples/' },
             { text: 'Hello World', link: '/examples/hello-world' },
-            { text: 'Counter App', link: '/examples/counter' },
           ],
         },
         {
-          text: 'Full-Stack Applications',
+          text: 'Scripting & CLI',
           items: [
-            { text: 'Todo App', link: '/examples/todo-app' },
-            { text: 'Tasks App', link: '/examples/tasks-app' },
-            { text: 'Chat App', link: '/examples/chat' },
-            { text: 'E-Commerce Store', link: '/examples/e-commerce' },
+            { text: 'CLI Tool', link: '/examples/cli-tool' },
+            { text: 'Task Queue', link: '/examples/task-queue' },
           ],
         },
         {
@@ -232,6 +229,22 @@ export default defineConfig({
           ],
         },
         {
+          text: 'Language Deep Dives',
+          items: [
+            { text: 'Type-Driven Design', link: '/examples/type-driven' },
+          ],
+        },
+        {
+          text: 'Full-Stack Applications',
+          items: [
+            { text: 'Counter App', link: '/examples/counter' },
+            { text: 'Todo App', link: '/examples/todo-app' },
+            { text: 'Tasks App', link: '/examples/tasks-app' },
+            { text: 'Chat App', link: '/examples/chat' },
+            { text: 'E-Commerce Store', link: '/examples/e-commerce' },
+          ],
+        },
+        {
           text: 'Server Patterns',
           items: [
             { text: 'Multi-Server', link: '/examples/multi-server' },
@@ -240,19 +253,6 @@ export default defineConfig({
             { text: 'API Gateway', link: '/examples/api-gateway' },
             { text: 'Monitoring Service', link: '/examples/monitoring-service' },
             { text: 'Real-Time Dashboard', link: '/examples/real-time-dashboard' },
-          ],
-        },
-        {
-          text: 'Scripting',
-          items: [
-            { text: 'CLI Tool', link: '/examples/cli-tool' },
-            { text: 'Task Queue', link: '/examples/task-queue' },
-          ],
-        },
-        {
-          text: 'Language Deep Dives',
-          items: [
-            { text: 'Type-Driven Design', link: '/examples/type-driven' },
           ],
         },
         {

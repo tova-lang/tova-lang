@@ -104,7 +104,7 @@ print("Result: {result}")`
 
 # Tour of Tova
 
-This is a fast-paced tour of the Tova language. Each section introduces a concept with a short code example. By the end, you will have seen every major feature.
+This is a fast-paced tour of the Tova language. Tova is a general-purpose language -- you can use it for scripting, CLI tools, data processing, AI integration, and full-stack web development. Each section introduces a concept with a short code example. By the end, you will have seen every major feature.
 
 ## 1. Variables
 
@@ -394,9 +394,9 @@ import { z } from "zod"
 import dayjs from "dayjs"
 ```
 
-## 10. Full-Stack
+## 10. Full-Stack Web (Optional)
 
-Tova's defining feature is the three-block model. A single `.tova` file can contain `shared`, `server`, and `client` blocks:
+Everything from sections 1-9 works standalone with `tova run my_script.tova` -- no server or client blocks needed. When you want to build a web application, Tova's three-block model lets you write server and client code in a single `.tova` file:
 
 ```tova
 shared {
@@ -465,6 +465,10 @@ Key concepts:
 - **`effect`** -- side effect that runs when its dependencies change.
 - **`component`** -- a reactive UI component that renders JSX.
 
+::: tip Not building for the web?
+Everything from lessons 1-9 works standalone with `tova run my_script.tova`. No server or client blocks needed. See the [I/O guide](/guide/io) and [CLI Tool example](/examples/cli-tool).
+:::
+
 ## 11. Async
 
 Tova supports `async` and `await` as first-class keywords:
@@ -522,5 +526,8 @@ That covers the core of Tova. For deeper dives into each topic, continue to the 
 - [Error Handling](/guide/error-handling)
 - [Pipes](/guide/pipes)
 - [Modules](/guide/modules)
+- [Tables & Data](/guide/data)
+- [I/O](/guide/io)
+- [AI Integration](/guide/ai)
 - [Async](/guide/async)
 - [Full-Stack Architecture](/fullstack/architecture)

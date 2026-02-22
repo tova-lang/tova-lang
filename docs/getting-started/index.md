@@ -61,7 +61,20 @@ tova new my-app
 cd my-app
 ```
 
-This generates a ready-to-run project with the following structure:
+## Run a Script
+
+You do not need a project to use Tova. Create any `.tova` file and run it directly:
+
+```bash
+echo 'print("Hello from Tova!")' > hello.tova
+tova run hello.tova
+```
+
+This is the simplest way to get started -- a single file, no project scaffold, no configuration. Perfect for scripts, utilities, and quick experiments.
+
+## Project Structure
+
+`tova new` generates a ready-to-run project with the following structure:
 
 ```
 my-app/
@@ -72,7 +85,7 @@ my-app/
 └── README.md
 ```
 
-The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The `src/app.tova` file is where you write your application. A single `.tova` file can contain `shared`, `server`, and `client` blocks -- the compiler splits them automatically.
+The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The `src/app.tova` file is where you write your application. You can write plain Tova scripts here, or use `shared`, `server`, and `client` blocks for full-stack web applications -- the compiler splits them automatically.
 
 ## Install Dependencies
 
@@ -89,9 +102,9 @@ tova add htmx
 tova add prettier --dev
 ```
 
-## Run the Dev Server
+## Run the Dev Server (Web Projects)
 
-Start the development server with hot reloading:
+If your project uses `server` and `client` blocks, start the development server with hot reloading:
 
 ```bash
 tova dev

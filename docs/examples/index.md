@@ -4,23 +4,17 @@ title: Examples
 
 # Examples
 
-Learn Tova through practical, annotated examples that progressively introduce language features.
+Learn Tova through practical, annotated examples. Whether you are writing scripts, building CLI tools, processing data, integrating AI, or creating full-stack web applications, these examples show idiomatic Tova for every use case.
 
 ## Getting Started
 
 - **[Hello World](./hello-world.md)** -- Your first Tova program. Covers `print`, string interpolation, functions, and running with `tova run`.
 
-- **[Counter App](./counter.md)** -- A client-side reactive counter. Introduces `state`, `computed`, `match` expressions, and JSX components.
+## Scripting & CLI
 
-## Full-Stack Applications
+- **[CLI Tool](./cli-tool.md)** -- Command-line utilities: argument parsing with pattern matching, pipe-based data transformation, Result/Option error handling, and file I/O.
 
-- **[Todo App](./todo-app.md)** -- A complete full-stack CRUD application. Covers shared types, server routes, RPC, client reactivity, effects, and component composition.
-
-- **[Tasks App](./tasks-app.md)** -- A task management app with SQLite persistence, TailwindCSS styling, priority levels, filtering, and search. Demonstrates the ORM, computed values, match-based filtering, and form state management.
-
-- **[Chat App](./chat.md)** -- Real-time messaging with Server-Sent Events. Demonstrates SSE endpoints, streaming data to clients, and reactive message lists.
-
-- **[E-Commerce Store](./e-commerce.md)** -- A full e-commerce app with product browsing, cart, checkout, and orders. Demonstrates client stores, inventory guards, reactive computed values, and match-based routing.
+- **[Task Queue](./task-queue.md)** -- Async patterns and error resilience: retry logic, parallel processing with error isolation, defer for cleanup, and concurrency-limited task queues.
 
 ## Data & AI
 
@@ -31,6 +25,22 @@ Learn Tova through practical, annotated examples that progressively introduce la
 - **[AI Assistant](./ai-assistant.md)** -- An AI-powered assistant with tool use, structured extraction, semantic search, and classification. Demonstrates multiple AI providers and conversation management.
 
 - **[Content Platform](./content-platform.md)** -- AI-enhanced content management with classification, extraction, and summarization. Demonstrates multi-model strategy, data pipeline enrichment, and refresh policies.
+
+## Language Deep Dives
+
+- **[Type-Driven Design](./type-driven.md)** -- Refinement types, algebraic data types, generics, exhaustive pattern matching, Result/Option chaining, and a complete form validation system.
+
+## Full-Stack Applications
+
+- **[Counter App](./counter.md)** -- A client-side reactive counter. Introduces `state`, `computed`, `match` expressions, and JSX components.
+
+- **[Todo App](./todo-app.md)** -- A complete full-stack CRUD application. Covers shared types, server routes, RPC, client reactivity, effects, and component composition.
+
+- **[Tasks App](./tasks-app.md)** -- A task management app with SQLite persistence, TailwindCSS styling, priority levels, filtering, and search. Demonstrates the ORM, computed values, match-based filtering, and form state management.
+
+- **[Chat App](./chat.md)** -- Real-time messaging with Server-Sent Events. Demonstrates SSE endpoints, streaming data to clients, and reactive message lists.
+
+- **[E-Commerce Store](./e-commerce.md)** -- A full e-commerce app with product browsing, cart, checkout, and orders. Demonstrates client stores, inventory guards, reactive computed values, and match-based routing.
 
 ## Server Patterns
 
@@ -46,12 +56,6 @@ Learn Tova through practical, annotated examples that progressively introduce la
 
 - **[Real-Time Dashboard](./real-time-dashboard.md)** -- Live streaming dashboard with WebSocket metrics, SSE alerts, rolling-window aggregation, and reactive stores.
 
-## Scripting
+## Cookbook
 
-- **[CLI Tool](./cli-tool.md)** -- Command-line utilities: argument parsing with pattern matching, pipe-based data transformation, Result/Option error handling, and file I/O.
-
-- **[Task Queue](./task-queue.md)** -- Async patterns and error resilience: retry logic, parallel processing with error isolation, defer for cleanup, and concurrency-limited task queues.
-
-## Language Deep Dives
-
-- **[Type-Driven Design](./type-driven.md)** -- Refinement types, algebraic data types, generics, exhaustive pattern matching, Result/Option chaining, and a complete form validation system.
+- **[Recipes](./cookbook.md)** -- Short, focused examples for common tasks: string manipulation, file operations, HTTP requests, and more.
