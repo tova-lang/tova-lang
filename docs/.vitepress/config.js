@@ -139,6 +139,8 @@ export default defineConfig({
             { text: 'Effects', link: '/reactivity/effects' },
             { text: 'Components', link: '/reactivity/components' },
             { text: 'JSX', link: '/reactivity/jsx' },
+            { text: 'Directives', link: '/reactivity/directives' },
+            { text: 'Transitions', link: '/reactivity/transitions' },
             { text: 'Stores', link: '/reactivity/stores' },
             { text: 'Lifecycle', link: '/reactivity/lifecycle' },
             { text: 'Advanced', link: '/reactivity/advanced' },

@@ -1312,3 +1312,33 @@ describe('Base — Scope tracking', () => {
     expect(matches).toHaveLength(2);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 4: Scoped Slots + Computed Prop Memoization
+// ═══════════════════════════════════════════════════════════════
+
+describe('Client — <slot> generates children access', () => {
+  test('default slot generates __props.children', () => {
+    const code = genClient('client {\n  component Card {\n    <div>\n      <slot />\n    </div>\n  }\n}');
+    expect(code).toContain('__props.children');
+  });
+
+  test('named slot generates __props.slotName', () => {
+    const code = genClient('client {\n  component Layout {\n    <div>\n      <slot name="header" />\n    </div>\n  }\n}');
+    expect(code).toContain('__props.header');
+  });
+});
+
+describe('Client — Computed prop memoization', () => {
+  test('simple signal read does not get memoized', () => {
+    const code = genClient('client {\n  component App {\n    state x = 1\n    <Child val={x} />\n  }\n  component Child(val) {\n    <p>{val}</p>\n  }\n}');
+    // Simple signal: get val() { return x(); } — no createComputed
+    expect(code).not.toContain('__memo_');
+  });
+
+  test('complex expression gets memoized with createComputed', () => {
+    const code = genClient('client {\n  component App {\n    state x = 1\n    state y = 2\n    <Child val={x + y} />\n  }\n  component Child(val) {\n    <p>{val}</p>\n  }\n}');
+    expect(code).toContain('__memo_val');
+    expect(code).toContain('createComputed');
+  });
+});

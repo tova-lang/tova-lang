@@ -179,7 +179,7 @@ export class ClientCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy } from './runtime/reactivity.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, onBeforeUpdate, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy, Suspense, __tova_action } from './runtime/reactivity.js';`);
     lines.push(`import { rpc } from './runtime/rpc.js';`);
 
     // Hoist import lines from shared code to the top of the module
@@ -395,25 +395,118 @@ export class ClientCodegen extends BaseCodegen {
   }
 
   // Scope CSS selectors by appending [data-tova-HASH] to each selector
+  // Uses a lightweight tokenizer to properly handle:
+  // - @media, @keyframes, @layer blocks (don't scope their content selectors)
+  // - :is(), :where(), :has() pseudo-functions
+  // - :global() escape hatch (strip wrapper, don't scope)
+  // - CSS comments /* */
+  // - Nested CSS
+  // - Multiple rules in sequence
   _scopeCSS(css, scopeAttr) {
-    return css.replace(/([^{}@/]+)\{/g, (match, selectorGroup) => {
-      const selectors = selectorGroup.split(',').map(s => {
-        s = s.trim();
-        if (!s || s.startsWith('@') || s === 'from' || s === 'to' || /^\d+%$/.test(s)) return s;
-        // Handle pseudo-elements (::before, ::after)
-        const pseudoElMatch = s.match(/(::[\w-]+)$/);
-        if (pseudoElMatch) {
-          return s.slice(0, -pseudoElMatch[0].length) + scopeAttr + pseudoElMatch[0];
+    const result = [];
+    let i = 0;
+    let depth = 0;
+    let buf = '';
+    const noScopeDepths = new Set(); // Depths where we DON'T scope (property decls, @keyframes, @font-face)
+
+    while (i < css.length) {
+      // Skip CSS comments
+      if (css[i] === '/' && css[i + 1] === '*') {
+        const end = css.indexOf('*/', i + 2);
+        if (end === -1) { buf += css.slice(i); break; }
+        buf += css.slice(i, end + 2);
+        i = end + 2;
+        continue;
+      }
+
+      // Skip quoted strings
+      if (css[i] === '"' || css[i] === "'") {
+        const q = css[i];
+        buf += css[i++];
+        while (i < css.length && css[i] !== q) {
+          if (css[i] === '\\') buf += css[i++];
+          buf += css[i++];
         }
-        // Handle pseudo-classes (:hover, :focus, etc.)
-        const pseudoClsMatch = s.match(/(:[\w-]+(?:\([^)]*\))?)$/);
-        if (pseudoClsMatch) {
-          return s.slice(0, -pseudoClsMatch[0].length) + scopeAttr + pseudoClsMatch[0];
+        if (i < css.length) buf += css[i++];
+        continue;
+      }
+
+      // Opening brace — process accumulated buf as selector or pass through
+      if (css[i] === '{') {
+        const trimmed = buf.trim();
+
+        if (noScopeDepths.has(depth)) {
+          // Inside a no-scope context (property declarations, @keyframes) — pass through
+          result.push(buf + '{');
+        } else if (trimmed.startsWith('@')) {
+          // @keyframes, @font-face: mark inner as no-scope
+          if (/^@keyframes\s/.test(trimmed) || /^@font-face/.test(trimmed)) {
+            noScopeDepths.add(depth + 1);
+          }
+          // @media, @supports, @layer: keep scoping inside (don't mark)
+          result.push(buf + '{');
+        } else {
+          // Regular selector — scope it and mark inner depth as no-scope (property declarations)
+          const scopedSelectors = buf.split(',').map(s => {
+            s = s.trim();
+            if (!s || s === 'from' || s === 'to' || /^\d+%$/.test(s)) return s;
+            return this._scopeSelector(s, scopeAttr);
+          }).join(', ');
+          result.push(scopedSelectors + '{');
+          noScopeDepths.add(depth + 1);
         }
-        return s + scopeAttr;
-      }).join(', ');
-      return selectors + ' {';
-    });
+
+        depth++;
+        buf = '';
+        i++;
+        continue;
+      }
+
+      // Closing brace
+      if (css[i] === '}') {
+        result.push(buf + '}');
+        buf = '';
+        noScopeDepths.delete(depth);
+        depth--;
+        i++;
+        continue;
+      }
+
+      // Accumulate character
+      buf += css[i];
+      i++;
+    }
+
+    if (buf) result.push(buf);
+    return result.join('');
+  }
+
+  // Scope a single CSS selector
+  _scopeSelector(selector, scopeAttr) {
+    let s = selector.trim();
+
+    // :global() escape hatch — strip wrapper, don't scope
+    if (s.startsWith(':global(') && s.endsWith(')')) {
+      return s.slice(8, -1);
+    }
+    // Inline :global() in the middle of a selector
+    s = s.replace(/:global\(([^)]+)\)/g, '$1');
+
+    // Handle pseudo-elements (::before, ::after, ::placeholder, etc.)
+    const pseudoElMatch = s.match(/(::[\w-]+(?:\([^)]*\))?)$/);
+    if (pseudoElMatch) {
+      return s.slice(0, -pseudoElMatch[0].length) + scopeAttr + pseudoElMatch[0];
+    }
+    // Handle pseudo-classes with functions (:is(), :where(), :has(), :not(), :hover, etc.)
+    const pseudoClsMatch = s.match(/((?::[\w-]+(?:\([^)]*\))?)+)$/);
+    if (pseudoClsMatch) {
+      const pseudoPart = pseudoClsMatch[0];
+      const basePart = s.slice(0, -pseudoPart.length);
+      if (basePart.trim()) {
+        return basePart + scopeAttr + pseudoPart;
+      }
+    }
+    return s + scopeAttr;
   }
 
   generateComponent(comp) {
@@ -649,6 +742,30 @@ export class ClientCodegen extends BaseCodegen {
   }
 
   genJSXElement(node) {
+    // <slot /> or <slot name="header" /> — render children passed from parent
+    if (node.tag === 'slot') {
+      const nameAttr = node.attributes.find(a => a.name === 'name');
+      const slotProps = node.attributes.filter(a => a.name !== 'name');
+
+      if (nameAttr && nameAttr.value.type === 'StringLiteral') {
+        // Named slot: <slot name="header" />
+        const slotName = nameAttr.value.value;
+        return `(__props.${slotName} || '')`;
+      }
+
+      if (slotProps.length > 0) {
+        // Scoped slot: <slot count={count()} /> — pass props to render function
+        const propParts = slotProps.map(a => {
+          const val = this.genExpression(a.value);
+          return `${a.name}: ${val}`;
+        });
+        return `(typeof __props.children === 'function' ? __props.children({${propParts.join(', ')}}) : (__props.children || ''))`;
+      }
+
+      // Default slot: <slot />
+      return `(__props.children || '')`;
+    }
+
     const isComponent = node.tag[0] === node.tag[0].toUpperCase() && /^[A-Z]/.test(node.tag);
 
     // Attributes
@@ -728,16 +845,82 @@ export class ClientCodegen extends BaseCodegen {
         // Conditional class: class:active={cond}
         const className = attr.name.slice(6);
         classDirectives.push({ className, condition: this.genExpression(attr.value), node: attr.value });
+      } else if (attr.name.startsWith('use:')) {
+        // use:action directive: use:tooltip={params}
+        const actionName = attr.name.slice(4);
+        const param = attr.value.type === 'BooleanLiteral' ? 'undefined' : this.genExpression(attr.value);
+        const reactive = attr.value.type !== 'BooleanLiteral' && this._exprReadsSignal(attr.value);
+        if (!node._actions) node._actions = [];
+        node._actions.push({ name: actionName, param, reactive });
+      } else if (attr.name.startsWith('in:')) {
+        // in:fade — enter-only transition
+        const transName = attr.name.slice(3);
+        const config = attr.value.type === 'BooleanLiteral' ? '{}' : this.genExpression(attr.value);
+        node._inTransition = { name: transName, config };
+      } else if (attr.name.startsWith('out:')) {
+        // out:slide — leave-only transition
+        const transName = attr.name.slice(4);
+        const config = attr.value.type === 'BooleanLiteral' ? '{}' : this.genExpression(attr.value);
+        node._outTransition = { name: transName, config };
       } else if (attr.name.startsWith('transition:')) {
         // transition:fade, transition:slide={duration: 300}, etc.
         const transName = attr.name.slice(11); // 'fade', 'slide', 'scale', 'fly'
+        const builtins = new Set(['fade', 'slide', 'scale', 'fly']);
         const config = attr.value.type === 'BooleanLiteral' ? '{}' : this.genExpression(attr.value);
         // Store transition info for element wrapping
         if (!node._transitions) node._transitions = [];
-        node._transitions.push({ name: transName, config });
+        node._transitions.push({ name: transName, config, custom: !builtins.has(transName) });
+      } else if (attr.name === 'bind:this') {
+        // bind:this={ref} → ref: refValue (works with both ref objects and functions)
+        attrs.ref = this.genExpression(attr.value);
       } else if (attr.name.startsWith('on:')) {
-        const eventName = attr.name.slice(3);
-        events[eventName] = this.genExpression(attr.value);
+        const fullName = attr.name.slice(3); // e.g. "click.stop.prevent"
+        const parts = fullName.split('.');
+        const eventName = parts[0];
+        const modifiers = parts.slice(1);
+        let handler = this.genExpression(attr.value);
+
+        if (modifiers.length > 0) {
+          const guards = [];
+          let useCapture = false;
+          let useOnce = false;
+
+          // Key modifier map for keydown/keyup events
+          const keyMap = {
+            enter: '"Enter"', escape: '"Escape"', tab: '"Tab"', space: '" "',
+            up: '"ArrowUp"', down: '"ArrowDown"', left: '"ArrowLeft"', right: '"ArrowRight"',
+            delete: '"Delete"', backspace: '"Backspace"',
+          };
+
+          for (const mod of modifiers) {
+            if (mod === 'prevent') {
+              guards.push('e.preventDefault()');
+            } else if (mod === 'stop') {
+              guards.push('e.stopPropagation()');
+            } else if (mod === 'self') {
+              guards.push('if (e.target !== e.currentTarget) return');
+            } else if (mod === 'capture') {
+              useCapture = true;
+            } else if (mod === 'once') {
+              useOnce = true;
+            } else if (keyMap[mod]) {
+              guards.push(`if (e.key !== ${keyMap[mod]}) return`);
+            }
+          }
+
+          if (guards.length > 0) {
+            handler = `(e) => { ${guards.join('; ')}; (${handler})(e); }`;
+          }
+
+          if (useCapture || useOnce) {
+            const opts = [];
+            if (useCapture) opts.push('capture: true');
+            if (useOnce) opts.push('once: true');
+            handler = `{ handler: ${handler}, options: { ${opts.join(', ')} } }`;
+          }
+        }
+
+        events[eventName] = handler;
       } else {
         const attrName = attr.name === 'class' ? 'className' : attr.name;
         const expr = this.genExpression(attr.value);
@@ -784,12 +967,22 @@ export class ClientCodegen extends BaseCodegen {
     }
 
     const propParts = [];
+    const memoizedProps = []; // Computed memoization for complex expressions
     for (const [key, val] of Object.entries(attrs)) {
       // For component props, convert reactive () => wrappers to JS getter syntax
       // so the prop stays reactive through the __props access pattern
       if (isComponent && spreads.length === 0 && typeof val === 'string' && val.startsWith('() => ')) {
         const rawExpr = val.slice(6);
-        propParts.push(`get ${key}() { return ${rawExpr}; }`);
+        // Simple signal read: just use a getter (no overhead)
+        // Complex expressions: memoize with createComputed
+        const isSimple = /^[a-zA-Z_$]\w*\(\)$/.test(rawExpr);
+        if (isSimple) {
+          propParts.push(`get ${key}() { return ${rawExpr}; }`);
+        } else {
+          const memoName = `__memo_${key}`;
+          memoizedProps.push(`const ${memoName} = createComputed(() => ${rawExpr})`);
+          propParts.push(`get ${key}() { return ${memoName}(); }`);
+        }
       } else {
         propParts.push(`${key}: ${val}`);
       }
@@ -844,6 +1037,9 @@ export class ClientCodegen extends BaseCodegen {
           propsStr = `{${propParts.join(', ')}}`;
         }
       }
+      if (memoizedProps.length > 0) {
+        return `(() => { ${memoizedProps.join('; ')}; const __v = ${node.tag}(${propsStr}); if (__v && __v.__tova) __v._componentName = "${node.tag}"; return __v; })()`;
+      }
       return `(() => { const __v = ${node.tag}(${propsStr}); if (__v && __v.__tova) __v._componentName = "${node.tag}"; return __v; })()`;
     }
 
@@ -860,7 +1056,30 @@ export class ClientCodegen extends BaseCodegen {
     // Wrap with transition directives if present
     if (node._transitions && node._transitions.length > 0) {
       for (const t of node._transitions) {
-        result = `tova_transition(${result}, "${t.name}", ${t.config})`;
+        if (t.custom) {
+          result = `tova_transition(${result}, ${t.name}, ${t.config})`;
+        } else {
+          result = `tova_transition(${result}, "${t.name}", ${t.config})`;
+        }
+      }
+    }
+
+    // Wrap with directional transitions if present
+    if (node._inTransition || node._outTransition) {
+      const inPart = node._inTransition ? `in: { name: "${node._inTransition.name}", config: ${node._inTransition.config} }` : '';
+      const outPart = node._outTransition ? `out: { name: "${node._outTransition.name}", config: ${node._outTransition.config} }` : '';
+      const parts = [inPart, outPart].filter(Boolean).join(', ');
+      result = `tova_transition(${result}, { ${parts} })`;
+    }
+
+    // Wrap with use: action directives if present
+    if (node._actions && node._actions.length > 0) {
+      for (const a of node._actions) {
+        if (a.reactive) {
+          result = `__tova_action(${result}, ${a.name}, () => ${a.param})`;
+        } else {
+          result = `__tova_action(${result}, ${a.name}, ${a.param})`;
+        }
       }
     }
 

@@ -20,6 +20,22 @@ export class Lexer {
     this._jsxExprDepth = 0;       // brace depth for {expr} inside JSX
     this._jsxCF = null;           // null | { paren: 0, brace: 0, keyword? } — control flow state
     this._matchBlockDepth = 0;    // brace depth for match body inside JSX
+    this._subLexer = null;        // reusable sub-lexer for string interpolation
+  }
+
+  reset(source, lineOffset, columnOffset) {
+    this.source = source;
+    this.tokens = [];
+    this.pos = 0;
+    this.line = 1 + lineOffset;
+    this.column = 1 + columnOffset;
+    this.length = source.length;
+    this._jsxStack = [];
+    this._jsxTagMode = null;
+    this._jsxSelfClosing = false;
+    this._jsxExprDepth = 0;
+    this._jsxCF = null;
+    this._matchBlockDepth = 0;
   }
 
   error(message) {
@@ -508,8 +524,12 @@ export class Lexer {
         if (this._depth + 1 > Lexer.MAX_INTERPOLATION_DEPTH) {
           this.error('String interpolation nested too deeply (max ' + Lexer.MAX_INTERPOLATION_DEPTH + ' levels)');
         }
-        const subLexer = new Lexer(exprSource, this.filename, exprStartLine, exprStartCol, this._depth + 1);
-        const exprTokens = subLexer.tokenize();
+        if (!this._subLexer) {
+          this._subLexer = new Lexer(exprSource, this.filename, exprStartLine, exprStartCol, this._depth + 1);
+        } else {
+          this._subLexer.reset(exprSource, exprStartLine, exprStartCol);
+        }
+        const exprTokens = this._subLexer.tokenize();
         // Remove the EOF token
         exprTokens.pop();
 
@@ -633,8 +653,12 @@ export class Lexer {
         if (this._depth + 1 > Lexer.MAX_INTERPOLATION_DEPTH) {
           this.error('String interpolation nested too deeply (max ' + Lexer.MAX_INTERPOLATION_DEPTH + ' levels)');
         }
-        const subLexer = new Lexer(exprSource, this.filename, exprStartLine, exprStartCol, this._depth + 1);
-        const exprTokens = subLexer.tokenize();
+        if (!this._subLexer) {
+          this._subLexer = new Lexer(exprSource, this.filename, exprStartLine, exprStartCol, this._depth + 1);
+        } else {
+          this._subLexer.reset(exprSource, exprStartLine, exprStartCol);
+        }
+        const exprTokens = this._subLexer.tokenize();
         exprTokens.pop();
 
         parts.push({ type: 'expr', tokens: exprTokens, source: exprSource });

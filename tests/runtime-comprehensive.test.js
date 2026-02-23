@@ -8,10 +8,10 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import {
   createSignal, createEffect, createComputed,
   tova_el, tova_fragment, tova_keyed, render, mount, hydrate,
-  batch, onMount, onUnmount, onCleanup,
+  batch, onMount, onUnmount, onCleanup, onBeforeUpdate,
   createRef, createContext, provide, inject,
   createErrorBoundary, ErrorBoundary, createRoot,
-  watch, untrack, Dynamic, Portal, lazy, tova_inject_css
+  watch, untrack, Dynamic, Portal, lazy, Suspense, __tova_action, tova_inject_css, tova_transition
 } from '../src/runtime/reactivity.js';
 import { renderToString, renderPage } from '../src/runtime/ssr.js';
 import {
@@ -2021,6 +2021,92 @@ describe('Integration — untrack inside computed', () => {
     // b is not tracked, so result should still be 12 when read
     // But the computed is not marked dirty by b, so it returns stale value
     expect(result()).toBe(12);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 3: onBeforeUpdate + LIS + Transitions/Actions API
+// ═══════════════════════════════════════════════════════════════
+
+describe('onBeforeUpdate — fires before effects', () => {
+  test('onBeforeUpdate callback fires before effect re-run', () => {
+    const order = [];
+    createRoot(() => {
+      const [count, setCount] = createSignal(0);
+
+      onBeforeUpdate(() => {
+        order.push('before-update');
+      });
+
+      createEffect(() => {
+        count();
+        order.push('effect');
+      });
+
+      order.length = 0; // clear initial runs
+      setCount(1);
+      expect(order[0]).toBe('before-update');
+      expect(order[1]).toBe('effect');
+    });
+  });
+});
+
+describe('tova_transition — directional config', () => {
+  test('directional config stores in/out on vnode', () => {
+    const vnode = tova_el('div', {});
+    const result = tova_transition(vnode, { in: { name: 'fade', config: {} }, out: { name: 'slide', config: {} } });
+    expect(result._transition.directional).toBe(true);
+    expect(result._transition.in.name).toBe('fade');
+    expect(result._transition.out.name).toBe('slide');
+  });
+
+  test('custom transition function stores on vnode', () => {
+    const customFn = (el, config, phase) => ({});
+    const vnode = tova_el('div', {});
+    const result = tova_transition(vnode, customFn, { duration: 500 });
+    expect(result._transition.custom).toBe(customFn);
+    expect(result._transition.config.duration).toBe(500);
+  });
+
+  test('string name stores as built-in transition', () => {
+    const vnode = tova_el('div', {});
+    const result = tova_transition(vnode, 'fade', { duration: 300 });
+    expect(result._transition.name).toBe('fade');
+    expect(result._transition.config.duration).toBe(300);
+  });
+});
+
+describe('__tova_action — stores actions on vnode', () => {
+  test('action is stored on vnode', () => {
+    const actionFn = (el, param) => ({ destroy: () => {} });
+    const vnode = tova_el('div', {});
+    const result = __tova_action(vnode, actionFn, 'hello');
+    expect(result._actions).toHaveLength(1);
+    expect(result._actions[0].fn).toBe(actionFn);
+    expect(result._actions[0].param).toBe('hello');
+  });
+
+  test('multiple actions stack', () => {
+    const fn1 = () => {};
+    const fn2 = () => {};
+    let vnode = tova_el('div', {});
+    vnode = __tova_action(vnode, fn1, undefined);
+    vnode = __tova_action(vnode, fn2, 'param');
+    expect(vnode._actions).toHaveLength(2);
+  });
+});
+
+describe('Suspense — component exists', () => {
+  test('Suspense is exported and callable', () => {
+    expect(typeof Suspense).toBe('function');
+  });
+
+  test('Suspense returns a dynamic vnode', () => {
+    const result = createRoot(() => {
+      return Suspense({ fallback: 'loading', children: ['content'] });
+    });
+    expect(result.__tova).toBe(true);
+    expect(result.tag).toBe('__dynamic');
   });
 });
 

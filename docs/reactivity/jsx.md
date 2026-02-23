@@ -118,6 +118,62 @@ Event names after `on:` are lowercase and correspond to DOM event names:
 
 Handlers receive the native DOM event object as their argument.
 
+### Event Modifiers
+
+Append modifiers to event names with `.` to automatically apply common event handling patterns:
+
+```tova
+// Prevent default form submission
+<form on:submit.prevent={fn() handle_submit()}>
+
+// Stop event propagation
+<button on:click.stop={fn() do_something()}>Click</button>
+
+// Only trigger if event target is the element itself
+<div on:click.self={fn() close_modal()}>
+  <div>Clicking here won't trigger close</div>
+</div>
+
+// Chain multiple modifiers
+<a on:click.stop.prevent={fn() navigate_to("/about")}>About</a>
+
+// Listen once then auto-remove
+<button on:click.once={fn() initialize()}>Init</button>
+
+// Use capture phase
+<div on:click.capture={fn(e) log_click(e)}>...</div>
+```
+
+**Available Modifiers:**
+
+| Modifier | Effect |
+|---|---|
+| `.prevent` | Calls `e.preventDefault()` |
+| `.stop` | Calls `e.stopPropagation()` |
+| `.self` | Only fires if `e.target === e.currentTarget` |
+| `.once` | Removes handler after first invocation |
+| `.capture` | Uses capture phase for event listening |
+
+**Key Modifiers** (for `keydown`/`keyup` events):
+
+| Modifier | Key |
+|---|---|
+| `.enter` | Enter |
+| `.escape` | Escape |
+| `.tab` | Tab |
+| `.space` | Space |
+| `.up` | ArrowUp |
+| `.down` | ArrowDown |
+| `.left` | ArrowLeft |
+| `.right` | ArrowRight |
+| `.delete` | Delete |
+| `.backspace` | Backspace |
+
+```tova
+<input on:keydown.enter={fn() submit_search()} />
+<div on:keydown.escape={fn() close_dialog()} />
+```
+
 ## Two-Way Binding
 
 Use `bind:` directives for two-way data binding between form elements and signals:
@@ -355,6 +411,36 @@ These compile to:
 .btn[data-tova-HASH]::after { content: ""; display: block; }
 ```
 
+### `:global()` Escape Hatch
+
+To opt out of CSS scoping for specific selectors, wrap them in `:global()`:
+
+```tova
+component Modal {
+  <div class="modal">
+    <div class="content">...</div>
+  </div>
+
+  style {
+    .modal { position: fixed; inset: 0; }
+    .content { max-width: 600px; margin: auto; }
+
+    // This selector is NOT scoped — it targets the body element globally
+    :global(body.modal-open) { overflow: hidden; }
+  }
+}
+```
+
+`:global()` can also be used inline within a selector:
+
+```tova
+style {
+  .widget :global(.third-party-class) { color: red; }
+}
+```
+
+The compiler properly handles `@media`, `@keyframes`, `:is()`, `:where()`, and `:has()` pseudo-functions when scoping CSS. Selectors inside `@keyframes` blocks (like `from`, `to`, and percentage values) are never scoped.
+
 ### Style Injection Is Idempotent
 
 `tova_inject_css` only injects each style block once, even if the component is rendered multiple times. Subsequent calls with the same ID are no-ops.
@@ -376,6 +462,25 @@ component AutoFocusInput {
 ```
 
 The `ref` attribute accepts a ref object (created by `createRef()`). After the element is rendered, `ref.current` points to the real DOM node.
+
+### `bind:this`
+
+As an alternative to `ref={myRef}`, you can use `bind:this` to bind a DOM element reference:
+
+```tova
+component Canvas {
+  canvas_el = createRef()
+
+  onMount(fn() {
+    ctx = canvas_el.current.getContext("2d")
+    ctx.fillRect(0, 0, 100, 100)
+  })
+
+  <canvas bind:this={canvas_el} width="400" height="300" />
+}
+```
+
+`bind:this` works identically to the `ref` attribute — it accepts both ref objects and callback functions.
 
 ## Fragments
 

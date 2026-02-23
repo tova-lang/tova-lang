@@ -7,18 +7,24 @@ const VOID_ELEMENTS = new Set([
   'link', 'meta', 'param', 'source', 'track', 'wbr',
 ]);
 
+const _ESC_HTML = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+const _RE_HTML = /[&<>"]/;
+const _RE_HTML_G = /[&<>"]/g;
+
 function escapeHtml(str) {
   if (typeof str !== 'string') return String(str);
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  if (!_RE_HTML.test(str)) return str; // fast path: no special chars
+  return str.replace(_RE_HTML_G, ch => _ESC_HTML[ch]);
 }
+
+const _ESC_ATTR = { '&': '&amp;', '"': '&quot;' };
+const _RE_ATTR = /[&"]/;
+const _RE_ATTR_G = /[&"]/g;
 
 function escapeAttr(str) {
   if (typeof str !== 'string') return String(str);
-  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  if (!_RE_ATTR.test(str)) return str; // fast path
+  return str.replace(_RE_ATTR_G, ch => _ESC_ATTR[ch]);
 }
 
 // ─── SSR ID Counter for hydration markers ─────────────────
@@ -68,41 +74,68 @@ function renderPropsToString(props, vnode) {
 
 // Render a vnode tree to an HTML string
 export function renderToString(vnode) {
+  const parts = [];
+  _renderParts(vnode, parts);
+  return parts.join('');
+}
+
+function _renderParts(vnode, parts) {
   if (vnode === null || vnode === undefined) {
-    return '';
+    return;
   }
 
   // Reactive function — evaluate it
   if (typeof vnode === 'function') {
-    return renderToString(vnode());
+    _renderParts(vnode(), parts);
+    return;
   }
 
   // Primitives
-  if (typeof vnode === 'string') return escapeHtml(vnode);
-  if (typeof vnode === 'number' || typeof vnode === 'boolean') return escapeHtml(String(vnode));
+  if (typeof vnode === 'string') { parts.push(escapeHtml(vnode)); return; }
+  if (typeof vnode === 'number' || typeof vnode === 'boolean') { parts.push(escapeHtml(String(vnode))); return; }
 
   // Arrays
   if (Array.isArray(vnode)) {
-    return vnode.map(renderToString).join('');
+    for (const child of vnode) _renderParts(child, parts);
+    return;
   }
 
   // Non-tova object
   if (!vnode.__tova) {
-    return escapeHtml(String(vnode));
+    parts.push(escapeHtml(String(vnode)));
+    return;
   }
 
   // Fragment
   if (vnode.tag === '__fragment') {
-    return flattenSSR(vnode.children).map(renderToString).join('');
+    const children = flattenSSR(vnode.children);
+    for (const child of children) _renderParts(child, parts);
+    return;
   }
 
-  // Dynamic node (ErrorBoundary etc.)
+  // Dynamic node (ErrorBoundary, Suspense, etc.)
   if (vnode.tag === '__dynamic' && typeof vnode.compute === 'function') {
     const id = nextSSRId();
     try {
       const inner = vnode.compute();
-      const content = renderToString(inner);
-      return `<!--tova-s:${id}-->${content}<!--/tova-s:${id}-->`;
+      // If inner is a Promise (async Suspense children), render fallback
+      if (inner && typeof inner.then === 'function') {
+        if (vnode._fallback) {
+          const fallbackContent = typeof vnode._fallback === 'function'
+            ? vnode._fallback()
+            : vnode._fallback;
+          parts.push(`<!--tova-s:${id}-->`);
+          _renderParts(fallbackContent, parts);
+          parts.push(`<!--/tova-s:${id}-->`);
+          return;
+        }
+        parts.push(`<!--tova-s:${id}--><!--/tova-s:${id}-->`);
+        return;
+      }
+      parts.push(`<!--tova-s:${id}-->`);
+      _renderParts(inner, parts);
+      parts.push(`<!--/tova-s:${id}-->`);
+      return;
     } catch (e) {
       // If this is an ErrorBoundary with a fallback, render fallback
       if (vnode._fallback) {
@@ -110,9 +143,11 @@ export function renderToString(vnode) {
           const fallbackContent = typeof vnode._fallback === 'function'
             ? vnode._fallback({ error: e, reset: () => {} })
             : vnode._fallback;
-          return `<!--tova-s:${id}-->${renderToString(fallbackContent)}<!--/tova-s:${id}-->`;
+          parts.push(`<!--tova-s:${id}-->`);
+          _renderParts(fallbackContent, parts);
+          parts.push(`<!--/tova-s:${id}-->`);
+          return;
         } catch (fallbackError) {
-          // Fallback also threw — re-throw
           throw fallbackError;
         }
       }
@@ -122,25 +157,24 @@ export function renderToString(vnode) {
 
   // Element
   const tag = vnode.tag;
-  let html = `<${tag}`;
-
-  html += renderPropsToString(vnode.props, vnode);
+  parts.push(`<${tag}`);
+  parts.push(renderPropsToString(vnode.props, vnode));
 
   // Self-closing
   if (VOID_ELEMENTS.has(tag)) {
-    return html + ' />';
+    parts.push(' />');
+    return;
   }
 
-  html += '>';
+  parts.push('>');
 
   // Children
   const children = flattenSSR(vnode.children || []);
   for (const child of children) {
-    html += renderToString(child);
+    _renderParts(child, parts);
   }
 
-  html += `</${tag}>`;
-  return html;
+  parts.push(`</${tag}>`);
 }
 
 function flattenSSR(children) {

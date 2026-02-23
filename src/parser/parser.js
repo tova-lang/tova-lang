@@ -7,33 +7,21 @@ export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
 
   constructor(tokens, filename = '<stdin>') {
-    this.tokens = tokens;
+    // Pre-filter: build array of significant tokens for O(1) peek
+    const significant = [];
+    const docs = [];
+    for (const t of tokens) {
+      const type = t.type;
+      if (type === TokenType.NEWLINE || type === TokenType.SEMICOLON) continue;
+      if (type === TokenType.DOCSTRING) { docs.push(t); continue; }
+      significant.push(t);
+    }
+    this.tokens = significant;
     this.filename = filename;
     this.pos = 0;
     this.errors = [];
     this._expressionDepth = 0;
-    this.docstrings = this.extractDocstrings(tokens);
-    this._skipInsignificant();
-  }
-
-  _isInsignificant(type) {
-    return type === TokenType.NEWLINE || type === TokenType.DOCSTRING || type === TokenType.SEMICOLON;
-  }
-
-  _skipInsignificant() {
-    while (this.pos < this.tokens.length && this._isInsignificant(this.tokens[this.pos].type)) {
-      this.pos++;
-    }
-  }
-
-  extractDocstrings(tokens) {
-    const docs = [];
-    for (const t of tokens) {
-      if (t.type === TokenType.DOCSTRING) {
-        docs.push(t);
-      }
-    }
-    return docs;
+    this.docstrings = docs;
   }
 
   // ─── Helpers ───────────────────────────────────────────────
@@ -53,24 +41,12 @@ export class Parser {
   }
 
   peek(offset = 0) {
-    // Fast path: offset 0 is just the current position (always significant after skip)
-    if (offset === 0) return this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
-    // General path: skip over insignificant tokens
-    let count = 0;
-    for (let idx = this.pos + 1; idx < this.tokens.length; idx++) {
-      if (!this._isInsignificant(this.tokens[idx].type)) {
-        count++;
-        if (count === offset) return this.tokens[idx];
-      }
-    }
-    return this.tokens[this.tokens.length - 1];
+    const idx = this.pos + offset;
+    return idx < this.tokens.length ? this.tokens[idx] : this.tokens[this.tokens.length - 1];
   }
 
   advance() {
-    const tok = this.current();
-    this.pos++;
-    this._skipInsignificant();
-    return tok;
+    return this.tokens[this.pos++] || this.tokens[this.tokens.length - 1];
   }
 
   check(type) {
@@ -250,8 +226,8 @@ export class Parser {
   }
 
   _attachDocstrings(program) {
-    // Build a map of docstring line ranges from raw tokens
-    const docTokens = this.tokens.filter(t => t.type === TokenType.DOCSTRING);
+    // Use pre-extracted docstring tokens
+    const docTokens = this.docstrings;
     if (docTokens.length === 0) return;
 
     // Group consecutive docstring lines

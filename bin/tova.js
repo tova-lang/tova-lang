@@ -2753,9 +2753,9 @@ async function productionBuild(srcDir, outDir) {
 
   console.log(`\n  Production build...\n`);
 
-  let allClientCode = '';
-  let allServerCode = '';
-  let allSharedCode = '';
+  const clientParts = [];
+  const serverParts = [];
+  const sharedParts = [];
   let cssContent = '';
 
   for (const file of tovaFiles) {
@@ -2763,14 +2763,18 @@ async function productionBuild(srcDir, outDir) {
       const source = readFileSync(file, 'utf-8');
       const output = compileTova(source, file);
 
-      if (output.shared) allSharedCode += output.shared + '\n';
-      if (output.server) allServerCode += output.server + '\n';
-      if (output.client) allClientCode += output.client + '\n';
+      if (output.shared) sharedParts.push(output.shared);
+      if (output.server) serverParts.push(output.server);
+      if (output.client) clientParts.push(output.client);
     } catch (err) {
       console.error(`  Error in ${relative(srcDir, file)}: ${err.message}`);
       process.exit(1);
     }
   }
+
+  const allClientCode = clientParts.join('\n');
+  const allServerCode = serverParts.join('\n');
+  const allSharedCode = sharedParts.join('\n');
 
   // Generate content hash for cache busting
   const hashCode = (s) => createHash('sha256').update(s).digest('hex').slice(0, 12);

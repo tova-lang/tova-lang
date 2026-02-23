@@ -189,6 +189,39 @@ effect {
 }
 ```
 
+## onBeforeUpdate
+
+`onBeforeUpdate` registers a callback that fires just before any reactive effects in the current owner are re-run. This is useful for capturing DOM state (like scroll position) before the DOM is mutated:
+
+```tova
+component ScrollList(items) {
+  state scroll_pos = 0
+  ref = createRef()
+
+  onBeforeUpdate(fn() {
+    // Capture scroll position before DOM updates
+    if ref.current != nil {
+      scroll_pos = ref.current.scrollTop
+    }
+  })
+
+  onMount(fn() {
+    // Restore scroll position after mount
+    ref.current.scrollTop = scroll_pos
+  })
+
+  <ul ref={ref} class="scroll-list">
+    for item in items key={item.id} {
+      <li>{item.text}</li>
+    }
+  </ul>
+}
+```
+
+### When It Runs
+
+`onBeforeUpdate` fires during the reactive flush cycle, before any pending effects execute. It is called once per flush for each owner that has pending effects — not once per effect.
+
 ## Lifecycle in the Ownership Tree
 
 All lifecycle hooks participate in Tova's ownership system. When a component or root is disposed, cleanup runs in reverse order through the ownership tree:
@@ -227,6 +260,7 @@ When `show_child` changes from `true` to `false`, the `Child` component's owner 
 |---|---|---|---|---|
 | `onMount(fn)` | Component | After first DOM render | No (once) | DOM setup, third-party libraries, initial data fetch |
 | `onUnmount(fn)` | Component | When component is disposed | No (once) | Final cleanup, disconnect, save state |
+| `onBeforeUpdate(fn)` | Component | Before reactive effects flush | Yes (each flush) | Capture scroll position, measure DOM before mutation |
 | `onCleanup(fn)` | Current effect | Before effect re-run or disposal | Yes (each re-run) | Timer cleanup, listener removal, cancellation |
 
 ## Practical Example

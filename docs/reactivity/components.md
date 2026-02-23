@@ -312,6 +312,82 @@ component App {
 }
 ```
 
+## Scoped Slots
+
+Components can pass data back to their parent through scoped slots using the `<slot>` element. This is useful for "render prop" patterns where a parent wants to control how a child renders its data.
+
+### Default Slot
+
+The simplest slot renders the parent's children:
+
+```tova
+component Card(title) {
+  <div class="card">
+    <h2>{title}</h2>
+    <div class="card-body">
+      <slot />
+    </div>
+  </div>
+}
+
+// Usage
+<Card title="User Info">
+  <p>This content goes into the slot</p>
+</Card>
+```
+
+### Named Slots
+
+Use `name` to define multiple named slots:
+
+```tova
+component Layout {
+  <div class="layout">
+    <header><slot name="header" /></header>
+    <main><slot /></main>
+    <footer><slot name="footer" /></footer>
+  </div>
+}
+
+// Usage — children with slot="name" go to named slots
+<Layout>
+  <div slot="header"><h1>My App</h1></div>
+  <p>Main content</p>
+  <div slot="footer">Copyright 2024</div>
+</Layout>
+```
+
+### Scoped Slots (Render Props)
+
+Pass data from the child back to the parent by adding props to `<slot>`:
+
+```tova
+component DataList(items) {
+  <ul>
+    for item in items key={item.id} {
+      <li>
+        <slot item={item} index={index} />
+      </li>
+    }
+  </ul>
+}
+
+// Parent provides a render function as children
+<DataList items={users}>
+  {fn(props) <span>{props.item.name} (#{props.index})</span>}
+</DataList>
+```
+
+When `<slot>` has props, it checks if `children` is a function. If so, it calls the function with the slot props. Otherwise, it renders children normally.
+
+The generated code for `<slot item={item} index={index} />` is:
+
+```javascript
+typeof __props.children === 'function'
+  ? __props.children({ item: item, index: index })
+  : (__props.children || '')
+```
+
 ## Auto-Mount
 
 If a component named `App` exists, Tova automatically mounts it to the DOM when the page loads:

@@ -293,6 +293,13 @@ export function installClientParser(ParserClass) {
         suffix = this.expect(TokenType.IDENTIFIER, "Expected name after ':'").value;
       }
       name = `${name}:${suffix}`;
+      // Consume event modifiers: on:click.stop.prevent
+      if (name.startsWith('on:') && this.check(TokenType.DOT)) {
+        while (this.match(TokenType.DOT)) {
+          const mod = this.expect(TokenType.IDENTIFIER, "Expected modifier name after '.'").value;
+          name += `.${mod}`;
+        }
+      }
     }
 
     if (!this.match(TokenType.ASSIGN)) {

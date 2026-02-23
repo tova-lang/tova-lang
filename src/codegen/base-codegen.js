@@ -762,7 +762,13 @@ export class BaseCodegen {
   genBlockStatements(block) {
     if (!block) return '';
     const stmts = block.type === 'BlockStatement' ? block.body : [block];
-    return stmts.map(s => this.generateStatement(s)).join('\n');
+    const lines = [];
+    for (const s of stmts) {
+      lines.push(this.generateStatement(s));
+      // Dead code elimination: stop after unconditional return/break/continue
+      if (s.type === 'ReturnStatement' || s.type === 'BreakStatement' || s.type === 'ContinueStatement') break;
+    }
+    return lines.join('\n');
   }
 
   // ─── Expressions ──────────────────────────────────────────
@@ -778,9 +784,32 @@ export class BaseCodegen {
   }
 
   genBinaryExpression(node) {
+    const op = node.operator;
+
+    // Constant folding: arithmetic on two number literals
+    if (node.left.type === 'NumberLiteral' && node.right.type === 'NumberLiteral') {
+      const l = node.left.value, r = node.right.value;
+      let folded = null;
+      switch (op) {
+        case '+': folded = l + r; break;
+        case '-': folded = l - r; break;
+        case '*': folded = l * r; break;
+        case '/': if (r !== 0) folded = l / r; break;
+        case '%': if (r !== 0) folded = l % r; break;
+        case '**': folded = l ** r; break;
+      }
+      if (folded !== null && Number.isFinite(folded)) {
+        return folded < 0 ? `(${folded})` : String(folded);
+      }
+    }
+
+    // Constant folding: string concatenation with ++
+    if (op === '++' && node.left.type === 'StringLiteral' && node.right.type === 'StringLiteral') {
+      return JSON.stringify(node.left.value + node.right.value);
+    }
+
     const left = this.genExpression(node.left);
     const right = this.genExpression(node.right);
-    const op = node.operator;
 
     // String multiply: "ha" * 3 => "ha".repeat(3), also x * 3 when x is string
     if (op === '*' &&
@@ -1533,10 +1562,81 @@ export class BaseCodegen {
     return `(${result})`;
   }
 
+  // Check if all arms are literal patterns (string/number/boolean) or wildcard, with no guards
+  _isLiteralMatch(node) {
+    let hasWildcard = false;
+    for (const arm of node.arms) {
+      if (arm.guard) return false;
+      const pt = arm.pattern.type;
+      if (pt === 'LiteralPattern') continue;
+      if (pt === 'WildcardPattern' || pt === 'BindingPattern') {
+        hasWildcard = true;
+        continue;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  _genSwitchMatch(node) {
+    const subject = this.genExpression(node.subject);
+    const tempVar = '__match';
+    const p = [];
+    p.push(`((${tempVar}) => {\n`);
+    this.indent++;
+    p.push(`${this.i()}switch (${tempVar}) {\n`);
+    this.indent++;
+
+    for (const arm of node.arms) {
+      if (arm.pattern.type === 'WildcardPattern') {
+        p.push(`${this.i()}default:\n`);
+        this.indent++;
+        if (arm.body.type === 'BlockStatement') {
+          p.push(this.genBlockBody(arm.body) + '\n');
+        } else {
+          p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+        }
+        this.indent--;
+      } else if (arm.pattern.type === 'BindingPattern') {
+        p.push(`${this.i()}default: {\n`);
+        this.indent++;
+        p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
+        if (arm.body.type === 'BlockStatement') {
+          p.push(this.genBlockBody(arm.body) + '\n');
+        } else {
+          p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+        }
+        this.indent--;
+        p.push(`${this.i()}}\n`);
+      } else {
+        // LiteralPattern
+        p.push(`${this.i()}case ${JSON.stringify(arm.pattern.value)}:\n`);
+        this.indent++;
+        if (arm.body.type === 'BlockStatement') {
+          p.push(this.genBlockBody(arm.body) + '\n');
+        } else {
+          p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+        }
+        this.indent--;
+      }
+    }
+
+    this.indent--;
+    p.push(`${this.i()}}\n`);
+    this.indent--;
+    p.push(`${this.i()}})(${subject})`);
+    return p.join('');
+  }
+
   genMatchExpression(node) {
     // Optimization: simple matches emit ternary chain instead of IIFE
     if (this._isSimpleMatch(node)) {
       return this._genSimpleMatch(node);
+    }
+
+    // Optimization: literal-only patterns emit switch for V8 jump tables
+    if (this._isLiteralMatch(node)) {
+      return this._genSwitchMatch(node);
     }
 
     // Generate as IIFE with if-else chain

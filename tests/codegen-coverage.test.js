@@ -180,7 +180,8 @@ describe('Codegen Coverage — Match with binding pattern (lines 570-577)', () =
 
   test('match with binding pattern as default (last arm)', () => {
     const code = compileShared('x = match val { 1 => "one", n => n + 1 }');
-    expect(code).toContain('__match === 1');
+    // Now generates switch for literal patterns
+    expect(code).toContain('case 1');
     expect(code).toContain('const n = __match');
     expect(code).toContain('return (n + 1);');
   });
@@ -189,7 +190,8 @@ describe('Codegen Coverage — Match with binding pattern (lines 570-577)', () =
 describe('Codegen Coverage — Match with block body (lines 573-574, 589-590)', () => {
   test('match arm with block body generates block statements', () => {
     const code = compileShared('x = match val { 1 => { y = 1\ny + 2 }, _ => 0 }');
-    expect(code).toContain('__match === 1');
+    // Now generates switch for literal patterns
+    expect(code).toContain('case 1');
     expect(code).toContain('const y = 1;');
     // The last expression in a block arm is not automatically returned by genBlockStatements
     // but let's check the generated output

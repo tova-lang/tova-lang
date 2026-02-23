@@ -36,11 +36,35 @@ function flush() {
         pendingEffects.clear();
         break;
       }
-      const toRun = [...pendingEffects];
-      pendingEffects.clear();
-      for (const effect of toRun) {
-        if (!effect._disposed) {
-          effect();
+
+      // Invoke onBeforeUpdate callbacks for owners that have pending effects
+      const ownersNotified = new Set();
+      for (const effect of pendingEffects) {
+        const owner = effect._owner;
+        if (owner && owner._beforeUpdate && !ownersNotified.has(owner)) {
+          ownersNotified.add(owner);
+          for (const cb of owner._beforeUpdate) {
+            try { cb(); } catch (e) { console.error('Tova: onBeforeUpdate error:', e); }
+          }
+        }
+      }
+
+      const toRun = pendingEffects;
+      pendingEffects = new Set();
+      // Sort by depth (parents first) to avoid redundant child re-runs
+      if (toRun.size > 1) {
+        const sorted = Array.from(toRun);
+        sorted.sort((a, b) => (a._depth || 0) - (b._depth || 0));
+        for (const effect of sorted) {
+          if (!effect._disposed) {
+            effect();
+          }
+        }
+      } else {
+        for (const effect of toRun) {
+          if (!effect._disposed) {
+            effect();
+          }
         }
       }
     }
@@ -73,10 +97,10 @@ export function createRoot(fn) {
     dispose() {
       if (root._disposed) return;
       root._disposed = true;
-      // Dispose children in reverse order
+      // Dispose children in reverse order (skip already-disposed)
       for (let i = root._children.length - 1; i >= 0; i--) {
         const child = root._children[i];
-        if (typeof child.dispose === 'function') child.dispose();
+        if (!child._disposed && typeof child.dispose === 'function') child.dispose();
       }
       root._children.length = 0;
       // Run cleanups in reverse order
@@ -144,7 +168,7 @@ export function createSignal(initialValue, name) {
       if (__devtools_hooks && signalId != null) {
         __devtools_hooks.onSignalUpdate(signalId, oldValue, newValue);
       }
-      for (const sub of [...subscribers]) {
+      for (const sub of subscribers) {
         if (sub._isComputed) {
           sub(); // propagate dirty flags synchronously through computed graph
         } else {
@@ -218,6 +242,8 @@ export function createEffect(fn) {
   effect._cleanup = null;
   effect._cleanups = [];
   effect._owner = currentOwner;
+  // Compute depth for priority scheduling (parents flush before children)
+  effect._depth = currentOwner ? (currentOwner._depth || 0) + 1 : 0;
 
   if (__devtools_hooks) {
     __devtools_hooks.onEffectCreate(effect);
@@ -232,11 +258,6 @@ export function createEffect(fn) {
     runCleanups(effect);
     cleanupDeps(effect);
     pendingEffects.delete(effect);
-    // Remove from owner's children
-    if (effect._owner) {
-      const idx = effect._owner._children.indexOf(effect);
-      if (idx >= 0) effect._owner._children.splice(idx, 1);
-    }
   };
 
   // Run immediately (synchronous first run)
@@ -256,7 +277,7 @@ export function createComputed(fn) {
   function notify() {
     if (!dirty) {
       dirty = true;
-      for (const sub of [...subscribers]) {
+      for (const sub of subscribers) {
         if (sub._isComputed) {
           sub(); // cascade dirty flags synchronously
         } else {
@@ -278,10 +299,6 @@ export function createComputed(fn) {
   notify.dispose = function () {
     notify._disposed = true;
     cleanupDeps(notify);
-    if (notify._owner) {
-      const idx = notify._owner._children.indexOf(notify);
-      if (idx >= 0) notify._owner._children.splice(idx, 1);
-    }
   };
 
   function recompute() {
@@ -336,6 +353,13 @@ export function onCleanup(fn) {
   if (currentEffect) {
     if (!currentEffect._cleanups) currentEffect._cleanups = [];
     currentEffect._cleanups.push(fn);
+  }
+}
+
+export function onBeforeUpdate(fn) {
+  if (currentOwner && !currentOwner._disposed) {
+    if (!currentOwner._beforeUpdate) currentOwner._beforeUpdate = [];
+    currentOwner._beforeUpdate.push(fn);
   }
 }
 
@@ -610,6 +634,40 @@ export function Portal({ target, children }) {
   };
 }
 
+// ─── Suspense ────────────────────────────────────────────
+// Renders fallback while any child lazy() component is loading.
+// Usage: Suspense({ fallback: loadingEl, children: [LazyComp(props)] })
+
+const SuspenseContext = createContext(null);
+
+export function Suspense({ fallback, children }) {
+  const [pending, setPending] = createSignal(0);
+  const childContent = children && children.length === 1 ? children[0] : tova_fragment(children || []);
+
+  const boundary = {
+    register() {
+      setPending(p => p + 1);
+    },
+    resolve() {
+      setPending(p => Math.max(0, p - 1));
+    },
+  };
+
+  return {
+    __tova: true,
+    tag: '__dynamic',
+    props: {},
+    children: [],
+    compute: () => {
+      provide(SuspenseContext, boundary);
+      if (pending() > 0) {
+        return typeof fallback === 'function' ? fallback() : fallback;
+      }
+      return childContent;
+    },
+  };
+}
+
 // ─── Lazy ───────────────────────────────────────────────
 // Async component loading with optional fallback.
 // Usage: const LazyComp = lazy(() => import('./HeavyComponent.js'))
@@ -624,12 +682,20 @@ export function lazy(loader) {
       return resolved(props);
     }
 
+    // Check for Suspense boundary
+    const suspense = inject(SuspenseContext);
+
     if (!promise) {
+      if (suspense) suspense.register();
       promise = loader()
         .then(mod => {
           resolved = mod.default || mod;
+          if (suspense) suspense.resolve();
         })
-        .catch(e => { loadError = e; });
+        .catch(e => {
+          loadError = e;
+          if (suspense) suspense.resolve();
+        });
     }
 
     const [tick, setTick] = createSignal(0);
@@ -646,7 +712,7 @@ export function lazy(loader) {
         tick(); // Track for reactivity
         if (loadError) return tova_el('span', { className: 'tova-error' }, [String(loadError)]);
         if (resolved) return resolved(props);
-        // Fallback while loading
+        // Fallback while loading (individual or Suspense-level)
         return props && props.fallback ? props.fallback : null;
       },
     };
@@ -754,17 +820,57 @@ function getTransitionCSS(name, config, phase) {
   }
 }
 
-export function tova_transition(vnode, name, config = {}) {
+export function tova_transition(vnode, nameOrConfig, config = {}) {
   if (!vnode || !vnode.__tova) return vnode;
-  vnode._transition = { name, config };
+
+  // Directional transitions: tova_transition(vnode, { in: {...}, out: {...} })
+  if (typeof nameOrConfig === 'object' && nameOrConfig !== null && !nameOrConfig.__tova && (nameOrConfig.in || nameOrConfig.out)) {
+    vnode._transition = { directional: true, in: nameOrConfig.in, out: nameOrConfig.out };
+    return vnode;
+  }
+
+  // Custom transition function: tova_transition(vnode, myTransitionFn, config)
+  if (typeof nameOrConfig === 'function') {
+    vnode._transition = { custom: nameOrConfig, config };
+    return vnode;
+  }
+
+  // Built-in transition: tova_transition(vnode, "fade", config)
+  vnode._transition = { name: nameOrConfig, config };
+  return vnode;
+}
+
+// ─── Actions ──────────────────────────────────────────────
+// use: directive support. Calls actionFn(el, param) after render.
+// Returns the wrapped vnode. The action lifecycle (update/destroy) is managed.
+
+export function __tova_action(vnode, actionFn, param) {
+  if (!vnode || !vnode.__tova) return vnode;
+  if (!vnode._actions) vnode._actions = [];
+  vnode._actions.push({ fn: actionFn, param });
   return vnode;
 }
 
 // Apply enter transition to a DOM element after render
 function applyEnterTransition(el, trans) {
   if (!trans) return;
-  const fromStyles = getTransitionCSS(trans.name, trans.config, 'enter-from');
-  const toStyles = getTransitionCSS(trans.name, trans.config, 'enter-to');
+
+  // Custom transition function
+  if (trans.custom) {
+    const result = trans.custom(el, trans.config || {}, 'enter');
+    if (result && typeof result === 'object' && !result.then) {
+      Object.assign(el.style, result);
+    }
+    return;
+  }
+
+  // Directional: use 'in' config for enter
+  const name = trans.directional ? (trans.in ? trans.in.name : null) : trans.name;
+  const config = trans.directional ? (trans.in ? trans.in.config : {}) : trans.config;
+  if (!name) return;
+
+  const fromStyles = getTransitionCSS(name, config, 'enter-from');
+  const toStyles = getTransitionCSS(name, config, 'enter-to');
 
   // Set initial state
   Object.assign(el.style, fromStyles);
@@ -780,8 +886,27 @@ function applyEnterTransition(el, trans) {
 // Apply leave transition and return a Promise that resolves when done
 function applyLeaveTransition(el, trans) {
   if (!trans) return Promise.resolve();
-  const duration = (trans.config && trans.config.duration) || TRANSITION_DEFAULTS[trans.name]?.duration || 200;
-  const toStyles = getTransitionCSS(trans.name, trans.config, 'leave-to');
+
+  // Custom transition function
+  if (trans.custom) {
+    const result = trans.custom(el, trans.config || {}, 'leave');
+    if (result && typeof result.then === 'function') {
+      return result;
+    }
+    if (result && typeof result === 'object') {
+      Object.assign(el.style, result);
+    }
+    const dur = (trans.config && trans.config.duration) || 200;
+    return new Promise(resolve => setTimeout(resolve, dur));
+  }
+
+  // Directional: use 'out' config for leave
+  const name = trans.directional ? (trans.out ? trans.out.name : null) : trans.name;
+  const config = trans.directional ? (trans.out ? trans.out.config : {}) : trans.config;
+  if (!name) return Promise.resolve();
+
+  const duration = (config && config.duration) || TRANSITION_DEFAULTS[name]?.duration || 200;
+  const toStyles = getTransitionCSS(name, config, 'leave-to');
   Object.assign(el.style, toStyles);
 
   return new Promise(resolve => {
@@ -1112,6 +1237,29 @@ export function render(vnode) {
     applyEnterTransition(el, vnode._transition);
   }
 
+  // Apply use: actions if present
+  if (vnode._actions && vnode._actions.length > 0) {
+    for (const action of vnode._actions) {
+      const paramValue = typeof action.param === 'function' ? action.param() : action.param;
+      const result = action.fn(el, paramValue);
+      if (result) {
+        // If param is reactive, set up effect for updates
+        if (typeof action.param === 'function') {
+          createEffect(() => {
+            const newVal = action.param();
+            if (result.update) result.update(newVal);
+          });
+        }
+        // Register destroy on cleanup
+        if (result.destroy) {
+          if (currentOwner && !currentOwner._disposed) {
+            currentOwner._cleanups.push(result.destroy);
+          }
+        }
+      }
+    }
+  }
+
   return el;
 }
 
@@ -1126,9 +1274,17 @@ function applyReactiveProps(el, props) {
       }
     } else if (key.startsWith('on')) {
       const eventName = key.slice(2).toLowerCase();
-      el.addEventListener(eventName, value);
-      if (!el.__handlers) el.__handlers = {};
-      el.__handlers[eventName] = value;
+      if (typeof value === 'object' && value !== null && value.handler) {
+        el.addEventListener(eventName, value.handler, value.options);
+        if (!el.__handlers) el.__handlers = {};
+        el.__handlers[eventName] = value.handler;
+        el.__handlerOptions = el.__handlerOptions || {};
+        el.__handlerOptions[eventName] = value.options;
+      } else {
+        el.addEventListener(eventName, value);
+        if (!el.__handlers) el.__handlers = {};
+        el.__handlers[eventName] = value;
+      }
     } else if (key === 'key') {
       // Skip
     } else if (typeof value === 'function' && !key.startsWith('on')) {
@@ -1148,6 +1304,9 @@ function applyPropValue(el, key, val) {
     if (el.className !== val) el.className = val || '';
   } else if (key === 'innerHTML' || key === 'dangerouslySetInnerHTML') {
     const html = typeof val === 'object' && val !== null ? val.__html || '' : val || '';
+    if (__DEV__ && html) {
+      console.warn('Tova: Setting innerHTML can expose your app to XSS attacks. Ensure the content is sanitized.');
+    }
     if (el.innerHTML !== html) el.innerHTML = html;
   } else if (key === 'value') {
     if (el !== document.activeElement && el.value !== val) {
@@ -1209,12 +1368,25 @@ function applyProps(el, newProps, oldProps) {
       }
     } else if (key.startsWith('on')) {
       const eventName = key.slice(2).toLowerCase();
-      const oldHandler = el.__handlers && el.__handlers[eventName];
-      if (oldHandler !== value) {
-        if (oldHandler) el.removeEventListener(eventName, oldHandler);
-        el.addEventListener(eventName, value);
-        if (!el.__handlers) el.__handlers = {};
-        el.__handlers[eventName] = value;
+      if (typeof value === 'object' && value !== null && value.handler) {
+        const oldHandler = el.__handlers && el.__handlers[eventName];
+        if (oldHandler !== value.handler) {
+          const oldOpts = el.__handlerOptions && el.__handlerOptions[eventName];
+          if (oldHandler) el.removeEventListener(eventName, oldHandler, oldOpts);
+          el.addEventListener(eventName, value.handler, value.options);
+          if (!el.__handlers) el.__handlers = {};
+          el.__handlers[eventName] = value.handler;
+          el.__handlerOptions = el.__handlerOptions || {};
+          el.__handlerOptions[eventName] = value.options;
+        }
+      } else {
+        const oldHandler = el.__handlers && el.__handlers[eventName];
+        if (oldHandler !== value) {
+          if (oldHandler) el.removeEventListener(eventName, oldHandler);
+          el.addEventListener(eventName, value);
+          if (!el.__handlers) el.__handlers = {};
+          el.__handlers[eventName] = value;
+        }
       }
     } else if (key === 'style' && typeof value === 'object') {
       Object.assign(el.style, value);
@@ -1234,6 +1406,51 @@ function applyProps(el, newProps, oldProps) {
       }
     }
   }
+}
+
+// ─── Longest Increasing Subsequence (O(n log n)) ────────
+// Used by keyed reconciliation to minimize DOM moves.
+
+function longestIncreasingSubsequence(arr) {
+  const n = arr.length;
+  if (n === 0) return [];
+
+  // tails[i] = index in arr of smallest tail element for IS of length i+1
+  const tails = [];
+  // parent[i] = index in arr of predecessor of arr[i] in the LIS
+  const parent = new Array(n).fill(-1);
+  // indices[i] = index in arr of tails[i]
+  const indices = [];
+
+  for (let i = 0; i < n; i++) {
+    const val = arr[i];
+    if (val < 0) continue; // skip removed items (marker -1)
+
+    // Binary search for the insertion point
+    let lo = 0, hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (tails[mid] < val) lo = mid + 1;
+      else hi = mid;
+    }
+
+    tails[lo] = val;
+    indices[lo] = i;
+
+    if (lo > 0) {
+      parent[i] = indices[lo - 1];
+    }
+  }
+
+  // Reconstruct
+  const result = new Array(tails.length);
+  let k = indices[tails.length - 1];
+  for (let i = tails.length - 1; i >= 0; i--) {
+    result[i] = k;
+    k = parent[k];
+  }
+
+  return result;
 }
 
 // ─── Keyed Reconciliation ────────────────────────────────
@@ -1311,10 +1528,19 @@ function patchKeyedInMarker(marker, newVNodes) {
     }
   }
 
-  // Arrange in correct order after marker using cursor approach
+  // LIS-based reorder: compute old positions, find LIS, only move non-LIS nodes
+  const oldPosMap = new Map();
+  for (let i = 0; i < oldNodes.length; i++) {
+    oldPosMap.set(oldNodes[i], i);
+  }
+  const positions = newNodes.map(n => oldPosMap.has(n) ? oldPosMap.get(n) : -1);
+  const lisIndices = new Set(longestIncreasingSubsequence(positions));
+
+  // Insert nodes: only move nodes not in the LIS
   let cursor = marker.nextSibling;
-  for (const node of newNodes) {
-    if (node === cursor) {
+  for (let i = 0; i < newNodes.length; i++) {
+    const node = newNodes[i];
+    if (lisIndices.has(i) && node === cursor) {
       cursor = node.nextSibling;
     } else {
       parent.insertBefore(node, cursor);
@@ -1396,13 +1622,23 @@ function patchKeyedChildren(parent, newVNodes) {
     }
   }
 
-  // Arrange in correct order
+  // LIS-based reorder for element children
+  const logicalAfterRemove = getLogicalChildren(parent);
+  const oldPosMap = new Map();
+  for (let i = 0; i < logicalAfterRemove.length; i++) {
+    oldPosMap.set(logicalAfterRemove[i], i);
+  }
+  const positions = newNodes.map(n => oldPosMap.has(n) ? oldPosMap.get(n) : -1);
+  const lisIndices = new Set(longestIncreasingSubsequence(positions));
+
   for (let i = 0; i < newNodes.length; i++) {
     const expected = newNodes[i];
-    const logicalNow = getLogicalChildren(parent);
-    const current = logicalNow[i];
-    if (current !== expected) {
-      parent.insertBefore(expected, current || null);
+    if (!lisIndices.has(i)) {
+      const logicalNow = getLogicalChildren(parent);
+      const current = logicalNow[i];
+      if (current !== expected) {
+        parent.insertBefore(expected, current || null);
+      }
     }
   }
 }
@@ -1713,9 +1949,17 @@ function hydrateProps(el, props) {
       }
     } else if (key.startsWith('on')) {
       const eventName = key.slice(2).toLowerCase();
-      el.addEventListener(eventName, value);
-      if (!el.__handlers) el.__handlers = {};
-      el.__handlers[eventName] = value;
+      if (typeof value === 'object' && value !== null && value.handler) {
+        el.addEventListener(eventName, value.handler, value.options);
+        if (!el.__handlers) el.__handlers = {};
+        el.__handlers[eventName] = value.handler;
+        el.__handlerOptions = el.__handlerOptions || {};
+        el.__handlerOptions[eventName] = value.options;
+      } else {
+        el.addEventListener(eventName, value);
+        if (!el.__handlers) el.__handlers = {};
+        el.__handlers[eventName] = value;
+      }
     } else if (key === 'key') {
       // Skip
     } else if (typeof value === 'function' && !key.startsWith('on')) {

@@ -392,6 +392,62 @@ Make sure the target element exists in your HTML:
 </body>
 ```
 
+## Suspense
+
+`Suspense` provides a boundary that shows a fallback while any child `lazy()` component is loading. Instead of each lazy component managing its own loading state, Suspense provides a unified loading experience:
+
+```tova
+HeavyChart = lazy(fn() import("./components/HeavyChart.js"))
+DataTable = lazy(fn() import("./components/DataTable.js"))
+
+component Dashboard {
+  <Suspense fallback={<div class="loading">Loading dashboard...</div>}>
+    <div>
+      <HeavyChart />
+      <DataTable />
+    </div>
+  </Suspense>
+}
+```
+
+### How It Works
+
+1. Suspense tracks a **pending count** of child lazy components that are still loading
+2. While any child is pending, the `fallback` is rendered instead of children
+3. Once all lazy children resolve, the actual children are rendered
+4. Lazy components automatically register with the nearest Suspense boundary
+
+### Nested Suspense
+
+Suspense boundaries can be nested. Each lazy component registers with its nearest ancestor Suspense:
+
+```tova
+component App {
+  <Suspense fallback={<p>Loading app...</p>}>
+    <Header />
+    <Suspense fallback={<p>Loading content...</p>}>
+      <HeavyContent />
+    </Suspense>
+  </Suspense>
+}
+```
+
+### Fallback Types
+
+The `fallback` prop can be a vnode, a string, or a function:
+
+```tova
+// Static fallback
+<Suspense fallback={<Spinner />}>...</Suspense>
+
+// Function fallback (called each render)
+<Suspense fallback={fn() <p>Loading...</p>}>...</Suspense>
+```
+
+### SSR Support
+
+During server-side rendering, Suspense renders the fallback for any async children. The client-side hydration then takes over and resolves the lazy components.
+
 ## lazy (Code Splitting)
 
 `lazy` enables async component loading, which is essential for code splitting. It takes a loader function that returns a promise (typically a dynamic `import()`):
