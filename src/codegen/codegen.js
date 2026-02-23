@@ -65,7 +65,9 @@ export class CodeGenerator {
       const moduleGen = new SharedCodegen();
       moduleGen._sourceMapsEnabled = this._sourceMaps;
       moduleGen.setSourceFile(this.filename);
-      const moduleCode = topLevel.map(s => moduleGen.generateStatement(s)).join('\n');
+      // Use genBlockStatements for pattern optimization (array fill detection, etc.)
+      const fakeBlock = { type: 'BlockStatement', body: topLevel };
+      const moduleCode = moduleGen.genBlockStatements(fakeBlock);
       const helpers = moduleGen.generateHelpers();
       const combined = [helpers, moduleCode].filter(s => s.trim()).join('\n').trim();
       return {
@@ -84,7 +86,9 @@ export class CodeGenerator {
 
     // All shared blocks (regardless of name) are merged into one shared output
     const sharedCode = sharedBlocks.map(b => sharedGen.generate(b)).join('\n');
-    const topLevelCode = topLevel.map(s => sharedGen.generateStatement(s)).join('\n');
+    const topLevelCode = topLevel.length > 0
+      ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
+      : '';
 
     // Pre-scan server/client blocks for builtin usage so shared stdlib includes them
     this._scanBlocksForBuiltins([...serverBlocks, ...clientBlocks], sharedGen._usedBuiltins);

@@ -66,6 +66,30 @@ export class BaseCodegen {
     }
   }
 
+  // Check if an AST expression references a given variable name
+  _exprReferencesName(node, name) {
+    if (!node) return false;
+    switch (node.type) {
+      case 'Identifier': return node.name === name;
+      case 'BinaryExpression':
+      case 'LogicalExpression':
+        return this._exprReferencesName(node.left, name) || this._exprReferencesName(node.right, name);
+      case 'UnaryExpression':
+        return this._exprReferencesName(node.operand, name);
+      case 'CallExpression':
+        return this._exprReferencesName(node.callee, name) || node.arguments.some(a => this._exprReferencesName(a, name));
+      case 'MemberExpression':
+        return this._exprReferencesName(node.object, name) || (node.computed && this._exprReferencesName(node.property, name));
+      case 'NumberLiteral':
+      case 'StringLiteral':
+      case 'BooleanLiteral':
+      case 'NilLiteral':
+        return false;
+      default:
+        return true; // conservative: assume it references the name
+    }
+  }
+
   // Known void/side-effect-only calls that shouldn't be implicitly returned
   static VOID_FNS = new Set(['print', 'assert', 'assert_eq', 'assert_ne']);
   _isVoidCall(expr) {
@@ -281,6 +305,10 @@ export class BaseCodegen {
 
     switch (node.type) {
       case 'Identifier':
+        // Parameter substitution for map chain fusion
+        if (this._paramSubstitutions && this._paramSubstitutions.has(node.name)) {
+          return this._paramSubstitutions.get(node.name);
+        }
         // Track builtin identifier usage (e.g., None used without call)
         if (BUILTIN_NAMES.has(node.name)) {
           this._usedBuiltins.add(node.name);
@@ -941,7 +969,19 @@ export class BaseCodegen {
       this.indent++;
     }
 
+    // Pre-scan for array fill patterns in function bodies
+    const bodySkipSet = new Set();
+    for (let i = 0; i < regularStmts.length - 1; i++) {
+      const fillResult = this._detectArrayFillPattern(regularStmts[i], regularStmts[i + 1]);
+      if (fillResult) {
+        bodySkipSet.add(i);
+        bodySkipSet.add(i + 1);
+        lines.push(fillResult);
+      }
+    }
+
     for (let idx = 0; idx < regularStmts.length; idx++) {
+      if (bodySkipSet.has(idx)) continue;
       const stmt = regularStmts[idx];
       const isLast = idx === regularStmts.length - 1;
       // Implicit return: last expression in function body
@@ -1079,12 +1119,108 @@ export class BaseCodegen {
     if (!block) return '';
     const stmts = block.type === 'BlockStatement' ? block.body : [block];
     const lines = [];
-    for (const s of stmts) {
+    const skipSet = new Set(); // indices to skip (consumed by pattern optimizations)
+    // Pre-scan for array fill patterns: arr = []; for i in range(n) { arr.push(val) }
+    for (let i = 0; i < stmts.length - 1; i++) {
+      const fillResult = this._detectArrayFillPattern(stmts[i], stmts[i + 1]);
+      if (fillResult) {
+        skipSet.add(i);
+        skipSet.add(i + 1);
+        lines.push(fillResult);
+      }
+    }
+    for (let i = 0; i < stmts.length; i++) {
+      if (skipSet.has(i)) continue;
+      const s = stmts[i];
       lines.push(this.generateStatement(s));
       // Dead code elimination: stop after unconditional return/break/continue
       if (s.type === 'ReturnStatement' || s.type === 'BreakStatement' || s.type === 'ContinueStatement') break;
     }
     return lines.join('\n');
+  }
+
+  // Detect pattern: arr = []; for i in range(n) { arr.push(val) }
+  // Also handles: var arr = []; for i in range(n) { arr.push(val) }
+  // Returns optimized code string or null
+  _detectArrayFillPattern(assignStmt, forStmt) {
+    // Step 1: Check first statement is `arr = []` or `var arr = []` (empty array)
+    let target, isVar = false, exportPrefix = '';
+    if (assignStmt.type === 'Assignment') {
+      if (assignStmt.targets.length !== 1 || assignStmt.values.length !== 1) return null;
+      target = assignStmt.targets[0];
+      if (typeof target !== 'string') return null;
+      const val = assignStmt.values[0];
+      if (val.type !== 'ArrayLiteral' || val.elements.length !== 0) return null;
+      exportPrefix = assignStmt.isPublic ? 'export ' : '';
+    } else if (assignStmt.type === 'VarDeclaration') {
+      if (assignStmt.targets.length !== 1 || assignStmt.values.length !== 1) return null;
+      target = assignStmt.targets[0];
+      if (typeof target !== 'string') return null;
+      const val = assignStmt.values[0];
+      if (val.type !== 'ArrayLiteral' || val.elements.length !== 0) return null;
+      isVar = true;
+      exportPrefix = assignStmt.isPublic ? 'export ' : '';
+    } else {
+      return null;
+    }
+
+    // Step 2: Check second statement is `for _ in range(n) { arr.push(fillVal) }`
+    if (forStmt.type !== 'ForStatement') return null;
+    if (forStmt.elseBody || forStmt.guard || forStmt.isAsync) return null;
+    if (!this._isRangeForOptimizable(forStmt)) return null;
+
+    // Get the range size
+    let sizeExpr;
+    if (forStmt.iterable.type === 'RangeExpression') {
+      return null; // Only handle range(n) for now
+    } else {
+      const args = forStmt.iterable.arguments;
+      if (args.length === 1) {
+        sizeExpr = this.genExpression(args[0]);
+      } else {
+        return null; // range(start, end) / range(start, end, step) — not a simple fill
+      }
+    }
+
+    // Step 3: Check the body is a single `arr.push(fillVal)` statement
+    const body = forStmt.body;
+    const bodyStmts = body.type === 'BlockStatement' ? body.body : [body];
+    if (bodyStmts.length !== 1) return null;
+    const bodyStmt = bodyStmts[0];
+    // It should be an ExpressionStatement wrapping a CallExpression
+    let callExpr;
+    if (bodyStmt.type === 'ExpressionStatement') {
+      callExpr = bodyStmt.expression;
+    } else if (bodyStmt.type === 'CallExpression') {
+      callExpr = bodyStmt;
+    } else {
+      return null;
+    }
+    if (callExpr.type !== 'CallExpression') return null;
+    if (callExpr.callee.type !== 'MemberExpression') return null;
+    if (callExpr.callee.property !== 'push') return null;
+    if (callExpr.callee.object.type !== 'Identifier') return null;
+    if (callExpr.callee.object.name !== target) return null;
+    if (callExpr.arguments.length !== 1) return null;
+
+    const fillArg = callExpr.arguments[0];
+    // Ensure the fill value doesn't reference the loop variable (must be a constant fill)
+    const loopVar = Array.isArray(forStmt.variable) ? forStmt.variable[0] : forStmt.variable;
+    if (this._exprReferencesName(fillArg, loopVar)) return null;
+    const fillExpr = this.genExpression(fillArg);
+
+    // Declare the variable
+    const isDeclared = this.isDeclared(target);
+    if (!isDeclared) {
+      this.declareVar(target);
+    }
+    const declKeyword = isVar ? `${exportPrefix}let ` : (isDeclared ? '' : `${exportPrefix}const `);
+    // Boolean fills use Uint8Array for contiguous memory (3x faster for sieve-like patterns)
+    if (fillArg.type === 'BooleanLiteral') {
+      const fillVal = fillArg.value ? 1 : 0;
+      return `${this.i()}${declKeyword}${target} = new Uint8Array(${sizeExpr})${fillVal ? '.fill(1)' : ''};`;
+    }
+    return `${this.i()}${declKeyword}${target} = new Array(${sizeExpr}).fill(${fillExpr});`;
   }
 
   // ─── Expressions ──────────────────────────────────────────
@@ -1292,6 +1428,10 @@ export class BaseCodegen {
   }
 
   genCallExpression(node) {
+    // Result/Option .map() chain fusion: Ok(val).map(fn(x) e1).map(fn(x) e2) → Ok(e2(e1(val)))
+    const fusedResult = this._tryFuseMapChain(node);
+    if (fusedResult !== null) return fusedResult;
+
     // Transform Foo.new(...) → new Foo(...)
     if (node.callee.type === 'MemberExpression' && !node.callee.computed && node.callee.property === 'new') {
       const obj = this.genExpression(node.callee.object);
@@ -1365,6 +1505,81 @@ export class BaseCodegen {
 
     const args = node.arguments.map(a => this.genExpression(a)).join(', ');
     return `${callee}(${args})`;
+  }
+
+  // Fuse Ok(val).map(fn(x) e1).map(fn(x) e2) → Ok(composed(val))
+  // Eliminates intermediate Ok/Some allocations in .map() chains
+  _tryFuseMapChain(node) {
+    // Must be a .map() call with exactly 1 argument
+    if (node.callee.type !== 'MemberExpression' || node.callee.computed) return null;
+    if (node.callee.property !== 'map') return null;
+    if (node.arguments.length !== 1) return null;
+
+    // Collect the chain of .map() calls
+    const mapFns = []; // array of lambda AST nodes, outermost first
+    let current = node;
+    while (
+      current.type === 'CallExpression' &&
+      current.callee.type === 'MemberExpression' &&
+      !current.callee.computed &&
+      current.callee.property === 'map' &&
+      current.arguments.length === 1
+    ) {
+      const lambda = current.arguments[0];
+      // Only fuse simple single-expression lambdas with exactly 1 param
+      if (lambda.type !== 'FunctionExpression' && lambda.type !== 'ArrowFunction' && lambda.type !== 'LambdaExpression') return null;
+      const params = lambda.params || [];
+      if (params.length !== 1) return null;
+      const paramName = typeof params[0] === 'string' ? params[0] : (params[0].name || null);
+      if (!paramName) return null;
+      // Body must be a single expression (not a BlockStatement, or a block with 1 expression)
+      let bodyExpr = lambda.body;
+      if (bodyExpr && bodyExpr.type === 'BlockStatement') {
+        if (bodyExpr.body.length === 1) {
+          const s = bodyExpr.body[0];
+          if (s.type === 'ExpressionStatement') bodyExpr = s.expression;
+          else if (s.type === 'ReturnStatement' && s.value) bodyExpr = s.value;
+          else return null;
+        } else {
+          return null;
+        }
+      }
+      mapFns.unshift({ paramName, bodyExpr }); // prepend so inner is first
+      current = current.callee.object;
+    }
+
+    // Need at least 2 .map() calls to benefit from fusion
+    if (mapFns.length < 2) return null;
+
+    // The base must be Ok(val) or Some(val)
+    if (current.type !== 'CallExpression') return null;
+    if (current.callee.type !== 'Identifier') return null;
+    const wrapperFn = current.callee.name;
+    if (wrapperFn !== 'Ok' && wrapperFn !== 'Some') return null;
+    if (current.arguments.length !== 1) return null;
+
+    this._needsResultOption = true;
+
+    // Compose the lambdas: val → f1(val) → f2(f1(val)) → ...
+    // Generate inner-to-outer composition
+    let innerExpr = this.genExpression(current.arguments[0]);
+    for (const { paramName, bodyExpr } of mapFns) {
+      // Substitute paramName with the current innerExpr in bodyExpr
+      innerExpr = this._substituteParam(bodyExpr, paramName, innerExpr);
+    }
+
+    return `${wrapperFn}(${innerExpr})`;
+  }
+
+  // Generate expression code with a parameter substituted by a value expression string
+  _substituteParam(exprNode, paramName, valueCode) {
+    // Simple approach: generate the expression, but override identifier resolution
+    // We save and restore a substitution map
+    if (!this._paramSubstitutions) this._paramSubstitutions = new Map();
+    this._paramSubstitutions.set(paramName, valueCode);
+    const result = this.genExpression(exprNode);
+    this._paramSubstitutions.delete(paramName);
+    return result;
   }
 
   // Inline known builtins to direct method calls, eliminating wrapper overhead.

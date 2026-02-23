@@ -102,22 +102,34 @@ function buildArrayProto() {
 }
 
 function getStdlib() {
-  return `function print(...args) { console.log(...args); }
-function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }
-function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }
-function enumerate(a) { return a.map((v, i) => [i, v]); }
-function sum(a) { return a.reduce((x, y) => x + y, 0); }
-function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }
-function reversed(a) { return [...a].reverse(); }
-function zip(...as) { const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }
-function min(a) { return Math.min(...a); }
-function max(a) { return Math.max(...a); }
-function type_of(v) { if (v === null) return 'Nil'; if (Array.isArray(v)) return 'List'; if (v?.__tag) return v.__tag; const t = typeof v; switch(t) { case 'number': return Number.isInteger(v) ? 'Int' : 'Float'; case 'string': return 'String'; case 'boolean': return 'Bool'; case 'function': return 'Function'; case 'object': return 'Object'; default: return 'Unknown'; } }
-function filter(arr, fn) { return arr.filter(fn); }
-function map(arr, fn) { return arr.map(fn); }
-function flat_map(arr, fn) { return arr.flatMap(fn); }
-function any(arr, fn) { return arr.some(fn); }
-function all(arr, fn) { return arr.every(fn); }`;
+  // Read from the canonical source: src/stdlib/inline.js BUILTIN_FUNCTIONS
+  const stdlibSource = readFileSync(resolve(ROOT, 'src/stdlib/inline.js'), 'utf-8');
+  // Extract BUILTIN_FUNCTIONS entries — each is a key: `function ...` pair
+  // We need a subset of functions that are useful in the playground
+  const playgroundFunctions = [
+    'print', 'len', 'range', 'enumerate', 'sum', 'sorted', 'reversed',
+    'zip', 'min', 'max', 'type_of', 'filter', 'map', 'flat_map', 'any', 'all',
+    'find', 'reduce', 'unique', 'group_by', 'chunk', 'flatten',
+    'take', 'drop', 'first', 'last', 'count', 'partition', 'filled',
+    'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
+    'trim', 'split', 'join', 'replace', 'repeat',
+    'keys', 'values', 'entries', 'merge',
+    'upper', 'lower', 'contains', 'starts_with', 'ends_with',
+    'chars', 'words', 'lines', 'capitalize', 'title_case',
+  ];
+
+  // Parse out the BUILTIN_FUNCTIONS object from the source
+  const parts = [];
+  for (const fnName of playgroundFunctions) {
+    // Match pattern: fnName: `function fnName(...) { ... }`,
+    const regex = new RegExp(`\\b${fnName}:\\s*\`([^\`]+)\``);
+    const match = stdlibSource.match(regex);
+    if (match) {
+      parts.push(match[1]);
+    }
+  }
+
+  return parts.join('\n');
 }
 
 // ─── Example programs (categorized) ─────────────────────
@@ -651,31 +663,21 @@ client {
   }
 }
 ` },
-    { category: 'Reactive UI', name: 'Stopwatch', code: `// Stopwatch with reactive state
+    { category: 'Reactive UI', name: 'Stopwatch', code: `// Interactive stopwatch with reactive state
 client {
   state elapsed = 0
-  state running = false
-  state timer_id = nil
-
-  fn start_timer() {
-    if not running {
-      running = true
-    }
-  }
-
-  fn stop_timer() {
-    running = false
-  }
 
   fn reset_timer() {
-    running = false
     elapsed = 0
   }
 
+  computed minutes = elapsed / 60
+  computed seconds = elapsed % 60
+
   computed display = match elapsed {
+    0 => "0s"
     t if t < 60 => "{t}s"
-    t if t < 3600 => "{t / 60}m {t % 60}s"
-    _ => "{elapsed / 3600}h {(elapsed % 3600) / 60}m"
+    _ => "{minutes}m {seconds}s"
   }
 
   component App {
@@ -688,7 +690,7 @@ client {
         <button on:click={fn() elapsed += 60}>"+1m"</button>
         <button on:click={reset_timer}>"Reset"</button>
       </div>
-      <p class="hint">"(Click buttons to simulate time passing)"</p>
+      <p class="hint">"(Click buttons to add time)"</p>
     </div>
   }
 }
@@ -850,7 +852,7 @@ fn step(grid) {
         [1, n] if n < 2 => 0
         [1, n] if n > 3 => 0
         [1, _] => 1
-        [0, 3] => 3
+        [0, 3] => 1
         _ => grid[r][c]
       }
     for c in range(cols)]
@@ -1560,6 +1562,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
   font-size: 14px; padding: 0 2px;
 }
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ─── Console Enhancements ────────────────────────── */
 .console-toolbar {
@@ -1748,7 +1751,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 <!-- ─── Main ──────────────────────────────────────── -->
 <div class="main">
   <div class="pane pane-editor">
-    <div id="editor"></div>
+    <div id="editor"><div id="editor-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-dim);font-size:14px;gap:10px;"><svg width="20" height="20" viewBox="0 0 20 20" style="animation:spin 1s linear infinite"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="40" stroke-dashoffset="10" stroke-linecap="round"/></svg> Loading editor...</div></div>
   </div>
   <div class="drag-handle" id="drag-handle"></div>
   <div class="pane pane-output">
@@ -1764,7 +1767,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
       <span class="error-hint" id="error-hint"></span>
     </div>
     <div class="output-content">
-      <div class="output-panel active" id="panel-js"><div id="js-output-editor"></div><pre id="js-output" style="display:none"></pre></div>
+      <div class="output-panel active" id="panel-js"><button class="btn" id="btn-copy-js" style="position:absolute;top:8px;right:12px;z-index:5;padding:2px 8px;font-size:11px;opacity:0.7;" title="Copy JS output">Copy</button><div id="js-output-editor"></div><pre id="js-output" style="display:none"></pre></div>
       <div class="output-panel" id="panel-console">
         <div class="console-toolbar">
           <span class="console-timing" id="console-timing"></span>
@@ -1774,7 +1777,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
         </div>
         <div id="console-output" style="padding:12px 0;font-family:var(--font-mono);font-size:13px;line-height:1.6;overflow:auto;flex:1;"></div>
       </div>
-      <div class="output-panel" id="panel-preview"><iframe id="preview-frame" sandbox="allow-scripts"></iframe></div>
+      <div class="output-panel" id="panel-preview"><iframe id="preview-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe></div>
       <div class="output-panel" id="panel-ast"><div id="ast-output"></div></div>
     </div>
   </div>
@@ -1865,11 +1868,12 @@ ${"</"}script>
 <!-- ─── CodeMirror & App ─────────────────────────── -->
 <script type="module">
 import {basicSetup} from 'codemirror';
-import {EditorState, StateField, StateEffect} from '@codemirror/state';
+import {EditorState, StateField, StateEffect, Compartment} from '@codemirror/state';
 import {EditorView, keymap, Decoration} from '@codemirror/view';
-import {StreamLanguage} from '@codemirror/language';
+import {StreamLanguage, HighlightStyle, syntaxHighlighting} from '@codemirror/language';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {autocompletion} from '@codemirror/autocomplete';
+import {tags} from '@lezer/highlight';
 
 // ─── Tova Syntax Highlighting ────────────────────────
 const tovaLanguage = StreamLanguage.define({
@@ -2047,6 +2051,44 @@ const errorField = StateField.define({
   provide: f => EditorView.decorations.from(f)
 });
 
+// ─── Light Theme for CodeMirror ──────────────────────
+const tovaLightTheme = EditorView.theme({
+  '&': { backgroundColor: '#f8f9fa', color: '#212529' },
+  '.cm-content': { caretColor: '#7c3aed' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#7c3aed' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: 'rgba(124,58,237,0.15)' },
+  '.cm-activeLine': { backgroundColor: 'rgba(124,58,237,0.06)' },
+  '.cm-gutters': { backgroundColor: '#f1f3f5', color: '#868e96', borderRight: '1px solid #dee2e6' },
+  '.cm-activeLineGutter': { backgroundColor: 'rgba(124,58,237,0.08)' },
+}, { dark: false });
+
+// Light syntax highlighting colors defined below using HighlightStyle
+const lightHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: '#7c3aed', fontWeight: '600' },
+  { tag: tags.string, color: '#2b8a3e' },
+  { tag: tags.number, color: '#e67700' },
+  { tag: tags.bool, color: '#7c3aed' },
+  { tag: tags.null, color: '#868e96' },
+  { tag: tags.comment, color: '#868e96', fontStyle: 'italic' },
+  { tag: tags.lineComment, color: '#868e96', fontStyle: 'italic' },
+  { tag: tags.blockComment, color: '#868e96', fontStyle: 'italic' },
+  { tag: tags.variableName, color: '#212529' },
+  { tag: tags.typeName, color: '#e8590c' },
+  { tag: tags.operator, color: '#495057' },
+  { tag: tags.brace, color: '#495057' },
+  { tag: tags.tagName, color: '#1971c2' },
+  { tag: tags.angleBracket, color: '#1971c2' },
+  { tag: tags.docString, color: '#0ca678', fontStyle: 'italic' },
+]);
+
+const themeCompartment = new Compartment();
+const jsThemeCompartment = new Compartment();
+function getEditorTheme() {
+  return lightTheme
+    ? [tovaLightTheme, syntaxHighlighting(lightHighlightStyle)]
+    : [oneDark];
+}
+
 // ─── Data ───────────────────────────────────────────
 const EXAMPLES = ${JSON.stringify(examples, null, 2)};
 const REFERENCE = ${JSON.stringify(reference, null, 2)};
@@ -2098,7 +2140,7 @@ const editor = new EditorView({
     doc: initialCode,
     extensions: [
       basicSetup,
-      oneDark,
+      themeCompartment.of(getEditorTheme()),
       tovaLanguage,
       errorField,
       autocompletion({
@@ -2126,7 +2168,6 @@ const editor = new EditorView({
           try { localStorage.setItem('tova-playground-code', editor.state.doc.toString()); } catch(e) {}
           const s = document.getElementById('status-compile');
           s.className = 'success'; s.textContent = 'Saved to browser';
-          setTimeout(() => compile(), 1000);
           return true;
         }},
         { key: 'Mod-Shift-r', run: () => { toggleSidebar('reference'); return true; } },
@@ -2138,6 +2179,10 @@ const editor = new EditorView({
   }),
   parent: document.getElementById('editor'),
 });
+
+// Remove loading indicator
+const loadingEl = document.getElementById('editor-loading');
+if (loadingEl) loadingEl.remove();
 
 // ─── Populate Examples (with optgroups) ─────────────
 const exSelect = document.getElementById('examples-select');
@@ -2192,12 +2237,23 @@ document.addEventListener('mousemove', e => {
   if (!dragging) return;
   const rect = mainEl.getBoundingClientRect();
   const sidebarW = sidebarMode ? parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w')) : 0;
-  const availW = rect.width - sidebarW;
-  const pct = ((e.clientX - rect.left) / availW) * 100;
-  const clamped = Math.max(20, Math.min(80, pct));
-  editorPane.style.flex = 'none';
-  editorPane.style.width = clamped + '%';
-  outputPane.style.flex = '1';
+  if (layoutVertical) {
+    const availH = rect.height;
+    const pct = ((e.clientY - rect.top) / availH) * 100;
+    const clamped = Math.max(20, Math.min(80, pct));
+    editorPane.style.flex = 'none';
+    editorPane.style.width = '';
+    editorPane.style.height = clamped + '%';
+    outputPane.style.flex = '1';
+  } else {
+    const availW = rect.width - sidebarW;
+    const pct = ((e.clientX - rect.left) / availW) * 100;
+    const clamped = Math.max(20, Math.min(80, pct));
+    editorPane.style.flex = 'none';
+    editorPane.style.height = '';
+    editorPane.style.width = clamped + '%';
+    outputPane.style.flex = '1';
+  }
 });
 document.addEventListener('mouseup', () => { dragging = false; dragHandle.classList.remove('active'); });
 
@@ -2237,6 +2293,7 @@ function loadFromHash() {
   return false;
 }
 loadFromHash();
+window.addEventListener('hashchange', loadFromHash);
 
 // ─── Run Button ─────────────────────────────────────
 document.getElementById('btn-run').addEventListener('click', compile);
@@ -2385,52 +2442,103 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
   const codeToRun = result.code || result.shared || '';
   if (codeToRun.trim()) {
     try {
-      const fn = new Function('console', STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n' + ARRAY_PROTO_CODE + '\\n' + codeToRun);
-      fn(fakeConsole);
+      // Run in a blob Worker with a 3-second timeout to catch infinite loops
+      const workerCode = STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n' + ARRAY_PROTO_CODE + '\\n' +
+        'const __logs = [];\\n' +
+        'const console = {\\n' +
+        '  log: (...a) => __logs.push({type:"log",args:a.map(__ser)}),\\n' +
+        '  warn: (...a) => __logs.push({type:"warn",args:a.map(__ser)}),\\n' +
+        '  error: (...a) => __logs.push({type:"error",args:a.map(__ser)}),\\n' +
+        '  info: (...a) => __logs.push({type:"info",args:a.map(__ser)}),\\n' +
+        '};\\n' +
+        'function __ser(v) { if (v === null) return "null"; if (v === undefined) return "undefined"; if (typeof v === "object") { try { return JSON.stringify(v); } catch(e) { return String(v); } } return String(v); }\\n' +
+        codeToRun + '\\n' +
+        'postMessage({type:"done",logs:__logs});';
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      const w = new Worker(url);
+      let finished = false;
+      const timeout = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          w.terminate();
+          URL.revokeObjectURL(url);
+          logs.push({ type: 'error', args: ['Execution timed out (3s limit). Possible infinite loop.'] });
+          renderLogs();
+        }
+      }, 3000);
+      w.onmessage = (e) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        w.terminate();
+        URL.revokeObjectURL(url);
+        if (e.data.type === 'done') {
+          for (const log of e.data.logs) {
+            logs.push({ type: log.type, args: [log.args.join(' ')] });
+          }
+        }
+        renderLogs();
+      };
+      w.onerror = (e) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        w.terminate();
+        URL.revokeObjectURL(url);
+        logs.push({ type: 'error', args: ['Runtime Error: ' + (e.message || 'Unknown error')] });
+        renderLogs();
+      };
     } catch (e) {
       logs.push({ type: 'error', args: ['Runtime Error: ' + e.message] });
     }
   }
   const execTime = (performance.now() - execStart).toFixed(2);
 
-  if (consoleTimingEl) consoleTimingEl.textContent = 'Executed in ' + execTime + 'ms';
+  // Render logs (called sync or async from worker)
+  function renderLogs() {
+    const elapsed = (performance.now() - execStart).toFixed(2);
+    if (consoleTimingEl) consoleTimingEl.textContent = 'Executed in ' + elapsed + 'ms';
 
-  // Render logs with icons and better formatting
-  const icons = { log: '\\u203A', warn: '\\u26A0', error: '\\u2717', info: '\\u2139' };
-  let errorCount = 0;
-  for (const log of logs) {
-    const div = document.createElement('div');
-    div.className = 'log-' + log.type;
-    const icon = document.createElement('span');
-    icon.className = 'log-icon';
-    icon.textContent = icons[log.type] || '';
-    div.appendChild(icon);
-    const content = document.createElement('span');
-    content.className = 'log-content';
-    const textParts = log.args.map(a => {
-      if (a === null) return 'null';
-      if (a === undefined) return 'undefined';
-      if (typeof a === 'object') {
-        try { return JSON.stringify(a, null, 2); } catch(e) { return String(a); }
-      }
-      return String(a);
-    });
-    content.textContent = textParts.join(' ');
-    div.appendChild(content);
-    consoleEl.appendChild(div);
-    if (log.type === 'error') errorCount++;
+    const icons = { log: '\\u203A', warn: '\\u26A0', error: '\\u2717', info: '\\u2139' };
+    let errorCount = 0;
+    for (const log of logs) {
+      const div = document.createElement('div');
+      div.className = 'log-' + log.type;
+      const icon = document.createElement('span');
+      icon.className = 'log-icon';
+      icon.textContent = icons[log.type] || '';
+      div.appendChild(icon);
+      const content = document.createElement('span');
+      content.className = 'log-content';
+      const textParts = log.args.map(a => {
+        if (a === null) return 'null';
+        if (a === undefined) return 'undefined';
+        if (typeof a === 'object') {
+          try { return JSON.stringify(a, null, 2); } catch(e) { return String(a); }
+        }
+        return String(a);
+      });
+      content.textContent = textParts.join(' ');
+      div.appendChild(content);
+      consoleEl.appendChild(div);
+      if (log.type === 'error') errorCount++;
+    }
+
+    if (errorCount > 0) {
+      consoleBadge.textContent = errorCount;
+      consoleBadge.style.display = 'inline';
+      switchTab('console');
+    }
+
+    if (logs.length > 0 && !result.client) {
+      switchTab('console');
+    }
   }
 
-  // Badge for errors
-  if (errorCount > 0) {
-    consoleBadge.textContent = errorCount;
-    consoleBadge.style.display = 'inline';
-    switchTab('console');
-  }
-
-  // Auto-switch to console if there are logs and no client code
-  if (logs.length > 0 && !result.client) {
-    switchTab('console');
+  // For non-worker code paths (client code), render immediately
+  if (!codeToRun.trim() || result.client) {
+    renderLogs();
   }
 
   // Live Preview for client code
@@ -2673,7 +2781,7 @@ try {
         doc: '// Compiled JS output will appear here',
         extensions: [
           basicSetup,
-          oneDark,
+          jsThemeCompartment.of(getEditorTheme()),
           EditorState.readOnly.of(true),
           EditorView.editable.of(false),
         ],
@@ -2700,9 +2808,20 @@ document.getElementById('btn-copy-console').addEventListener('click', () => {
   });
 });
 
+// ─── Copy JS Output ─────────────────────────────────
+document.getElementById('btn-copy-js').addEventListener('click', () => {
+  const text = lastJsText || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btn-copy-js');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+});
+
 // ─── Command Palette ────────────────────────────────
 let cmdPaletteOpen = false;
 let cmdSelectedIndex = 0;
+let _cmdItems = [];
 
 function getCommandItems(query) {
   const q = query.toLowerCase();
@@ -2779,7 +2898,7 @@ function renderCommandPalette(query) {
     results.appendChild(div);
   });
 
-  window._cmdItems = items;
+  _cmdItems = items;
 }
 
 function toggleCommandPalette() {
@@ -2820,8 +2939,8 @@ document.getElementById('cmd-input').addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (window._cmdItems && window._cmdItems[cmdSelectedIndex]) {
-      window._cmdItems[cmdSelectedIndex].action();
+    if (_cmdItems && _cmdItems[cmdSelectedIndex]) {
+      _cmdItems[cmdSelectedIndex].action();
       closeCommandPalette();
     }
   }
@@ -2866,6 +2985,13 @@ try { lightTheme = localStorage.getItem('tova-playground-theme') === 'light'; } 
 function applyTheme() {
   document.body.classList.toggle('light-theme', lightTheme);
   document.getElementById('setting-theme').classList.toggle('on', lightTheme);
+  // Reconfigure CodeMirror theme
+  if (typeof editor !== 'undefined' && editor) {
+    editor.dispatch({ effects: themeCompartment.reconfigure(getEditorTheme()) });
+  }
+  if (typeof window.jsEditor !== 'undefined' && window.jsEditor) {
+    window.jsEditor.dispatch({ effects: jsThemeCompartment.reconfigure(getEditorTheme()) });
+  }
 }
 
 document.getElementById('setting-theme').addEventListener('click', function() {
@@ -3032,8 +3158,7 @@ if (!localStorage.getItem('tova-playground-welcomed')) {
   toast.innerHTML = 'Welcome! Try the <strong style="color:var(--accent);margin:0 2px">Learn</strong> button, or press <span class="kbd-hint">Cmd+Enter</span> to run code. <button class="close-toast" aria-label="Close">\\u2715</button>';
   document.querySelector('.pane-editor').appendChild(toast);
   toast.querySelector('.close-toast').addEventListener('click', () => { toast.remove(); localStorage.setItem('tova-playground-welcomed', '1'); });
-  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 15000);
-  localStorage.setItem('tova-playground-welcomed', '1');
+  setTimeout(() => { if (toast.parentNode) { toast.remove(); localStorage.setItem('tova-playground-welcomed', '1'); } }, 15000);
 }
 
 // ─── Utility ────────────────────────────────────────

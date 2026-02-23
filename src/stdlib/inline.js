@@ -88,6 +88,7 @@ export const BUILTIN_FUNCTIONS = {
   last: `function last(arr) { return arr.length > 0 ? arr[arr.length - 1] : null; }`,
   count: `function count(arr, fn) { return arr.filter(fn).length; }`,
   partition: `function partition(arr, fn) { const y = [], n = []; for (const v of arr) { (fn(v) ? y : n).push(v); } return [y, n]; }`,
+  filled: `function filled(n, val) { return new Array(n).fill(val); }`,
   abs: `function abs(n) { return Math.abs(n); }`,
   floor: `function floor(n) { return Math.floor(n); }`,
   ceil: `function ceil(n) { return Math.ceil(n); }`,

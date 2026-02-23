@@ -1497,4 +1497,116 @@ describe('analyzer: MemberExpression assignment targets', () => {
     const code = compile(src);
     expect(code).toContain('flags[1] = false');
   });
+
+  // ─── Array Fill Pattern Optimization ────────────────────────
+
+  test('array fill pattern: var arr = []; for in range(n) { arr.push(true) } → Uint8Array(n).fill(1)', () => {
+    const code = compile(`
+      var flags = []
+      for idx in range(100) {
+        flags.push(true)
+      }
+    `);
+    // Boolean fill optimizes to Uint8Array for contiguous memory
+    expect(code).toContain('new Uint8Array(100).fill(1)');
+    expect(code).not.toContain('for (let idx');
+  });
+
+  test('array fill pattern: const arr = []; for in range(n) { arr.push(val) } → Array(n).fill(val)', () => {
+    const code = compile(`
+      arr = []
+      for i in range(50) {
+        arr.push(0)
+      }
+    `);
+    expect(code).toContain('new Array(50).fill(0)');
+  });
+
+  test('array fill pattern: with expression size (false fill → Uint8Array)', () => {
+    const code = compile(`
+      n = 1000
+      var data = []
+      for i in range(n + 1) {
+        data.push(false)
+      }
+    `);
+    // false fill → Uint8Array (zero-filled by default, no .fill() needed)
+    expect(code).toContain('new Uint8Array((n + 1))');
+  });
+
+  test('array fill pattern: does not trigger for non-push body', () => {
+    const code = compile(`
+      var arr = []
+      for i in range(10) {
+        arr.push(i)
+      }
+    `);
+    // Should NOT optimize — push(i) uses loop variable (not a constant fill)
+    expect(code).not.toContain('new Array');
+    expect(code).toContain('for (let i');
+  });
+
+  test('array fill pattern: does not trigger for multi-statement body', () => {
+    const code = compile(`
+      var arr = []
+      for i in range(10) {
+        arr.push(true)
+        print(i)
+      }
+    `);
+    expect(code).not.toContain('new Array');
+    expect(code).toContain('for (let i');
+  });
+
+  // ─── Result.map Chain Fusion Optimization ────────────────────
+
+  test('Result.map chain fusion: Ok(val).map(f).map(g) → Ok(g(f(val)))', () => {
+    const code = compile(`
+      result = Ok(10).map(fn(x) x * 2).map(fn(x) x + 1)
+    `);
+    // Should NOT contain .map() calls — fused into a single Ok()
+    expect(code).not.toContain('.map(');
+    expect(code).toContain('Ok(');
+  });
+
+  test('Result.map chain fusion: 3-deep chain', () => {
+    const code = compile(`
+      result = Ok(5).map(fn(x) x * 2).map(fn(x) x + 1).map(fn(x) x * 3)
+    `);
+    expect(code).not.toContain('.map(');
+    expect(code).toContain('Ok(');
+  });
+
+  test('Result.map chain fusion: Some variant', () => {
+    const code = compile(`
+      opt = Some(3).map(fn(x) x + 10).map(fn(x) x * 2)
+    `);
+    expect(code).not.toContain('.map(');
+    expect(code).toContain('Some(');
+  });
+
+  test('Result.map chain fusion: single .map() is NOT fused (needs 2+)', () => {
+    const code = compile(`
+      result = Ok(10).map(fn(x) x * 2)
+    `);
+    // Single map should remain as-is (no benefit from fusion)
+    expect(code).toContain('.map(');
+  });
+
+  test('Result.map chain fusion: non-Ok receiver is NOT fused', () => {
+    const code = compile(`
+      result = get_result().map(fn(x) x * 2).map(fn(x) x + 1)
+    `);
+    // Can't fuse — receiver type unknown at compile time
+    expect(code).toContain('.map(');
+  });
+
+  // ─── filled() stdlib function ────────────────────────────────
+
+  test('filled() generates correct code', () => {
+    const code = compile(`
+      arr = filled(5, true)
+    `);
+    expect(code).toContain('filled');
+  });
 });
