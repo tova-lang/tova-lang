@@ -11,13 +11,20 @@ const ROOT = resolve(dirname(import.meta.dir));
 const SOURCE_FILES = [
   'src/lexer/tokens.js',
   'src/lexer/lexer.js',
+  'src/parser/client-ast.js',
+  'src/parser/server-ast.js',
   'src/parser/ast.js',
   '__AST_SHIM__',
+  'src/parser/server-parser.js',
+  'src/parser/client-parser.js',
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/types.js',
+  'src/analyzer/server-analyzer.js',
+  'src/analyzer/client-analyzer.js',
   'src/analyzer/analyzer.js',
   'src/stdlib/inline.js',
+  'src/codegen/wasm-codegen.js',
   'src/codegen/base-codegen.js',
   'src/codegen/shared-codegen.js',
   'src/codegen/server-codegen.js',
@@ -34,6 +41,8 @@ function stripModuleSyntax(code) {
     .replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*['"];?\s*$/gm, '')
     // Side-effect imports: import '...'
     .replace(/^\s*import\s+['"].*['"];?\s*$/gm, '')
+    // Multi-line export { ... } from '...' and export { ... }
+    .replace(/^\s*export\s*\{[\s\S]*?\}(?:\s*from\s*['"][^'"]*['"])?\s*;?\s*$/gm, '')
     .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '')
     .replace(/^\s*export\s*\*\s*from\s+['"].*['"];?\s*$/gm, '')
     .replace(/^\s*export\s+default\s+/gm, '')
@@ -48,10 +57,13 @@ function buildCompilerBundle() {
 
   for (const entry of SOURCE_FILES) {
     if (entry === '__AST_SHIM__') {
-      const astCode = readFileSync(resolve(ROOT, 'src/parser/ast.js'), 'utf-8');
+      // Collect class names from all AST files (core + client + server)
       const classNames = [];
-      for (const m of astCode.matchAll(/^(?:export\s+)?class\s+(\w+)/gm)) {
-        classNames.push(m[1]);
+      for (const astFile of ['src/parser/ast.js', 'src/parser/client-ast.js', 'src/parser/server-ast.js']) {
+        const astCode = readFileSync(resolve(ROOT, astFile), 'utf-8');
+        for (const m of astCode.matchAll(/^(?:export\s+)?class\s+(\w+)/gm)) {
+          classNames.push(m[1]);
+        }
       }
       parts.push(`// AST namespace shim for parser.js compatibility`);
       parts.push(`const AST = { ${classNames.join(', ')} };`);
