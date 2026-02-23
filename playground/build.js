@@ -92,12 +92,13 @@ function buildRuntimeBundle() {
 
 function buildStringProto() {
   const sp = readFileSync(resolve(ROOT, 'src/runtime/string-proto.js'), 'utf-8');
-  return stripModuleSyntax(sp);
+  // Wrap in block scope to avoid 'const methods' collision with array-proto
+  return '{\n' + stripModuleSyntax(sp) + '\n}';
 }
 
 function buildArrayProto() {
   const ap = readFileSync(resolve(ROOT, 'src/runtime/array-proto.js'), 'utf-8');
-  return stripModuleSyntax(ap);
+  return '{\n' + stripModuleSyntax(ap) + '\n}';
 }
 
 function getStdlib() {
