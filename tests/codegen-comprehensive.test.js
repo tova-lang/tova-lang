@@ -840,7 +840,7 @@ describe('Server — Env validation (typed env vars)', () => {
     }`);
     expect(code).toContain('Env Validation');
     expect(code).toContain('process.env.API_KEY');
-    expect(code).toContain('Required env var API_KEY is not set');
+    expect(code).toContain('Missing required env vars');
     expect(code).toContain('return __raw;');
   });
 

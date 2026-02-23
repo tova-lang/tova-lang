@@ -16,9 +16,10 @@ function getClientCodegen() {
 }
 
 export class CodeGenerator {
-  constructor(ast, filename = '<stdin>') {
+  constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
     this.filename = filename;
+    this._sourceMaps = options.sourceMaps !== false; // default true; pass false for REPL/check
   }
 
   // Group blocks by name (null name = "default")
@@ -62,6 +63,7 @@ export class CodeGenerator {
 
     if (isModule) {
       const moduleGen = new SharedCodegen();
+      moduleGen._sourceMapsEnabled = this._sourceMaps;
       moduleGen.setSourceFile(this.filename);
       const moduleCode = topLevel.map(s => moduleGen.generateStatement(s)).join('\n');
       const helpers = moduleGen.generateHelpers();
@@ -77,6 +79,7 @@ export class CodeGenerator {
     }
 
     const sharedGen = new SharedCodegen();
+    sharedGen._sourceMapsEnabled = this._sourceMaps;
     sharedGen.setSourceFile(this.filename);
 
     // All shared blocks (regardless of name) are merged into one shared output
@@ -124,6 +127,7 @@ export class CodeGenerator {
     const servers = {};
     for (const [name, blocks] of serverGroups) {
       const gen = new (getServerCodegen())();
+      gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
       // Build peer blocks map (all named blocks except self)
       let peerBlocks = null;
@@ -142,6 +146,7 @@ export class CodeGenerator {
     const clients = {};
     for (const [name, blocks] of clientGroups) {
       const gen = new (getClientCodegen())();
+      gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
       clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins);
     }

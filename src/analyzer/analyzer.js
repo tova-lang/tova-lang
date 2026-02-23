@@ -12,6 +12,10 @@ import {
 } from './types.js';
 import { ErrorCode, WarningCode } from '../diagnostics/error-codes.js';
 
+// Pre-allocated constants for hot-path type checking (avoid per-call allocation)
+const ARITHMETIC_OPS = new Set(['-', '*', '/', '%', '**']);
+const NUMERIC_TYPES = new Set(['Int', 'Float']);
+
 const _JS_GLOBALS = new Set([
   'console', 'document', 'window', 'globalThis', 'self',
   'JSON', 'Math', 'Date', 'RegExp', 'Error', 'TypeError', 'RangeError',
@@ -35,23 +39,41 @@ const _JS_GLOBALS = new Set([
 function levenshtein(a, b) {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
-  const m = [];
-  for (let i = 0; i <= b.length; i++) m[i] = [i];
-  for (let j = 0; j <= a.length; j++) m[0][j] = j;
+  // Ensure a is the shorter string for O(min(n,m)) space
+  if (a.length > b.length) { const t = a; a = b; b = t; }
+  const len = a.length;
+  let prev = new Array(len + 1);
+  let curr = new Array(len + 1);
+  for (let j = 0; j <= len; j++) prev[j] = j;
   for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      m[i][j] = b[i-1] === a[j-1]
-        ? m[i-1][j-1]
-        : Math.min(m[i-1][j-1] + 1, m[i][j-1] + 1, m[i-1][j] + 1);
+    curr[0] = i;
+    for (let j = 1; j <= len; j++) {
+      curr[j] = b[i-1] === a[j-1]
+        ? prev[j-1]
+        : Math.min(prev[j-1], curr[j-1], prev[j]) + 1;
     }
+    const tmp = prev; prev = curr; curr = tmp;
   }
-  return m[b.length][a.length];
+  return prev[len];
 }
 
 const _TOVA_RUNTIME = new Set([
   'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
   'db', 'server', 'client', 'shared',
 ]);
+
+// Pre-built static candidate set for Levenshtein suggestions (N1 optimization)
+// Lazily initialized on first use since BUILTIN_NAMES, _JS_GLOBALS, _TOVA_RUNTIME never change.
+let _STATIC_SUGGESTION_NAMES = null;
+function _getStaticSuggestionNames() {
+  if (!_STATIC_SUGGESTION_NAMES) {
+    _STATIC_SUGGESTION_NAMES = [];
+    for (const n of BUILTIN_NAMES) _STATIC_SUGGESTION_NAMES.push(n);
+    for (const n of _JS_GLOBALS) _STATIC_SUGGESTION_NAMES.push(n);
+    for (const n of _TOVA_RUNTIME) _STATIC_SUGGESTION_NAMES.push(n);
+  }
+  return _STATIC_SUGGESTION_NAMES;
+}
 
 export class Analyzer {
   constructor(ast, filename = '<stdin>', options = {}) {
@@ -564,8 +586,17 @@ export class Analyzer {
 
   _parseGenericType(typeStr) {
     if (!typeStr) return { base: typeStr, params: [] };
+    // Check cache first
+    if (!this._parseGenericCache) this._parseGenericCache = new Map();
+    const cached = this._parseGenericCache.get(typeStr);
+    if (cached) return cached;
+
     const ltIdx = typeStr.indexOf('<');
-    if (ltIdx === -1) return { base: typeStr, params: [] };
+    if (ltIdx === -1) {
+      const result = { base: typeStr, params: [] };
+      this._parseGenericCache.set(typeStr, result);
+      return result;
+    }
     const base = typeStr.slice(0, ltIdx);
     const inner = typeStr.slice(ltIdx + 1, typeStr.lastIndexOf('>'));
     // Split on top-level commas (respecting nested <>)
@@ -581,7 +612,9 @@ export class Analyzer {
       }
     }
     params.push(inner.slice(start).trim());
-    return { base, params };
+    const result = { base, params };
+    this._parseGenericCache.set(typeStr, result);
+    return result;
   }
 
   _typesCompatible(expected, actual) {
@@ -1660,22 +1693,36 @@ export class Analyzer {
   }
 
   _findClosestMatch(name) {
-    const candidates = new Set();
+    const candidates = [];
+    // Collect scope symbols (these change per call)
     let scope = this.currentScope;
     while (scope) {
-      for (const n of scope.symbols.keys()) candidates.add(n);
+      for (const n of scope.symbols.keys()) candidates.push(n);
       scope = scope.parent;
     }
-    for (const n of BUILTIN_NAMES) candidates.add(n);
-    for (const n of _JS_GLOBALS) candidates.add(n);
-    for (const n of _TOVA_RUNTIME) candidates.add(n);
 
     let best = null;
     let bestDist = Infinity;
     const maxDist = Math.max(2, Math.floor(name.length * 0.4));
-    for (const c of candidates) {
+    const nameLower = name.toLowerCase();
+
+    // Check scope symbols first
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
       if (Math.abs(c.length - name.length) > maxDist) continue;
-      const d = levenshtein(name.toLowerCase(), c.toLowerCase());
+      const d = levenshtein(nameLower, c.toLowerCase());
+      if (d < bestDist && d <= maxDist && d > 0) {
+        bestDist = d;
+        best = c;
+      }
+    }
+
+    // Check static global names (BUILTIN_NAMES, _JS_GLOBALS, _TOVA_RUNTIME)
+    const staticNames = _getStaticSuggestionNames();
+    for (let i = 0; i < staticNames.length; i++) {
+      const c = staticNames[i];
+      if (Math.abs(c.length - name.length) > maxDist) continue;
+      const d = levenshtein(nameLower, c.toLowerCase());
       if (d < bestDist && d <= maxDist && d > 0) {
         bestDist = d;
         best = c;
@@ -1853,9 +1900,28 @@ export class Analyzer {
       // contain ALL covered variant names (avoids false positives with shared names)
       const candidates = [];
       this._collectTypeCandidates(this.ast.body, coveredVariants, candidates);
-      // Only warn if exactly one type contains all covered variants
+
+      let matched = null;
       if (candidates.length === 1) {
-        const [typeName, typeVariants] = candidates[0];
+        matched = candidates[0];
+      } else if (candidates.length > 1) {
+        // Disambiguate using subject's inferred type name
+        let subjectTypeName = null;
+        if (node.subject) {
+          subjectTypeName = this._inferType(node.subject);
+          if (!subjectTypeName && node.subject.type === 'Identifier') {
+            const sym = this.currentScope.lookup(node.subject.name);
+            if (sym) subjectTypeName = sym.inferredType;
+          }
+        }
+        if (subjectTypeName) {
+          const exact = candidates.find(([name]) => name === subjectTypeName);
+          if (exact) matched = exact;
+        }
+      }
+
+      if (matched) {
+        const [typeName, typeVariants] = matched;
         for (const v of typeVariants) {
           if (!coveredVariants.has(v)) {
             this.warn(`Non-exhaustive match: missing '${v}' variant from type '${typeName}'`, node.loc, `add a '${v}' arm or use '_ =>' as a catch-all`, { code: 'W200' });
@@ -1863,6 +1929,70 @@ export class Analyzer {
         }
       }
     }
+  }
+
+  // Check if a match expression covers all variants without a wildcard (for return path analysis)
+  _isMatchExhaustive(node) {
+    const coveredVariants = new Set();
+    for (const arm of node.arms) {
+      if (arm.pattern.type === 'VariantPattern') {
+        coveredVariants.add(arm.pattern.name);
+      }
+    }
+    if (coveredVariants.size === 0) return false;
+
+    // Check subject's inferred type
+    if (node.subject) {
+      const subjectTypeStr = this._inferType(node.subject);
+      if (subjectTypeStr) {
+        const typeStructure = this.typeRegistry.types.get(subjectTypeStr);
+        if (typeStructure instanceof ADTType) {
+          return typeStructure.getVariantNames().every(v => coveredVariants.has(v));
+        }
+      }
+      if (node.subject.type === 'Identifier') {
+        const sym = this.currentScope.lookup(node.subject.name);
+        if (sym && sym.inferredType) {
+          const typeStructure = this.typeRegistry.types.get(sym.inferredType);
+          if (typeStructure instanceof ADTType) {
+            return typeStructure.getVariantNames().every(v => coveredVariants.has(v));
+          }
+        }
+      }
+    }
+
+    // Built-in Result type
+    if ((coveredVariants.has('Ok') || coveredVariants.has('Err')) &&
+        coveredVariants.has('Ok') && coveredVariants.has('Err')) return true;
+    // Built-in Option type
+    if ((coveredVariants.has('Some') || coveredVariants.has('None')) &&
+        coveredVariants.has('Some') && coveredVariants.has('None')) return true;
+
+    // Fallback: check user-defined types
+    const candidates = [];
+    this._collectTypeCandidates(this.ast.body, coveredVariants, candidates);
+
+    let matched = null;
+    if (candidates.length === 1) {
+      matched = candidates[0];
+    } else if (candidates.length > 1 && node.subject) {
+      // Disambiguate using subject's inferred type name
+      let subjectTypeName = this._inferType(node.subject);
+      if (!subjectTypeName && node.subject.type === 'Identifier') {
+        const sym = this.currentScope.lookup(node.subject.name);
+        if (sym) subjectTypeName = sym.inferredType;
+      }
+      if (subjectTypeName) {
+        const exact = candidates.find(([name]) => name === subjectTypeName);
+        if (exact) matched = exact;
+      }
+    }
+
+    if (matched) {
+      const [, typeVariants] = matched;
+      return typeVariants.every(v => coveredVariants.has(v));
+    }
+    return false;
   }
 
   _collectTypeCandidates(nodes, coveredVariants, candidates) {
@@ -2015,8 +2145,12 @@ export class Analyzer {
           arm.pattern.type === 'WildcardPattern' ||
           (arm.pattern.type === 'BindingPattern' && !arm.guard)
         );
-        if (!hasWildcard) return false;
-        return node.arms.every(arm => this._definitelyReturns(arm.body));
+        const isExhaustive = hasWildcard || this._isMatchExhaustive(node);
+        if (!isExhaustive) return false;
+        // Match arms with expression bodies (not block statements) are implicit returns
+        return node.arms.every(arm =>
+          arm.body.type !== 'BlockStatement' || this._definitelyReturns(arm.body)
+        );
       }
       case 'TryCatchStatement': {
         const tryReturns = node.tryBody.length > 0 &&
@@ -2202,7 +2336,7 @@ export class Analyzer {
       if (rightType && rightType !== 'String' && rightType !== 'Any') {
         this.strictError(`Type mismatch: '++' expects String on right side, but got ${rightType}`, node.loc, "try toString(value) to convert");
       }
-    } else if (['-', '*', '/', '%', '**'].includes(op)) {
+    } else if (ARITHMETIC_OPS.has(op)) {
       // String literal * Int is valid (string repeat) — skip warning for that case
       if (op === '*') {
         const leftIsStr = node.left.type === 'StringLiteral' || node.left.type === 'TemplateLiteral';
@@ -2210,23 +2344,21 @@ export class Analyzer {
         if (leftIsStr || rightIsStr) return;
       }
       // Arithmetic: both sides must be numeric
-      const numerics = new Set(['Int', 'Float']);
-      if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
+      if (leftType && !NUMERIC_TYPES.has(leftType) && leftType !== 'Any') {
         const hint = leftType === 'String' ? "try toInt(value) or toFloat(value) to parse" : null;
         this.strictError(`Type mismatch: '${op}' expects numeric type, but got ${leftType}`, node.loc, hint);
       }
-      if (rightType && !numerics.has(rightType) && rightType !== 'Any') {
+      if (rightType && !NUMERIC_TYPES.has(rightType) && rightType !== 'Any') {
         const hint = rightType === 'String' ? "try toInt(value) or toFloat(value) to parse" : null;
         this.strictError(`Type mismatch: '${op}' expects numeric type, but got ${rightType}`, node.loc, hint);
       }
     } else if (op === '+') {
       // Addition: both sides must be numeric (Tova uses ++ for strings)
-      const numerics = new Set(['Int', 'Float']);
-      if (leftType && !numerics.has(leftType) && leftType !== 'Any') {
+      if (leftType && !NUMERIC_TYPES.has(leftType) && leftType !== 'Any') {
         const hint = leftType === 'String' ? "try toInt(value) or toFloat(value) to parse" : null;
         this.strictError(`Type mismatch: '+' expects numeric type, but got ${leftType}`, node.loc, hint);
       }
-      if (rightType && !numerics.has(rightType) && rightType !== 'Any') {
+      if (rightType && !NUMERIC_TYPES.has(rightType) && rightType !== 'Any') {
         const hint = rightType === 'String' ? "try toInt(value) or toFloat(value) to parse" : null;
         this.strictError(`Type mismatch: '+' expects numeric type, but got ${rightType}`, node.loc, hint);
       }

@@ -3,6 +3,16 @@ import { TokenType, Keywords, Token } from './tokens.js';
 export class Lexer {
   static MAX_INTERPOLATION_DEPTH = 64;
 
+  // Pre-compiled regex constants (avoid re-compilation in hot loops)
+  static UNICODE_LETTER_RE = /\p{Letter}/u;
+  static UNICODE_ALPHANUM_RE = /[\p{Letter}\p{Number}\p{Mark}]/u;
+  static HEX_DIGIT_RE = /[0-9a-fA-F_]/;
+  static BINARY_DIGIT_RE = /[01_]/;
+  static OCTAL_DIGIT_RE = /[0-7_]/;
+  static REGEX_FLAG_RE = /[gimsuydv]/;
+  static REGEX_START_RE = /[\s\/*=]/;
+  static JSX_CF_KEYWORDS = new Set(['if', 'for', 'elif', 'else', 'match']);
+
   constructor(source, filename = '<stdin>', lineOffset = 0, columnOffset = 0, _depth = 0) {
     this.source = source;
     this.filename = filename;
@@ -78,19 +88,33 @@ export class Lexer {
   isAlpha(ch) {
     if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_') return true;
     // Unicode letter support
-    if (ch > '\x7f') return /\p{Letter}/u.test(ch);
+    if (ch > '\x7f') return Lexer.UNICODE_LETTER_RE.test(ch);
     return false;
   }
 
   isAlphaNumeric(ch) {
     if (this.isAlpha(ch) || this.isDigit(ch)) return true;
     // Unicode continue characters (combining marks, etc.)
-    if (ch > '\x7f') return /[\p{Letter}\p{Number}\p{Mark}]/u.test(ch);
+    if (ch > '\x7f') return Lexer.UNICODE_ALPHANUM_RE.test(ch);
     return false;
   }
 
   isWhitespace(ch) {
     return ch === ' ' || ch === '\t' || ch === '\r';
+  }
+
+  _processEscape(esc) {
+    switch (esc) {
+      case 'n': return '\n';
+      case 't': return '\t';
+      case 'r': return '\r';
+      case '\\': return '\\';
+      case '"': return '"';
+      case "'": return "'";
+      case '{': return '{';
+      case '}': return '}';
+      default: return '\\' + esc;
+    }
   }
 
   _isJSXStart() {
@@ -99,10 +123,7 @@ export class Lexer {
     // Check the token BEFORE < (LESS was already pushed, so it's at length-2)
     const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
     if (!prev) return true;
-    const valueTypes = [TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING,
-      TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
-      TokenType.TRUE, TokenType.FALSE, TokenType.NIL];
-    return !valueTypes.includes(prev.type);
+    return !Lexer.VALUE_TOKEN_TYPES.has(prev.type);
   }
 
   tokenize() {
@@ -169,17 +190,12 @@ export class Lexer {
       // Negative list: if previous token ends an expression (produces a value),
       // then / is division. Otherwise, / starts a regex.
       // This is simpler and more robust — new token types default to regex context.
-      const divisionContextTokens = [
-        TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING, TokenType.STRING_TEMPLATE,
-        TokenType.TRUE, TokenType.FALSE, TokenType.NIL,
-        TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
-      ];
-      if (prev && !divisionContextTokens.includes(prev.type)) {
+      if (prev && !Lexer.VALUE_TOKEN_TYPES.has(prev.type)) {
         this.scanRegex();
         return;
       }
       // At start of file (no prev token), treat / as regex if followed by a non-space, non-special char
-      if (!prev && this.pos + 1 < this.length && !/[\s\/*=]/.test(this.peek(1))) {
+      if (!prev && this.pos + 1 < this.length && !Lexer.REGEX_START_RE.test(this.peek(1))) {
         this.scanRegex();
         return;
       }
@@ -244,7 +260,7 @@ export class Lexer {
         while (wp < this.length && this.isAlphaNumeric(this.source[wp])) {
           word += this.source[wp]; wp++;
         }
-        if (['if', 'for', 'elif', 'else', 'match'].includes(word)) {
+        if (Lexer.JSX_CF_KEYWORDS.has(word)) {
           while (this.pos < pp) this.advance();
           return;
         }
@@ -278,7 +294,7 @@ export class Lexer {
       while (peekPos < this.length && this.isAlphaNumeric(this.source[peekPos])) {
         word += this.source[peekPos]; peekPos++;
       }
-      if (['if', 'for', 'elif', 'else', 'match'].includes(word)) {
+      if (Lexer.JSX_CF_KEYWORDS.has(word)) {
         this.scanIdentifier();
         // After keyword, enter control flow mode for normal scanning
         this._jsxCF = { paren: 0, brace: 0, keyword: word };
@@ -302,7 +318,7 @@ export class Lexer {
         while (pp < this.length && this.isAlphaNumeric(this.source[pp])) {
           word += this.source[pp]; pp++;
         }
-        if (['if', 'for', 'elif', 'else', 'match'].includes(word)) break;
+        if (Lexer.JSX_CF_KEYWORDS.has(word)) break;
       }
       text += this.advance();
     }
@@ -367,7 +383,7 @@ export class Lexer {
       if (next === 'x' || next === 'X') {
         this.advance(); // 0
         this.advance(); // x
-        while (this.pos < this.length && /[0-9a-fA-F_]/.test(this.peek())) {
+        while (this.pos < this.length && Lexer.HEX_DIGIT_RE.test(this.peek())) {
           const ch = this.advance();
           if (ch !== '_') value += ch;
         }
@@ -378,7 +394,7 @@ export class Lexer {
       if (next === 'b' || next === 'B') {
         this.advance(); // 0
         this.advance(); // b
-        while (this.pos < this.length && /[01_]/.test(this.peek())) {
+        while (this.pos < this.length && Lexer.BINARY_DIGIT_RE.test(this.peek())) {
           const ch = this.advance();
           if (ch !== '_') value += ch;
         }
@@ -389,7 +405,7 @@ export class Lexer {
       if (next === 'o' || next === 'O') {
         this.advance(); // 0
         this.advance(); // o
-        while (this.pos < this.length && /[0-7_]/.test(this.peek())) {
+        while (this.pos < this.length && Lexer.OCTAL_DIGIT_RE.test(this.peek())) {
           const ch = this.advance();
           if (ch !== '_') value += ch;
         }
@@ -418,6 +434,7 @@ export class Lexer {
     if (this.peek() === 'e' || this.peek() === 'E') {
       const savedPos = this.pos;
       const savedCol = this.column;
+      const savedLine = this.line;
       let expPart = this.advance(); // consume 'e'/'E'
       if (this.peek() === '+' || this.peek() === '-') {
         expPart += this.advance();
@@ -431,6 +448,7 @@ export class Lexer {
         // No digits after exponent — backtrack, treat 'e' as separate token
         this.pos = savedPos;
         this.column = savedCol;
+        this.line = savedLine;
       }
     }
 
@@ -452,17 +470,7 @@ export class Lexer {
         if (this.pos >= this.length) {
           this.error('Unterminated string');
         }
-        const esc = this.advance();
-        switch (esc) {
-          case 'n': current += '\n'; break;
-          case 't': current += '\t'; break;
-          case 'r': current += '\r'; break;
-          case '\\': current += '\\'; break;
-          case '"': current += '"'; break;
-          case '{': current += '{'; break;
-          case '}': current += '}'; break;
-          default: current += '\\' + esc;
-        }
+        current += this._processEscape(this.advance());
         continue;
       }
 
@@ -586,17 +594,7 @@ export class Lexer {
         if (this.pos >= this.length) {
           this.error('Unterminated multiline string');
         }
-        const esc = this.advance();
-        switch (esc) {
-          case 'n': current += '\n'; break;
-          case 't': current += '\t'; break;
-          case 'r': current += '\r'; break;
-          case '\\': current += '\\'; break;
-          case '"': current += '"'; break;
-          case '{': current += '{'; break;
-          case '}': current += '}'; break;
-          default: current += '\\' + esc;
-        }
+        current += this._processEscape(this.advance());
         continue;
       }
 
@@ -611,30 +609,30 @@ export class Lexer {
         const exprStartLine = this.line - 1;
         const exprStartCol = this.column - 1;
         let depth = 1;
-        let exprSource = '';
+        const exprParts = [];
         while (this.pos < this.length && depth > 0) {
           const ch = this.peek();
           if (ch === '"' || ch === "'" || ch === '`') {
             const quote = ch;
-            exprSource += this.advance();
+            exprParts.push(this.advance());
             let strDepth = 0;
             while (this.pos < this.length) {
               if (this.peek() === '\\') {
-                exprSource += this.advance();
-                if (this.pos < this.length) exprSource += this.advance();
+                exprParts.push(this.advance());
+                if (this.pos < this.length) exprParts.push(this.advance());
               } else if (quote === '"' && this.peek() === '{') {
                 strDepth++;
-                exprSource += this.advance();
+                exprParts.push(this.advance());
               } else if (quote === '"' && this.peek() === '}' && strDepth > 0) {
                 strDepth--;
-                exprSource += this.advance();
+                exprParts.push(this.advance());
               } else if (this.peek() === quote && strDepth === 0) {
                 break;
               } else {
-                exprSource += this.advance();
+                exprParts.push(this.advance());
               }
             }
-            if (this.pos < this.length) exprSource += this.advance();
+            if (this.pos < this.length) exprParts.push(this.advance());
             continue;
           }
           if (ch === '{') depth++;
@@ -642,8 +640,9 @@ export class Lexer {
             depth--;
             if (depth === 0) break;
           }
-          exprSource += this.advance();
+          exprParts.push(this.advance());
         }
+        const exprSource = exprParts.join('');
 
         if (this.peek() !== '}') {
           this.error('Unterminated string interpolation in multiline string');
@@ -784,15 +783,7 @@ export class Lexer {
         if (this.pos >= this.length) {
           this.error('Unterminated string');
         }
-        const esc = this.advance();
-        switch (esc) {
-          case 'n': value += '\n'; break;
-          case 't': value += '\t'; break;
-          case 'r': value += '\r'; break;
-          case '\\': value += '\\'; break;
-          case "'": value += "'"; break;
-          default: value += '\\' + esc;
-        }
+        value += this._processEscape(this.advance());
       } else {
         value += this.advance();
       }
@@ -845,7 +836,7 @@ export class Lexer {
 
     // Read flags
     let flags = '';
-    while (this.pos < this.length && /[gimsuydv]/.test(this.peek())) {
+    while (this.pos < this.length && Lexer.REGEX_FLAG_RE.test(this.peek())) {
       flags += this.advance();
     }
 
@@ -864,10 +855,11 @@ export class Lexer {
     // Raw string: r"no\escapes"
     if (value === 'r' && this.pos < this.length && this.peek() === '"') {
       this.advance(); // opening "
-      let raw = '';
+      const rawParts = [];
       while (this.pos < this.length && this.peek() !== '"') {
-        raw += this.advance();
+        rawParts.push(this.advance());
       }
+      const raw = rawParts.join('');
       if (this.pos >= this.length) {
         this.error('Unterminated raw string');
       }
@@ -1073,10 +1065,7 @@ export class Lexer {
                 this._jsxTagMode = 'open';
               } else {
                 const prev = this.tokens.length > 1 ? this.tokens[this.tokens.length - 2] : null;
-                const valueTypes = [TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING,
-                  TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
-                  TokenType.TRUE, TokenType.FALSE, TokenType.NIL];
-                if (!prev || !valueTypes.includes(prev.type)) {
+                if (!prev || !Lexer.VALUE_TOKEN_TYPES.has(prev.type)) {
                   this._jsxTagMode = 'open';
                 }
               }
@@ -1168,3 +1157,10 @@ export class Lexer {
     }
   }
 }
+
+// Initialize static Set after class definition (depends on TokenType)
+Lexer.VALUE_TOKEN_TYPES = new Set([
+  TokenType.IDENTIFIER, TokenType.NUMBER, TokenType.STRING,
+  TokenType.STRING_TEMPLATE, TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE,
+  TokenType.TRUE, TokenType.FALSE, TokenType.NIL
+]);

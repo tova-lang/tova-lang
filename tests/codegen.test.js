@@ -92,13 +92,13 @@ describe('Codegen — Expressions', () => {
 
   test('range expression', () => {
     const code = compileShared('x = 1..10');
-    expect(code).toContain('Array.from');
-    expect(code).toContain('length: (10) - (1)');
+    expect(code).toContain('range(1, 10)');
+    expect(code).not.toContain('Array.from');
   });
 
   test('inclusive range', () => {
     const code = compileShared('x = 1..=10');
-    expect(code).toContain('(10) - (1) + 1');
+    expect(code).toContain('range(1, (10) + 1)');
   });
 
   test('list comprehension', () => {

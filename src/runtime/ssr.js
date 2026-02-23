@@ -211,6 +211,36 @@ export function renderPage(component, { title = 'Tova App', head = '', scriptSrc
 
 // ─── Streaming SSR ─────────────────────────────────────────
 
+// Buffered controller wrapper — batches small enqueue() calls into larger chunks
+// to reduce the number of stream operations (N4 optimization)
+class BufferedController {
+  constructor(controller, bufferSize = 4096) {
+    this._inner = controller;
+    this._buffer = '';
+    this._bufferSize = bufferSize;
+  }
+
+  enqueue(chunk) {
+    this._buffer += chunk;
+    if (this._buffer.length >= this._bufferSize) {
+      this._inner.enqueue(this._buffer);
+      this._buffer = '';
+    }
+  }
+
+  flush() {
+    if (this._buffer.length > 0) {
+      this._inner.enqueue(this._buffer);
+      this._buffer = '';
+    }
+  }
+
+  close() {
+    this.flush();
+    this._inner.close();
+  }
+}
+
 // Stream a single vnode, writing chunks to the controller
 function streamVNode(vnode, controller) {
   if (vnode === null || vnode === undefined) {
@@ -301,38 +331,41 @@ function streamVNode(vnode, controller) {
 
 // Render a vnode tree to a Web ReadableStream
 export function renderToReadableStream(vnode, options = {}) {
-  const { onError } = options;
+  const { onError, bufferSize } = options;
 
   return new ReadableStream({
     start(controller) {
+      const buf = new BufferedController(controller, bufferSize);
       try {
-        streamVNode(vnode, controller);
+        streamVNode(vnode, buf);
       } catch (e) {
         if (onError) onError(e);
-        controller.enqueue(`<!--tova-ssr-error-->`);
+        buf.enqueue(`<!--tova-ssr-error-->`);
       }
-      controller.close();
+      buf.close();
     },
   });
 }
 
 // Render a full HTML page as a stream
 export function renderPageToStream(component, options = {}) {
-  const { title = 'Tova App', head = '', scriptSrc = '/client.js', onError } = options;
+  const { title = 'Tova App', head = '', scriptSrc = '/client.js', onError, bufferSize } = options;
 
   return new ReadableStream({
     start(controller) {
-      // Flush head immediately so CSS/JS start downloading
+      // Flush head immediately so CSS/JS start downloading (bypass buffer)
       controller.enqueue(`<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>${escapeHtml(title)}</title>\n  ${head}\n</head>\n<body>\n  <div id="app">`);
 
+      const buf = new BufferedController(controller, bufferSize);
       try {
         const vnode = typeof component === 'function' ? component() : component;
-        streamVNode(vnode, controller);
+        streamVNode(vnode, buf);
       } catch (e) {
         if (onError) onError(e);
-        controller.enqueue(`<!--tova-ssr-error-->`);
+        buf.enqueue(`<!--tova-ssr-error-->`);
       }
 
+      buf.flush();
       controller.enqueue(`</div>\n  <script type="module" src="${escapeAttr(scriptSrc)}"></script>\n</body>\n</html>`);
       controller.close();
     },

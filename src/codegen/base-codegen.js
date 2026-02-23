@@ -7,6 +7,7 @@ export class BaseCodegen {
     this.indent = 0;
     this._counter = 0;
     this._scopes = [new Set()]; // scope stack for tracking declared variables
+    this._visibleNames = new Set(); // flattened view of all declared names for O(1) lookup
     this._needsContainsHelper = false; // track if __contains helper is needed
     this._needsPropagateHelper = false; // track if __propagate helper is needed
     this._usedBuiltins = new Set(); // track which stdlib builtins are actually used
@@ -16,6 +17,9 @@ export class BaseCodegen {
     this._traitDecls = new Map(); // traitName -> { methods: [...] }
     this._traitImpls = new Map(); // "TraitName:TypeName" -> ImplDeclaration node
     // Source map tracking
+    this._sourceMapsEnabled = true; // can be disabled for REPL/check mode
+    this._propagateCache = new WeakMap(); // memoize _containsPropagate()
+    this._yieldCache = new WeakMap(); // memoize _containsYield()
     this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol, sourceFile?}
     this._outputLineCount = 0;
     this._sourceFile = null; // current source file for multi-file source maps
@@ -43,11 +47,11 @@ export class BaseCodegen {
   }
 
   // Known void/side-effect-only calls that shouldn't be implicitly returned
+  static VOID_FNS = new Set(['print', 'assert', 'assert_eq', 'assert_ne']);
   _isVoidCall(expr) {
     if (expr.type !== 'CallExpression') return false;
     if (expr.callee.type === 'Identifier') {
-      const voidFns = new Set(['print', 'assert', 'assert_eq', 'assert_ne']);
-      return voidFns.has(expr.callee.name);
+      return BaseCodegen.VOID_FNS.has(expr.callee.name);
     }
     return false;
   }
@@ -59,18 +63,25 @@ export class BaseCodegen {
   }
 
   popScope() {
-    this._scopes.pop();
+    const removed = this._scopes.pop();
+    // Remove names that were only declared in the popped scope
+    for (const name of removed) {
+      // Check if name still exists in remaining scopes
+      let found = false;
+      for (let i = this._scopes.length - 1; i >= 0; i--) {
+        if (this._scopes[i].has(name)) { found = true; break; }
+      }
+      if (!found) this._visibleNames.delete(name);
+    }
   }
 
   declareVar(name) {
     this._scopes[this._scopes.length - 1].add(name);
+    this._visibleNames.add(name);
   }
 
   isDeclared(name) {
-    for (let i = this._scopes.length - 1; i >= 0; i--) {
-      if (this._scopes[i].has(name)) return true;
-    }
-    return false;
+    return this._visibleNames.has(name);
   }
 
   // ─── Helpers ────────────────────────────────────────────────
@@ -86,6 +97,7 @@ export class BaseCodegen {
 
   // Source map: record a mapping from source location to output line
   _addMapping(node, outputLine) {
+    if (!this._sourceMapsEnabled) return;
     if (node && node.loc && node.loc.line) {
       const mapping = {
         sourceLine: node.loc.line - 1, // 0-based
@@ -155,20 +167,24 @@ export class BaseCodegen {
   _containsPropagate(node) {
     if (!node) return false;
     if (node.type === 'PropagateExpression') return true;
-    // Stop at nested function/lambda boundaries — they get their own wrapper
     if (node.type === 'FunctionDeclaration' || node.type === 'LambdaExpression') return false;
+    const cached = this._propagateCache.get(node);
+    if (cached !== undefined) return cached;
+    let result = false;
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'type') continue;
       const val = node[key];
       if (Array.isArray(val)) {
         for (const item of val) {
-          if (item && typeof item === 'object' && this._containsPropagate(item)) return true;
+          if (item && typeof item === 'object' && this._containsPropagate(item)) { result = true; break; }
         }
       } else if (val && typeof val === 'object' && val.type) {
-        if (this._containsPropagate(val)) return true;
+        if (this._containsPropagate(val)) { result = true; break; }
       }
+      if (result) break;
     }
-    return false;
+    this._propagateCache.set(node, result);
+    return result;
   }
 
   getPropagateHelper() {
@@ -186,8 +202,8 @@ export class BaseCodegen {
   generateStatement(node) {
     if (!node) return '';
 
-    // Record source mapping before generating
-    this._addMapping(node, this._outputLineCount);
+    // Record source mapping before generating (skip when source maps disabled)
+    if (this._sourceMapsEnabled) this._addMapping(node, this._outputLineCount);
 
     let result;
     switch (node.type) {
@@ -230,8 +246,8 @@ export class BaseCodegen {
         result = `${this.i()}${this.genExpression(node)};`;
     }
 
-    // Track output line count using fast character scan
-    if (result) {
+    // Track output line count using fast character scan (skip when source maps disabled)
+    if (this._sourceMapsEnabled && result) {
       this._outputLineCount += this._countLines(result) + 1; // +1 for the join newline
     }
 
@@ -490,11 +506,42 @@ export class BaseCodegen {
     return p.join('');
   }
 
+  // Check if a for-loop over a range can be emitted as a C-style for loop
+  _isRangeForOptimizable(node) {
+    const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
+    return node.iterable.type === 'RangeExpression' &&
+      vars.length === 1 && typeof vars[0] === 'string' &&
+      !node.isAsync && !node.elseBody;
+  }
+
   genForStatement(node) {
     const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
-    const iterExpr = this.genExpression(node.iterable);
     const labelPrefix = node.label ? `${node.label}: ` : '';
     const awaitKeyword = node.isAsync ? ' await' : '';
+
+    // Optimization: for i in start..end => C-style for loop (avoids array allocation)
+    if (this._isRangeForOptimizable(node)) {
+      const range = node.iterable;
+      const start = this.genExpression(range.start);
+      const end = this.genExpression(range.end);
+      const varName = vars[0];
+      const cmpOp = range.inclusive ? '<=' : '<';
+      this.pushScope();
+      this.declareVar(varName);
+      const p = [];
+      p.push(`${this.i()}${labelPrefix}for (let ${varName} = ${start}; ${varName} ${cmpOp} ${end}; ${varName}++) {\n`);
+      this.indent++;
+      if (node.guard) {
+        p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
+      }
+      p.push(this.genBlockStatements(node.body));
+      this.indent--;
+      p.push(`\n${this.i()}}`);
+      this.popScope();
+      return p.join('');
+    }
+
+    const iterExpr = this.genExpression(node.iterable);
 
     if (node.elseBody) {
       // for-else: run else if iterable was empty
@@ -1915,10 +1962,12 @@ export class BaseCodegen {
   genRangeExpression(node) {
     const start = this.genExpression(node.start);
     const end = this.genExpression(node.end);
+    // Use stdlib range() — handles step and direction, avoids Array.from overhead
+    this._trackBuiltin('range');
     if (node.inclusive) {
-      return `Array.from({length: (${end}) - (${start}) + 1}, (_, i) => (${start}) + i)`;
+      return `range(${start}, (${end}) + 1)`;
     }
-    return `Array.from({length: (${end}) - (${start})}, (_, i) => (${start}) + i)`;
+    return `range(${start}, ${end})`;
   }
 
   genSliceExpression(node) {
@@ -2187,17 +2236,22 @@ export class BaseCodegen {
     if (!node) return false;
     if (node.type === 'YieldExpression') return true;
     if (node.type === 'FunctionDeclaration' || node.type === 'LambdaExpression') return false;
+    const cached = this._yieldCache.get(node);
+    if (cached !== undefined) return cached;
+    let result = false;
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'type') continue;
       const val = node[key];
       if (Array.isArray(val)) {
         for (const item of val) {
-          if (item && typeof item === 'object' && this._containsYield(item)) return true;
+          if (item && typeof item === 'object' && this._containsYield(item)) { result = true; break; }
         }
       } else if (val && typeof val === 'object' && val.type) {
-        if (this._containsYield(val)) return true;
+        if (this._containsYield(val)) { result = true; break; }
       }
+      if (result) break;
     }
-    return false;
+    this._yieldCache.set(node, result);
+    return result;
   }
 }

@@ -1727,7 +1727,7 @@ describe('New Feature 6 — Env Validation', () => {
     `);
     expect(result.server).toContain('process.env.SECRET_KEY');
     expect(result.server).toContain('process.exit(1)');
-    expect(result.server).toContain('Required env var SECRET_KEY is not set');
+    expect(result.server).toContain('Missing required env vars');
   });
 
   test('env with default does not fail on missing', () => {

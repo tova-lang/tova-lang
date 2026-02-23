@@ -176,6 +176,102 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   table_drop_duplicates: `function table_drop_duplicates(table, opts) { const by = opts && opts.by; const seen = new Set(); const rows = []; for (const row of table._rows) { const k = by ? (typeof by === 'function' ? String(by(row)) : String(row[by])) : JSON.stringify(row); if (!seen.has(k)) { seen.add(k); rows.push(row); } } return Table(rows, table._columns); }`,
   table_rename: `function table_rename(table, oldName, newName) { const cols = table._columns.map(c => c === oldName ? newName : c); const rows = table._rows.map(r => { const row = {}; for (const c of table._columns) row[c === oldName ? newName : c] = r[c]; return row; }); return Table(rows, cols); }`,
 
+  // ── Lazy Table Query Builder ────────────────────────
+  lazy: `function lazy(table) { return new LazyTable(table); }`,
+  collect: `function collect(v) { if (v instanceof LazyTable) return v.collect(); if (v && v._gen) return v.collect(); return v; }`,
+  LazyTable: `class LazyTable {
+  constructor(source) {
+    this._source = source;
+    this._steps = [];
+  }
+  _push(step) { const lt = new LazyTable(this._source); lt._steps = [...this._steps, step]; return lt; }
+  where(pred) { return this._push({ op: 'where', fn: pred }); }
+  select(...args) {
+    let cols;
+    if (args.length === 1 && args[0] && args[0].__exclude) {
+      cols = { exclude: new Set(Array.isArray(args[0].__exclude) ? args[0].__exclude : [args[0].__exclude]) };
+    } else { cols = args.filter(a => typeof a === 'string'); }
+    return this._push({ op: 'select', cols });
+  }
+  derive(derivations) { return this._push({ op: 'derive', derivations }); }
+  limit(n) { return this._push({ op: 'limit', n }); }
+  drop_duplicates(opts) { return this._push({ op: 'dedup', by: opts && opts.by }); }
+  rename(oldName, newName) { return this._push({ op: 'rename', oldName, newName }); }
+  sort_by(keyFn, opts) { return this._push({ op: 'sort', keyFn, desc: opts && opts.desc }); }
+  group_by(keyFn) {
+    const rows = this.collect()._rows;
+    const src = Table(rows, this._resolveColumns());
+    return table_group_by(src, keyFn);
+  }
+  _resolveColumns() {
+    let cols = [...this._source._columns];
+    for (const s of this._steps) {
+      if (s.op === 'select') {
+        cols = s.cols.exclude ? cols.filter(c => !s.cols.exclude.has(c)) : [...s.cols];
+      } else if (s.op === 'derive') {
+        for (const k of Object.keys(s.derivations)) { if (!cols.includes(k)) cols.push(k); }
+      } else if (s.op === 'rename') {
+        cols = cols.map(c => c === s.oldName ? s.newName : c);
+      }
+    }
+    return cols;
+  }
+  collect() {
+    let rows = this._source._rows;
+    let cols = [...this._source._columns];
+    for (const step of this._steps) {
+      switch (step.op) {
+        case 'where': rows = rows.filter(step.fn); break;
+        case 'select': {
+          const sc = step.cols.exclude ? cols.filter(c => !step.cols.exclude.has(c)) : step.cols;
+          rows = rows.map(r => { const row = {}; for (const c of sc) row[c] = r[c]; return row; });
+          cols = [...sc];
+          break;
+        }
+        case 'derive': {
+          for (const k of Object.keys(step.derivations)) { if (!cols.includes(k)) cols.push(k); }
+          rows = rows.map(r => { const row = { ...r }; for (const [k, fn] of Object.entries(step.derivations)) { row[k] = typeof fn === 'function' ? fn(r) : fn; } return row; });
+          break;
+        }
+        case 'limit': rows = rows.slice(0, step.n); break;
+        case 'dedup': {
+          const seen = new Set();
+          const filtered = [];
+          for (const row of rows) {
+            const k = step.by ? (typeof step.by === 'function' ? String(step.by(row)) : String(row[step.by])) : JSON.stringify(row);
+            if (!seen.has(k)) { seen.add(k); filtered.push(row); }
+          }
+          rows = filtered;
+          break;
+        }
+        case 'rename': {
+          cols = cols.map(c => c === step.oldName ? step.newName : c);
+          rows = rows.map(r => { const row = {}; for (const c of cols) row[c === step.newName ? step.newName : c] = r[c === step.newName ? step.oldName : c]; return row; });
+          break;
+        }
+        case 'sort': {
+          rows = [...rows].sort((a, b) => {
+            const ka = typeof step.keyFn === 'function' ? step.keyFn(a) : a[step.keyFn];
+            const kb = typeof step.keyFn === 'function' ? step.keyFn(b) : b[step.keyFn];
+            let c = ka < kb ? -1 : ka > kb ? 1 : 0;
+            return step.desc ? -c : c;
+          });
+          break;
+        }
+      }
+    }
+    return Table(rows, cols);
+  }
+  toArray() { return this.collect()._rows; }
+  toJSON() { return this.toArray(); }
+  get rows() { return this.collect()._rows.length; }
+  get columns() { return this._resolveColumns(); }
+  get shape() { const t = this.collect(); return [t._rows.length, t._columns.length]; }
+  toString() { return this.collect().toString(); }
+  _format(maxRows, title) { return this.collect()._format(maxRows, title); }
+  [Symbol.iterator]() { return this.collect()._rows[Symbol.iterator](); }
+}`,
+
   // ── Aggregation helpers ─────────────────────────────
   agg_sum: `function agg_sum(fn) { return (rows) => rows.reduce((a, r) => a + (typeof fn === 'function' ? fn(r) : r[fn]), 0); }`,
   agg_count: `function agg_count(fn) { if (!fn) return (rows) => rows.length; return (rows) => rows.filter(fn).length; }`,
@@ -239,25 +335,26 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   const lines = text.split('\\n').filter(l => l.trim());
   if (lines.length === 0) return Table([]);
   const parseLine = (line) => { const fields = []; let cur = ''; let inQ = false; for (let i = 0; i < line.length; i++) { const ch = line[i]; if (inQ) { if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; } else if (ch === '"') { inQ = false; } else { cur += ch; } } else { if (ch === '"') inQ = true; else if (ch === delim) { fields.push(cur.trim()); cur = ''; } else { cur += ch; } } } fields.push(cur.trim()); return fields; };
+  const _reInt = /^-?\\d+$/; const _reFloat = /^-?\\d*\\.\\d+$/;
   let headers, ds; if (hasHeader) { headers = parseLine(lines[0]); ds = 1; } else { const fr = parseLine(lines[0]); headers = fr.map((_, i) => 'col_' + i); ds = 0; }
-  const rows = []; for (let i = ds; i < lines.length; i++) { const f = parseLine(lines[i]); const row = {}; for (let j = 0; j < headers.length; j++) { let v = f[j] ?? null; if (v !== null && v !== '') { if (/^-?\\d+$/.test(v)) v = parseInt(v, 10); else if (/^-?\\d*\\.\\d+$/.test(v)) v = parseFloat(v); else if (v === 'true') v = true; else if (v === 'false') v = false; else if (v === 'null' || v === 'nil') v = null; } else if (v === '') v = null; row[headers[j]] = v; } rows.push(row); }
+  const rows = []; for (let i = ds; i < lines.length; i++) { const f = parseLine(lines[i]); const row = {}; for (let j = 0; j < headers.length; j++) { let v = f[j] ?? null; if (v !== null && v !== '') { if (_reInt.test(v)) v = parseInt(v, 10); else if (_reFloat.test(v)) v = parseFloat(v); else if (v === 'true') v = true; else if (v === 'false') v = false; else if (v === 'null' || v === 'nil') v = null; } else if (v === '') v = null; row[headers[j]] = v; } rows.push(row); }
   return Table(rows, headers);
 }`,
   __parseJSONL: `function __parseJSONL(text) { return Table(text.split('\\n').filter(l => l.trim()).map(l => JSON.parse(l))); }`,
 
   // ── Table operation aliases (short names for pipe-friendly use) ──
-  where: `function where(tableOrArr, pred) { if (tableOrArr && tableOrArr._rows) return table_where(tableOrArr, pred); return tableOrArr.filter(pred); }`,
-  select: `function select(table, ...args) { return table_select(table, ...args); }`,
-  derive: `function derive(table, derivations) { return table_derive(table, derivations); }`,
+  where: `function where(tableOrArr, pred) { if (tableOrArr instanceof LazyTable) return tableOrArr.where(pred); if (tableOrArr && tableOrArr._rows) return table_where(tableOrArr, pred); return tableOrArr.filter(pred); }`,
+  select: `function select(table, ...args) { if (table instanceof LazyTable) return table.select(...args); return table_select(table, ...args); }`,
+  derive: `function derive(table, derivations) { if (table instanceof LazyTable) return table.derive(derivations); return table_derive(table, derivations); }`,
   agg: `function agg(grouped, aggregations) { return table_agg(grouped, aggregations); }`,
-  sort_by: `function sort_by(table, keyFn, opts) { return table_sort_by(table, keyFn, opts); }`,
-  limit: `function limit(table, n) { return table_limit(table, n); }`,
+  sort_by: `function sort_by(table, keyFn, opts) { if (table instanceof LazyTable) return table.sort_by(keyFn, opts); return table_sort_by(table, keyFn, opts); }`,
+  limit: `function limit(table, n) { if (table instanceof LazyTable) return table.limit(n); return table_limit(table, n); }`,
   pivot: `function pivot(table, opts) { return table_pivot(table, opts); }`,
   unpivot: `function unpivot(table, opts) { return table_unpivot(table, opts); }`,
   explode: `function explode(table, colFn) { return table_explode(table, colFn); }`,
   union: `function union(a, b) { if (a && a._rows) return table_union(a, b); return [...new Set([...a, ...b])]; }`,
-  drop_duplicates: `function drop_duplicates(table, opts) { return table_drop_duplicates(table, opts); }`,
-  rename: `function rename(table, oldName, newName) { return table_rename(table, oldName, newName); }`,
+  drop_duplicates: `function drop_duplicates(table, opts) { if (table instanceof LazyTable) return table.drop_duplicates(opts); return table_drop_duplicates(table, opts); }`,
+  rename: `function rename(table, oldName, newName) { if (table instanceof LazyTable) return table.rename(oldName, newName); return table_rename(table, oldName, newName); }`,
   mean: `function mean(v) { if (Array.isArray(v)) { return v.length === 0 ? 0 : v.reduce((a, b) => a + b, 0) / v.length; } return agg_mean(v); }`,
   median: `function median(v) { if (Array.isArray(v)) { if (v.length === 0) return null; const s = [...v].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m]; } return agg_median(v); }`,
 
@@ -335,13 +432,14 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   date_part: `function date_part(d, part) { if (typeof d === 'number') d = new Date(d); if (part === 'year') return d.getFullYear(); if (part === 'month') return d.getMonth() + 1; if (part === 'day') return d.getDate(); if (part === 'hour') return d.getHours(); if (part === 'minute') return d.getMinutes(); if (part === 'second') return d.getSeconds(); if (part === 'weekday') return d.getDay(); return null; }`,
   time_ago: `function time_ago(d) { if (typeof d === 'number') d = new Date(d); const s = Math.floor((Date.now() - d.getTime()) / 1000); if (s < 60) return s + ' seconds ago'; const m = Math.floor(s / 60); if (m < 60) return m + (m === 1 ? ' minute ago' : ' minutes ago'); const h = Math.floor(m / 60); if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago'); const dy = Math.floor(h / 24); if (dy < 30) return dy + (dy === 1 ? ' day ago' : ' days ago'); const mo = Math.floor(dy / 30); if (mo < 12) return mo + (mo === 1 ? ' month ago' : ' months ago'); const yr = Math.floor(mo / 12); return yr + (yr === 1 ? ' year ago' : ' years ago'); }`,
 
-  // ── Regex ──────────────────────────────────────────────
-  regex_test: `function regex_test(s, pattern, flags) { return new RegExp(pattern, flags).test(s); }`,
-  regex_match: `function regex_match(s, pattern, flags) { const m = s.match(new RegExp(pattern, flags)); if (!m) return Err('No match'); return Ok({ match: m[0], index: m.index, groups: m.slice(1) }); }`,
-  regex_find_all: `function regex_find_all(s, pattern, flags) { const re = new RegExp(pattern, (flags || '') + (flags && flags.includes('g') ? '' : 'g')); const results = []; let m; while ((m = re.exec(s)) !== null) { results.push({ match: m[0], index: m.index, groups: m.slice(1) }); } return results; }`,
-  regex_replace: `function regex_replace(s, pattern, replacement, flags) { return s.replace(new RegExp(pattern, flags || 'g'), replacement); }`,
-  regex_split: `function regex_split(s, pattern, flags) { return s.split(new RegExp(pattern, flags)); }`,
-  regex_capture: `function regex_capture(s, pattern, flags) { const m = s.match(new RegExp(pattern, flags)); if (!m) return Err('No match'); if (!m.groups) return Err('No named groups'); return Ok(m.groups); }`,
+  // ── Regex (with compiled regex cache) ─────────────────
+  __regex_cache: `const __reCache = new Map(); function __re(p, f) { const k = p + '\\0' + (f || ''); let r = __reCache.get(k); if (!r) { r = new RegExp(p, f); __reCache.set(k, r); if (__reCache.size > 1000) { const first = __reCache.keys().next().value; __reCache.delete(first); } } return r; }`,
+  regex_test: `function regex_test(s, pattern, flags) { return __re(pattern, flags).test(s); }`,
+  regex_match: `function regex_match(s, pattern, flags) { const m = s.match(__re(pattern, flags)); if (!m) return Err('No match'); return Ok({ match: m[0], index: m.index, groups: m.slice(1) }); }`,
+  regex_find_all: `function regex_find_all(s, pattern, flags) { const re = __re(pattern, (flags || '') + (flags && flags.includes('g') ? '' : 'g')); const results = []; let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { results.push({ match: m[0], index: m.index, groups: m.slice(1) }); } return results; }`,
+  regex_replace: `function regex_replace(s, pattern, replacement, flags) { return s.replace(__re(pattern, flags || 'g'), replacement); }`,
+  regex_split: `function regex_split(s, pattern, flags) { return s.split(__re(pattern, flags)); }`,
+  regex_capture: `function regex_capture(s, pattern, flags) { const m = s.match(__re(pattern, flags)); if (!m) return Err('No match'); if (!m.groups) return Err('No named groups'); return Ok(m.groups); }`,
 
   // ── Validation ─────────────────────────────────────────
   is_email: `function is_email(s) { return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s); }`,
@@ -884,13 +982,21 @@ export const STDLIB_DEPS = {
   fs: ['Ok', 'Err'],
   url: ['Ok', 'Err'],
   parse_url: ['Ok', 'Err'],
-  regex_match: ['Ok', 'Err'],
-  regex_capture: ['Ok', 'Err'],
+  regex_test: ['__regex_cache'],
+  regex_match: ['Ok', 'Err', '__regex_cache'],
+  regex_find_all: ['__regex_cache'],
+  regex_replace: ['__regex_cache'],
+  regex_split: ['__regex_cache'],
+  regex_capture: ['Ok', 'Err', '__regex_cache'],
   json_parse: ['Ok', 'Err'],
   date_parse: ['Ok', 'Err'],
   read_text: ['Ok', 'Err'],
   try_fn: ['Ok', 'Err'],
   try_async: ['Ok', 'Err'],
+  // LazyTable requires Table and table_* functions
+  lazy: ['LazyTable', 'Table'],
+  collect: ['LazyTable'],
+  LazyTable: ['Table', 'table_where', 'table_group_by'],
   // Seq uses Some/None
   Seq: ['Some', 'None'],
   // compare family

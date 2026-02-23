@@ -277,9 +277,10 @@ export function createComputed(fn) {
   function notify() {
     if (!dirty) {
       dirty = true;
+      notify._dirty = true;
       for (const sub of subscribers) {
         if (sub._isComputed) {
-          sub(); // cascade dirty flags synchronously
+          if (!sub._dirty) sub(); // skip already-dirty computeds
         } else {
           pendingEffects.add(sub);
         }
@@ -309,6 +310,7 @@ export function createComputed(fn) {
     try {
       value = fn();
       dirty = false;
+      notify._dirty = false;
     } finally {
       effectStack.pop();
       currentEffect = effectStack[effectStack.length - 1] || null;
@@ -876,11 +878,8 @@ function applyEnterTransition(el, trans) {
   Object.assign(el.style, fromStyles);
 
   // Force reflow, then apply target state
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      Object.assign(el.style, toStyles);
-    });
-  });
+  void el.offsetHeight;
+  Object.assign(el.style, toStyles);
 }
 
 // Apply leave transition and return a Promise that resolves when done
@@ -891,7 +890,9 @@ function applyLeaveTransition(el, trans) {
   if (trans.custom) {
     const result = trans.custom(el, trans.config || {}, 'leave');
     if (result && typeof result.then === 'function') {
-      return result;
+      // Race with timeout to prevent leaked promises from custom transitions
+      const dur = (trans.config && trans.config.duration) || 5000;
+      return Promise.race([result, new Promise(r => setTimeout(r, dur + 100))]);
     }
     if (result && typeof result === 'object') {
       Object.assign(el.style, result);
@@ -1034,6 +1035,9 @@ function clearMarkerContent(marker) {
     if (node.__tovaTransition && node.nodeType === 1) {
       const el = node;
       applyLeaveTransition(el, el.__tovaTransition).then(() => {
+        disposeNode(el);
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }).catch(() => {
         disposeNode(el);
         if (el.parentNode) el.parentNode.removeChild(el);
       });
@@ -1317,14 +1321,13 @@ function applyPropValue(el, key, val) {
   } else if (key === 'disabled' || key === 'readOnly' || key === 'hidden') {
     el[key] = !!val;
   } else if (key === 'style' && typeof val === 'object') {
-    // Clear old properties not present in new style object
-    for (let i = el.style.length - 1; i >= 0; i--) {
-      const prop = el.style[i];
-      const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-      if (!(prop in val) && !(camel in val)) {
-        el.style.removeProperty(prop);
+    // Delta update: only remove properties that were in previous style but not in new
+    if (el.__prevStyle) {
+      for (const prop of Object.keys(el.__prevStyle)) {
+        if (!(prop in val)) el.style.removeProperty(prop);
       }
     }
+    el.__prevStyle = { ...val };
     Object.assign(el.style, val);
   } else {
     const s = val == null ? '' : String(val);
@@ -1557,9 +1560,10 @@ function patchPositionalInMarker(marker, newChildren) {
   const oldCount = oldNodes.length;
   const newCount = newChildren.length;
 
-  // Patch in place
+  // Patch in place (skip identical vnodes)
   const patchCount = Math.min(oldCount, newCount);
   for (let i = 0; i < patchCount; i++) {
+    if (oldNodes[i] === newChildren[i]) continue;
     patchSingle(parent, oldNodes[i], newChildren[i]);
   }
 

@@ -314,6 +314,15 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     if (envDecls.length > 0) {
       lines.push('// ── Env Validation ──');
+      // Collect all required env vars without defaults and validate presence before any exit
+      const requiredEnvs = envDecls.filter(d => !d.defaultValue);
+      if (requiredEnvs.length > 0) {
+        lines.push(`const __envErrors = [];`);
+        for (const decl of requiredEnvs) {
+          lines.push(`if (process.env.${decl.name} === undefined || process.env.${decl.name} === "") __envErrors.push("${decl.name}");`);
+        }
+        lines.push(`if (__envErrors.length > 0) { console.error("Missing required env vars: " + __envErrors.join(", ")); process.exit(1); }`);
+      }
       for (const decl of envDecls) {
         const envName = decl.name;
         const ta = decl.typeAnnotation;
@@ -323,8 +332,6 @@ export class ServerCodegen extends BaseCodegen {
         if (decl.defaultValue) {
           const defaultExpr = this.genExpression(decl.defaultValue);
           lines.push(`  if (__raw === undefined || __raw === "") return ${defaultExpr};`);
-        } else {
-          lines.push(`  if (__raw === undefined || __raw === "") { console.error("Required env var ${envName} is not set"); process.exit(1); }`);
         }
         switch (typeName) {
           case 'Int':
@@ -879,12 +886,9 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('    const __sig = await crypto.subtle.sign("HMAC", __authKey, new TextEncoder().encode(__sigData));');
         lines.push('    const __expectedSig = btoa(String.fromCharCode(...new Uint8Array(__sig)))');
         lines.push('      .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");');
-        lines.push('    const __sigBuf = new TextEncoder().encode(__expectedSig);');
-        lines.push('    const __tokBuf = new TextEncoder().encode(parts[2]);');
-        lines.push('    if (__sigBuf.length !== __tokBuf.length) return null;');
-        lines.push('    let __mismatch = 0;');
-        lines.push('    for (let i = 0; i < __sigBuf.length; i++) __mismatch |= __sigBuf[i] ^ __tokBuf[i];');
-        lines.push('    if (__mismatch !== 0) return null;');
+        lines.push('    const __sigBuf = Buffer.from(__expectedSig);');
+        lines.push('    const __tokBuf = Buffer.from(parts[2]);');
+        lines.push('    if (__sigBuf.length !== __tokBuf.length || !require("crypto").timingSafeEqual(__sigBuf, __tokBuf)) return null;');
         lines.push('    const __payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));');
         lines.push('    if (__payload.exp && __payload.exp < Math.floor(Date.now() / 1000)) return null;');
         lines.push('    return __payload;');
@@ -935,9 +939,8 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('setInterval(() => {');
       lines.push('  const now = Date.now();');
       lines.push('  for (const [key, entry] of __rateLimitStore) {');
-      lines.push('    if (entry.timestamps.length === 0 || now - entry.timestamps[entry.timestamps.length - 1] > 60000) {');
-      lines.push('      __rateLimitStore.delete(key);');
-      lines.push('    }');
+      lines.push('    entry.timestamps = entry.timestamps.filter(t => now - t < 120000);');
+      lines.push('    if (entry.timestamps.length === 0) __rateLimitStore.delete(key);');
       lines.push('  }');
       lines.push('}, 60000);');
       lines.push('');

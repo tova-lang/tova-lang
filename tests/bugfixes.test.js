@@ -1,6 +1,6 @@
 // Tests for bug fixes — regression tests to prevent reintroduction
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, beforeAll } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
@@ -1068,5 +1068,378 @@ describe('T0-7: Naming convention enforcement', () => {
     `);
     const nameWarn = warnings.find(w => w.message.includes("'myCounter'") && w.message.includes('snake_case'));
     expect(nameWarn).toBeDefined();
+  });
+});
+
+// ── C1: Large interpolated strings should not cause O(n^2) concatenation ──
+describe('C1: large interpolated strings performance', () => {
+  test('triple-quoted string with large interpolation lexes correctly', () => {
+    const inner = 'a'.repeat(10000);
+    const src = `x = """${inner}"""`;
+    const lexer = new Lexer(src, '<test>');
+    const tokens = lexer.tokenize();
+    expect(tokens.length).toBeGreaterThan(0);
+  });
+
+  test('raw string with large content lexes correctly', () => {
+    const inner = 'b'.repeat(10000);
+    const src = `x = r"${inner}"`;
+    const lexer = new Lexer(src, '<test>');
+    const tokens = lexer.tokenize();
+    expect(tokens.length).toBeGreaterThan(0);
+  });
+});
+
+// ── C4: Expression depth recovery after error ──
+describe('C4: expression depth recovery after error', () => {
+  test('parser recovers after nested expression depth error', () => {
+    // After hitting expression depth limit, subsequent valid expressions should still parse
+    let deeply_nested = 'x';
+    for (let i = 0; i < 200; i++) deeply_nested = `(${deeply_nested})`;
+    const src = `fn deep() { ${deeply_nested} }\nfn simple() { 1 + 2 }`;
+    // The deeply nested one may throw, but the parser should recover
+    try {
+      parse(src);
+    } catch (e) {
+      // Expected to throw on deep nesting — verify it mentions depth/nesting
+      expect(e.message || '').toMatch(/nest|depth|recursion/i);
+    }
+  });
+});
+
+// ── H1: Range for-loop optimization ──
+describe('H1: range for-loop optimization', () => {
+  test('for i in 1..10 emits C-style for loop', () => {
+    const code = compile('for i in 1..10 { print(i) }');
+    expect(code).toContain('for (let i = 1; i < 10; i++)');
+    expect(code).not.toContain('Array.from');
+  });
+
+  test('for i in 1..=10 emits inclusive C-style for loop', () => {
+    const code = compile('for i in 1..=10 { print(i) }');
+    expect(code).toContain('for (let i = 1; i <= 10; i++)');
+    expect(code).not.toContain('Array.from');
+  });
+
+  test('for i in start..end emits C-style for loop with expressions', () => {
+    const code = compile('for i in start..end { print(i) }');
+    expect(code).toContain('for (let i = start; i < end; i++)');
+  });
+
+  test('standalone range uses stdlib range()', () => {
+    const code = compile('x = 1..10');
+    expect(code).toContain('range(1, 10)');
+    expect(code).not.toContain('Array.from');
+  });
+
+  test('range in for-else uses stdlib range()', () => {
+    const code = compile('for i in 1..10 { print(i) } else { print("empty") }');
+    expect(code).toContain('range(1, 10)');
+    expect(code).not.toContain('Array.from');
+  });
+});
+
+// ── H6: Exhaustive match without wildcard ──
+describe('H6: exhaustive match without wildcard', () => {
+  test('match on Result covering Ok/Err without wildcard is exhaustive', () => {
+    const warnings = getWarnings(`
+      fn handle(r: Result<Int, String>) -> Int {
+        match r {
+          Ok(v) => v
+          Err(e) => 0
+        }
+      }
+    `);
+    const returnWarn = warnings.find(w => w.code === 'W205');
+    expect(returnWarn).toBeUndefined();
+  });
+
+  test('match on Option covering Some/None without wildcard is exhaustive', () => {
+    const warnings = getWarnings(`
+      fn handle(o: Option<Int>) -> Int {
+        match o {
+          Some(v) => v
+          None => 0
+        }
+      }
+    `);
+    const returnWarn = warnings.find(w => w.code === 'W205');
+    expect(returnWarn).toBeUndefined();
+  });
+});
+
+describe('M7: type-aware exhaustive match disambiguation', () => {
+  test('disambiguate when multiple types have overlapping variant sets', () => {
+    // Shape has Circle and Square; Container also has Square and Box
+    // When matching a Shape, only Shape's variants matter
+    const warnings = getWarnings(`
+      type Shape {
+        Circle(Float)
+        Triangle(Float, Float)
+      }
+      fn area(s: Shape) -> Float {
+        match s {
+          Circle(r) => 3.14 * r * r
+          Triangle(b, h) => 0.5 * b * h
+        }
+      }
+    `);
+    // Should NOT warn — match is exhaustive for Shape
+    const exhaustWarn = warnings.find(w => w.code === 'W200');
+    expect(exhaustWarn).toBeUndefined();
+  });
+
+  test('warn on missing variant when type is known from annotation', () => {
+    const warnings = getWarnings(`
+      type Direction {
+        North
+        South
+        East
+        West
+      }
+      fn describe(d: Direction) -> String {
+        match d {
+          North => "north"
+          South => "south"
+        }
+      }
+    `);
+    // Should warn about missing East and West
+    const exhaustWarns = warnings.filter(w => w.code === 'W200');
+    expect(exhaustWarns.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── LazyTable query builder ─────────────────────────────────
+
+describe('LazyTable query builder', () => {
+  // Build a runtime environment with the stdlib functions we need
+  // Uses eval to instantiate inline stdlib (these are trusted source strings from our own codebase)
+  let env;
+  beforeAll(async () => {
+    const { BUILTIN_FUNCTIONS } = await import('../src/stdlib/inline.js');
+    const code = [
+      BUILTIN_FUNCTIONS.Table,
+      BUILTIN_FUNCTIONS.table_where,
+      BUILTIN_FUNCTIONS.table_group_by,
+      BUILTIN_FUNCTIONS.LazyTable,
+      BUILTIN_FUNCTIONS.lazy,
+      BUILTIN_FUNCTIONS.collect,
+    ].join('\n');
+    env = {};
+    // Safe: evaluating our own trusted stdlib source code for testing
+    const fn = new Function('env', code + '\nenv.Table=Table;env.LazyTable=LazyTable;env.lazy=lazy;env.collect=collect;env.table_where=table_where;env.table_group_by=table_group_by;');
+    fn(env);
+  });
+
+  function makeTable(rows) {
+    return env.Table(rows);
+  }
+
+  test('lazy().where().collect() filters rows', () => {
+    const t = makeTable([{ a: 1 }, { a: 2 }, { a: 3 }]);
+    const result = env.lazy(t).where(r => r.a > 1).collect();
+    expect(result._rows).toEqual([{ a: 2 }, { a: 3 }]);
+  });
+
+  test('lazy().select().collect() selects columns', () => {
+    const t = makeTable([{ a: 1, b: 2, c: 3 }]);
+    const result = env.lazy(t).select('a', 'c').collect();
+    expect(result._rows).toEqual([{ a: 1, c: 3 }]);
+    expect(result._columns).toEqual(['a', 'c']);
+  });
+
+  test('lazy().derive().collect() adds computed columns', () => {
+    const t = makeTable([{ x: 2 }, { x: 3 }]);
+    const result = env.lazy(t).derive({ doubled: r => r.x * 2 }).collect();
+    expect(result._rows).toEqual([{ x: 2, doubled: 4 }, { x: 3, doubled: 6 }]);
+  });
+
+  test('lazy().limit().collect() limits rows', () => {
+    const t = makeTable([{ a: 1 }, { a: 2 }, { a: 3 }, { a: 4 }]);
+    const result = env.lazy(t).limit(2).collect();
+    expect(result._rows).toEqual([{ a: 1 }, { a: 2 }]);
+  });
+
+  test('chained where+select+limit executes in pipeline', () => {
+    const t = makeTable([
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 },
+      { name: 'Carol', age: 35 },
+      { name: 'Dave', age: 28 },
+    ]);
+    const result = env.lazy(t)
+      .where(r => r.age >= 28)
+      .select('name')
+      .limit(2)
+      .collect();
+    expect(result._rows).toEqual([{ name: 'Alice' }, { name: 'Carol' }]);
+  });
+
+  test('sort_by works within lazy pipeline', () => {
+    const t = makeTable([{ v: 3 }, { v: 1 }, { v: 2 }]);
+    const result = env.lazy(t).sort_by('v').collect();
+    expect(result._rows).toEqual([{ v: 1 }, { v: 2 }, { v: 3 }]);
+  });
+
+  test('rename works within lazy pipeline', () => {
+    const t = makeTable([{ old: 1 }]);
+    const result = env.lazy(t).rename('old', 'new_name').collect();
+    expect(result._rows[0].new_name).toBe(1);
+    expect(result._columns).toEqual(['new_name']);
+  });
+
+  test('drop_duplicates works within lazy pipeline', () => {
+    const t = makeTable([{ a: 1 }, { a: 1 }, { a: 2 }]);
+    const result = env.lazy(t).drop_duplicates().collect();
+    expect(result._rows).toEqual([{ a: 1 }, { a: 2 }]);
+  });
+
+  test('collect() free function works with LazyTable', () => {
+    const t = makeTable([{ a: 1 }, { a: 2 }]);
+    const result = env.collect(env.lazy(t).where(r => r.a > 1));
+    expect(result._rows).toEqual([{ a: 2 }]);
+  });
+
+  test('LazyTable is iterable', () => {
+    const t = makeTable([{ a: 1 }, { a: 2 }]);
+    const items = [...env.lazy(t).where(r => r.a > 1)];
+    expect(items).toEqual([{ a: 2 }]);
+  });
+
+  test('immutability: each step creates new LazyTable', () => {
+    const t = makeTable([{ a: 1 }, { a: 2 }, { a: 3 }]);
+    const base = env.lazy(t).where(r => r.a > 1);
+    const branch1 = base.limit(1).collect();
+    const branch2 = base.limit(2).collect();
+    expect(branch1._rows.length).toBe(1);
+    expect(branch2._rows.length).toBe(2);
+  });
+});
+
+// ── H1: Standalone range → stdlib range() ──
+describe('H1: standalone range uses stdlib range()', () => {
+  test('exclusive standalone range emits range(start, end)', () => {
+    const code = compile('nums = 1..10');
+    expect(code).toContain('range(1, 10)');
+    expect(code).not.toContain('Array.from');
+  });
+
+  test('inclusive standalone range emits range(start, end + 1)', () => {
+    const code = compile('nums = 1..=5');
+    expect(code).toContain('range(1, (5) + 1)');
+    expect(code).not.toContain('Array.from');
+  });
+
+  test('range with variable expressions', () => {
+    const code = compile('nums = start..end');
+    expect(code).toContain('range(start, end)');
+  });
+
+  test('range in list comprehension uses range()', () => {
+    const code = compile('squares = [x * x for x in 1..10]');
+    expect(code).toContain('range(1, 10)');
+  });
+
+  test('range stdlib function is included in output', () => {
+    const code = compile('nums = 1..5');
+    expect(code).toContain('function range(');
+  });
+});
+
+// ── N6: Incremental LSP sync ──
+// Prevent LSP auto-start when importing the module for testing
+globalThis.__TOVA_LSP_NO_AUTOSTART = true;
+
+describe('N6: incremental LSP sync', () => {
+  let server;
+
+  beforeAll(async () => {
+    const { TovaLanguageServer } = await import('../src/lsp/server.js');
+    server = new TovaLanguageServer();
+  });
+
+  test('server advertises incremental sync (change: 2)', () => {
+    // Simulate initialize request
+    const responses = [];
+    server._respond = (id, result) => responses.push({ id, result });
+    server._onInitialize({ id: 1, method: 'initialize', params: { capabilities: {} } });
+    expect(responses[0].result.capabilities.textDocumentSync.change).toBe(2);
+  });
+
+  test('_applyEdit applies incremental text change correctly', () => {
+    const original = 'hello world';
+    // Replace "world" (line 0, char 6 to char 11) with "tova"
+    const result = server._applyEdit(original, {
+      start: { line: 0, character: 6 },
+      end: { line: 0, character: 11 },
+    }, 'tova');
+    expect(result).toBe('hello tova');
+  });
+
+  test('_applyEdit handles multi-line documents', () => {
+    const original = 'line1\nline2\nline3';
+    // Replace "line2" (line 1, char 0 to char 5) with "replaced"
+    const result = server._applyEdit(original, {
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: 5 },
+    }, 'replaced');
+    expect(result).toBe('line1\nreplaced\nline3');
+  });
+
+  test('_applyEdit handles insertion (empty range)', () => {
+    const original = 'ab';
+    const result = server._applyEdit(original, {
+      start: { line: 0, character: 1 },
+      end: { line: 0, character: 1 },
+    }, 'X');
+    expect(result).toBe('aXb');
+  });
+
+  test('_applyEdit handles deletion (empty replacement)', () => {
+    const original = 'abcd';
+    const result = server._applyEdit(original, {
+      start: { line: 0, character: 1 },
+      end: { line: 0, character: 3 },
+    }, '');
+    expect(result).toBe('ad');
+  });
+
+  test('_applyEdit handles cross-line range', () => {
+    const original = 'aaa\nbbb\nccc';
+    // Delete from end of line 0 to start of line 2
+    const result = server._applyEdit(original, {
+      start: { line: 0, character: 3 },
+      end: { line: 2, character: 0 },
+    }, '\n');
+    expect(result).toBe('aaa\nccc');
+  });
+
+  test('_positionToOffset converts line/character to offset', () => {
+    const text = 'line1\nline2\nline3';
+    expect(server._positionToOffset(text, { line: 0, character: 0 })).toBe(0);
+    expect(server._positionToOffset(text, { line: 0, character: 3 })).toBe(3);
+    expect(server._positionToOffset(text, { line: 1, character: 0 })).toBe(6);
+    expect(server._positionToOffset(text, { line: 1, character: 2 })).toBe(8);
+    expect(server._positionToOffset(text, { line: 2, character: 0 })).toBe(12);
+  });
+
+  test('_onDidChange applies incremental edits to stored document', () => {
+    // Simulate opening a document
+    server._documents.set('file:///test.tova', { text: 'x = 10', version: 1 });
+    // Suppress validation
+    const origValidate = server._debouncedValidate;
+    server._debouncedValidate = () => {};
+    // Simulate incremental change: replace "10" with "20"
+    server._onDidChange({
+      textDocument: { uri: 'file:///test.tova', version: 2 },
+      contentChanges: [{
+        range: { start: { line: 0, character: 4 }, end: { line: 0, character: 6 } },
+        text: '20',
+      }],
+    });
+    expect(server._documents.get('file:///test.tova').text).toBe('x = 20');
+    expect(server._documents.get('file:///test.tova').version).toBe(2);
+    server._debouncedValidate = origValidate;
   });
 });

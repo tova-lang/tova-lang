@@ -409,17 +409,17 @@ export function installClientParser(ParserClass) {
         if (!this.match(TokenType.COMMA)) break;
       }
       this.expect(TokenType.RBRACKET, "Expected ']' in destructuring pattern");
-      variable = `[${elements.join(', ')}]`;
+      variable = new AST.ArrayPattern(elements, l);
     } else if (this.check(TokenType.LBRACE)) {
       // Object destructuring: {name, age}
       this.advance(); // consume {
       const props = [];
       while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-        props.push(this.expect(TokenType.IDENTIFIER, "Expected property name in object pattern").value);
+        props.push({ key: this.expect(TokenType.IDENTIFIER, "Expected property name in object pattern").value });
         if (!this.match(TokenType.COMMA)) break;
       }
       this.expect(TokenType.RBRACE, "Expected '}' in destructuring pattern");
-      variable = `{${props.join(', ')}}`;
+      variable = new AST.ObjectPattern(props, l);
     } else {
       variable = this.expect(TokenType.IDENTIFIER, "Expected loop variable").value;
     }

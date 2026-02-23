@@ -5,6 +5,7 @@ import { installClientParser } from './client-parser.js';
 
 export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
+  static COMPARISON_OPS = null; // initialized after class definition
 
   constructor(tokens, filename = '<stdin>') {
     // Pre-filter: build array of significant tokens for O(1) peek
@@ -17,6 +18,7 @@ export class Parser {
       significant.push(t);
     }
     this.tokens = significant;
+    this._eof = significant[significant.length - 1]; // cache EOF for hot-path methods
     this.filename = filename;
     this.pos = 0;
     this.errors = [];
@@ -37,16 +39,16 @@ export class Parser {
   }
 
   current() {
-    return this.tokens[this.pos] || this.tokens[this.tokens.length - 1];
+    return this.tokens[this.pos] || this._eof;
   }
 
   peek(offset = 0) {
     const idx = this.pos + offset;
-    return idx < this.tokens.length ? this.tokens[idx] : this.tokens[this.tokens.length - 1];
+    return idx < this.tokens.length ? this.tokens[idx] : this._eof;
   }
 
   advance() {
-    return this.tokens[this.pos++] || this.tokens[this.tokens.length - 1];
+    return this.tokens[this.pos++] || this._eof;
   }
 
   check(type) {
@@ -1471,10 +1473,10 @@ export class Parser {
   // ─── Expressions (precedence climbing) ────────────────────
 
   parseExpression() {
-    if (++this._expressionDepth > Parser.MAX_EXPRESSION_DEPTH) {
-      this._expressionDepth--;
+    if (this._expressionDepth >= Parser.MAX_EXPRESSION_DEPTH) {
       this.error('Expression nested too deeply (max ' + Parser.MAX_EXPRESSION_DEPTH + ' levels)');
     }
+    this._expressionDepth++;
     try {
       return this.parsePipe();
     } finally {
@@ -1554,9 +1556,7 @@ export class Parser {
     let left = this.parseMembership();
 
     // Check for chained comparisons: a < b < c
-    const compOps = [TokenType.LESS, TokenType.LESS_EQUAL, TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.EQUAL, TokenType.NOT_EQUAL];
-
-    if (compOps.some(op => this.check(op))) {
+    if (Parser.COMPARISON_OPS.has(this.current().type)) {
       // Don't parse < as comparison if it looks like JSX
       if (this.check(TokenType.LESS) && this._looksLikeJSX()) {
         return left;
@@ -1565,9 +1565,8 @@ export class Parser {
       const operands = [left];
       const operators = [];
 
-      while (true) {
-        const op = this.match(...compOps);
-        if (!op) break;
+      while (Parser.COMPARISON_OPS.has(this.current().type)) {
+        const op = this.advance();
         operators.push(op.value);
         operands.push(this.parseMembership());
       }
@@ -1861,117 +1860,100 @@ export class Parser {
 
   parsePrimary() {
     const l = this.loc();
+    const tokenType = this.current().type;
 
-    // Number
-    if (this.check(TokenType.NUMBER)) {
-      return new AST.NumberLiteral(this.advance().value, l);
-    }
+    switch (tokenType) {
+      case TokenType.NUMBER:
+        return new AST.NumberLiteral(this.advance().value, l);
 
-    // String
-    if (this.check(TokenType.STRING) || this.check(TokenType.STRING_TEMPLATE)) {
-      return this.parseStringLiteral();
-    }
+      case TokenType.STRING:
+      case TokenType.STRING_TEMPLATE:
+        return this.parseStringLiteral();
 
-    // Regex literal
-    if (this.check(TokenType.REGEX)) {
-      const token = this.advance();
-      return new AST.RegexLiteral(token.value.pattern, token.value.flags, l);
-    }
-
-    // Boolean
-    if (this.check(TokenType.TRUE)) {
-      this.advance();
-      return new AST.BooleanLiteral(true, l);
-    }
-    if (this.check(TokenType.FALSE)) {
-      this.advance();
-      return new AST.BooleanLiteral(false, l);
-    }
-
-    // Nil
-    if (this.check(TokenType.NIL)) {
-      this.advance();
-      return new AST.NilLiteral(l);
-    }
-
-    // Match expression
-    if (this.check(TokenType.MATCH)) {
-      return this.parseMatchExpression();
-    }
-
-    // If expression (in expression position): if cond { a } else { b }
-    if (this.check(TokenType.IF)) {
-      return this.parseIfExpression();
-    }
-
-    // Async lambda: async fn(params) body
-    if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) {
-      return this.parseAsyncLambda();
-    }
-
-    // Lambda: fn(params) body  or  params => body
-    if (this.check(TokenType.FN) && this.peek(1).type === TokenType.LPAREN) {
-      return this.parseLambda();
-    }
-
-    // Arrow lambda: x => expr  or  (x, y) => expr
-    // We'll handle this in the identifier/paren case
-
-    // Array literal or list comprehension
-    if (this.check(TokenType.LBRACKET)) {
-      return this.parseArrayOrComprehension();
-    }
-
-    // Object literal or dict comprehension
-    if (this.check(TokenType.LBRACE)) {
-      return this.parseObjectOrDictComprehension();
-    }
-
-    // Column expression: .column (for table operations)
-    // Appears at expression-start when DOT followed by IDENTIFIER
-    // but NOT when preceded by an expression (which would be member access)
-    if (this.check(TokenType.DOT) && this.peek(1).type === TokenType.IDENTIFIER) {
-      // Check this isn't inside a method pipe (|> .method) — that's handled in parsePipe
-      // Column expressions appear in function arguments and assignments
-      this.advance(); // consume .
-      const name = this.advance().value; // consume identifier
-
-      // Check for column assignment: .col = expr (used in derive)
-      if (this.check(TokenType.ASSIGN)) {
-        this.advance(); // consume =
-        const expr = this.parseExpression();
-        return new AST.ColumnAssignment(name, expr, l);
+      case TokenType.REGEX: {
+        const token = this.advance();
+        return new AST.RegexLiteral(token.value.pattern, token.value.flags, l);
       }
 
-      return new AST.ColumnExpression(name, l);
-    }
-
-    // Parenthesized expression or arrow lambda
-    if (this.check(TokenType.LPAREN)) {
-      return this.parseParenOrArrowLambda();
-    }
-
-    // Keywords that can appear as identifiers in expression position
-    if (this.check(TokenType.SERVER) || this.check(TokenType.CLIENT) || this.check(TokenType.SHARED) || this.check(TokenType.DERIVE) ||
-        this._isContextualKeyword()) {
-      const name = this.advance().value;
-      return new AST.Identifier(name, l);
-    }
-
-    // Identifier (or arrow lambda: x => expr)
-    if (this.check(TokenType.IDENTIFIER)) {
-      const name = this.advance().value;
-      // Check for arrow lambda: x => expr or x -> expr
-      if (this.check(TokenType.ARROW) || this.check(TokenType.THIN_ARROW)) {
+      case TokenType.TRUE:
         this.advance();
-        const body = this.parseExpression();
-        return new AST.LambdaExpression(
-          [new AST.Parameter(name, null, null, l)],
-          body,
-          l
-        );
+        return new AST.BooleanLiteral(true, l);
+
+      case TokenType.FALSE:
+        this.advance();
+        return new AST.BooleanLiteral(false, l);
+
+      case TokenType.NIL:
+        this.advance();
+        return new AST.NilLiteral(l);
+
+      case TokenType.MATCH:
+        return this.parseMatchExpression();
+
+      case TokenType.IF:
+        return this.parseIfExpression();
+
+      case TokenType.ASYNC:
+        if (this.peek(1).type === TokenType.FN) {
+          return this.parseAsyncLambda();
+        }
+        break;
+
+      case TokenType.FN:
+        if (this.peek(1).type === TokenType.LPAREN) {
+          return this.parseLambda();
+        }
+        break;
+
+      case TokenType.LBRACKET:
+        return this.parseArrayOrComprehension();
+
+      case TokenType.LBRACE:
+        return this.parseObjectOrDictComprehension();
+
+      case TokenType.DOT:
+        // Column expression: .column (for table operations)
+        if (this.peek(1).type === TokenType.IDENTIFIER) {
+          this.advance(); // consume .
+          const name = this.advance().value; // consume identifier
+          // Check for column assignment: .col = expr (used in derive)
+          if (this.check(TokenType.ASSIGN)) {
+            this.advance(); // consume =
+            const expr = this.parseExpression();
+            return new AST.ColumnAssignment(name, expr, l);
+          }
+          return new AST.ColumnExpression(name, l);
+        }
+        break;
+
+      case TokenType.LPAREN:
+        return this.parseParenOrArrowLambda();
+
+      case TokenType.SERVER:
+      case TokenType.CLIENT:
+      case TokenType.SHARED:
+      case TokenType.DERIVE:
+        return new AST.Identifier(this.advance().value, l);
+
+      case TokenType.IDENTIFIER: {
+        const name = this.advance().value;
+        // Check for arrow lambda: x => expr or x -> expr
+        if (this.check(TokenType.ARROW) || this.check(TokenType.THIN_ARROW)) {
+          this.advance();
+          const body = this.parseExpression();
+          return new AST.LambdaExpression(
+            [new AST.Parameter(name, null, null, l)],
+            body,
+            l
+          );
+        }
+        return new AST.Identifier(name, l);
       }
-      return new AST.Identifier(name, l);
+    }
+
+    // Contextual keywords that can appear as identifiers in expression position
+    if (this._isContextualKeyword()) {
+      return new AST.Identifier(this.advance().value, l);
     }
 
     this.error(`Unexpected token: ${this.current().type}`);
@@ -2462,3 +2444,10 @@ export class Parser {
     return node;
   }
 }
+
+// Initialize static Set after class definition (depends on TokenType)
+Parser.COMPARISON_OPS = new Set([
+  TokenType.LESS, TokenType.LESS_EQUAL,
+  TokenType.GREATER, TokenType.GREATER_EQUAL,
+  TokenType.EQUAL, TokenType.NOT_EQUAL
+]);

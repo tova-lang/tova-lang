@@ -145,7 +145,7 @@ class TovaLanguageServer {
       capabilities: {
         textDocumentSync: {
           openClose: true,
-          change: 1, // Full content sync
+          change: 2, // Incremental sync — receive only changed ranges
           save: { includeText: true },
         },
         completionProvider: {
@@ -183,11 +183,56 @@ class TovaLanguageServer {
 
   _onDidChange(params) {
     const { uri, version } = params.textDocument;
-    const text = params.contentChanges[0]?.text;
-    if (text !== undefined) {
-      this._documents.set(uri, { text, version });
-      this._validateDocument(uri, text);
+    const changes = params.contentChanges;
+    if (!changes || changes.length === 0) return;
+
+    const doc = this._documents.get(uri);
+    if (!doc) return;
+
+    let text = doc.text;
+
+    for (const change of changes) {
+      if (change.range) {
+        // Incremental sync: apply range edit
+        text = this._applyEdit(text, change.range, change.text);
+      } else {
+        // Full sync fallback (e.g., if client sends full text)
+        text = change.text;
+      }
     }
+
+    this._documents.set(uri, { text, version });
+    this._debouncedValidate(uri, text);
+  }
+
+  // Apply a single incremental text edit to the document
+  _applyEdit(text, range, newText) {
+    const startOffset = this._positionToOffset(text, range.start);
+    const endOffset = this._positionToOffset(text, range.end);
+    return text.slice(0, startOffset) + newText + text.slice(endOffset);
+  }
+
+  // Convert { line, character } position to byte offset in text
+  _positionToOffset(text, pos) {
+    let line = 0;
+    let offset = 0;
+    while (line < pos.line && offset < text.length) {
+      if (text[offset] === '\n') line++;
+      offset++;
+    }
+    return offset + pos.character;
+  }
+
+  _debouncedValidate(uri, text) {
+    if (!this._validateTimers) this._validateTimers = new Map();
+    const existing = this._validateTimers.get(uri);
+    if (existing) clearTimeout(existing);
+    this._validateTimers.set(uri, setTimeout(() => {
+      this._validateTimers.delete(uri);
+      // Re-read latest text in case more changes arrived
+      const doc = this._documents.get(uri);
+      if (doc) this._validateDocument(uri, doc.text);
+    }, 200));
   }
 
   _onDidClose(params) {
@@ -222,6 +267,8 @@ class TovaLanguageServer {
       // LSP always runs with strict: true for better diagnostics
       const analyzer = new Analyzer(ast, filename, { strict: true });
       const result = analyzer.analyze();
+      // Build sorted scope index for O(log n) position lookups
+      analyzer.globalScope.buildIndex();
       const { warnings } = result;
       const typeRegistry = TypeRegistry.fromAnalyzer(analyzer);
 
@@ -296,6 +343,7 @@ class TovaLanguageServer {
         try {
           const analyzer = new Analyzer(partialAST, filename, { tolerant: true, strict: true });
           const result = analyzer.analyze();
+          analyzer.globalScope.buildIndex();
           const typeRegistry = TypeRegistry.fromAnalyzer(analyzer);
           this._diagnosticsCache.set(uri, { ast: partialAST, analyzer, text, typeRegistry });
           for (const w of result.warnings) {
@@ -1555,7 +1603,7 @@ class TovaLanguageServer {
     });
   }
 
-  // ─── References ─────────────────────────────────────────
+  // ─── References (scope-aware) ───────────────────────────
 
   _onReferences(msg) {
     const { position, textDocument } = msg.params;
@@ -1566,15 +1614,90 @@ class TovaLanguageServer {
     const word = this._getWordAt(line, position.character);
     if (!word) return this._respond(msg.id, []);
 
+    const cached = this._diagnosticsCache.get(textDocument.uri);
+    if (!cached || !cached.analyzer || !cached.analyzer.globalScope) {
+      // Fallback to naive text search if no scope info
+      return this._naiveReferences(msg.id, textDocument.uri, doc.text, word);
+    }
+
+    // Find the scope at cursor and walk up to find the defining scope
+    const cursorLine = position.line + 1;
+    const cursorCol = position.character + 1;
+    const cursorScope = cached.analyzer.globalScope.findScopeAtPosition(cursorLine, cursorCol);
+    if (!cursorScope) {
+      return this._naiveReferences(msg.id, textDocument.uri, doc.text, word);
+    }
+
+    let definingScope = null;
+    let scope = cursorScope;
+    while (scope) {
+      if (scope.symbols && scope.symbols.has(word)) {
+        definingScope = scope;
+        break;
+      }
+      scope = scope.parent;
+    }
+
+    if (!definingScope) {
+      return this._naiveReferences(msg.id, textDocument.uri, doc.text, word);
+    }
+
+    // Collect locations: for each text occurrence, check if it resolves to the same scope
     const locations = [];
     const docLines = doc.text.split('\n');
-    const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp('\\b' + escaped + '\\b', 'g');
+
+    for (let i = 0; i < docLines.length; i++) {
+      let match;
+      while ((match = wordRegex.exec(docLines[i])) !== null) {
+        const matchLine = i + 1;
+        const matchCol = match.index + 1;
+        const matchScope = cached.analyzer.globalScope.findScopeAtPosition(matchLine, matchCol);
+        if (!matchScope) continue;
+
+        // Walk up from matchScope to see if the name resolves to definingScope
+        let resolvedScope = null;
+        let s = matchScope;
+        while (s) {
+          if (s.symbols && s.symbols.has(word)) {
+            resolvedScope = s;
+            break;
+          }
+          s = s.parent;
+        }
+
+        if (resolvedScope === definingScope) {
+          locations.push({
+            uri: textDocument.uri,
+            range: {
+              start: { line: i, character: match.index },
+              end: { line: i, character: match.index + word.length },
+            },
+          });
+        }
+      }
+    }
+
+    // Fallback if scope-aware search found nothing (e.g. positional info gaps)
+    if (locations.length === 0) {
+      return this._naiveReferences(msg.id, textDocument.uri, doc.text, word);
+    }
+
+    this._respond(msg.id, locations);
+  }
+
+  _naiveReferences(id, uri, text, word) {
+    const locations = [];
+    const docLines = text.split('\n');
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp('\\b' + escaped + '\\b', 'g');
 
     for (let i = 0; i < docLines.length; i++) {
       let match;
       while ((match = wordRegex.exec(docLines[i])) !== null) {
         locations.push({
-          uri: textDocument.uri,
+          uri: uri,
           range: {
             start: { line: i, character: match.index },
             end: { line: i, character: match.index + word.length },
@@ -1583,7 +1706,7 @@ class TovaLanguageServer {
       }
     }
 
-    this._respond(msg.id, locations);
+    this._respond(id, locations);
   }
 
   // ─── Workspace Symbol ──────────────────────────────────
@@ -1869,6 +1992,19 @@ class TovaLanguageServer {
   }
 }
 
-// Start the server
-const server = new TovaLanguageServer();
-server.start();
+export { TovaLanguageServer };
+
+// Auto-start when imported (for `tova lsp` command).
+// Use startServer() export for explicit control.
+export function startServer() {
+  const server = new TovaLanguageServer();
+  server.start();
+  return server;
+}
+
+// Start automatically — callers that only want the class import should
+// use dynamic import with test-aware filtering or call startServer() explicitly
+const _autoStart = globalThis.__TOVA_LSP_NO_AUTOSTART !== true;
+if (_autoStart) {
+  startServer();
+}

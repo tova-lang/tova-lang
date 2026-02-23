@@ -1052,14 +1052,16 @@ describe('Unquoted JSX text — control flow', () => {
     const comp = parseComponent('<ul> for {name, age} in users { <li>{name}</li> } </ul>');
     const jsxFor = comp.body[0].children[0];
     expect(jsxFor.type).toBe('JSXFor');
-    expect(jsxFor.variable).toBe('{name, age}');
+    expect(jsxFor.variable.type).toBe('ObjectPattern');
+    expect(jsxFor.variable.properties.map(p => p.key)).toEqual(['name', 'age']);
   });
 
   test('JSX for with array destructuring still works', () => {
     const comp = parseComponent('<ul> for [i, item] in entries { <li>{item}</li> } </ul>');
     const jsxFor = comp.body[0].children[0];
     expect(jsxFor.type).toBe('JSXFor');
-    expect(jsxFor.variable).toBe('[i, item]');
+    expect(jsxFor.variable.type).toBe('ArrayPattern');
+    expect(jsxFor.variable.elements).toEqual(['i', 'item']);
   });
 
   test('JSX for with key expression still works', () => {

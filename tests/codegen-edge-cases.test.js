@@ -262,14 +262,14 @@ describe('Edge — Membership operators', () => {
 describe('Edge — Range expressions', () => {
   test('exclusive range 1..10', () => {
     const code = compileShared('x = 1..10');
-    expect(code).toContain('Array.from');
-    expect(code).toContain('length: (10) - (1)');
+    expect(code).toContain('range(1, 10)');
+    expect(code).not.toContain('Array.from');
   });
 
   test('inclusive range 1..=10', () => {
     const code = compileShared('x = 1..=10');
-    expect(code).toContain('Array.from');
-    expect(code).toContain('(10) - (1) + 1');
+    expect(code).toContain('range(1, (10) + 1)');
+    expect(code).not.toContain('Array.from');
   });
 });
 

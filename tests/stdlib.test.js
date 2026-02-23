@@ -868,7 +868,7 @@ describe('Regex — regex_capture', () => {
 // We need to import regex functions from inline (they're only in inline.js, not modular files yet)
 // For testing, we'll eval them from the inline definitions
 import { BUILTIN_FUNCTIONS, RESULT_OPTION } from '../src/stdlib/inline.js';
-const _regexEnv = new Function(RESULT_OPTION + '\n' + BUILTIN_FUNCTIONS.regex_test + '\n' + BUILTIN_FUNCTIONS.regex_match + '\n' + BUILTIN_FUNCTIONS.regex_find_all + '\n' + BUILTIN_FUNCTIONS.regex_replace + '\n' + BUILTIN_FUNCTIONS.regex_split + '\n' + BUILTIN_FUNCTIONS.regex_capture + '\nreturn { regex_test, regex_match, regex_find_all, regex_replace, regex_split, regex_capture };')();
+const _regexEnv = new Function(RESULT_OPTION + '\n' + BUILTIN_FUNCTIONS.__regex_cache + '\n' + BUILTIN_FUNCTIONS.regex_test + '\n' + BUILTIN_FUNCTIONS.regex_match + '\n' + BUILTIN_FUNCTIONS.regex_find_all + '\n' + BUILTIN_FUNCTIONS.regex_replace + '\n' + BUILTIN_FUNCTIONS.regex_split + '\n' + BUILTIN_FUNCTIONS.regex_capture + '\nreturn { regex_test, regex_match, regex_find_all, regex_replace, regex_split, regex_capture };')(); // safe: evaluating our own stdlib code in tests
 const { regex_test, regex_match, regex_find_all, regex_replace, regex_split, regex_capture } = _regexEnv;
 
 // ═══════════════════════════════════════════════════════════

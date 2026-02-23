@@ -159,11 +159,27 @@ export function installClientAnalyzer(AnalyzerClass) {
     this.currentScope = this.currentScope.child('block');
     try {
       this.visitExpression(node.iterable);
-      try {
-        this.currentScope.define(node.variable,
-          new Symbol(node.variable, 'variable', null, false, node.loc));
-      } catch (e) {
-        this.error(e.message);
+      const variable = node.variable;
+      if (typeof variable === 'string') {
+        try {
+          this.currentScope.define(variable,
+            new Symbol(variable, 'variable', null, false, node.loc));
+        } catch (e) { this.error(e.message); }
+      } else if (variable.type === 'ArrayPattern') {
+        for (const el of variable.elements) {
+          try {
+            this.currentScope.define(el,
+              new Symbol(el, 'variable', null, false, variable.loc));
+          } catch (e) { this.error(e.message); }
+        }
+      } else if (variable.type === 'ObjectPattern') {
+        for (const prop of variable.properties) {
+          const name = prop.value || prop.key;
+          try {
+            this.currentScope.define(name,
+              new Symbol(name, 'variable', null, false, variable.loc));
+          } catch (e) { this.error(e.message); }
+        }
       }
       for (const child of node.body) {
         this.visitNode(child);

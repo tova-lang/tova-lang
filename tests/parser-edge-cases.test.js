@@ -1082,13 +1082,15 @@ describe('Parser — JSX edge cases', () => {
   test('JSX for with array destructuring', () => {
     const ast = parse('client { component App { <ul>for [i, item] in items { <li>"text"</li> }</ul> } }');
     const el = ast.body[0].body[0].body[0];
-    expect(el.children[0].variable).toBe('[i, item]');
+    expect(el.children[0].variable.type).toBe('ArrayPattern');
+    expect(el.children[0].variable.elements).toEqual(['i', 'item']);
   });
 
   test('JSX for with object destructuring', () => {
     const ast = parse('client { component App { <ul>for {name, age} in users { <li>"text"</li> }</ul> } }');
     const el = ast.body[0].body[0].body[0];
-    expect(el.children[0].variable).toBe('{name, age}');
+    expect(el.children[0].variable.type).toBe('ObjectPattern');
+    expect(el.children[0].variable.properties.map(p => p.key)).toEqual(['name', 'age']);
   });
 
   test('JSX if conditional', () => {

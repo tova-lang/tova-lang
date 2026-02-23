@@ -225,7 +225,7 @@ function compileTova(source, filename, options = {}) {
     }
   }
 
-  const codegen = new CodeGenerator(ast, filename);
+  const codegen = new CodeGenerator(ast, filename, { sourceMaps: options.sourceMaps !== false });
   return codegen.generate();
 }
 
@@ -396,6 +396,7 @@ async function runTests(args) {
     });
   } else {
     // Clean up temp dir on exit (non-watch mode)
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     process.exitCode = exitCode;
   }
 }
@@ -454,6 +455,9 @@ async function runBench(args) {
       console.error(`  Error compiling ${relative('.', file)}: ${err.message}`);
     }
   }
+
+  // Clean up bench temp dir
+  try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
 }
 
 async function generateDocs(args) {
@@ -658,7 +662,7 @@ async function buildProject(args) {
 
   let errorCount = 0;
   const buildStart = Date.now();
-  compilationCache.clear();
+  compilationCache.clear(); moduleTypeCache.clear();
 
   // Load incremental build cache
   const noCache = args.includes('--no-cache');
@@ -842,7 +846,8 @@ async function buildProject(args) {
       if (!filename || !filename.endsWith('.tova')) return;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
-        compilationCache.clear();
+        const changedPath = resolve(srcDir, filename);
+        invalidateFile(changedPath);
         if (!isQuiet) console.log(`  Rebuilding (${filename} changed)...`);
         await buildProject(args.filter(a => a !== '--watch'));
         if (!isQuiet) console.log('  Watching for changes...\n');
@@ -1028,7 +1033,7 @@ async function devServer(args) {
   let hasClient = false;
 
   // Clear import caches for fresh compilation
-  compilationCache.clear();
+  compilationCache.clear(); moduleTypeCache.clear();
   compilationInProgress.clear();
   moduleExports.clear();
 
@@ -1181,10 +1186,8 @@ async function devServer(args) {
     const currentFiles = findFiles(srcDir, '.tova');
     const newServerFiles = [];
 
-    // Clear import caches for fresh compilation
-    compilationCache.clear();
+    // invalidateFile() was already called by startWatcher — just clear transient state
     compilationInProgress.clear();
-    moduleExports.clear();
 
     try {
       // Merge each directory group, collect client HTML
@@ -2419,7 +2422,7 @@ async function startRepl() {
     if (trimmed.startsWith(':type ')) {
       const expr = trimmed.slice(6).trim();
       try {
-        const output = compileTova(expr, '<repl>');
+        const output = compileTova(expr, '<repl>', { sourceMaps: false });
         const code = output.shared || '';
         const ctxKeys = Object.keys(context).filter(k => k !== '__mutable');
         const destructure = ctxKeys.length > 0 ? `const {${ctxKeys.join(',')}} = __ctx;\n` : '';
@@ -2527,7 +2530,7 @@ async function startRepl() {
     buffer = '';
 
     try {
-      const output = compileTova(input, '<repl>', { suppressWarnings: true });
+      const output = compileTova(input, '<repl>', { suppressWarnings: true, sourceMaps: false });
       const code = output.shared || '';
       if (code.trim()) {
         // Extract function/const/let names from compiled code
@@ -2619,17 +2622,23 @@ async function startRepl() {
 
 function startWatcher(srcDir, callback) {
   let debounceTimer = null;
+  let pendingChanges = new Set();
 
   console.log(`  Watching for changes in ${srcDir}...`);
 
   const watcher = fsWatch(srcDir, { recursive: true }, (eventType, filename) => {
     if (!filename || !filename.endsWith('.tova')) return;
+    pendingChanges.add(resolve(srcDir, filename));
     // Debounce rapid file changes
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      console.log(`\n  File changed: ${filename}`);
+      const changed = pendingChanges;
+      pendingChanges = new Set();
+      console.log(`\n  File changed: ${[...changed].map(f => basename(f)).join(', ')}`);
       try {
-        compilationCache.clear();
+        for (const changedPath of changed) {
+          invalidateFile(changedPath);
+        }
         callback();
       } catch (err) {
         console.error(`  Rebuild error: ${err.message}`);
@@ -2888,17 +2897,221 @@ async function productionBuild(srcDir, outDir) {
   console.log(`\n  Production build complete.\n`);
 }
 
-// Simple minification fallback: strip comments and collapse whitespace
+// Fallback JS minifier — string/regex-aware, no AST required
 function _simpleMinify(code) {
-  // Strip single-line comments (but not URLs with //)
-  let result = code.replace(/(?<![:"'])\/\/[^\n]*/g, '');
-  // Strip multi-line comments
-  result = result.replace(/\/\*[\s\S]*?\*\//g, '');
-  // Collapse multiple blank lines
-  result = result.replace(/\n{3,}/g, '\n\n');
-  // Trim trailing whitespace from each line
-  result = result.replace(/[ \t]+$/gm, '');
-  return result.trim();
+  // Phase 1: Strip comments while respecting strings and regexes
+  let stripped = '';
+  let i = 0;
+  const len = code.length;
+  while (i < len) {
+    const ch = code[i];
+    // String literals — pass through unchanged
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const quote = ch;
+      stripped += ch;
+      i++;
+      while (i < len) {
+        const c = code[i];
+        stripped += c;
+        if (c === '\\') { i++; if (i < len) { stripped += code[i]; i++; } continue; }
+        if (quote === '`' && c === '$' && code[i + 1] === '{') {
+          // Template literal expression — track brace depth
+          stripped += code[++i]; // '{'
+          i++;
+          let depth = 1;
+          while (i < len && depth > 0) {
+            const tc = code[i];
+            if (tc === '{') depth++;
+            else if (tc === '}') depth--;
+            if (depth > 0) { stripped += tc; i++; }
+          }
+          if (i < len) { stripped += code[i]; i++; } // closing '}'
+          continue;
+        }
+        if (c === quote) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    // Single-line comment
+    if (ch === '/' && code[i + 1] === '/') {
+      while (i < len && code[i] !== '\n') i++;
+      continue;
+    }
+    // Multi-line comment
+    if (ch === '/' && code[i + 1] === '*') {
+      i += 2;
+      while (i < len - 1 && !(code[i] === '*' && code[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    stripped += ch;
+    i++;
+  }
+
+  // Phase 2: Process line by line
+  const lines = stripped.split('\n');
+  const out = [];
+  for (let j = 0; j < lines.length; j++) {
+    let line = lines[j].trim();
+    if (!line) continue; // remove blank lines
+    // Strip console.log/debug/warn/info statements (production only)
+    if (/^\s*console\.(log|debug|warn|info)\s*\(/.test(line)) {
+      // Simple balanced-paren check for single-line console calls
+      let parens = 0, inStr = false, sq = '';
+      for (let k = 0; k < line.length; k++) {
+        const c = line[k];
+        if (inStr) { if (c === '\\') k++; else if (c === sq) inStr = false; continue; }
+        if (c === '"' || c === "'" || c === '`') { inStr = true; sq = c; continue; }
+        if (c === '(') parens++;
+        if (c === ')') { parens--; if (parens === 0) break; }
+      }
+      if (parens === 0) continue; // balanced — safe to strip
+    }
+    out.push(line);
+  }
+
+  // Phase 3: Collapse whitespace — protect string literals with placeholders
+  let joined = out.join('\n');
+  const strings = [];
+  // Extract all string literals into placeholders so regexes don't mangle them
+  let prot = '';
+  let pi = 0;
+  const plen = joined.length;
+  while (pi < plen) {
+    const pc = joined[pi];
+    if (pc === '"' || pc === "'" || pc === '`') {
+      const q = pc;
+      let s = pc;
+      pi++;
+      while (pi < plen) {
+        const c = joined[pi];
+        s += c;
+        if (c === '\\') { pi++; if (pi < plen) { s += joined[pi]; pi++; } continue; }
+        if (q === '`' && c === '$' && joined[pi + 1] === '{') {
+          s += joined[++pi]; pi++;
+          let d = 1;
+          while (pi < plen && d > 0) {
+            const tc = joined[pi];
+            if (tc === '{') d++; else if (tc === '}') d--;
+            if (d > 0) { s += tc; pi++; }
+          }
+          if (pi < plen) { s += joined[pi]; pi++; }
+          continue;
+        }
+        if (c === q) { pi++; break; }
+        pi++;
+      }
+      strings.push(s);
+      prot += `\x01${strings.length - 1}\x01`;
+    } else {
+      prot += pc;
+      pi++;
+    }
+  }
+
+  // Collapse runs of spaces/tabs to single space
+  prot = prot.replace(/[ \t]+/g, ' ');
+  // Remove spaces around braces, brackets, parens, semicolons, commas
+  prot = prot.replace(/ ?([{}[\]();,]) ?/g, '$1');
+  // Restore space after keywords that need it
+  prot = prot.replace(/\b(return|const|let|var|if|else|for|while|do|switch|case|throw|new|typeof|instanceof|in|of|yield|await|export|import|from|function|class|extends|async|delete|void)\b(?=[^\s;,})\]])/g, '$1 ');
+  // Add space after colon in object literals (key: value)
+  prot = prot.replace(/([a-zA-Z0-9_$]):([^\s}])/g, '$1: $2');
+
+  // Restore string literals
+  let result = prot.replace(/\x01(\d+)\x01/g, (_, idx) => strings[idx]);
+
+  // Phase 4: Dead function elimination — remove unused top-level functions
+  result = _eliminateDeadFunctions(result);
+
+  return result;
+}
+
+// Remove top-level function declarations that are never reachable from non-function code.
+// Uses reachability analysis to handle mutual recursion (foo↔bar both dead).
+function _eliminateDeadFunctions(code) {
+  const funcDeclRe = /^function\s+([\w$]+)\s*\(/gm;
+  const allDecls = []; // [{ name, start, end }]
+  let m;
+
+  // First pass: find all top-level function declarations and their full extent
+  while ((m = funcDeclRe.exec(code)) !== null) {
+    const name = m[1];
+    const start = m.index;
+    let depth = 0, i = start, inStr = false, strCh = '', foundOpen = false;
+    while (i < code.length) {
+      const ch = code[i];
+      if (inStr) { if (ch === '\\') { i += 2; continue; } if (ch === strCh) inStr = false; i++; continue; }
+      if (ch === '"' || ch === "'" || ch === '`') { inStr = true; strCh = ch; i++; continue; }
+      if (ch === '{') { depth++; foundOpen = true; }
+      else if (ch === '}') { depth--; if (foundOpen && depth === 0) { i++; break; } }
+      i++;
+    }
+    allDecls.push({ name, start, end: i });
+  }
+
+  if (allDecls.length === 0) return code;
+
+  // Build a set of all declared function names
+  const declaredNames = new Set(allDecls.map(d => d.name));
+
+  // Helper: find which declared names are referenced in a text region
+  function findRefs(text) {
+    const refs = new Set();
+    for (const name of declaredNames) {
+      const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      if (new RegExp('\\b' + escaped + '\\b').test(text)) refs.add(name);
+    }
+    return refs;
+  }
+
+  // Build "root" code — everything outside function declarations
+  const sortedDecls = [...allDecls].sort((a, b) => a.start - b.start);
+  let rootCode = '';
+  let pos = 0;
+  for (const decl of sortedDecls) {
+    rootCode += code.slice(pos, decl.start);
+    pos = decl.end;
+  }
+  rootCode += code.slice(pos);
+
+  // Find which functions are directly reachable from root code
+  const rootRefs = findRefs(rootCode);
+
+  // Build dependency graph: for each function, which other declared functions does it reference?
+  const deps = new Map();
+  for (const decl of allDecls) {
+    const body = code.slice(decl.start, decl.end);
+    const bodyRefs = findRefs(body);
+    bodyRefs.delete(decl.name); // ignore self-references
+    deps.set(decl.name, bodyRefs);
+  }
+
+  // BFS from root refs to find all transitively reachable functions
+  const reachable = new Set();
+  const queue = [...rootRefs];
+  while (queue.length > 0) {
+    const name = queue.pop();
+    if (reachable.has(name)) continue;
+    reachable.add(name);
+    const fnDeps = deps.get(name);
+    if (fnDeps) for (const dep of fnDeps) queue.push(dep);
+  }
+
+  // Remove unreachable functions
+  const toRemove = allDecls.filter(d => !reachable.has(d.name));
+  if (toRemove.length === 0) return code;
+
+  toRemove.sort((a, b) => b.start - a.start);
+  let result = code;
+  for (const { start, end } of toRemove) {
+    let removeEnd = end;
+    while (removeEnd < result.length && (result[removeEnd] === '\n' || result[removeEnd] === '\r')) removeEnd++;
+    result = result.slice(0, start) + result.slice(removeEnd);
+  }
+
+  return result;
 }
 
 function _formatBytes(bytes) {
@@ -3016,19 +3229,43 @@ class BuildCache {
 
 // Determine the compiled JS extension for a .tova file.
 // Module files (no blocks) → '.js', app files → '.shared.js'
+const moduleTypeCache = new Map(); // tovaPath -> '.js' | '.shared.js'
+
 function getCompiledExtension(tovaPath) {
   // Check compilation cache first
   if (compilationCache.has(tovaPath)) {
     return compilationCache.get(tovaPath).isModule ? '.js' : '.shared.js';
   }
-  // Quick-scan the source for block keywords
+  // Check module type cache (set during parsing)
+  if (moduleTypeCache.has(tovaPath)) {
+    return moduleTypeCache.get(tovaPath);
+  }
+  // Fall back: quick-lex the file to detect block keywords at top level
   if (existsSync(tovaPath)) {
     const src = readFileSync(tovaPath, 'utf-8');
-    // If the file contains top-level block keywords followed by '{', it's an app file
-    if (/^(?:shared|server|client|test|bench|data)\s*(?:\{|")/m.test(src)) {
-      return '.shared.js';
+    try {
+      const lexer = new Lexer(src, tovaPath);
+      const tokens = lexer.tokenize();
+      // Check if any top-level token is a block keyword (shared/server/client/test/bench/data)
+      const BLOCK_KEYWORDS = new Set(['shared', 'server', 'client', 'test', 'bench', 'data']);
+      let depth = 0;
+      for (const tok of tokens) {
+        if (tok.type === 'LBRACE') depth++;
+        else if (tok.type === 'RBRACE') depth--;
+        else if (depth === 0 && tok.type === 'IDENTIFIER' && BLOCK_KEYWORDS.has(tok.value)) {
+          moduleTypeCache.set(tovaPath, '.shared.js');
+          return '.shared.js';
+        }
+      }
+      moduleTypeCache.set(tovaPath, '.js');
+      return '.js';
+    } catch {
+      // If lexing fails, fall back to regex heuristic
+      if (/^(?:shared|server|client|test|bench|data)\s*(?:\{|")/m.test(src)) {
+        return '.shared.js';
+      }
+      return '.js';
     }
-    return '.js';
   }
   return '.shared.js'; // default fallback
 }
@@ -3039,6 +3276,53 @@ const compilationChain = []; // ordered import chain for circular import error m
 
 // Track module exports for cross-file import validation
 const moduleExports = new Map();
+
+// Dependency graph: file -> Set of files it imports (forward deps)
+const fileDependencies = new Map();
+// Reverse dependency graph: file -> Set of files that import it
+const fileReverseDeps = new Map();
+
+function trackDependency(fromFile, toFile) {
+  if (!fileDependencies.has(fromFile)) fileDependencies.set(fromFile, new Set());
+  fileDependencies.get(fromFile).add(toFile);
+  if (!fileReverseDeps.has(toFile)) fileReverseDeps.set(toFile, new Set());
+  fileReverseDeps.get(toFile).add(fromFile);
+}
+
+// Get all files that transitively depend on changedFile
+function getTransitiveDependents(changedFile) {
+  const dependents = new Set();
+  const queue = [changedFile];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    dependents.add(file);
+    const rdeps = fileReverseDeps.get(file);
+    if (rdeps) {
+      for (const dep of rdeps) {
+        if (!dependents.has(dep)) queue.push(dep);
+      }
+    }
+  }
+  return dependents;
+}
+
+function invalidateFile(changedPath) {
+  const toInvalidate = getTransitiveDependents(changedPath);
+  for (const file of toInvalidate) {
+    compilationCache.delete(file);
+    moduleTypeCache.delete(file);
+    moduleExports.delete(file);
+    // Clear forward deps (will be rebuilt on recompile)
+    const deps = fileDependencies.get(file);
+    if (deps) {
+      for (const dep of deps) {
+        const rdeps = fileReverseDeps.get(dep);
+        if (rdeps) rdeps.delete(file);
+      }
+      fileDependencies.delete(file);
+    }
+  }
+}
 
 function collectExports(ast, filename) {
   const publicExports = new Set();
@@ -3119,6 +3403,10 @@ function compileWithImports(source, filename, srcDir) {
     const parser = new Parser(tokens, filename);
     const ast = parser.parse();
 
+    // Cache module type from AST (avoids regex heuristic on subsequent lookups)
+    const hasBlocks = ast.body.some(n => n.type === 'SharedBlock' || n.type === 'ServerBlock' || n.type === 'ClientBlock' || n.type === 'TestBlock' || n.type === 'BenchBlock' || n.type === 'DataBlock');
+    moduleTypeCache.set(filename, hasBlocks ? '.shared.js' : '.js');
+
     // Collect this module's exports for validation
     collectExports(ast, filename);
 
@@ -3126,6 +3414,7 @@ function compileWithImports(source, filename, srcDir) {
     for (const node of ast.body) {
       if (node.type === 'ImportDeclaration' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
+        trackDependency(filename, importPath);
         if (compilationInProgress.has(importPath)) {
           const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
           throw new Error(`Circular import detected: ${chain}`);
@@ -3152,6 +3441,7 @@ function compileWithImports(source, filename, srcDir) {
       }
       if (node.type === 'ImportDefault' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
+        trackDependency(filename, importPath);
         if (compilationInProgress.has(importPath)) {
           const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
           throw new Error(`Circular import detected: ${chain}`);
@@ -3164,6 +3454,7 @@ function compileWithImports(source, filename, srcDir) {
       }
       if (node.type === 'ImportWildcard' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
+        trackDependency(filename, importPath);
         if (compilationInProgress.has(importPath)) {
           const chain = [...compilationChain, importPath].map(f => basename(f)).join(' \u2192 ');
           throw new Error(`Circular import detected: ${chain}`);

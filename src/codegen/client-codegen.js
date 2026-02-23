@@ -9,11 +9,21 @@ export class ClientCodegen extends BaseCodegen {
     this.componentNames = new Set(); // Track component names for JSX
     this.storeNames = new Set(); // Track store names
     this._asyncContext = false; // When true, server.xxx() calls emit `await`
+    this._rpcCache = new WeakMap(); // Memoize _containsRPC() results
+    this._signalCache = new WeakMap(); // Memoize _exprReadsSignal() results
   }
 
-  // AST-walk to check if a subtree contains server.xxx() RPC calls
+  // AST-walk to check if a subtree contains server.xxx() RPC calls (memoized)
   _containsRPC(node) {
     if (!node) return false;
+    const cached = this._rpcCache.get(node);
+    if (cached !== undefined) return cached;
+    const result = this._containsRPCImpl(node);
+    this._rpcCache.set(node, result);
+    return result;
+  }
+
+  _containsRPCImpl(node) {
     if (node.type === 'CallExpression' && this._isRPCCall(node)) return true;
     if (node.type === 'BlockStatement') return node.body.some(s => this._containsRPC(s));
     if (node.type === 'ExpressionStatement') return this._containsRPC(node.expression);
@@ -673,10 +683,19 @@ export class ClientCodegen extends BaseCodegen {
     return p.join('');
   }
 
-  // Check if an AST expression references any signal/computed name
+  // Check if an AST expression references any signal/computed name (memoized)
   _exprReadsSignal(node) {
     if (!node) return false;
+    // Cannot cache Identifier lookups — result depends on current stateNames/computedNames
     if (node.type === 'Identifier') return this.stateNames.has(node.name) || this.computedNames.has(node.name);
+    const cached = this._signalCache.get(node);
+    if (cached !== undefined) return cached;
+    const result = this._exprReadsSignalImpl(node);
+    this._signalCache.set(node, result);
+    return result;
+  }
+
+  _exprReadsSignalImpl(node) {
     if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
       return this._exprReadsSignal(node.left) || this._exprReadsSignal(node.right);
     }
@@ -1040,7 +1059,7 @@ export class ClientCodegen extends BaseCodegen {
       if (memoizedProps.length > 0) {
         return `(() => { ${memoizedProps.join('; ')}; const __v = ${node.tag}(${propsStr}); if (__v && __v.__tova) __v._componentName = "${node.tag}"; return __v; })()`;
       }
-      return `(() => { const __v = ${node.tag}(${propsStr}); if (__v && __v.__tova) __v._componentName = "${node.tag}"; return __v; })()`;
+      return `((__tova_v) => (__tova_v && __tova_v.__tova && (__tova_v._componentName = "${node.tag}"), __tova_v))(${node.tag}(${propsStr}))`;
     }
 
     const tag = JSON.stringify(node.tag);
@@ -1101,25 +1120,36 @@ export class ClientCodegen extends BaseCodegen {
     return this.genExpression(node.value);
   }
 
+  _genJSXForVar(variable) {
+    if (typeof variable === 'string') return variable;
+    if (variable.type === 'ArrayPattern') {
+      return `[${variable.elements.join(', ')}]`;
+    }
+    if (variable.type === 'ObjectPattern') {
+      return `{${variable.properties.map(p => p.value ? `${p.key}: ${p.value}` : p.key).join(', ')}}`;
+    }
+    return String(variable);
+  }
+
   genJSXFor(node) {
-    const varName = node.variable;
+    const varName = this._genJSXForVar(node.variable);
     const iterable = this.genExpression(node.iterable);
     const children = node.body.map(c => this.genJSX(c));
+    const needsReactive = this._exprReadsSignal(node.iterable);
+    const wrap = needsReactive ? '() => ' : '';
 
-    // Wrap in reactive closure so the runtime creates a dynamic block that
-    // re-evaluates when the iterable signal changes
     if (node.keyExpr) {
       const keyExpr = this.genExpression(node.keyExpr);
       if (children.length === 1) {
-        return `() => ${iterable}.map((${varName}) => tova_keyed(${keyExpr}, ${children[0]}))`;
+        return `${wrap}${iterable}.map((${varName}) => tova_keyed(${keyExpr}, ${children[0]}))`;
       }
-      return `() => ${iterable}.map((${varName}) => tova_keyed(${keyExpr}, tova_fragment([${children.join(', ')}])))`;
+      return `${wrap}${iterable}.map((${varName}) => tova_keyed(${keyExpr}, tova_fragment([${children.join(', ')}])))`;
     }
 
     if (children.length === 1) {
-      return `() => ${iterable}.map((${varName}) => ${children[0]})`;
+      return `${wrap}${iterable}.map((${varName}) => ${children[0]})`;
     }
-    return `() => ${iterable}.map((${varName}) => tova_fragment([${children.join(', ')}]))`;
+    return `${wrap}${iterable}.map((${varName}) => tova_fragment([${children.join(', ')}]))`;
   }
 
   genJSXIf(node) {
@@ -1148,8 +1178,13 @@ export class ClientCodegen extends BaseCodegen {
       result += ` : null`;
     }
 
-    // Wrap in reactive closure so the runtime creates a dynamic block
-    return `() => ${result}`;
+    // Only wrap in reactive closure if the condition reads signals
+    const needsReactive = this._exprReadsSignal(node.condition) ||
+      (node.alternates && node.alternates.some(a => this._exprReadsSignal(a.condition)));
+    if (needsReactive) {
+      return `() => ${result}`;
+    }
+    return result;
   }
 
   genJSXMatch(node) {
@@ -1181,8 +1216,11 @@ export class ClientCodegen extends BaseCodegen {
     }
 
     p.push(`})(${subject})`);
-    // Wrap in reactive closure
-    return `() => ${p.join('')}`;
+    // Only wrap in reactive closure if the subject reads signals
+    if (this._exprReadsSignal(node.subject)) {
+      return `() => ${p.join('')}`;
+    }
+    return p.join('');
   }
 
   genJSXFragment(node) {
