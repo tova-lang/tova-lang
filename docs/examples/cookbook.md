@@ -13,7 +13,7 @@ A JSON API with CRUD routes, input validation, and error handling.
 ### Setup
 
 ```bash
-tova new my-api
+tova new my-api --template api
 cd my-api
 ```
 

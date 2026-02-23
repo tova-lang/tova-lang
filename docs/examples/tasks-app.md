@@ -20,7 +20,7 @@ tasks-app/
 Create a new project:
 
 ```bash
-tova new tasks-app
+tova new tasks-app --template fullstack
 cd tasks-app
 ```
 
