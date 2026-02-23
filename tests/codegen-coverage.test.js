@@ -174,8 +174,8 @@ describe('Codegen Coverage — Match with binding pattern (lines 570-577)', () =
   test('match with binding pattern binds subject to variable', () => {
     const code = compileShared('x = match val { n => n + 1, _ => 0 }');
     expect(code).toContain('const n = __match');
-    expect(code).toContain('return (n + 1);');
-    expect(code).toContain('return 0;');
+    expect(code).toContain('x = (n + 1);');
+    expect(code).toContain('x = 0;');
   });
 
   test('match with binding pattern as default (last arm)', () => {
@@ -183,20 +183,18 @@ describe('Codegen Coverage — Match with binding pattern (lines 570-577)', () =
     // Now generates switch for literal patterns
     expect(code).toContain('case 1');
     expect(code).toContain('const n = __match');
-    expect(code).toContain('return (n + 1);');
+    expect(code).toContain('x = (n + 1);');
   });
 });
 
 describe('Codegen Coverage — Match with block body (lines 573-574, 589-590)', () => {
   test('match arm with block body generates block statements', () => {
     const code = compileShared('x = match val { 1 => { y = 1\ny + 2 }, _ => 0 }');
-    // Now generates switch for literal patterns
+    // Now generates switch for literal patterns with block-scoped assignment
     expect(code).toContain('case 1');
     expect(code).toContain('const y = 1;');
-    // The last expression in a block arm is not automatically returned by genBlockStatements
-    // but let's check the generated output
-    expect(code).toContain('(y + 2);');
-    expect(code).toContain('return 0;');
+    expect(code).toContain('x = (y + 2);');
+    expect(code).toContain('x = 0;');
   });
 
   test('match with binding pattern and block body as default arm', () => {
@@ -537,7 +535,7 @@ describe('Codegen Coverage — Additional edge cases', () => {
     const code = compileShared('x = match shape { Circle(radius) => radius * 2, _ => 0 }');
     expect(code).toContain('__tag === "Circle"');
     expect(code).toContain('const radius = __match.radius;');
-    expect(code).toContain('return (radius * 2);');
+    expect(code).toContain('x = (radius * 2);');
   });
 
   test('lambda with single expression body (no block, no statement)', () => {

@@ -1,0 +1,7 @@
+server {
+  fn json_handler() {
+    { message: "Hello, World!" }
+  }
+
+  route GET "/json" => json_handler
+}

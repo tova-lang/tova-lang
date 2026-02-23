@@ -1,0 +1,82 @@
+// Benchmark 10: IIFE Elimination for match/if expressions
+// Tests: block-scoped match vs IIFE match performance
+
+type Color {
+  Red
+  Green(brightness: Float)
+  Blue(r: Float, g: Float)
+}
+
+fn benchmark_variant_match_assign(iterations) {
+  colors = [
+    Red,
+    Green(0.5),
+    Blue(0.2, 0.8),
+    Red
+  ]
+
+  start = performance.now()
+  var total = 0.0
+  for i in range(iterations) {
+    c = colors[i % 4]
+    // This match has variant patterns → was IIFE, now block-scoped assignment
+    val = match c {
+      Red => 1.0
+      Green(b) => b * 2.0
+      Blue(r, g) => r + g
+      _ => 0.0
+    }
+    total = total + val
+  }
+  elapsed = performance.now() - start
+  print("  variant match assign ({iterations} iters): {elapsed}ms, total={total}")
+}
+
+fn benchmark_literal_switch_assign(iterations) {
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    x = i % 5
+    // Literal match → was switch IIFE, now block-scoped switch assignment
+    val = match x {
+      0 => 10
+      1 => 20
+      2 => 30
+      3 => 40
+      _ => 50
+    }
+    total = total + val
+  }
+  elapsed = performance.now() - start
+  print("  literal switch assign ({iterations} iters): {elapsed}ms, total={total}")
+}
+
+fn benchmark_if_expr_assign(iterations) {
+  start = performance.now()
+  var total = 0.0
+  for i in range(iterations) {
+    x = i % 3
+    // Multi-statement if expression → was IIFE, now block-scoped assignment
+    var val = if x == 0 {
+      a = 1.5
+      a * 2.0
+    } elif x == 1 {
+      b = 2.5
+      b * 3.0
+    } else {
+      c = 3.5
+      c * 4.0
+    }
+    total = total + val
+  }
+  elapsed = performance.now() - start
+  print("  if-expr assign ({iterations} iters): {elapsed}ms, total={total}")
+}
+
+print("BENCHMARK: iife_elimination")
+benchmark_variant_match_assign(1000000)
+benchmark_variant_match_assign(10000000)
+benchmark_literal_switch_assign(1000000)
+benchmark_literal_switch_assign(10000000)
+benchmark_if_expr_assign(1000000)
+benchmark_if_expr_assign(10000000)

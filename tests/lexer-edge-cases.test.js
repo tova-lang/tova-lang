@@ -440,8 +440,10 @@ describe('Lexer — Operator edge cases', () => {
     expect(tokens.some(t => t.type === 'BAR')).toBe(true);
   });
 
-  test('unexpected character @ throws', () => {
-    expect(lexThrows('@')).toThrow(/Unexpected character/);
+  test('@ is a valid token for decorators', () => {
+    const tokens = lex('@');
+    expect(tokens[0].type).toBe('AT');
+    expect(tokens[0].value).toBe('@');
   });
 
   test('unexpected character # throws', () => {

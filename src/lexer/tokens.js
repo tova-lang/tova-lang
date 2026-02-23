@@ -157,6 +157,9 @@ export const TokenType = {
   // Regex
   REGEX: 'REGEX',             // /pattern/flags
 
+  // Decorators
+  AT: 'AT',                    // @
+
   // Special
   EOF: 'EOF',
   DOCSTRING: 'DOCSTRING',     // /// comment

@@ -161,12 +161,14 @@ describe('P4: Codegen — reduce IIFE', () => {
       expect(code).toContain('4');
     });
 
-    test('if-elif-else with multi-statement branch uses IIFE', () => {
+    test('if-elif-else with multi-statement branch uses block-scoped assignment', () => {
       const code = compileShared(`x = if a { 1 } elif b {
         y = 2
         y + 1
       } else { 4 }`);
-      expect(code).toContain('(() =>');
+      expect(code).toContain('let x;');
+      expect(code).toContain('x = (y + 1);');
+      expect(code).not.toContain('(() =>');
     });
   });
 

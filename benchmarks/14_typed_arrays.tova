@@ -1,0 +1,74 @@
+// Benchmark: TypedArray numeric operations vs Go
+
+@fast
+fn fast_dot(a: [Float], b: [Float]) -> Float {
+  n = len(a)
+  var s = 0.0
+  for i in range(n) {
+    s = s + a[i] * b[i]
+  }
+  s
+}
+
+@fast
+fn fast_norm(arr: [Float]) -> Float {
+  var s = 0.0
+  for i in range(len(arr)) {
+    s = s + arr[i] * arr[i]
+  }
+  Math.sqrt(s)
+}
+
+fn main() {
+  n = 1000000
+  a = typed_linspace(0, 1, n)
+  b = typed_linspace(1, 2, n)
+  iters = 100
+
+  // Benchmark 1: @fast dot product
+  t0 = performance.now()
+  var result = 0.0
+  for _ in range(iters) {
+    result = fast_dot(a, b)
+  }
+  elapsed = performance.now() - t0
+  print("  @fast dot 1M x {iters}: {elapsed}ms")
+
+  // Benchmark 2: @fast norm
+  t1 = performance.now()
+  var norm_r = 0.0
+  for _ in range(iters) {
+    norm_r = fast_norm(a)
+  }
+  elapsed2 = performance.now() - t1
+  print("  @fast norm 1M x {iters}: {elapsed2}ms")
+
+  // Benchmark 3: typed_dot stdlib
+  t2 = performance.now()
+  var dot_r = 0.0
+  for _ in range(iters) {
+    dot_r = typed_dot(a, b)
+  }
+  elapsed3 = performance.now() - t2
+  print("  typed_dot 1M x {iters}: {elapsed3}ms")
+
+  // Benchmark 4: typed_sum (Kahan)
+  t3 = performance.now()
+  var sum_r = 0.0
+  for _ in range(iters) {
+    sum_r = typed_sum(a)
+  }
+  elapsed4 = performance.now() - t3
+  print("  typed_sum 1M x {iters}: {elapsed4}ms")
+
+  // Benchmark 5: typed_add
+  t4 = performance.now()
+  var add_r = a
+  for _ in range(iters) {
+    add_r = typed_add(a, b)
+  }
+  elapsed5 = performance.now() - t4
+  print("  typed_add 1M x {iters}: {elapsed5}ms")
+}
+
+main()

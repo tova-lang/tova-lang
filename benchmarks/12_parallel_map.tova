@@ -1,0 +1,40 @@
+// Benchmark: parallel_map vs sequential map for CPU-bound work
+// parallel_map uses a persistent worker pool (created once, reused across calls)
+// The mapped function must be self-contained (no closures over outer scope)
+
+async fn main() {
+  items = range(64)
+
+  // Heavy compute function — self-contained, no closures
+  var heavy = fn(x) {
+    var total = 0
+    var i = 0
+    while i < 10000000 {
+      total = total + (i % 97) * (i % 53)
+      i = i + 1
+    }
+    total
+  }
+
+  // Warm up: creates the worker pool (persists for subsequent calls)
+  var _w = await parallel_map([1, 2, 3, 4], heavy)
+
+  // Sequential map
+  var t0 = Date.now()
+  var seq_result = map(items, heavy)
+  var t1 = Date.now()
+
+  // Parallel map (workers already warm — no creation overhead)
+  var t2 = Date.now()
+  var par_result = await parallel_map(items, heavy)
+  var t3 = Date.now()
+
+  st = t1 - t0
+  pt = t3 - t2
+  print("Sequential(64x10M): {st}ms")
+  print("Parallel(64x10M):   {pt}ms")
+  print("Match: {first(seq_result) == first(par_result)}, Count: {len(par_result)}")
+  if pt > 0 {
+    print("Speedup: {st / pt}x")
+  }
+}

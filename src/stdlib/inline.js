@@ -2,12 +2,52 @@
 // Single source of truth for all inline stdlib code used in code generation.
 // Used by: base-codegen.js, client-codegen.js, bin/tova.js
 
-export const RESULT_OPTION = `const _OkP = Object.freeze({ get __tag() { return "Ok"; }, map(fn) { return Ok(fn(this.value)); }, flatMap(fn) { const r = fn(this.value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Ok/Err"); }, andThen(fn) { return this.flatMap(fn); }, unwrap() { return this.value; }, unwrapOr(_) { return this.value; }, expect(_) { return this.value; }, isOk() { return true; }, isErr() { return false; }, mapErr(_) { return this; }, unwrapErr() { throw new Error("Called unwrapErr on Ok"); }, or(_) { return this; }, and(other) { return other; }, context(_) { return this; } });
-function Ok(value) { const o = Object.create(_OkP); o.value = value; return Object.freeze(o); }
-const _ErrP = Object.freeze({ get __tag() { return "Err"; }, map(_) { return this; }, flatMap(_) { return this; }, andThen(_) { return this; }, unwrap() { throw new Error("Called unwrap on Err: " + (typeof this.error === "object" ? JSON.stringify(this.error) : this.error)); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isOk() { return false; }, isErr() { return true; }, mapErr(fn) { return Err(fn(this.error)); }, unwrapErr() { return this.error; }, or(other) { return other; }, and(_) { return this; }, context(msg) { const inner = typeof this.error === "object" ? JSON.stringify(this.error) : String(this.error); return Err(msg + " \\u2192 caused by: " + inner); } });
-function Err(error) { const o = Object.create(_ErrP); o.error = error; return Object.freeze(o); }
-const _SomeP = Object.freeze({ get __tag() { return "Some"; }, map(fn) { return Some(fn(this.value)); }, flatMap(fn) { const r = fn(this.value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Some/None"); }, andThen(fn) { return this.flatMap(fn); }, unwrap() { return this.value; }, unwrapOr(_) { return this.value; }, expect(_) { return this.value; }, isSome() { return true; }, isNone() { return false; }, or(_) { return this; }, and(other) { return other; }, filter(pred) { return pred(this.value) ? this : None; } });
-function Some(value) { const o = Object.create(_SomeP); o.value = value; return Object.freeze(o); }
+export const RESULT_OPTION = `class _Ok { constructor(value) { this.value = value; } }
+_Ok.prototype.__tag = "Ok";
+_Ok.prototype.map = function(fn) { return new _Ok(fn(this.value)); };
+_Ok.prototype.flatMap = function(fn) { const r = fn(this.value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Ok/Err"); };
+_Ok.prototype.andThen = _Ok.prototype.flatMap;
+_Ok.prototype.unwrap = function() { return this.value; };
+_Ok.prototype.unwrapOr = function(_) { return this.value; };
+_Ok.prototype.expect = function(_) { return this.value; };
+_Ok.prototype.isOk = function() { return true; };
+_Ok.prototype.isErr = function() { return false; };
+_Ok.prototype.mapErr = function(_) { return this; };
+_Ok.prototype.unwrapErr = function() { throw new Error("Called unwrapErr on Ok"); };
+_Ok.prototype.or = function(_) { return this; };
+_Ok.prototype.and = function(other) { return other; };
+_Ok.prototype.context = function(_) { return this; };
+function Ok(value) { return new _Ok(value); }
+class _Err { constructor(error) { this.error = error; } }
+_Err.prototype.__tag = "Err";
+_Err.prototype.map = function(_) { return this; };
+_Err.prototype.flatMap = function(_) { return this; };
+_Err.prototype.andThen = _Err.prototype.flatMap;
+_Err.prototype.unwrap = function() { throw new Error("Called unwrap on Err: " + (typeof this.error === "object" ? JSON.stringify(this.error) : this.error)); };
+_Err.prototype.unwrapOr = function(def) { return def; };
+_Err.prototype.expect = function(msg) { throw new Error(msg); };
+_Err.prototype.isOk = function() { return false; };
+_Err.prototype.isErr = function() { return true; };
+_Err.prototype.mapErr = function(fn) { return new _Err(fn(this.error)); };
+_Err.prototype.unwrapErr = function() { return this.error; };
+_Err.prototype.or = function(other) { return other; };
+_Err.prototype.and = function(_) { return this; };
+_Err.prototype.context = function(msg) { const inner = typeof this.error === "object" ? JSON.stringify(this.error) : String(this.error); return new _Err(msg + " \\u2192 caused by: " + inner); };
+function Err(error) { return new _Err(error); }
+class _Some { constructor(value) { this.value = value; } }
+_Some.prototype.__tag = "Some";
+_Some.prototype.map = function(fn) { return new _Some(fn(this.value)); };
+_Some.prototype.flatMap = function(fn) { const r = fn(this.value); if (r && r.__tag) return r; throw new Error("flatMap callback must return Some/None"); };
+_Some.prototype.andThen = _Some.prototype.flatMap;
+_Some.prototype.unwrap = function() { return this.value; };
+_Some.prototype.unwrapOr = function(_) { return this.value; };
+_Some.prototype.expect = function(_) { return this.value; };
+_Some.prototype.isSome = function() { return true; };
+_Some.prototype.isNone = function() { return false; };
+_Some.prototype.or = function(_) { return this; };
+_Some.prototype.and = function(other) { return other; };
+_Some.prototype.filter = function(pred) { return pred(this.value) ? this : None; };
+function Some(value) { return new _Some(value); }
 const None = Object.freeze({ __tag: "None", map(_) { return None; }, flatMap(_) { return None; }, andThen(_) { return None; }, unwrap() { throw new Error("Called unwrap on None"); }, unwrapOr(def) { return def; }, expect(msg) { throw new Error(msg); }, isSome() { return false; }, isNone() { return true; }, or(other) { return other; }, and(_) { return None; }, filter(_) { return None; } });`;
 
 export const PROPAGATE = `function __propagate(val) {
@@ -21,11 +61,11 @@ export const PROPAGATE = `function __propagate(val) {
 // Individual builtin functions for tree-shaking
 export const BUILTIN_FUNCTIONS = {
   print: `function print(...args) { console.log(...args); }`,
-  len: `function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }`,
+  len: `function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v) || ArrayBuffer.isView(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }`,
   range: `function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; if (st === 0) return []; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }`,
   enumerate: `function enumerate(a) { return a.map((v, i) => [i, v]); }`,
   sum: `function sum(a) { return a.reduce((x, y) => x + y, 0); }`,
-  sorted: `function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }`,
+  sorted: `function sorted(a, k) { const c = [...a]; if (k) c.sort((x, y) => { const kx = k(x), ky = k(y); return kx < ky ? -1 : kx > ky ? 1 : 0; }); else if (c.length > 0 && typeof c[0] === 'number') { if (typeof __tova_native !== 'undefined' && __tova_native && c.length > 128) { const f = new Float64Array(c); __tova_native.tova_sort_f64(f, f.length); for (let i = 0; i < c.length; i++) c[i] = f[i]; } else if (c.length > 128) { const f = new Float64Array(c); f.sort(); for (let i = 0; i < c.length; i++) c[i] = f[i]; } else { c.sort((a, b) => a - b); } } else c.sort((x, y) => x < y ? -1 : x > y ? 1 : 0); return c; }`,
   reversed: `function reversed(a) { return [...a].reverse(); }`,
   zip: `function zip(...as) { if (as.length === 0) return []; const m = Math.min(...as.map(a => a.length)); const r = []; for (let i = 0; i < m; i++) r.push(as.map(a => a[i])); return r; }`,
   min: `function min(a) { if (a.length === 0) return null; let m = a[0]; for (let i = 1; i < a.length; i++) if (a[i] < m) m = a[i]; return m; }`,
@@ -68,6 +108,34 @@ export const BUILTIN_FUNCTIONS = {
   freeze: `function freeze(obj) { return Object.freeze(obj); }`,
   clone: `function clone(obj) { return structuredClone(obj); }`,
   sleep: `function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }`,
+  parallel_map: `async function parallel_map(arr, fn, numWorkers) {
+  if (!arr || arr.length === 0) return [];
+  const cores = numWorkers || (typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4) || 4;
+  const n = Math.min(cores, arr.length);
+  if (n <= 1 || arr.length < 4) return arr.map(fn);
+  if (!parallel_map._pool) {
+    const { Worker } = await import("worker_threads");
+    const wc = 'const{parentPort}=require("worker_threads");parentPort.on("message",m=>{const fn=(0,eval)("("+m.f+")");try{const r=m.c.map(fn);parentPort.postMessage({i:m.i,r})}catch(e){parentPort.postMessage({i:m.i,e:e.message})}})';
+    parallel_map._pool = Array.from({length: n}, () => { const w = new Worker(wc, {eval: true}); w.unref(); return w; });
+    parallel_map._cid = 0;
+  }
+  const pool = parallel_map._pool;
+  const cs = Math.ceil(arr.length / pool.length);
+  const fnStr = fn.toString();
+  const cid = ++parallel_map._cid;
+  const promises = [];
+  for (let ci = 0; ci < pool.length && ci * cs < arr.length; ci++) {
+    const chunk = arr.slice(ci * cs, (ci + 1) * cs);
+    const mid = cid * 1000 + ci;
+    promises.push(new Promise((resolve, reject) => {
+      const w = pool[ci];
+      const h = (msg) => { if (msg.i === mid) { w.removeListener("message", h); if (msg.e) reject(new Error(msg.e)); else resolve(msg.r); } };
+      w.on("message", h);
+      w.postMessage({i: mid, c: chunk, f: fnStr});
+    }));
+  }
+  return (await Promise.all(promises)).flat();
+}`,
   upper: `function upper(s) { return s.toUpperCase(); }`,
   lower: `function lower(s) { return s.toLowerCase(); }`,
   contains: `function contains(s, sub) { return s.includes(sub); }`,
@@ -958,6 +1026,102 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   collections: `const collections = Object.freeze({
   OrderedDict, DefaultDict, Counter, Deque
 });`,
+
+  // ─── Typed numeric array functions for @fast mode ───────────────
+
+  typed_zeros: `function typed_zeros(n, Type) {
+  return new (Type || Float64Array)(n);
+}`,
+
+  typed_ones: `function typed_ones(n, Type) {
+  const out = new (Type || Float64Array)(n);
+  out.fill(1);
+  return out;
+}`,
+
+  typed_fill: `function typed_fill(arr, value) {
+  const out = new arr.constructor(arr.length);
+  out.fill(value);
+  return out;
+}`,
+
+  typed_range: `function typed_range(start, end, step) {
+  step = step || 1;
+  const n = Math.ceil((end - start) / step);
+  const arr = new Float64Array(n);
+  for (let i = 0; i < n; i++) arr[i] = start + i * step;
+  return arr;
+}`,
+
+  typed_linspace: `function typed_linspace(start, end, n) {
+  const out = new Float64Array(n);
+  if (n <= 1) { if (n === 1) out[0] = start; return out; }
+  const step = (end - start) / (n - 1);
+  for (let i = 0; i < n; i++) out[i] = start + i * step;
+  return out;
+}`,
+
+  typed_sum: `function typed_sum(arr) {
+  let s = 0, c = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const y = arr[i] - c;
+    const t = s + y;
+    c = (t - s) - y;
+    s = t;
+  }
+  return s;
+}`,
+
+  typed_dot: `function typed_dot(a, b) {
+  const n = a.length;
+  let s = 0;
+  for (let i = 0; i < n; i++) s += a[i] * b[i];
+  return s;
+}`,
+
+  typed_norm: `function typed_norm(arr) {
+  let s = 0;
+  for (let i = 0; i < arr.length; i++) s += arr[i] * arr[i];
+  return Math.sqrt(s);
+}`,
+
+  typed_add: `function typed_add(a, b) {
+  const n = a.length;
+  const out = new a.constructor(n);
+  for (let i = 0; i < n; i++) out[i] = a[i] + b[i];
+  return out;
+}`,
+
+  typed_scale: `function typed_scale(arr, scalar) {
+  const out = new arr.constructor(arr.length);
+  for (let i = 0; i < arr.length; i++) out[i] = arr[i] * scalar;
+  return out;
+}`,
+
+  typed_map: `function typed_map(arr, fn) {
+  const out = new arr.constructor(arr.length);
+  for (let i = 0; i < arr.length; i++) out[i] = fn(arr[i], i);
+  return out;
+}`,
+
+  typed_reduce: `function typed_reduce(arr, fn, init) {
+  let acc = init;
+  for (let i = 0; i < arr.length; i++) acc = fn(acc, arr[i], i);
+  return acc;
+}`,
+
+  typed_sort: `function typed_sort(arr) {
+  if (arr instanceof Float64Array || arr instanceof Int32Array || arr instanceof Uint8Array ||
+      arr instanceof Float32Array || arr instanceof Int16Array || arr instanceof Uint16Array ||
+      arr instanceof Uint32Array || arr instanceof Int8Array) {
+    const out = new arr.constructor(arr);
+    out.sort();
+    return out;
+  }
+  const out = [...arr];
+  out.sort((a, b) => a - b);
+  return out;
+}`,
 };
 
 // All known builtin names for matching
@@ -1063,6 +1227,7 @@ const _LEGACY_NAMES = [
   'lines', 'capitalize', 'title_case', 'snake_case', 'camel_case',
   'assert_eq', 'assert_ne', 'assert', 'assert_throws',
   'create_spy', 'create_mock',
+  'parallel_map',
 ];
 export const BUILTINS = _LEGACY_NAMES.map(n => BUILTIN_FUNCTIONS[n]).join('\n');
 
@@ -1080,9 +1245,44 @@ export function buildSelectiveStdlib(usedNames) {
   return parts.join('\n');
 }
 
-// Full stdlib for runtime (REPL, run command)
+// Native FFI bridge initialization (server-side only, Bun runtime)
+// Lazily loads the Rust native library for high-performance stdlib operations
+// Async version for tova run (AsyncFunction context supports await)
+export const NATIVE_INIT = `var __tova_native = null;
+try {
+  if (typeof Bun !== 'undefined') {
+    const { dlopen: __dl, FFIType: __F } = await import('bun:ffi');
+    const __path = await import('path');
+    const __fs = await import('fs');
+    const __searchDirs = [
+      __path.join(__path.dirname(typeof __tova_filename !== 'undefined' ? __tova_filename : ''), 'native', 'target', 'release'),
+      __path.join(process.cwd(), 'native', 'target', 'release'),
+      __path.join(process.env.HOME || '', '.tova', 'lib'),
+    ];
+    const __libName = process.platform === 'darwin' ? 'libtova_native.dylib' : process.platform === 'win32' ? 'tova_native.dll' : 'libtova_native.so';
+    for (const __d of __searchDirs) {
+      const __p = __path.join(__d, __libName);
+      if (__fs.existsSync(__p)) {
+        const __lib = __dl(__p, {
+          tova_sort_f64: { args: [__F.ptr, __F.u64], returns: __F.void },
+          tova_sort_i64: { args: [__F.ptr, __F.u64], returns: __F.void },
+          tova_sum_f64: { args: [__F.ptr, __F.u64], returns: __F.f64 },
+          tova_min_f64: { args: [__F.ptr, __F.u64], returns: __F.f64 },
+          tova_max_f64: { args: [__F.ptr, __F.u64], returns: __F.f64 },
+        });
+        __tova_native = __lib.symbols;
+        break;
+      }
+    }
+  }
+} catch (__e) {}`;
+
+// Sync-safe version without await (for non-async contexts like tests, REPL eval)
+export const NATIVE_INIT_SYNC = `var __tova_native = null;`;
+
+// Full stdlib for runtime (REPL, run command) — sync-safe (no await)
 export function getFullStdlib() {
-  return `${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
+  return `${NATIVE_INIT_SYNC}\n${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }
 
 // Stdlib for client codegen (includes builtins + result/option + propagate)

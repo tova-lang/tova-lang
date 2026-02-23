@@ -541,6 +541,7 @@ export class Parser {
       this.advance(); // consume async
       return this.parseForStatement(null, true);
     }
+    if (this.check(TokenType.AT)) return this.parseDecoratedDeclaration();
     if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) return this.parseAsyncFunctionDeclaration();
     if (this.check(TokenType.FN) && (this.peek(1).type === TokenType.IDENTIFIER || this._isContextualKeywordToken(this.peek(1)))) return this.parseFunctionDeclaration();
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
@@ -701,7 +702,35 @@ export class Parser {
     return new AST.ExternDeclaration(name, params, returnType, l, isAsync);
   }
 
-  parseFunctionDeclaration() {
+  parseDecoratedDeclaration() {
+    const decorators = [];
+    while (this.check(TokenType.AT)) {
+      this.advance(); // consume @
+      const decName = this.expect(TokenType.IDENTIFIER, "Expected decorator name after '@'").value;
+      let decArgs = [];
+      if (this.check(TokenType.LPAREN)) {
+        this.advance(); // consume (
+        while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
+          decArgs.push(this.parseExpression());
+          if (!this.match(TokenType.COMMA)) break;
+        }
+        this.expect(TokenType.RPAREN, "Expected ')' after decorator arguments");
+      }
+      decorators.push({ name: decName, args: decArgs });
+    }
+    // After decorators, expect fn or async fn
+    if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN) {
+      const node = this.parseAsyncFunctionDeclaration(decorators);
+      return node;
+    }
+    if (this.check(TokenType.FN)) {
+      const node = this.parseFunctionDeclaration(decorators);
+      return node;
+    }
+    this.error("Expected 'fn' or 'async fn' after decorator");
+  }
+
+  parseFunctionDeclaration(decorators = []) {
     const l = this.loc();
     this.expect(TokenType.FN);
     let name;
@@ -732,10 +761,10 @@ export class Parser {
     }
 
     const body = this.parseBlock();
-    return new AST.FunctionDeclaration(name, params, body, returnType, l, false, typeParams);
+    return new AST.FunctionDeclaration(name, params, body, returnType, l, false, typeParams, decorators);
   }
 
-  parseAsyncFunctionDeclaration() {
+  parseAsyncFunctionDeclaration(decorators = []) {
     const l = this.loc();
     this.expect(TokenType.ASYNC);
     this.expect(TokenType.FN);
@@ -767,7 +796,7 @@ export class Parser {
     }
 
     const body = this.parseBlock();
-    return new AST.FunctionDeclaration(name, params, body, returnType, l, true, typeParams);
+    return new AST.FunctionDeclaration(name, params, body, returnType, l, true, typeParams, decorators);
   }
 
   parseBreakStatement() {

@@ -411,7 +411,7 @@ describe('Phase 3 — Graceful shutdown', () => {
   });
 
   test('named server shutdown includes label', () => {
-    const result = compile('server "api" { fn hello() { "world" } }');
+    const result = compile('server "api" { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.servers['api']).toContain('Tova server [api] shutting down');
   });
 });
@@ -548,31 +548,31 @@ describe('Integration — Full featured server block', () => {
 
 describe('Phase 3 — Structured Logging', () => {
   test('server code includes logging helpers', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('function __genRequestId()');
     expect(result.server).toContain('function __log(level, msg, meta');
   });
 
   test('logging generates request IDs', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__reqCounter');
     expect(result.server).toContain('__genRequestId');
   });
 
   test('request handler tracks request id and timing', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__genRequestId()');
     expect(result.server).toContain('const __startTime = Date.now()');
   });
 
   test('404 responses are logged', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__log("warn", "Not Found"');
     expect(result.server).toContain('rid: __rid');
   });
 
   test('successful responses are logged', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__log("info"');
     expect(result.server).toContain('status: res.status');
     expect(result.server).toContain('ms: Date.now() - __startTime');
@@ -717,8 +717,8 @@ describe('Phase 4 — Static file serving', () => {
         fn hello() { "world" }
       }
     `);
-    expect(result.server).toContain('url.pathname.startsWith(__staticPrefix)');
-    expect(result.server).toContain('__serveStatic(url.pathname, req)');
+    expect(result.server).toContain('__pathname.startsWith(__staticPrefix)');
+    expect(result.server).toContain('__serveStatic(__pathname, req)');
   });
 
   test('server without static does NOT include static handling', () => {
@@ -1037,6 +1037,7 @@ describe('Feature 4 — Request Body Size Limits', () => {
   test('exceeding body size returns 413', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         max_body 1024
         fn hello() { "world" }
       }
@@ -1110,26 +1111,26 @@ describe('Feature 5 — Circuit Breaker + Retry', () => {
 
 describe('Feature 6 — Graceful Drain', () => {
   test('server tracks active requests', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('let __activeRequests = 0');
     expect(result.server).toContain('__activeRequests++');
     expect(result.server).toContain('__activeRequests--');
   });
 
   test('server has shuttingDown flag', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('let __shuttingDown = false');
     expect(result.server).toContain('__shuttingDown = true');
   });
 
   test('returns 503 during shutdown', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('if (__shuttingDown)');
     expect(result.server).toContain('503');
   });
 
   test('shutdown is async with drain timeout', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('async function __shutdown()');
     expect(result.server).toContain('__activeRequests > 0');
     expect(result.server).toContain('10000');
@@ -1232,25 +1233,25 @@ describe('Feature 7 — Route Groups + Scoped Middleware', () => {
 
 describe('Feature 8 — Distributed Tracing', () => {
   test('server imports AsyncLocalStorage', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('AsyncLocalStorage');
     expect(result.server).toContain('node:async_hooks');
   });
 
   test('request context is created with AsyncLocalStorage', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__requestContext = new AsyncLocalStorage()');
     expect(result.server).toContain('__getRequestId()');
   });
 
   test('handler reads X-Request-Id from upstream', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('X-Request-Id');
     expect(result.server).toContain('req.headers.get("X-Request-Id")');
   });
 
   test('handler wraps request in AsyncLocalStorage.run', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__requestContext.run({ rid: __rid, locals: {} }');
   });
 
@@ -1551,6 +1552,7 @@ describe('New Feature 3 — Lifecycle Hooks', () => {
   test('on_stop hook emitted in __shutdown()', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         on_stop fn() {
           print("cleanup")
         }
@@ -1905,6 +1907,7 @@ describe('New Feature 8 — Scheduled Tasks', () => {
   test('schedule cleanup in shutdown', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         schedule "10s" fn tick() { print("tick") }
         fn hello() { "world" }
       }
@@ -2619,6 +2622,7 @@ describe('Request-scoped locals', () => {
   test('__getLocals helper is emitted', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         fn handler() { "ok" }
         route GET "/" => handler
       }
@@ -2629,6 +2633,7 @@ describe('Request-scoped locals', () => {
   test('request context includes locals object', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         fn handler() { "ok" }
         route GET "/" => handler
       }
@@ -2639,6 +2644,7 @@ describe('Request-scoped locals', () => {
   test('req context object includes locals from __getLocals()', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         fn handler(req) { req.locals }
         route GET "/" => handler
       }
@@ -3566,6 +3572,7 @@ describe('HEAD request handling', () => {
   test('HEAD falls back to GET only when no explicit HEAD route exists', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         fn hello() { "world" }
         route GET "/api/hello" => hello
       }
@@ -3605,7 +3612,7 @@ describe('Session/activeRequests race fix', () => {
   });
 
   test('without session, activeRequests decrements in regular finally', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('} finally {');
     expect(result.server).toContain('__activeRequests--;');
   });
@@ -3613,14 +3620,14 @@ describe('Session/activeRequests race fix', () => {
 
 describe('Structured logging improvements', () => {
   test('logging supports LOG_LEVEL env var', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('__logLevels');
     expect(result.server).toContain('LOG_LEVEL');
     expect(result.server).toContain('__logMinLevel');
   });
 
   test('logging supports LOG_FILE env var', () => {
-    const result = compile('server { fn hello() { "world" } }');
+    const result = compile('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(result.server).toContain('LOG_FILE');
     expect(result.server).toContain('createWriteStream');
     expect(result.server).toContain('__logFile');
@@ -4588,6 +4595,7 @@ describe('Gap 1 — Streaming body enforcement', () => {
   test('catch blocks handle __BODY_TOO_LARGE__ with 413', () => {
     const result = compile(`
       server {
+        cors { origins: ["*"] }
         fn create(name) { name }
         route POST "/api/items" => create
       }

@@ -1,0 +1,75 @@
+// Benchmark: @wasm compiled functions vs JS and Go
+// Tests recursive fibonacci and tight loop computation
+
+// ─── WASM versions ───
+
+@wasm
+fn fib_wasm(n: Int) -> Int {
+  if n <= 1 { n }
+  else { fib_wasm(n - 1) + fib_wasm(n - 2) }
+}
+
+@wasm
+fn compute_wasm(n: Int) -> Int {
+  var total = 0
+  var i = 0
+  while i < n {
+    total = total + (i % 97) * (i % 53)
+    i = i + 1
+  }
+  total
+}
+
+// ─── JS versions ───
+
+fn fib_js(n: Int) -> Int {
+  if n <= 1 { n }
+  else { fib_js(n - 1) + fib_js(n - 2) }
+}
+
+fn compute_js(n: Int) -> Int {
+  var total = 0
+  var i = 0
+  while i < n {
+    total = total + (i % 97) * (i % 53)
+    i = i + 1
+  }
+  total
+}
+
+// ─── Benchmark ───
+
+// Warm up
+var _w1 = fib_wasm(20)
+var _w2 = fib_js(20)
+var _w3 = compute_wasm(1000)
+var _w4 = compute_js(1000)
+
+print("--- fibonacci(40) ---")
+var t0 = Date.now()
+var r1 = fib_wasm(40)
+var t1 = Date.now()
+var t2 = Date.now()
+var r2 = fib_js(40)
+var t3 = Date.now()
+print("WASM: {t1 - t0}ms  JS: {t3 - t2}ms  Speedup: {(t3 - t2) / (t1 - t0)}x")
+
+print("--- compute(500K) x 200 ---")
+n = 500000
+var t4 = Date.now()
+var rw = 0
+var j = 0
+while j < 200 {
+  rw = compute_wasm(n)
+  j = j + 1
+}
+var t5 = Date.now()
+var t6 = Date.now()
+var rj = 0
+var k = 0
+while k < 200 {
+  rj = compute_js(n)
+  k = k + 1
+}
+var t7 = Date.now()
+print("WASM: {t5 - t4}ms  JS: {t7 - t6}ms  Speedup: {(t7 - t6) / (t5 - t4)}x  Match: {rw == rj}")

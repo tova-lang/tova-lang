@@ -293,9 +293,19 @@ export class ServerCodegen extends BaseCodegen {
     // Check if rate limiting is needed
     const needsRateLimitStore = !!rateLimitConfig || routes.some(r => (r.decorators || []).some(d => d.name === 'rate_limit'));
 
+    // Fast mode: emit a minimal request handler when no complex features are used
+    const allRoutesStatic = routes.every(r => !r.path.includes(':') && !r.path.includes('*'));
+    const hasDynamicRoutes = !allRoutesStatic;
+    const isFastMode = !corsConfig && !authConfig && !sessionConfig && !rateLimitConfig &&
+      !errorHandler && !wsDecl && !staticDecl && !compressionConfig &&
+      middlewares.length === 0 && !dbConfig && subscriptions.length === 0 &&
+      backgroundJobs.length === 0 && sseDecls.length === 0 && !cacheConfig &&
+      routes.every(r => !(r.decorators || []).length && !r._groupMiddlewares?.length && !r._version);
+
     // ════════════════════════════════════════════════════════════
     // 1. Distributed Tracing
     // ════════════════════════════════════════════════════════════
+    if (!isFastMode) {
     lines.push('// ── Distributed Tracing ──');
     lines.push('import { AsyncLocalStorage } from "node:async_hooks";');
     lines.push('const __requestContext = new AsyncLocalStorage();');
@@ -308,6 +318,7 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  return store ? store.locals : {};');
     lines.push('}');
     lines.push('');
+    }
 
     // ════════════════════════════════════════════════════════════
     // 2. Env Validation (F6) — fail fast
@@ -804,12 +815,18 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     lines.push('// ── Router ──');
     lines.push('const __routes = [];');
+    lines.push('const __staticRoutes = new Map();');  // Fast lookup for static routes
     lines.push('function __addRoute(method, path, handler, version) {');
+    lines.push('  const isStatic = !path.includes(":") && !path.includes("*");');
+    lines.push('  if (isStatic) {');
+    lines.push('    const key = method + " " + path;');
+    lines.push('    __staticRoutes.set(key, { method, handler, _path: path, _version: version || null });');
+    lines.push('  }');
     lines.push('  let pattern = path');
     lines.push('    .replace(/\\*([a-zA-Z_][a-zA-Z0-9_]*)/g, "(?<$1>.+)")');
     lines.push('    .replace(/\\*$/g, "(.*)")');
     lines.push('    .replace(/:([^/]+)/g, "(?<$1>[^/]+)");');
-    lines.push('  __routes.push({ method, regex: new RegExp(`^${pattern}$`), handler, _path: path, _version: version || null });');
+    lines.push('  __routes.push({ method, regex: new RegExp(`^${pattern}$`), handler, _path: path, _version: version || null, _isStatic: isStatic });');
     lines.push('}');
     lines.push('');
 
@@ -837,13 +854,12 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('}');
     } else {
       lines.push('// ── CORS ──');
-      lines.push('function __getCorsHeaders() {');
-      lines.push('  return {');
-      lines.push('    "Access-Control-Allow-Origin": "*",');
-      lines.push('    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",');
-      lines.push('    "Access-Control-Allow-Headers": "Content-Type, Authorization",');
-      lines.push('  };');
-      lines.push('}');
+      lines.push('const __corsHeadersConst = Object.freeze({');
+      lines.push('  "Access-Control-Allow-Origin": "*",');
+      lines.push('  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",');
+      lines.push('  "Access-Control-Allow-Headers": "Content-Type, Authorization",');
+      lines.push('});');
+      lines.push('function __getCorsHeaders() { return __corsHeadersConst; }');
     }
     lines.push('');
 
@@ -2183,6 +2199,7 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     // 18. Logging, Static files, WebSocket
     // ════════════════════════════════════════════════════════════
+    if (!isFastMode) {
     lines.push('// ── Structured Logging ──');
     lines.push('let __reqCounter = 0;');
     lines.push('function __genRequestId() {');
@@ -2202,6 +2219,7 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  if (__logFile) __logFile.write(entry + "\\n");');
     lines.push('}');
     lines.push('');
+    }
 
     if (staticDecl) {
       lines.push('// ── Static File Serving ──');
@@ -2351,14 +2369,77 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('');
     }
 
+    if (!isFastMode) {
     lines.push('// ── Graceful Drain ──');
     lines.push('let __activeRequests = 0;');
     lines.push('let __shuttingDown = false;');
     lines.push('');
+    }
 
     // ════════════════════════════════════════════════════════════
     // 21. Request Handler — with global rate limit check (F2)
     // ════════════════════════════════════════════════════════════
+    if (isFastMode) {
+      // Fast mode: emit direct handler references for static routes
+      if (allRoutesStatic && routes.length <= 16) {
+        for (let ri = 0; ri < routes.length; ri++) {
+          const method = routes[ri].method.toUpperCase();
+          const path = routes[ri].path;
+          lines.push(`const __fh${ri} = __staticRoutes.get(${JSON.stringify(method + ' ' + path)}).handler;`);
+        }
+      }
+      // Fast mode: minimal handler with no AsyncLocalStorage, no logging, no request IDs
+      lines.push('// ── Request Handler (fast mode) ──');
+      lines.push('function __handleRequest(req) {');
+      lines.push('  const __rawUrl = req.url;');
+      lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');
+      lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
+      lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+      lines.push('  const __method = req.method;');
+
+      // OPTIONS fast path
+      lines.push('  if (__method === "OPTIONS") return new Response(null, { status: 204, headers: __corsHeadersConst });');
+
+      // Static route dispatch — emit direct if/else chain using named handler refs
+      if (allRoutesStatic && routes.length <= 16) {
+        for (let ri = 0; ri < routes.length; ri++) {
+          const method = routes[ri].method.toUpperCase();
+          const path = routes[ri].path;
+          const handlerVar = `__fh${ri}`;
+          lines.push(`  if (__method === ${JSON.stringify(method)} && __pathname === ${JSON.stringify(path)}) return ${handlerVar}(req, {});`);
+        }
+        // HEAD fallback for GET routes
+        for (let ri = 0; ri < routes.length; ri++) {
+          if (routes[ri].method.toUpperCase() === 'GET') {
+            const handlerVar = `__fh${ri}`;
+            lines.push(`  if (__method === "HEAD" && __pathname === ${JSON.stringify(routes[ri].path)}) return ${handlerVar}(req, {});`);
+          }
+        }
+      } else {
+        // Fallback to Map lookup for larger route sets or dynamic routes
+        lines.push('  const __staticKey = __method + " " + __pathname;');
+        lines.push('  const __sr = __staticRoutes.get(__staticKey);');
+        lines.push('  if (__sr) return __sr.handler(req, {});');
+        if (hasDynamicRoutes) {
+          lines.push('  for (const route of __routes) {');
+          lines.push('    if (route._isStatic) continue;');
+          lines.push('    if (__method === route.method || (route.method === "GET" && __method === "HEAD")) {');
+          lines.push('      const match = __pathname.match(route.regex);');
+          lines.push('      if (match) return route.handler(req, match.groups || {});');
+          lines.push('    }');
+          lines.push('  }');
+        }
+      }
+
+      // Client HTML fallback
+      lines.push('  if (__pathname === "/" && typeof __clientHTML !== "undefined") {');
+      lines.push('    return new Response(__clientHTML, { status: 200, headers: { "Content-Type": "text/html" } });');
+      lines.push('  }');
+      lines.push('  return new Response("Not Found", { status: 404 });');
+      lines.push('}');
+      lines.push('');
+    } else {
+    // Full mode: original handler with all features
     lines.push('// ── Request Handler ──');
     lines.push('async function __handleRequest(req) {');
 
@@ -2367,7 +2448,10 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  }');
     lines.push('  __activeRequests++;');
 
-    lines.push('  const url = new URL(req.url);');
+    lines.push('  const __rawUrl = req.url;');
+    lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');  // skip "http://x:p" or "https://x:p"
+    lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
+    lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
     lines.push('  const __rid = req.headers.get("X-Request-Id") || __genRequestId();');
     lines.push('  const __startTime = Date.now();');
     lines.push('  const __cors = __getCorsHeaders(req);');
@@ -2440,16 +2524,77 @@ export class ServerCodegen extends BaseCodegen {
 
     // Static file serving
     if (staticDecl) {
-      lines.push(`  if (url.pathname.startsWith(__staticPrefix)) {`);
-      lines.push('    const __staticRes = await __serveStatic(url.pathname, req);');
+      lines.push(`  if (__pathname.startsWith(__staticPrefix)) {`);
+      lines.push('    const __staticRes = await __serveStatic(__pathname, req);');
       lines.push('    if (__staticRes) return __staticRes;');
       lines.push('  }');
     }
 
-    // Route matching
+    // Route matching — fast path for static routes (no params/wildcards)
+    lines.push('  const __staticKey = req.method + " " + __pathname;');
+    lines.push('  const __staticRoute = __staticRoutes.get(__staticKey) || (req.method === "HEAD" && __staticRoutes.get("GET " + __pathname));');
+    lines.push('  if (__staticRoute) {');
+    lines.push('    const route = __staticRoute;');
+    lines.push('    const match = { groups: {} };');
+
+    // Emit static route handler (same structure as dynamic)
+    if (globalMiddlewares.length > 0) {
+      lines.push('    const __handler = async (__req) => route.handler(__req, {});');
+      lines.push('    const __chain = __middlewares.reduceRight(');
+      lines.push('      (next, mw) => async (__req) => mw(__req, next),');
+      lines.push('      __handler');
+      lines.push('    );');
+      lines.push('    try {');
+      lines.push('      const res = await __chain(req);');
+      lines.push('      __log("info", `${req.method} ${__pathname}`, { rid: __rid, status: res.status, ms: Date.now() - __startTime });');
+      lines.push('      const headers = new Headers(res.headers);');
+      lines.push('      for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
+      lines.push('      return new Response(res.body, { status: res.status, headers });');
+      lines.push('    } catch (err) {');
+      lines.push('      if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+      if (errorHandler) {
+        lines.push('      try {');
+        lines.push('        const errRes = await __errorHandler(err, req);');
+        lines.push('        if (errRes instanceof Response) {');
+        lines.push('          const headers = new Headers(errRes.headers);');
+        lines.push('          for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
+        lines.push('          return new Response(errRes.body, { status: errRes.status, headers });');
+        lines.push('        }');
+        lines.push('        return Response.json(errRes, { status: 500, headers: __cors });');
+        lines.push('      } catch { /**/ }');
+      }
+      lines.push('      __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
+      lines.push('      return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
+      lines.push('    }');
+    } else {
+      lines.push('    try {');
+      lines.push('      const res = await route.handler(req, {});');
+      lines.push('      __log("info", `${req.method} ${__pathname}`, { rid: __rid, status: res.status, ms: Date.now() - __startTime });');
+      lines.push('      for (const [k, v] of Object.entries(__cors)) res.headers.set(k, v);');
+      lines.push('      return res;');
+      lines.push('    } catch (err) {');
+      lines.push('      if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+      if (errorHandler) {
+        lines.push('      try {');
+        lines.push('        const errRes = await __errorHandler(err, req);');
+        lines.push('        if (errRes instanceof Response) {');
+        lines.push('          for (const [k, v] of Object.entries(__cors)) errRes.headers.set(k, v);');
+        lines.push('          return errRes;');
+        lines.push('        }');
+        lines.push('        return Response.json(errRes, { status: 500, headers: __cors });');
+        lines.push('      } catch { /**/ }');
+      }
+      lines.push('      __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
+      lines.push('      return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
+      lines.push('    }');
+    }
+    lines.push('  }');
+
+    // Fallback: regex-based matching for dynamic routes
     lines.push('  for (const route of __routes) {');
+    lines.push('    if (route._isStatic) continue;');  // Skip static routes already handled
     lines.push('    if (req.method === route.method || (route.method === "GET" && req.method === "HEAD" && !__routes.some(r => r.method === "HEAD" && r.regex.source === route.regex.source))) {');
-    lines.push('      const match = url.pathname.match(route.regex);');
+    lines.push('      const match = __pathname.match(route.regex);');
     lines.push('      if (match) {');
 
     if (globalMiddlewares.length > 0) {
@@ -2460,19 +2605,17 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('        );');
       lines.push('        try {');
       lines.push('          const res = await __chain(req);');
-      lines.push('          __log("info", `${req.method} ${url.pathname}`, { rid: __rid, status: res.status, ms: Date.now() - __startTime });');
-      lines.push('          const headers = new Headers(res.headers);');
-      lines.push('          for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
-      lines.push('          return new Response(res.body, { status: res.status, headers });');
+      lines.push('          __log("info", `${req.method} ${__pathname}`, { rid: __rid, status: res.status, ms: Date.now() - __startTime });');
+      lines.push('          for (const [k, v] of Object.entries(__cors)) res.headers.set(k, v);');
+      lines.push('          return res;');
       lines.push('        } catch (err) {');
       lines.push('          if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
       if (errorHandler) {
         lines.push('          try {');
         lines.push('            const errRes = await __errorHandler(err, req);');
         lines.push('            if (errRes instanceof Response) {');
-        lines.push('              const headers = new Headers(errRes.headers);');
-        lines.push('              for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
-        lines.push('              return new Response(errRes.body, { status: errRes.status, headers });');
+        lines.push('              for (const [k, v] of Object.entries(__cors)) errRes.headers.set(k, v);');
+        lines.push('              return errRes;');
         lines.push('            }');
         lines.push('            return Response.json(errRes, { status: 500, headers: __cors });');
         lines.push('          } catch { /**/ }');
@@ -2483,19 +2626,17 @@ export class ServerCodegen extends BaseCodegen {
     } else {
       lines.push('        try {');
       lines.push('          const res = await route.handler(req, match.groups || {});');
-      lines.push('          __log("info", `${req.method} ${url.pathname}`, { rid: __rid, status: res.status, ms: Date.now() - __startTime });');
-      lines.push('          const headers = new Headers(res.headers);');
-      lines.push('          for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
-      lines.push('          return new Response(res.body, { status: res.status, headers });');
+      lines.push('          __log("info", `${req.method} ${__pathname}`, { rid: __rid, status: res.status, ms: Date.now() - __startTime });');
+      lines.push('          for (const [k, v] of Object.entries(__cors)) res.headers.set(k, v);');
+      lines.push('          return res;');
       lines.push('        } catch (err) {');
       lines.push('          if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
       if (errorHandler) {
         lines.push('          try {');
         lines.push('            const errRes = await __errorHandler(err, req);');
         lines.push('            if (errRes instanceof Response) {');
-        lines.push('              const headers = new Headers(errRes.headers);');
-        lines.push('              for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
-        lines.push('              return new Response(errRes.body, { status: errRes.status, headers });');
+        lines.push('              for (const [k, v] of Object.entries(__cors)) errRes.headers.set(k, v);');
+        lines.push('              return errRes;');
         lines.push('            }');
         lines.push('            return Response.json(errRes, { status: 500, headers: __cors });');
         lines.push('          } catch { /**/ }');
@@ -2510,11 +2651,11 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  }');
 
     // Serve client HTML at root
-    lines.push('  if (url.pathname === "/" && typeof __clientHTML !== "undefined") {');
+    lines.push('  if (__pathname === "/" && typeof __clientHTML !== "undefined") {');
     lines.push('    return new Response(__clientHTML, { status: 200, headers: { "Content-Type": "text/html", ...(__cors) } });');
     lines.push('  }');
     lines.push('  const __notFound = Response.json({ error: "Not Found" }, { status: 404, headers: __cors });');
-    lines.push('  __log("warn", "Not Found", { rid: __rid, method: req.method, path: url.pathname, status: 404, ms: Date.now() - __startTime });');
+    lines.push('  __log("warn", "Not Found", { rid: __rid, method: req.method, path: __pathname, status: 404, ms: Date.now() - __startTime });');
     lines.push('  return __notFound;');
 
     if (sessionConfig) {
@@ -2540,6 +2681,7 @@ export class ServerCodegen extends BaseCodegen {
     }
     lines.push('}');
     lines.push('');
+    } // end else (full mode)
 
     // ════════════════════════════════════════════════════════════
     // 22. Bun.serve()
@@ -2618,6 +2760,9 @@ export class ServerCodegen extends BaseCodegen {
     // 24. Graceful Shutdown — on_stop hooks (F3) + clearInterval (F8)
     // ════════════════════════════════════════════════════════════
     lines.push('// ── Graceful Shutdown ──');
+    if (isFastMode) {
+      lines.push('function __shutdown() { __server.stop(); process.exit(0); }');
+    } else {
     lines.push('async function __shutdown() {');
     lines.push(`  console.log(\`Tova server${label} shutting down...\`);`);
     lines.push('  __shuttingDown = true;');
@@ -2664,6 +2809,7 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  if (__logFile) __logFile.end();');
     lines.push('  process.exit(0);');
     lines.push('}');
+    } // end else (full shutdown)
     lines.push('process.on("SIGINT", __shutdown);');
     lines.push('process.on("SIGTERM", __shutdown);');
 

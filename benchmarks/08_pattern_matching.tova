@@ -1,0 +1,81 @@
+// Benchmark 8: Pattern Matching Dispatch
+// Tests: tagged union creation, tag comparison, pattern match throughput
+
+type Shape {
+  Circle(radius: Float)
+  Rect(w: Float, h: Float)
+  Triangle(base: Float, height: Float)
+  Point
+}
+
+fn area(s) {
+  match s {
+    Circle(r) => 3.14159265 * r * r
+    Rect(w, h) => w * h
+    Triangle(b, h) => 0.5 * b * h
+    Point => 0.0
+  }
+}
+
+fn benchmark_match_dispatch(iterations) {
+  shapes = [
+    Circle(5.0),
+    Rect(3.0, 4.0),
+    Triangle(6.0, 3.0),
+    Point
+  ]
+
+  start = performance.now()
+  var total = 0.0
+  for i in range(iterations) {
+    s = shapes[i % 4]
+    total = total + area(s)
+  }
+  elapsed = performance.now() - start
+  print("  match dispatch ({iterations} iters): {elapsed}ms, total={total}")
+}
+
+fn benchmark_match_creation(iterations) {
+  start = performance.now()
+  var total = 0.0
+  for i in range(iterations) {
+    s = if i % 4 == 0 { Circle(1.0) }
+        elif i % 4 == 1 { Rect(2.0, 3.0) }
+        elif i % 4 == 2 { Triangle(4.0, 5.0) }
+        else { Point }
+    total = total + area(s)
+  }
+  elapsed = performance.now() - start
+  print("  create+match ({iterations} iters): {elapsed}ms, total={total}")
+}
+
+fn benchmark_nested_match(iterations) {
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    x = i % 10
+    result = match x {
+      0 => 1
+      1 => 2
+      2 => 3
+      3 => 4
+      4 => 5
+      5 => 6
+      6 => 7
+      7 => 8
+      8 => 9
+      _ => 10
+    }
+    total = total + result
+  }
+  elapsed = performance.now() - start
+  print("  10-arm match ({iterations} iters): {elapsed}ms, total={total}")
+}
+
+print("BENCHMARK: pattern_matching")
+benchmark_match_dispatch(1000000)
+benchmark_match_dispatch(10000000)
+benchmark_match_creation(1000000)
+benchmark_match_creation(10000000)
+benchmark_nested_match(1000000)
+benchmark_nested_match(10000000)

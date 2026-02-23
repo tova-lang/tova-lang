@@ -77,7 +77,7 @@ export class LetDestructure {
 }
 
 export class FunctionDeclaration {
-  constructor(name, params, body, returnType, loc, isAsync = false, typeParams = []) {
+  constructor(name, params, body, returnType, loc, isAsync = false, typeParams = [], decorators = []) {
     this.type = 'FunctionDeclaration';
     this.name = name;
     this.typeParams = typeParams; // Array of type parameter names (generics)
@@ -85,6 +85,7 @@ export class FunctionDeclaration {
     this.body = body;         // BlockStatement or Expression (implicit return)
     this.returnType = returnType; // optional type annotation
     this.isAsync = isAsync;
+    this.decorators = decorators; // Array of { name, args } for @decorator syntax
     this.loc = loc;
   }
 }

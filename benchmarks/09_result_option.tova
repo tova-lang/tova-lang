@@ -1,0 +1,80 @@
+// Benchmark 9: Result/Option Operations
+// Tests: Ok/Err/Some/None creation, map, flatMap, unwrap throughput
+
+fn benchmark_result_creation(iterations) {
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    r = if i % 3 == 0 { Ok(i) } else { Err("fail") }
+    if r.isOk() {
+      total = total + r.unwrap()
+    }
+  }
+  elapsed = performance.now() - start
+  print("  Result create+check ({iterations}): {elapsed}ms, total={total}")
+}
+
+fn benchmark_result_chain(iterations) {
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    result = Ok(i)
+      .map(fn(x) x * 2)
+      .map(fn(x) x + 1)
+      .map(fn(x) x * 3)
+    total = total + result.unwrap()
+  }
+  elapsed = performance.now() - start
+  print("  Result 3x map ({iterations}): {elapsed}ms, total={total}")
+}
+
+fn benchmark_result_flatmap(iterations) {
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    result = Ok(i)
+      .flatMap(fn(x) if x % 2 == 0 { Ok(x * 2) } else { Err("odd") })
+    if result.isOk() {
+      total = total + result.unwrap()
+    }
+  }
+  elapsed = performance.now() - start
+  print("  Result flatMap ({iterations}): {elapsed}ms, total={total}")
+}
+
+fn benchmark_option_creation(iterations) {
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    o = if i % 2 == 0 { Some(i) } else { None }
+    total = total + o.unwrapOr(0)
+  }
+  elapsed = performance.now() - start
+  print("  Option create+unwrapOr ({iterations}): {elapsed}ms, total={total}")
+}
+
+fn benchmark_unwrap_or(iterations) {
+  ok_val = Ok(42)
+  err_val = Err("nope")
+
+  start = performance.now()
+  var total = 0
+  for i in range(iterations) {
+    v = if i % 2 == 0 { ok_val.unwrapOr(0) } else { err_val.unwrapOr(0) }
+    total = total + v
+  }
+  elapsed = performance.now() - start
+  print("  unwrapOr alternating ({iterations}): {elapsed}ms, total={total}")
+}
+
+print("BENCHMARK: result_option")
+benchmark_result_creation(1000000)
+benchmark_result_creation(10000000)
+benchmark_result_chain(1000000)
+benchmark_result_chain(10000000)
+benchmark_result_flatmap(1000000)
+benchmark_result_flatmap(10000000)
+benchmark_option_creation(1000000)
+benchmark_option_creation(10000000)
+benchmark_unwrap_or(1000000)
+benchmark_unwrap_or(10000000)

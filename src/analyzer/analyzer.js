@@ -983,6 +983,13 @@ export class Analyzer {
     // Check if any target is already defined (immutable reassignment check)
     for (let i = 0; i < node.targets.length; i++) {
       const target = node.targets[i];
+
+      // Complex targets (e.g., arr[i] = val, obj.prop = val) — visit and skip declaration logic
+      if (typeof target !== 'string') {
+        this.visitExpression(target);
+        continue;
+      }
+
       const existing = this._lookupAssignTarget(target);
       if (existing) {
         // Allow user code to shadow builtins (e.g., url = "/api")
@@ -1128,7 +1135,9 @@ export class Analyzer {
       this.visitNode(node.body);
 
       // Return path analysis: check that all paths return a value
-      if (expectedReturn && node.body.type === 'BlockStatement') {
+      // Skip for @wasm/@fast functions — they use implicit returns or specialized codegen
+      const isWasm = node.decorators && node.decorators.some(d => d.name === 'wasm' || d.name === 'fast');
+      if (expectedReturn && node.body.type === 'BlockStatement' && !isWasm) {
         if (!this._definitelyReturns(node.body)) {
           this.warn(`Function '${node.name}' declares return type ${expectedReturn} but not all code paths return a value`, node.loc, null, { code: 'W205' });
         }

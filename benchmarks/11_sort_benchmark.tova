@@ -1,0 +1,34 @@
+// Benchmark 11: Sort Performance with Native FFI Acceleration
+
+fn generate_random_array(n) {
+  var data = []
+  for _i in range(n) {
+    data.push(Math.random() * 1000000.0)
+  }
+  data
+}
+
+fn bench_sort(name, data) {
+  n = len(data)
+  start = performance.now()
+  _result = sorted(data)
+  elapsed = performance.now() - start
+  print("  {name} (n={n}): {elapsed}ms")
+}
+
+fn main() {
+  print("Sort Benchmark")
+  print("==============")
+
+  small = generate_random_array(100)
+  bench_sort("Sort 100", small)
+
+  medium = generate_random_array(10000)
+  bench_sort("Sort 10K", medium)
+
+  large = generate_random_array(100000)
+  bench_sort("Sort 100K", large)
+
+  xlarge = generate_random_array(1000000)
+  bench_sort("Sort 1M", xlarge)
+}

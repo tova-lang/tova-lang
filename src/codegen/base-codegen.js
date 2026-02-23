@@ -1,6 +1,7 @@
 // Base code generation utilities shared across all codegen targets
 import { RESULT_OPTION, PROPAGATE, BUILTIN_NAMES, STDLIB_DEPS } from '../stdlib/inline.js';
 import { PIPE_TARGET } from '../parser/ast.js';
+import { compileWasmFunction, compileWasmModule, generateWasmGlue, generateMultiWasmGlue } from './wasm-codegen.js';
 
 export class BaseCodegen {
   constructor() {
@@ -8,6 +9,7 @@ export class BaseCodegen {
     this._counter = 0;
     this._scopes = [new Set()]; // scope stack for tracking declared variables
     this._visibleNames = new Set(); // flattened view of all declared names for O(1) lookup
+    this._nameRefCount = new Map(); // name -> count of scopes declaring it (for O(1) popScope)
     this._needsContainsHelper = false; // track if __contains helper is needed
     this._needsPropagateHelper = false; // track if __propagate helper is needed
     this._usedBuiltins = new Set(); // track which stdlib builtins are actually used
@@ -23,7 +25,25 @@ export class BaseCodegen {
     this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol, sourceFile?}
     this._outputLineCount = 0;
     this._sourceFile = null; // current source file for multi-file source maps
+    // @fast mode for TypedArray optimization
+    this._fastMode = false;
+    this._typedArrayParams = new Map(); // paramName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
+    this._typedArrayLocals = new Map(); // varName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
   }
+
+  static TYPED_ARRAY_MAP = {
+    'Int': 'Int32Array',
+    'Float': 'Float64Array',
+    'Byte': 'Uint8Array',
+    'Int8': 'Int8Array',
+    'Int16': 'Int16Array',
+    'Int32': 'Int32Array',
+    'Uint8': 'Uint8Array',
+    'Uint16': 'Uint16Array',
+    'Uint32': 'Uint32Array',
+    'Float32': 'Float32Array',
+    'Float64': 'Float64Array',
+  };
 
   _uid() {
     return this._counter++;
@@ -64,20 +84,22 @@ export class BaseCodegen {
 
   popScope() {
     const removed = this._scopes.pop();
-    // Remove names that were only declared in the popped scope
+    // O(n) cleanup using reference counts instead of O(n*m) scope search
     for (const name of removed) {
-      // Check if name still exists in remaining scopes
-      let found = false;
-      for (let i = this._scopes.length - 1; i >= 0; i--) {
-        if (this._scopes[i].has(name)) { found = true; break; }
+      const rc = this._nameRefCount.get(name) - 1;
+      if (rc <= 0) {
+        this._nameRefCount.delete(name);
+        this._visibleNames.delete(name);
+      } else {
+        this._nameRefCount.set(name, rc);
       }
-      if (!found) this._visibleNames.delete(name);
     }
   }
 
   declareVar(name) {
     this._scopes[this._scopes.length - 1].add(name);
     this._visibleNames.add(name);
+    this._nameRefCount.set(name, (this._nameRefCount.get(name) || 0) + 1);
   }
 
   isDeclared(name) {
@@ -313,23 +335,59 @@ export class BaseCodegen {
     const exportPrefix = node.isPublic ? 'export ' : '';
     if (node.targets.length === 1 && node.values.length === 1) {
       const target = node.targets[0];
+      const value = node.values[0];
       // Member expression target: obj.x = expr, arr[i] = expr
       if (typeof target === 'object' && target.type === 'MemberExpression') {
-        return `${this.i()}${this.genExpression(target)} = ${this.genExpression(node.values[0])};`;
+        // IIFE elimination: match/if on RHS of member assignment
+        if (this._needsIIFE(value)) {
+          const memberExpr = this.genExpression(target);
+          const lines = [];
+          if (value.type === 'MatchExpression') {
+            lines.push(this._genMatchAssign(value, memberExpr));
+          } else {
+            lines.push(this._genIfAssign(value, memberExpr));
+          }
+          return lines.join('\n');
+        }
+        return `${this.i()}${this.genExpression(target)} = ${this.genExpression(value)};`;
       }
       if (target === '_') {
-        return `${this.i()}${this.genExpression(node.values[0])};`;
+        return `${this.i()}${this.genExpression(value)};`;
       }
       if (this.isDeclared(target)) {
         // Reassignment to an already-declared variable (must be mutable)
-        return `${this.i()}${target} = ${this.genExpression(node.values[0])};`;
+        // IIFE elimination: match/if on RHS of reassignment (skip if binding conflicts)
+        if (this._needsIIFE(value) && !this._matchBindingsConflict(value, target)) {
+          if (value.type === 'MatchExpression') {
+            return this._genMatchAssign(value, target);
+          } else {
+            return this._genIfAssign(value, target);
+          }
+        }
+        return `${this.i()}${target} = ${this.genExpression(value)};`;
       }
       this.declareVar(target);
       // Track top-level user definitions to avoid stdlib conflicts
       if (this._scopes.length === 1 && BUILTIN_NAMES.has(target)) {
         this._userDefinedNames.add(target);
       }
-      return `${this.i()}${exportPrefix}const ${target} = ${this.genExpression(node.values[0])};`;
+      // @fast mode: track typed array local variables for loop optimization
+      if (this._fastMode && this._typedArrayLocals) {
+        const taType = this._detectTypedArrayExpr(value);
+        if (taType) this._typedArrayLocals.set(target, taType);
+      }
+      // IIFE elimination: match/if on RHS of new const declaration (skip if binding conflicts)
+      if (this._needsIIFE(value) && !this._matchBindingsConflict(value, target)) {
+        const lines = [];
+        lines.push(`${this.i()}${exportPrefix}let ${target};`);
+        if (value.type === 'MatchExpression') {
+          lines.push(this._genMatchAssign(value, target));
+        } else {
+          lines.push(this._genIfAssign(value, target));
+        }
+        return lines.join('\n');
+      }
+      return `${this.i()}${exportPrefix}const ${target} = ${this.genExpression(value)};`;
     }
 
     // Multiple assignment: a, b = 1, 2 (uses destructuring for atomicity)
@@ -367,8 +425,21 @@ export class BaseCodegen {
   genVarDeclaration(node) {
     const exportPrefix = node.isPublic ? 'export ' : '';
     if (node.targets.length === 1 && node.values.length === 1) {
-      this.declareVar(node.targets[0]);
-      return `${this.i()}${exportPrefix}let ${node.targets[0]} = ${this.genExpression(node.values[0])};`;
+      const target = node.targets[0];
+      const value = node.values[0];
+      this.declareVar(target);
+      // IIFE elimination for var declarations too (skip if binding conflicts)
+      if (this._needsIIFE(value) && !this._matchBindingsConflict(value, target)) {
+        const lines = [];
+        lines.push(`${this.i()}${exportPrefix}let ${target};`);
+        if (value.type === 'MatchExpression') {
+          lines.push(this._genMatchAssign(value, target));
+        } else {
+          lines.push(this._genIfAssign(value, target));
+        }
+        return lines.join('\n');
+      }
+      return `${this.i()}${exportPrefix}let ${target} = ${this.genExpression(value)};`;
     }
     const lines = [];
     for (let idx = 0; idx < node.targets.length; idx++) {
@@ -399,6 +470,30 @@ export class BaseCodegen {
   }
 
   genFunctionDeclaration(node) {
+    // Check for @wasm decorator — compile to WebAssembly
+    if (node.decorators && node.decorators.some(d => d.name === 'wasm')) {
+      return this.genWasmFunction(node);
+    }
+    // Check for @fast decorator — enable TypedArray optimizations
+    const isFast = node.decorators && node.decorators.some(d => d.name === 'fast');
+    const prevFastMode = this._fastMode;
+    const prevTypedParams = this._typedArrayParams;
+    const prevTypedLocals = this._typedArrayLocals;
+    if (isFast) {
+      this._fastMode = true;
+      this._typedArrayParams = new Map();
+      this._typedArrayLocals = new Map(); // track locally-created typed arrays
+      // Scan params for typed array annotations: param: [Int], param: [Float], param: [Byte]
+      for (const p of node.params) {
+        if (p.typeAnnotation && p.typeAnnotation.type === 'ArrayTypeAnnotation' && p.typeAnnotation.elementType) {
+          const elemName = p.typeAnnotation.elementType.name;
+          const typedArrayType = BaseCodegen.TYPED_ARRAY_MAP[elemName];
+          if (typedArrayType) {
+            this._typedArrayParams.set(p.name, typedArrayType);
+          }
+        }
+      }
+    }
     const params = this.genParams(node.params);
     const hasPropagate = this._containsPropagate(node.body);
     const isGenerator = this._containsYield(node.body);
@@ -415,20 +510,48 @@ export class BaseCodegen {
     }
     const body = this.genBlockBody(node.body);
     this.popScope();
-    const p = [];
-    p.push(`${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {`);
-    if (hasPropagate) {
-      p.push(`${this.i()}  try {`);
-      p.push(body);
-      p.push(`${this.i()}  } catch (__e) {`);
-      p.push(`${this.i()}    if (__e && __e.__tova_propagate) return __e.value;`);
-      p.push(`${this.i()}    throw __e;`);
-      p.push(`${this.i()}  }`);
-    } else {
-      p.push(body);
+    const lines = [];
+    lines.push(`${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {`);
+    // In @fast mode, convert typed array params at function entry
+    if (isFast && this._typedArrayParams.size > 0) {
+      for (const [pName, taType] of this._typedArrayParams) {
+        lines.push(`${this.i()}  ${pName} = ${pName} instanceof ${taType} ? ${pName} : new ${taType}(${pName});`);
+      }
     }
-    p.push(`${this.i()}}`);
-    return p.join('\n');
+    if (hasPropagate) {
+      lines.push(`${this.i()}  try {`);
+      lines.push(body);
+      lines.push(`${this.i()}  } catch (__e) {`);
+      lines.push(`${this.i()}    if (__e && __e.__tova_propagate) return __e.value;`);
+      lines.push(`${this.i()}    throw __e;`);
+      lines.push(`${this.i()}  }`);
+    } else {
+      lines.push(body);
+    }
+    lines.push(`${this.i()}}`);
+    // Restore @fast state
+    if (isFast) {
+      this._fastMode = prevFastMode;
+      this._typedArrayParams = prevTypedParams;
+      this._typedArrayLocals = prevTypedLocals;
+    }
+    return lines.join('\n');
+  }
+
+  genWasmFunction(node) {
+    try {
+      // Track as user-defined to suppress stdlib version
+      if (BUILTIN_NAMES.has(node.name)) this._userDefinedNames.add(node.name);
+      const wasmBytes = compileWasmFunction(node);
+      const glue = generateWasmGlue(node, wasmBytes);
+      const exportPrefix = node.isPublic ? 'export ' : '';
+      return `${this.i()}${exportPrefix}${glue}`;
+    } catch (e) {
+      // Fall back to JS if WASM compilation fails
+      console.error(`Warning: @wasm compilation failed for '${node.name}': ${e.message}. Falling back to JS.`);
+      node.decorators = node.decorators.filter(d => d.name !== 'wasm');
+      return this.genFunctionDeclaration(node);
+    }
   }
 
   genParams(params) {
@@ -509,9 +632,48 @@ export class BaseCodegen {
   // Check if a for-loop over a range can be emitted as a C-style for loop
   _isRangeForOptimizable(node) {
     const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
-    return node.iterable.type === 'RangeExpression' &&
-      vars.length === 1 && typeof vars[0] === 'string' &&
-      !node.isAsync && !node.elseBody;
+    if (vars.length !== 1 || typeof vars[0] !== 'string' || node.isAsync || node.elseBody) return false;
+    if (node.iterable.type === 'RangeExpression') return true;
+    // Optimize for i in range(n) / range(start, end) / range(start, end, step)
+    if (node.iterable.type === 'CallExpression' &&
+        node.iterable.callee.type === 'Identifier' &&
+        node.iterable.callee.name === 'range' &&
+        node.iterable.arguments.length >= 1 && node.iterable.arguments.length <= 3) return true;
+    return false;
+  }
+
+  // @fast mode: detect if an expression produces a TypedArray
+  // Returns the TypedArray type string (e.g. 'Float64Array') or null
+  _detectTypedArrayExpr(value) {
+    if (!value) return null;
+    // Type.new(n) → new Type(n), where Type is a TypedArray
+    if (value.type === 'MethodCall' && value.methodName === 'new' &&
+        value.object && value.object.type === 'Identifier') {
+      const taType = BaseCodegen.TYPED_ARRAY_MAP[value.object.name];
+      if (taType) return taType;
+      // Direct TypedArray names: Float64Array.new(n)
+      if (Object.values(BaseCodegen.TYPED_ARRAY_MAP).includes(value.object.name)) return value.object.name;
+    }
+    // typed_add/typed_scale/typed_map/typed_sort return same type as input
+    if (value.type === 'CallExpression' && value.callee && value.callee.type === 'Identifier') {
+      const fname = value.callee.name;
+      if (['typed_add', 'typed_scale', 'typed_map', 'typed_sort'].includes(fname)) {
+        return 'Float64Array'; // conservative default
+      }
+      // typed_linspace returns Float64Array
+      if (fname === 'typed_linspace') return 'Float64Array';
+    }
+    return null;
+  }
+
+  // @fast mode: check if a for-loop iterates over a known typed array
+  // Returns the TypedArray type or null
+  _getTypedArrayIterable(node) {
+    if (!this._fastMode) return null;
+    const iter = node.iterable;
+    if (iter.type !== 'Identifier') return null;
+    const name = iter.name;
+    return this._typedArrayParams.get(name) || (this._typedArrayLocals && this._typedArrayLocals.get(name)) || null;
   }
 
   genForStatement(node) {
@@ -521,15 +683,44 @@ export class BaseCodegen {
 
     // Optimization: for i in start..end => C-style for loop (avoids array allocation)
     if (this._isRangeForOptimizable(node)) {
-      const range = node.iterable;
-      const start = this.genExpression(range.start);
-      const end = this.genExpression(range.end);
       const varName = vars[0];
-      const cmpOp = range.inclusive ? '<=' : '<';
+      let start, end, step, cmpOp;
+
+      if (node.iterable.type === 'RangeExpression') {
+        start = this.genExpression(node.iterable.start);
+        end = this.genExpression(node.iterable.end);
+        cmpOp = node.iterable.inclusive ? '<=' : '<';
+        step = null;
+      } else {
+        // range(n) / range(start, end) / range(start, end, step)
+        const args = node.iterable.arguments;
+        if (args.length === 1) {
+          start = '0';
+          end = this.genExpression(args[0]);
+          cmpOp = '<';
+        } else if (args.length === 2) {
+          start = this.genExpression(args[0]);
+          end = this.genExpression(args[1]);
+          cmpOp = '<';
+        } else {
+          start = this.genExpression(args[0]);
+          end = this.genExpression(args[1]);
+          step = this.genExpression(args[2]);
+          cmpOp = '<';
+        }
+      }
+
       this.pushScope();
       this.declareVar(varName);
       const p = [];
-      p.push(`${this.i()}${labelPrefix}for (let ${varName} = ${start}; ${varName} ${cmpOp} ${end}; ${varName}++) {\n`);
+      if (step) {
+        // With explicit step: need to handle positive and negative step
+        const stepVar = `__step_${this._uid()}`;
+        p.push(`${this.i()}${labelPrefix}{ const ${stepVar} = ${step};\n`);
+        p.push(`${this.i()}for (let ${varName} = ${start}; ${stepVar} > 0 ? ${varName} < ${end} : ${varName} > ${end}; ${varName} += ${stepVar}) {\n`);
+      } else {
+        p.push(`${this.i()}${labelPrefix}for (let ${varName} = ${start}; ${varName} ${cmpOp} ${end}; ${varName}++) {\n`);
+      }
       this.indent++;
       if (node.guard) {
         p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
@@ -537,8 +728,33 @@ export class BaseCodegen {
       p.push(this.genBlockStatements(node.body));
       this.indent--;
       p.push(`\n${this.i()}}`);
+      if (step) p.push(`\n${this.i()}}`);
       this.popScope();
       return p.join('');
+    }
+
+    // @fast mode optimization: for val in typedArray => index-based loop (avoids iterator overhead)
+    if (vars.length === 1 && !node.isAsync && !node.elseBody) {
+      const taType = this._getTypedArrayIterable(node);
+      if (taType) {
+        const varName = vars[0];
+        const arrName = node.iterable.name;
+        const idxVar = `__i_${this._uid()}`;
+        this.pushScope();
+        this.declareVar(varName);
+        const p = [];
+        p.push(`${this.i()}${labelPrefix}for (let ${idxVar} = 0; ${idxVar} < ${arrName}.length; ${idxVar}++) {\n`);
+        this.indent++;
+        p.push(`${this.i()}const ${varName} = ${arrName}[${idxVar}];\n`);
+        if (node.guard) {
+          p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
+        }
+        p.push(this.genBlockStatements(node.body));
+        this.indent--;
+        p.push(`\n${this.i()}}`);
+        this.popScope();
+        return p.join('');
+      }
     }
 
     const iterExpr = this.genExpression(node.iterable);
@@ -731,7 +947,15 @@ export class BaseCodegen {
       // Implicit return: last expression in function body
       // Skip implicit return for known void/side-effect-only calls (print, assert, etc.)
       if (isLast && stmt.type === 'ExpressionStatement' && !this._isVoidCall(stmt.expression)) {
-        lines.push(`${this.i()}return ${this.genExpression(stmt.expression)};`);
+        // IIFE elimination: match/if as last expression in function body → direct returns
+        const expr = stmt.expression;
+        if (expr.type === 'MatchExpression' && !this._isSimpleMatch(expr)) {
+          lines.push(this._genMatchReturn(expr));
+        } else if (expr.type === 'IfExpression' && this._needsIIFE(expr)) {
+          lines.push(this._genIfReturn(expr));
+        } else {
+          lines.push(`${this.i()}return ${this.genExpression(stmt.expression)};`);
+        }
       } else if (isLast && stmt.type === 'IfStatement' && stmt.elseBody) {
         lines.push(this._genIfStatementWithReturns(stmt));
       } else if (isLast && stmt.type === 'MatchExpression') {
@@ -804,6 +1028,51 @@ export class BaseCodegen {
     }
     this.indent--;
     return lines.join('\n');
+  }
+
+  _genBlockBodyAssign(block, targetVar) {
+    // Like _genBlockBodyReturns but emits `targetVar = expr` instead of `return expr`
+    if (!block) return '';
+    const stmts = block.type === 'BlockStatement' ? block.body : [block];
+    this.indent++;
+    const lines = [];
+    for (let idx = 0; idx < stmts.length; idx++) {
+      const stmt = stmts[idx];
+      const isLast = idx === stmts.length - 1;
+      if (isLast && stmt.type === 'ExpressionStatement') {
+        lines.push(`${this.i()}${targetVar} = ${this.genExpression(stmt.expression)};`);
+      } else if (isLast && stmt.type === 'IfStatement' && stmt.elseBody) {
+        lines.push(this._genIfStatementWithAssigns(stmt, targetVar));
+      } else if (isLast && stmt.type === 'MatchExpression') {
+        // Nested match inside block — generate as assignment too
+        lines.push(this._genMatchAssign(stmt, targetVar));
+      } else {
+        lines.push(this.generateStatement(stmt));
+      }
+    }
+    this.indent--;
+    return lines.join('\n');
+  }
+
+  _genIfStatementWithAssigns(node, targetVar) {
+    const p = [];
+    p.push(`${this.i()}if (${this.genExpression(node.condition)}) {\n`);
+    p.push(this._genBlockBodyAssign(node.consequent, targetVar));
+    p.push(`\n${this.i()}}`);
+
+    for (const alt of node.alternates) {
+      p.push(` else if (${this.genExpression(alt.condition)}) {\n`);
+      p.push(this._genBlockBodyAssign(alt.body, targetVar));
+      p.push(`\n${this.i()}}`);
+    }
+
+    if (node.elseBody) {
+      p.push(` else {\n`);
+      p.push(this._genBlockBodyAssign(node.elseBody, targetVar));
+      p.push(`\n${this.i()}}`);
+    }
+
+    return p.join('');
   }
 
   genBlockStatements(block) {
@@ -1782,6 +2051,280 @@ export class BaseCodegen {
     return p.join('');
   }
 
+  // ─── IIFE-free match/if codegen (assign to variable instead of return) ───
+
+  _genMatchAssign(node, targetVar) {
+    // Block-scoped match that assigns to targetVar instead of wrapping in IIFE
+    // Handles switch optimization and general if-else chain
+
+    // Simple ternary matches don't need this optimization (already no IIFE)
+    // Literal-only switch matches benefit from assignment form
+
+    if (this._isLiteralMatch(node)) {
+      return this._genSwitchMatchAssign(node, targetVar);
+    }
+
+    const subject = this.genExpression(node.subject);
+    const tempVar = `__match`;
+    const p = [];
+    p.push(`${this.i()}{\n`);
+    this.indent++;
+    p.push(`${this.i()}const ${tempVar} = ${subject};\n`);
+
+    for (let idx = 0; idx < node.arms.length; idx++) {
+      const arm = node.arms[idx];
+      const condition = this.genPatternCondition(arm.pattern, tempVar, arm.guard);
+
+      if (arm.pattern.type === 'WildcardPattern' || arm.pattern.type === 'BindingPattern') {
+        if (idx === node.arms.length - 1 && !arm.guard) {
+          // Default case — wrap in else if preceded by if branches
+          if (idx > 0) {
+            p.push(` else {\n`);
+            this.indent++;
+          }
+          if (arm.pattern.type === 'BindingPattern') {
+            p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
+          }
+          if (arm.body.type === 'BlockStatement') {
+            p.push(this._genBlockBodyAssign(arm.body, targetVar) + '\n');
+          } else {
+            p.push(`${this.i()}${targetVar} = ${this.genExpression(arm.body)};\n`);
+          }
+          if (idx > 0) {
+            this.indent--;
+            p.push(`${this.i()}}\n`);
+          }
+          break;
+        }
+      }
+
+      if (idx === 0) {
+        p.push(`${this.i()}if (${condition}) {\n`);
+      } else {
+        p.push(` else if (${condition}) {\n`);
+      }
+      this.indent++;
+
+      // Bind variables from pattern
+      p.push(this.genPatternBindings(arm.pattern, tempVar));
+
+      if (arm.body.type === 'BlockStatement') {
+        p.push(this._genBlockBodyAssign(arm.body, targetVar) + '\n');
+      } else {
+        p.push(`${this.i()}${targetVar} = ${this.genExpression(arm.body)};\n`);
+      }
+      this.indent--;
+      p.push(`${this.i()}}`);
+    }
+    p.push('\n');
+
+    this.indent--;
+    p.push(`${this.i()}}`);
+    return p.join('');
+  }
+
+  _genSwitchMatchAssign(node, targetVar) {
+    // Switch-based match that assigns to targetVar instead of wrapping in IIFE
+    const subject = this.genExpression(node.subject);
+    const tempVar = '__match';
+    const p = [];
+    p.push(`${this.i()}{\n`);
+    this.indent++;
+    p.push(`${this.i()}const ${tempVar} = ${subject};\n`);
+    p.push(`${this.i()}switch (${tempVar}) {\n`);
+    this.indent++;
+
+    for (const arm of node.arms) {
+      if (arm.pattern.type === 'WildcardPattern') {
+        p.push(`${this.i()}default:\n`);
+        this.indent++;
+        if (arm.body.type === 'BlockStatement') {
+          p.push(this._genBlockBodyAssign(arm.body, targetVar) + '\n');
+        } else {
+          p.push(`${this.i()}${targetVar} = ${this.genExpression(arm.body)};\n`);
+        }
+        p.push(`${this.i()}break;\n`);
+        this.indent--;
+      } else if (arm.pattern.type === 'BindingPattern') {
+        p.push(`${this.i()}default: {\n`);
+        this.indent++;
+        p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
+        if (arm.body.type === 'BlockStatement') {
+          p.push(this._genBlockBodyAssign(arm.body, targetVar) + '\n');
+        } else {
+          p.push(`${this.i()}${targetVar} = ${this.genExpression(arm.body)};\n`);
+        }
+        p.push(`${this.i()}break;\n`);
+        this.indent--;
+        p.push(`${this.i()}}\n`);
+      } else {
+        // LiteralPattern
+        p.push(`${this.i()}case ${JSON.stringify(arm.pattern.value)}:\n`);
+        this.indent++;
+        if (arm.body.type === 'BlockStatement') {
+          p.push(this._genBlockBodyAssign(arm.body, targetVar) + '\n');
+        } else {
+          p.push(`${this.i()}${targetVar} = ${this.genExpression(arm.body)};\n`);
+        }
+        p.push(`${this.i()}break;\n`);
+        this.indent--;
+      }
+    }
+
+    this.indent--;
+    p.push(`${this.i()}}\n`);
+    this.indent--;
+    p.push(`${this.i()}}`);
+    return p.join('');
+  }
+
+  _genIfAssign(node, targetVar) {
+    // Block-scoped if expression that assigns to targetVar instead of wrapping in IIFE
+    const p = [];
+    p.push(`${this.i()}if (${this.genExpression(node.condition)}) {\n`);
+    p.push(this._genBlockBodyAssign(node.consequent, targetVar));
+    p.push(`\n${this.i()}}`);
+
+    for (const alt of node.alternates) {
+      p.push(` else if (${this.genExpression(alt.condition)}) {\n`);
+      p.push(this._genBlockBodyAssign(alt.body, targetVar));
+      p.push(`\n${this.i()}}`);
+    }
+
+    if (node.elseBody) {
+      p.push(` else {\n`);
+      p.push(this._genBlockBodyAssign(node.elseBody, targetVar));
+      p.push(`\n${this.i()}}`);
+    }
+
+    return p.join('');
+  }
+
+  // IIFE-free match/if that emits direct returns (for function body last expression)
+  _genMatchReturn(node) {
+    const subject = this.genExpression(node.subject);
+    const tempVar = `__match`;
+    const p = [];
+    p.push(`${this.i()}{\n`);
+    this.indent++;
+    p.push(`${this.i()}const ${tempVar} = ${subject};\n`);
+
+    for (let idx = 0; idx < node.arms.length; idx++) {
+      const arm = node.arms[idx];
+      const condition = this.genPatternCondition(arm.pattern, tempVar, arm.guard);
+
+      if (arm.pattern.type === 'WildcardPattern' || arm.pattern.type === 'BindingPattern') {
+        if (idx === node.arms.length - 1 && !arm.guard) {
+          if (idx > 0) {
+            p.push(` else {\n`);
+            this.indent++;
+          }
+          if (arm.pattern.type === 'BindingPattern') {
+            p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
+          }
+          if (arm.body.type === 'BlockStatement') {
+            p.push(this._genBlockBodyReturns(arm.body) + '\n');
+          } else {
+            p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+          }
+          if (idx > 0) {
+            this.indent--;
+            p.push(`${this.i()}}\n`);
+          }
+          break;
+        }
+      }
+
+      if (idx === 0) {
+        p.push(`${this.i()}if (${condition}) {\n`);
+      } else {
+        p.push(` else if (${condition}) {\n`);
+      }
+      this.indent++;
+      p.push(this.genPatternBindings(arm.pattern, tempVar));
+      if (arm.body.type === 'BlockStatement') {
+        p.push(this._genBlockBodyReturns(arm.body) + '\n');
+      } else {
+        p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+      }
+      this.indent--;
+      p.push(`${this.i()}}`);
+    }
+    p.push('\n');
+    this.indent--;
+    p.push(`${this.i()}}`);
+    return p.join('');
+  }
+
+  _genIfReturn(node) {
+    const p = [];
+    p.push(`${this.i()}if (${this.genExpression(node.condition)}) {\n`);
+    p.push(this._genBlockBodyReturns(node.consequent));
+    p.push(`\n${this.i()}}`);
+
+    for (const alt of node.alternates) {
+      p.push(` else if (${this.genExpression(alt.condition)}) {\n`);
+      p.push(this._genBlockBodyReturns(alt.body));
+      p.push(`\n${this.i()}}`);
+    }
+
+    if (node.elseBody) {
+      p.push(` else {\n`);
+      p.push(this._genBlockBodyReturns(node.elseBody));
+      p.push(`\n${this.i()}}`);
+    }
+
+    return p.join('');
+  }
+
+  // Check if a match/if expression would need IIFE (not simple ternary)
+  _needsIIFE(node) {
+    if (node.type === 'MatchExpression') {
+      return !this._isSimpleMatch(node);
+    }
+    if (node.type === 'IfExpression') {
+      const isSingleExpr = (block) =>
+        block.type === 'BlockStatement' && block.body.length === 1 && block.body[0].type === 'ExpressionStatement';
+      // Simple if/elif → ternary (no IIFE)
+      if (node.alternates.length === 0 && isSingleExpr(node.consequent) && isSingleExpr(node.elseBody)) return false;
+      if (node.alternates.length > 0 && node.elseBody &&
+          isSingleExpr(node.consequent) && isSingleExpr(node.elseBody) &&
+          node.alternates.every(alt => isSingleExpr(alt.body))) return false;
+      // Otherwise needs IIFE (or our new assign path)
+      return true;
+    }
+    return false;
+  }
+
+  // Check if a match has any pattern bindings that would conflict with the target variable
+  _matchBindingsConflict(node, targetVar) {
+    if (node.type !== 'MatchExpression') return false;
+    for (const arm of node.arms) {
+      if (this._patternBindsName(arm.pattern, targetVar)) return true;
+    }
+    return false;
+  }
+
+  _patternBindsName(pattern, name) {
+    switch (pattern.type) {
+      case 'BindingPattern':
+        return pattern.name === name;
+      case 'VariantPattern':
+        return pattern.fields.some(f => {
+          if (typeof f === 'string') return f === name;
+          if (f && f.type) return this._patternBindsName(f, name);
+          return false;
+        });
+      case 'ArrayPattern':
+      case 'TuplePattern':
+        return pattern.elements.some(el => el && this._patternBindsName(el, name));
+      case 'StringConcatPattern':
+        return pattern.rest && pattern.rest.type === 'BindingPattern' && pattern.rest.name === name;
+      default:
+        return false;
+    }
+  }
+
   genPatternCondition(pattern, subject, guard) {
     let cond;
 
@@ -1911,6 +2454,12 @@ export class BaseCodegen {
 
   genArrayLiteral(node) {
     const elements = node.elements.map(e => this.genExpression(e)).join(', ');
+    // In @fast mode, detect all-numeric arrays and emit TypedArrays
+    if (this._fastMode && node.elements.length > 0 && node.elements.every(e => e.type === 'NumberLiteral')) {
+      const hasFloat = node.elements.some(e => String(e.value).includes('.'));
+      const taType = hasFloat ? 'Float64Array' : 'Int32Array';
+      return `new ${taType}([${elements}])`;
+    }
     return `[${elements}]`;
   }
 
@@ -1938,7 +2487,8 @@ export class BaseCodegen {
       if (expr === varName) {
         return `${iter}.filter((${varName}) => ${cond})`;
       }
-      return `${iter}.filter((${varName}) => ${cond}).map((${varName}) => ${expr})`;
+      // Single-pass loop avoids intermediate array from filter().map()
+      return `${iter}.reduce((acc, ${varName}) => { if (${cond}) acc.push(${expr}); return acc; }, [])`;
     }
     return `${iter}.map((${varName}) => ${expr})`;
   }
@@ -2034,14 +2584,19 @@ export class BaseCodegen {
       for (const variant of node.variants) {
         if (variant.type === 'TypeVariant') {
           this.declareVar(variant.name);
-          const fieldNames = variant.fields.map(f => f.name);
+          const rawFieldNames = variant.fields.map(f => f.name);
+          // Deduplicate field names: Add(Expr, Expr) → _0, _1 (prevents property collision)
+          const nameCount = {};
+          rawFieldNames.forEach(n => nameCount[n] = (nameCount[n] || 0) + 1);
+          const hasDupes = Object.values(nameCount).some(c => c > 1);
+          const fieldNames = hasDupes ? rawFieldNames.map((_, i) => `_${i}`) : rawFieldNames;
           this._variantFields[variant.name] = fieldNames;
           if (variant.fields.length === 0) {
             lines.push(`${this.i()}${exportPrefix}const ${variant.name} = Object.freeze({ __tag: "${variant.name}" });`);
           } else {
             const params = fieldNames.join(', ');
             const obj = fieldNames.map(f => `${f}`).join(', ');
-            lines.push(`${this.i()}${exportPrefix}function ${variant.name}(${params}) { return Object.freeze({ __tag: "${variant.name}", ${obj} }); }`);
+            lines.push(`${this.i()}${exportPrefix}function ${variant.name}(${params}) { return { __tag: "${variant.name}", ${obj} }; }`);
           }
         }
       }

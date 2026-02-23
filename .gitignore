@@ -5,6 +5,13 @@ dist/
 src/runtime/embedded.js
 src/version.js
 
+# Rust FFI build artifacts
+native/target/
+native/Cargo.lock
+
+# Benchmark build artifacts
+benchmarks/.go-bins/
+
 # Editor / IDE
 .vscode/
 .idea/

@@ -1443,3 +1443,58 @@ describe('N6: incremental LSP sync', () => {
     server._debouncedValidate = origValidate;
   });
 });
+
+// ── Bug Fix: Analyzer crashes on MemberExpression assignment targets ──
+
+describe('analyzer: MemberExpression assignment targets', () => {
+  test('arr[i] = val does not crash analyzer', () => {
+    const src = `
+      fn test() {
+        var arr = [1, 2, 3]
+        arr[0] = 10
+      }
+    `;
+    // Should not throw
+    const warnings = getWarnings(src);
+    expect(warnings).toBeDefined();
+  });
+
+  test('obj.prop = val does not crash analyzer', () => {
+    const src = `
+      fn test() {
+        var obj = {x: 1}
+        obj.x = 10
+      }
+    `;
+    const warnings = getWarnings(src);
+    expect(warnings).toBeDefined();
+  });
+
+  test('nested index assignment does not crash', () => {
+    const src = `
+      fn sieve() {
+        var flags = []
+        flags.push(true)
+        var m = 4
+        while m <= 100 {
+          flags[m] = false
+          m += 2
+        }
+      }
+    `;
+    const warnings = getWarnings(src);
+    expect(warnings).toBeDefined();
+  });
+
+  test('indexed assignment compiles through full pipeline (lexer → parser → analyzer → codegen)', () => {
+    // Regression: MemberExpression target in assignment caused
+    // "name.startsWith is not a function" in _checkNamingConvention
+    // because visitAssignment treated the AST node as a string.
+    const src = `
+      var flags = [true, true, true]
+      flags[1] = false
+    `;
+    const code = compile(src);
+    expect(code).toContain('flags[1] = false');
+  });
+});

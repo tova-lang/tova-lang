@@ -3,7 +3,7 @@
 import { resolve, basename, dirname, join, relative } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
-import { createHash } from 'crypto';
+// Bun.hash used instead of crypto.createHash for faster hashing
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
@@ -12,7 +12,7 @@ import { Program } from '../src/parser/ast.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { richError, formatDiagnostics, DiagnosticFormatter, formatSummary } from '../src/diagnostics/formatter.js';
 import { getExplanation, lookupCode } from '../src/diagnostics/error-codes.js';
-import { getFullStdlib, buildSelectiveStdlib, BUILTIN_NAMES, PROPAGATE } from '../src/stdlib/inline.js';
+import { getFullStdlib, buildSelectiveStdlib, BUILTIN_NAMES, PROPAGATE, NATIVE_INIT } from '../src/stdlib/inline.js';
 import { Formatter } from '../src/formatter/formatter.js';
 import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
@@ -633,10 +633,17 @@ async function buildProject(args) {
   const isVerbose = args.includes('--verbose');
   const isQuiet = args.includes('--quiet');
   const isWatch = args.includes('--watch');
-  const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
+  const binaryIdx = args.indexOf('--binary');
+  const binaryName = binaryIdx >= 0 ? args[binaryIdx + 1] : null;
+  const explicitSrc = args.filter(a => !a.startsWith('--') && a !== binaryName)[0];
   const srcDir = resolve(explicitSrc || config.project.entry || '.');
   const outIdx = args.indexOf('--output');
   const outDir = resolve(outIdx >= 0 ? args[outIdx + 1] : (config.build.output || '.tova-out'));
+
+  // Binary compilation: compile to single standalone executable
+  if (binaryName) {
+    return await binaryBuild(srcDir, binaryName, outDir);
+  }
 
   // Production build uses a separate optimized pipeline
   if (isProduction) {
@@ -2165,8 +2172,8 @@ async function migrateStatus(args) {
 function getStdlibForRuntime() {
   return getFullStdlib();  // Full stdlib for REPL
 }
-function getRunStdlib() { // Only PROPAGATE — codegen tree-shakes stdlib into output.shared
-  return PROPAGATE;
+function getRunStdlib() { // NATIVE_INIT + PROPAGATE — codegen tree-shakes stdlib into output.shared
+  return NATIVE_INIT + '\n' + PROPAGATE;
 }
 
 // ─── npm Interop Utilities ───────────────────────────────────
@@ -2390,7 +2397,8 @@ async function startRepl() {
   const context = {};
   const stdlib = getStdlibForRuntime();
   // Use authoritative BUILTIN_NAMES + runtime names (Ok, Err, Some, None, __propagate)
-  const stdlibNames = [...BUILTIN_NAMES, 'Ok', 'Err', 'Some', 'None', '__propagate'];
+  // Filter out internal __ prefixed names that don't define a same-named variable
+  const stdlibNames = [...BUILTIN_NAMES].filter(n => !n.startsWith('__')).concat(['Ok', 'Err', 'Some', 'None', '__propagate']);
   const initFn = new Function(stdlib + '\nObject.assign(this, {' + stdlibNames.join(',') + '});');
   initFn.call(context);
 
@@ -2749,6 +2757,88 @@ class SourceMapBuilder {
   }
 }
 
+// ─── Binary Build ───────────────────────────────────────────
+
+async function binaryBuild(srcDir, outputName, outDir) {
+  const tovaFiles = findFiles(srcDir, '.tova');
+  if (tovaFiles.length === 0) {
+    console.error('No .tova files found');
+    process.exit(1);
+  }
+
+  const tmpDir = join(outDir, '.tova-binary-tmp');
+  mkdirSync(tmpDir, { recursive: true });
+
+  console.log(`\n  Compiling to binary: ${outputName}\n`);
+
+  // Step 1: Compile all .tova files to JS
+  const sharedParts = [];
+  const serverParts = [];
+  const clientParts = [];
+
+  for (const file of tovaFiles) {
+    try {
+      const source = readFileSync(file, 'utf-8');
+      const output = compileTova(source, file);
+      if (output.shared) sharedParts.push(output.shared);
+      if (output.server) serverParts.push(output.server);
+      if (output.client) clientParts.push(output.client);
+    } catch (err) {
+      console.error(`  Error in ${relative(srcDir, file)}: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  // Step 2: Bundle into a single JS file
+  const stdlib = getRunStdlib();
+  const allShared = sharedParts.join('\n');
+  const allServer = serverParts.join('\n');
+
+  let bundledCode;
+  if (allServer.trim()) {
+    // Server app
+    bundledCode = stdlib + '\n' + allShared + '\n' + allServer;
+  } else {
+    // Script/shared-only app
+    bundledCode = stdlib + '\n' + allShared;
+    // Auto-call main() if it exists
+    if (/\bfunction\s+main\s*\(/.test(bundledCode)) {
+      bundledCode += '\nconst __tova_exit = await main(process.argv.slice(2)); if (typeof __tova_exit === "number") process.exitCode = __tova_exit;\n';
+    }
+  }
+
+  // Strip import/export statements (everything is inlined)
+  bundledCode = bundledCode.replace(/^export /gm, '');
+  bundledCode = bundledCode.replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '');
+
+  const entryPath = join(tmpDir, 'entry.js');
+  writeFileSync(entryPath, bundledCode);
+  console.log(`  Compiled ${tovaFiles.length} file(s) to JS`);
+
+  // Step 3: Use Bun to compile to standalone binary
+  const outputPath = resolve(outputName);
+  try {
+    const { execFileSync } = await import('child_process');
+    execFileSync('bun', ['build', '--compile', entryPath, '--outfile', outputPath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    // Get file size
+    const stat = statSync(outputPath);
+    const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+    console.log(`  Created binary: ${outputPath} (${sizeMB}MB)`);
+  } finally {
+    // Clean up temp files
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
+  }
+
+  const displayPath = outputPath.startsWith(process.cwd()) ? './' + relative(process.cwd(), outputPath) : outputPath;
+  console.log(`\n  Done! Run with: ${displayPath}\n`);
+}
+
 // ─── Production Build ────────────────────────────────────────
 
 async function productionBuild(srcDir, outDir) {
@@ -2786,7 +2876,7 @@ async function productionBuild(srcDir, outDir) {
   const allSharedCode = sharedParts.join('\n');
 
   // Generate content hash for cache busting
-  const hashCode = (s) => createHash('sha256').update(s).digest('hex').slice(0, 12);
+  const hashCode = (s) => Bun.hash(s).toString(16).slice(0, 12);
 
   // Write server bundle
   if (allServerCode.trim()) {
@@ -2859,20 +2949,16 @@ async function productionBuild(srcDir, outDir) {
     const filePath = join(outDir, f);
     const minPath = join(outDir, f.replace('.js', '.min.js'));
     try {
-      // Use Bun.build for proper minification with tree-shaking
-      const result = await Bun.build({
-        entrypoints: [filePath],
-        outdir: outDir,
-        minify: true,
-        naming: f.replace('.js', '.min.js'),
-      });
-      if (result.success) {
-        const originalSize = statSync(filePath).size;
-        const minSize = statSync(minPath).size;
-        const ratio = ((1 - minSize / originalSize) * 100).toFixed(0);
-        console.log(`  ${f.replace('.js', '.min.js')} (${_formatBytes(minSize)}, ${ratio}% smaller)`);
-        minified++;
-      }
+      // Use Bun.Transpiler for minification without bundling (preserves imports)
+      const source = readFileSync(filePath, 'utf-8');
+      const transpiler = new Bun.Transpiler({ minifyWhitespace: true, trimUnusedImports: true });
+      const minCode = transpiler.transformSync(source);
+      writeFileSync(minPath, minCode);
+      const originalSize = Buffer.byteLength(source);
+      const minSize = Buffer.byteLength(minCode);
+      const ratio = ((1 - minSize / originalSize) * 100).toFixed(0);
+      console.log(`  ${f.replace('.js', '.min.js')} (${_formatBytes(minSize)}, ${ratio}% smaller)`);
+      minified++;
     } catch {
       // Bun.build not available — fall back to simple whitespace stripping
       try {
@@ -3133,7 +3219,7 @@ class BuildCache {
   }
 
   _hashContent(content) {
-    return createHash('sha256').update(content).digest('hex').slice(0, 16);
+    return Bun.hash(content).toString(16);
   }
 
   load() {
@@ -3170,12 +3256,11 @@ class BuildCache {
 
   // Hash multiple files together for group caching
   _hashGroup(files) {
-    const hash = createHash('sha256');
+    let combined = '';
     for (const f of files.slice().sort()) {
-      hash.update(f);
-      hash.update(readFileSync(f, 'utf-8'));
+      combined += f + readFileSync(f, 'utf-8');
     }
-    return hash.digest('hex').slice(0, 16);
+    return Bun.hash(combined).toString(16);
   }
 
   // Store compiled output for a multi-file group

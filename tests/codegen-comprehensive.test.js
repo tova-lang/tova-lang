@@ -52,10 +52,13 @@ describe('Base — If expression ternary optimization', () => {
     expect(code).toContain('(3)');
   });
 
-  test('multi-statement branch forces IIFE', () => {
+  test('multi-statement branch uses block-scoped assignment', () => {
     const code = genShared('x = if cond { y = 1\ny + 2 } else { 0 }');
-    expect(code).toContain('(() => {');
+    expect(code).toContain('let x;');
     expect(code).toContain('if (cond)');
+    expect(code).toContain('x = (y + 2);');
+    expect(code).toContain('x = 0;');
+    expect(code).not.toContain('(() => {');
   });
 });
 
@@ -112,10 +115,11 @@ describe('Base — List comprehension filter-only optimization', () => {
     expect(code).not.toContain('.map(');
   });
 
-  test('filter+map comprehension uses both when expr !== variable', () => {
+  test('filter+map comprehension uses single-pass reduce', () => {
     const code = genShared('x = [n * 2 for n in items if n > 0]');
-    expect(code).toContain('.filter(');
-    expect(code).toContain('.map(');
+    // Single-pass reduce avoids intermediate array from filter().map()
+    expect(code).toContain('.reduce(');
+    expect(code).not.toContain('.filter(');
   });
 });
 
@@ -194,7 +198,7 @@ describe('Base — Pattern bindings with multiple fields', () => {
     expect(code).toContain('__tag === "Rect"');
     expect(code).toContain('const w = __match.w;');
     expect(code).toContain('const h = __match.h;');
-    expect(code).toContain('return (w * h);');
+    expect(code).toContain('x = (w * h);');
   });
 
   test('array pattern with multiple bindings', () => {
@@ -822,6 +826,7 @@ describe('Server — Lifecycle hooks', () => {
 
   test('on_stop hook generates shutdown code', () => {
     const code = genServer(`server {
+      cors { origins: ["*"] }
       on_stop fn() { print("stopping") }
       fn hello() { "world" }
     }`);
@@ -1156,7 +1161,7 @@ describe('Server — Async mutex / withLock generation', () => {
 
 describe('Server — Structured logging', () => {
   test('server generates structured logging helpers', () => {
-    const code = genServer('server { fn hello() { "world" } }');
+    const code = genServer('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(code).toContain('Structured Logging');
     expect(code).toContain('function __genRequestId()');
     expect(code).toContain('function __log(level, msg');
@@ -1167,7 +1172,7 @@ describe('Server — Structured logging', () => {
 
 describe('Server — Distributed tracing', () => {
   test('server generates request context with AsyncLocalStorage', () => {
-    const code = genServer('server { fn hello() { "world" } }');
+    const code = genServer('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(code).toContain('Distributed Tracing');
     expect(code).toContain('AsyncLocalStorage');
     expect(code).toContain('function __getRequestId()');
@@ -1202,7 +1207,7 @@ describe('Server — Auth builtins', () => {
 
 describe('Server — Graceful shutdown', () => {
   test('server generates graceful drain and shutdown', () => {
-    const code = genServer('server { fn hello() { "world" } }');
+    const code = genServer('server { cors { origins: ["*"] }\n fn hello() { "world" } }');
     expect(code).toContain('Graceful Drain');
     expect(code).toContain('let __activeRequests = 0');
     expect(code).toContain('let __shuttingDown = false');

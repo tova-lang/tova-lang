@@ -103,8 +103,8 @@ describe('Codegen — Expressions', () => {
 
   test('list comprehension', () => {
     const code = compileShared('x = [n * 2 for n in items if n > 0]');
-    expect(code).toContain('.filter(');
-    expect(code).toContain('.map(');
+    // Single-pass reduce avoids intermediate array from filter().map()
+    expect(code).toContain('.reduce(');
   });
 
   test('logical operators', () => {
@@ -352,11 +352,13 @@ describe('Codegen — If Expression', () => {
     expect(code).toContain(':');
   });
 
-  test('multi-statement if expression compiles to IIFE', () => {
+  test('multi-statement if expression compiles to block-scoped assignment', () => {
     const code = compileShared('x = if cond { y = 1\ny + 2 } else { 0 }');
-    expect(code).toContain('(() => {');
+    expect(code).toContain('let x;');
     expect(code).toContain('if (cond)');
-    expect(code).toContain('return');
+    expect(code).toContain('x = (y + 2);');
+    expect(code).toContain('x = 0;');
+    expect(code).not.toContain('(() => {');
   });
 
   test('if-elif-else expression', () => {

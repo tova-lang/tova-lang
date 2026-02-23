@@ -256,10 +256,9 @@ export class Lexer {
       }
       // Check if next non-ws starts a keyword (if/for/elif/else)
       if (this.isAlpha(nextNonWs)) {
-        let word = '', wp = pp;
-        while (wp < this.length && this.isAlphaNumeric(this.source[wp])) {
-          word += this.source[wp]; wp++;
-        }
+        let wp = pp;
+        while (wp < this.length && this.isAlphaNumeric(this.source[wp])) wp++;
+        const word = this.source.substring(pp, wp);
         if (Lexer.JSX_CF_KEYWORDS.has(word)) {
           while (this.pos < pp) this.advance();
           return;
@@ -290,10 +289,9 @@ export class Lexer {
 
     // Check for JSX control flow keywords: if, for, elif, else, match
     if (this.isAlpha(ch)) {
-      let word = '', peekPos = this.pos;
-      while (peekPos < this.length && this.isAlphaNumeric(this.source[peekPos])) {
-        word += this.source[peekPos]; peekPos++;
-      }
+      let peekPos = this.pos;
+      while (peekPos < this.length && this.isAlphaNumeric(this.source[peekPos])) peekPos++;
+      const word = this.source.substring(this.pos, peekPos);
       if (Lexer.JSX_CF_KEYWORDS.has(word)) {
         this.scanIdentifier();
         // After keyword, enter control flow mode for normal scanning
@@ -313,12 +311,14 @@ export class Lexer {
       const ch = this.peek();
       if (ch === '<' || ch === '{' || ch === '"' || ch === "'") break;
       // Stop at keywords if, for, elif, else preceded by whitespace
-      if (this.isAlpha(ch) && text.length > 0 && /\s$/.test(text)) {
-        let word = '', pp = this.pos;
-        while (pp < this.length && this.isAlphaNumeric(this.source[pp])) {
-          word += this.source[pp]; pp++;
+      if (this.isAlpha(ch) && text.length > 0) {
+        const lastCh = text[text.length - 1];
+        if (lastCh === ' ' || lastCh === '\t' || lastCh === '\n' || lastCh === '\r') {
+          let pp = this.pos;
+          while (pp < this.length && this.isAlphaNumeric(this.source[pp])) pp++;
+          const word = this.source.substring(this.pos, pp);
+          if (Lexer.JSX_CF_KEYWORDS.has(word)) break;
         }
-        if (Lexer.JSX_CF_KEYWORDS.has(word)) break;
       }
       text += this.advance();
     }
@@ -415,43 +415,56 @@ export class Lexer {
       }
     }
 
-    // Decimal
-    while (this.pos < this.length && (this.isDigit(this.peek()) || this.peek() === '_')) {
-      const ch = this.advance();
-      if (ch !== '_') value += ch;
+    // Fast path: scan decimal number using index advancement (no string concat)
+    // Handles digits, underscores, decimal point, and exponent
+    const numStart = this.pos;
+    let hasUnderscore = false;
+    while (this.pos < this.length) {
+      const ch = this.source[this.pos];
+      if (ch >= '0' && ch <= '9') { this.pos++; this.column++; }
+      else if (ch === '_') { hasUnderscore = true; this.pos++; this.column++; }
+      else break;
     }
 
     // Decimal point — only consume if followed by a digit or underscore (not e.g. 15.minutes)
-    if (this.peek() === '.' && this.peek(1) !== '.' && (this.isDigit(this.peek(1)) || this.peek(1) === '_')) {
-      value += this.advance(); // .
-      while (this.pos < this.length && (this.isDigit(this.peek()) || this.peek() === '_')) {
-        const ch = this.advance();
-        if (ch !== '_') value += ch;
+    if (this.pos < this.length && this.source[this.pos] === '.') {
+      const next = this.pos + 1 < this.length ? this.source[this.pos + 1] : '';
+      if (next !== '.' && ((next >= '0' && next <= '9') || next === '_')) {
+        this.pos++; this.column++; // .
+        while (this.pos < this.length) {
+          const ch = this.source[this.pos];
+          if (ch >= '0' && ch <= '9') { this.pos++; this.column++; }
+          else if (ch === '_') { hasUnderscore = true; this.pos++; this.column++; }
+          else break;
+        }
       }
     }
 
     // Exponent
-    if (this.peek() === 'e' || this.peek() === 'E') {
-      const savedPos = this.pos;
-      const savedCol = this.column;
-      const savedLine = this.line;
-      let expPart = this.advance(); // consume 'e'/'E'
-      if (this.peek() === '+' || this.peek() === '-') {
-        expPart += this.advance();
-      }
-      if (this.pos < this.length && this.isDigit(this.peek())) {
-        value += expPart;
-        while (this.pos < this.length && this.isDigit(this.peek())) {
-          value += this.advance();
+    if (this.pos < this.length) {
+      const ech = this.source[this.pos];
+      if (ech === 'e' || ech === 'E') {
+        const savedPos = this.pos;
+        const savedCol = this.column;
+        this.pos++; this.column++;
+        if (this.pos < this.length && (this.source[this.pos] === '+' || this.source[this.pos] === '-')) {
+          this.pos++; this.column++;
         }
-      } else {
-        // No digits after exponent — backtrack, treat 'e' as separate token
-        this.pos = savedPos;
-        this.column = savedCol;
-        this.line = savedLine;
+        if (this.pos < this.length && this.source[this.pos] >= '0' && this.source[this.pos] <= '9') {
+          while (this.pos < this.length && this.source[this.pos] >= '0' && this.source[this.pos] <= '9') {
+            this.pos++; this.column++;
+          }
+        } else {
+          // No digits after exponent — backtrack
+          this.pos = savedPos;
+          this.column = savedCol;
+        }
       }
     }
 
+    let numStr = this.source.substring(numStart, this.pos);
+    if (hasUnderscore) numStr = numStr.replace(/_/g, '');
+    value = numStr;
     this.tokens.push(new Token(TokenType.NUMBER, parseFloat(value), startLine, startCol));
   }
 
@@ -846,11 +859,22 @@ export class Lexer {
   scanIdentifier() {
     const startLine = this.line;
     const startCol = this.column;
-    let value = '';
+    const startPos = this.pos;
 
-    while (this.pos < this.length && this.isAlphaNumeric(this.peek())) {
-      value += this.advance();
+    // Fast path: scan ASCII identifier using index advancement (no string concat)
+    while (this.pos < this.length) {
+      const ch = this.source[this.pos];
+      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || (ch >= '0' && ch <= '9')) {
+        this.pos++;
+        this.column++;
+      } else if (ch > '\x7f' && Lexer.UNICODE_ALPHANUM_RE.test(ch)) {
+        this.pos++;
+        this.column++;
+      } else {
+        break;
+      }
     }
+    const value = this.source.substring(startPos, this.pos);
 
     // Raw string: r"no\escapes"
     if (value === 'r' && this.pos < this.length && this.peek() === '"') {
@@ -1150,6 +1174,10 @@ export class Lexer {
         } else {
           this.tokens.push(new Token(TokenType.QUESTION, '?', startLine, startCol));
         }
+        break;
+
+      case '@':
+        this.tokens.push(new Token(TokenType.AT, '@', startLine, startCol));
         break;
 
       default:

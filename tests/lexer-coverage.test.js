@@ -500,7 +500,7 @@ describe('Additional lexer coverage', () => {
 
   // Unexpected character
   test('unexpected character throws', () => {
-    expect(lexThrows('x @ y')).toThrow(/Unexpected character/);
+    expect(lexThrows('x # y')).toThrow(/Unexpected character/);
   });
 
   // EOF

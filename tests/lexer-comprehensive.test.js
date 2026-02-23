@@ -687,7 +687,7 @@ describe('Lexer — Slash in JSX context', () => {
 describe('Lexer — Error message format', () => {
   test('error includes filename', () => {
     try {
-      const lexer = new Lexer('@', 'myfile.tova');
+      const lexer = new Lexer('#', 'myfile.tova');
       lexer.tokenize();
       expect(true).toBe(false); // should not reach
     } catch (e) {
@@ -697,7 +697,7 @@ describe('Lexer — Error message format', () => {
 
   test('error includes line number', () => {
     try {
-      lex('\n\n@');
+      lex('\n\n#');
       expect(true).toBe(false);
     } catch (e) {
       expect(e.message).toContain(':3:');
@@ -706,7 +706,7 @@ describe('Lexer — Error message format', () => {
 
   test('error includes column number', () => {
     try {
-      lex('   @');
+      lex('   #');
       expect(true).toBe(false);
     } catch (e) {
       // Column is 5 because advance() increments before error
