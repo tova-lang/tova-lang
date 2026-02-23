@@ -266,21 +266,31 @@ names = csv_line
 
 ## String Concatenation
 
-Use the `++` operator or interpolation:
+Use string interpolation or the `+` operator:
 
 ```tova
 first = "Hello"
 second = "World"
 
-// Concatenation operator
-greeting = first ++ ", " ++ second ++ "!"
-
-// Interpolation (preferred for complex cases)
+// Interpolation (preferred)
 greeting = "{first}, {second}!"
+
+// Plus operator (works since strings support +)
+greeting = first + ", " + second + "!"
+```
+
+The `++` operator is available in **match patterns** only for string prefix matching:
+
+```tova
+match path {
+  "/api/" ++ rest => handle_api(rest)
+  "/static/" ++ file => serve_static(file)
+  _ => not_found()
+}
 ```
 
 ::: tip
-Prefer string interpolation over concatenation. `"Hello, {name}!"` is clearer and less error-prone than `"Hello, " ++ name ++ "!"`.
+Prefer string interpolation over concatenation. `"Hello, {name}!"` is clearer and less error-prone than `"Hello, " + name + "!"`.
 :::
 
 ## Practical Tips

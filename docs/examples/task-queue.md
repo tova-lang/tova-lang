@@ -170,7 +170,7 @@ fn process_batch(items, processor) {
     |> map(fn(r) r.value |> unwrap())
 
   failed = results
-    |> filter(fn(r) !r.success)
+    |> filter(fn(r) not r.success)
     |> map(fn(r) { item: r.item, error: r.error |> unwrap() })
 
   { succeeded: succeeded, failed: failed }

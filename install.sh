@@ -11,6 +11,23 @@ BINARY_NAME="tova"
 # Allow overriding the version: TOVA_VERSION=v0.2.0 sh install.sh
 VERSION="${TOVA_VERSION:-latest}"
 
+# ─── Colors (POSIX-compatible, disabled for non-TTY) ─────────
+if [ -t 1 ]; then
+  BOLD='\033[1m'
+  GREEN='\033[32m'
+  YELLOW='\033[33m'
+  CYAN='\033[36m'
+  RED='\033[31m'
+  DIM='\033[2m'
+  RESET='\033[0m'
+else
+  BOLD='' GREEN='' YELLOW='' CYAN='' RED='' DIM='' RESET=''
+fi
+
+info()    { printf "  ${GREEN}✓${RESET} %s\n" "$1"; }
+warn()    { printf "  ${YELLOW}⚠${RESET} ${YELLOW}%s${RESET}\n" "$1"; }
+err()     { printf "  ${RED}✗${RESET} ${RED}%s${RESET}\n" "$1"; }
+
 detect_os() {
   case "$(uname -s)" in
     Darwin) echo "darwin" ;;
@@ -33,23 +50,29 @@ download() {
   OUTPUT="$2"
 
   if command -v curl > /dev/null 2>&1; then
-    # Use --progress-bar instead of -s to show download progress
     curl -fL --progress-bar "$URL" -o "$OUTPUT"
   elif command -v wget > /dev/null 2>&1; then
     wget --show-progress -qO "$OUTPUT" "$URL" 2>&1
   else
-    echo "Error: curl or wget is required"
+    err "curl or wget is required"
     exit 1
   fi
 }
 
 main() {
+  # Banner
+  printf "\n"
+  printf "  ${CYAN}${BOLD}╦  ╦ ╦═╗ ╦${RESET}\n"
+  printf "  ${CYAN}${BOLD}║  ║ ║ ║ ╠╣${RESET}\n"
+  printf "  ${CYAN}${BOLD}╩═╝╚═╝╩═╝╩${RESET}  ${DIM}installer${RESET}\n"
+  printf "\n"
+
   OS=$(detect_os)
   ARCH=$(detect_arch)
 
   if [ "$OS" = "unsupported" ] || [ "$ARCH" = "unsupported" ]; then
-    echo "Error: Unsupported platform: $(uname -s) $(uname -m)"
-    echo "Supported: macOS (arm64, x64), Linux (arm64, x64)"
+    err "Unsupported platform: $(uname -s) $(uname -m)"
+    printf "  Supported: macOS (arm64, x64), Linux (arm64, x64)\n"
     exit 1
   fi
 
@@ -64,9 +87,7 @@ main() {
     BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
   fi
 
-  echo "Installing Tova..."
-  echo "  Platform: ${OS}-${ARCH}"
-  echo ""
+  printf "  Platform: ${BOLD}${OS}-${ARCH}${RESET}\n\n"
 
   mkdir -p "$INSTALL_DIR"
 
@@ -75,7 +96,7 @@ main() {
 
   # Try compressed version first (.gz), fall back to uncompressed
   DOWNLOAD_URL="${BASE_URL}/${ASSET_NAME}.gz"
-  echo "  Downloading ${ASSET_NAME}.gz..."
+  printf "  Downloading ${BOLD}${ASSET_NAME}.gz${RESET}...\n"
   if download "$DOWNLOAD_URL" "$TMPFILE" 2>/dev/null; then
     # Decompress
     if command -v gzip > /dev/null 2>&1; then
@@ -83,29 +104,28 @@ main() {
     elif command -v gunzip > /dev/null 2>&1; then
       gunzip -c "$TMPFILE" > "${INSTALL_DIR}/${BINARY_NAME}"
     else
-      echo "Error: gzip is required to decompress the binary"
+      err "gzip is required to decompress the binary"
       exit 1
     fi
     rm -f "$TMPFILE"
   else
     # Fall back to uncompressed binary
     DOWNLOAD_URL="${BASE_URL}/${ASSET_NAME}"
-    echo "  Downloading ${ASSET_NAME}..."
+    printf "  Downloading ${BOLD}${ASSET_NAME}${RESET}...\n"
     if ! download "$DOWNLOAD_URL" "${INSTALL_DIR}/${BINARY_NAME}"; then
-      echo ""
-      echo "Error: Download failed."
-      echo "  URL: ${DOWNLOAD_URL}"
-      echo ""
-      echo "Please check:"
-      echo "  - Your internet connection"
-      echo "  - The release exists: https://github.com/${REPO}/releases"
+      printf "\n"
+      err "Download failed."
+      printf "  URL: ${DOWNLOAD_URL}\n\n"
+      printf "  Please check:\n"
+      printf "  - Your internet connection\n"
+      printf "  - The release exists: https://github.com/${REPO}/releases\n"
       exit 1
     fi
   fi
 
   # Verify the downloaded file is not empty
   if [ ! -s "${INSTALL_DIR}/${BINARY_NAME}" ]; then
-    echo "Error: Downloaded file is empty or corrupted"
+    err "Downloaded file is empty or corrupted"
     rm -f "${INSTALL_DIR}/${BINARY_NAME}"
     exit 1
   fi
@@ -113,23 +133,28 @@ main() {
   chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
   # Quick sanity check — run --version to verify binary works
+  printf "\n"
   if "${INSTALL_DIR}/${BINARY_NAME}" --version > /dev/null 2>&1; then
     INSTALLED_VERSION=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>/dev/null || echo "unknown")
-    echo ""
-    echo "  Tova ${INSTALLED_VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"
+    info "${INSTALLED_VERSION} installed to ${BOLD}${INSTALL_DIR}/${BINARY_NAME}${RESET}"
   else
-    echo ""
-    echo "  Tova installed to ${INSTALL_DIR}/${BINARY_NAME}"
+    info "Tova installed to ${BOLD}${INSTALL_DIR}/${BINARY_NAME}${RESET}"
   fi
 
   # Add to PATH if not already there
   add_to_path
 
-  echo ""
-  echo "  Run 'tova --version' to verify the installation."
-  echo ""
-  echo "  Note: Some commands (dev, test) require Bun (https://bun.sh)."
-  echo "  The standalone binary handles: run, build, new, repl, fmt, lsp"
+  # Next steps
+  printf "\n"
+  printf "  ${BOLD}Next steps:${RESET}\n\n"
+  printf "    ${CYAN}tova new my-app${RESET}       Create a new project\n"
+  printf "    ${CYAN}tova --help${RESET}           See all commands\n"
+  printf "    ${CYAN}tova doctor${RESET}           Check your setup\n"
+  printf "\n"
+  if ! command -v bun > /dev/null 2>&1; then
+    warn "Bun not found. Some commands (dev, test) require Bun: ${BOLD}https://bun.sh${RESET}"
+    printf "\n"
+  fi
 }
 
 add_to_path() {
@@ -155,7 +180,7 @@ add_to_path() {
       FISH_DIR="$HOME/.config/fish/conf.d"
       mkdir -p "$FISH_DIR"
       echo "set -gx PATH ${INSTALL_DIR} \$PATH" > "${FISH_DIR}/tova.fish"
-      echo "  Added to PATH via ${FISH_DIR}/tova.fish"
+      info "Added to PATH via ${BOLD}${FISH_DIR}/tova.fish${RESET}"
       return
       ;;
     *)    PROFILE="$HOME/.profile" ;;
@@ -167,12 +192,12 @@ add_to_path() {
       echo "" >> "$PROFILE"
       echo "# Tova" >> "$PROFILE"
       echo "$EXPORT_LINE" >> "$PROFILE"
-      echo "  Added to PATH in ${PROFILE}"
-      echo "  Restart your shell or run: source ${PROFILE}"
+      info "Added to PATH in ${BOLD}${PROFILE}${RESET}"
+      printf "  Restart your shell or run: ${CYAN}source ${PROFILE}${RESET}\n"
     fi
   else
     echo "$EXPORT_LINE" > "$PROFILE"
-    echo "  Created ${PROFILE} with PATH entry"
+    info "Created ${BOLD}${PROFILE}${RESET} with PATH entry"
   fi
 }
 

@@ -436,3 +436,5 @@ fn send_email({ email, name }) {
   // email and name are available directly
 }
 ```
+
+**Use decorators for performance-critical code.** The `@wasm` decorator compiles a function to WebAssembly binary, and `@fast` enables TypedArray optimizations for numeric array parameters. See the [Performance guide](./performance.md) for details.

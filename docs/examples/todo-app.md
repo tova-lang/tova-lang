@@ -37,7 +37,7 @@ server {
   fn toggle_todo(id) -> Todo {
     todos = todos |> map(fn(t) {
       match t.id == id {
-        true => Todo(t.id, t.title, !t.completed)
+        true => Todo(t.id, t.title, not t.completed)
         false => t
       }
     })
@@ -59,7 +59,7 @@ client {
   state todos = []
   state new_title = ""
 
-  computed remaining = todos |> filter(fn(t) !t.completed) |> len()
+  computed remaining = todos |> filter(fn(t) not t.completed) |> len()
   computed total = len(todos)
 
   computed summary = match remaining {
@@ -205,7 +205,7 @@ client {
   state todos = []
   state new_title = ""
 
-  computed remaining = todos |> filter(fn(t) !t.completed) |> len()
+  computed remaining = todos |> filter(fn(t) not t.completed) |> len()
 }
 ```
 

@@ -18,16 +18,29 @@ After installation, the `tova` command is available globally (or via `bunx tova`
 
 ### `tova new <name>`
 
-Scaffold a new Tova project.
+Scaffold a new Tova project with an interactive template picker.
 
 ```bash
 tova new my-app
+tova new my-app --template api
 ```
+
+**Templates:**
+
+| Template | Description |
+|----------|-------------|
+| `fullstack` | Full-stack app with server + client + shared blocks (default) |
+| `api` | API server with HTTP routes, no frontend |
+| `script` | Standalone `.tova` script |
+| `library` | Reusable module with exports |
+| `blank` | Empty project skeleton |
+
+When run without `--template`, an interactive picker is shown. The project also gets a `git init` automatically.
 
 This creates a project directory with:
 
 - `tova.toml` -- the project manifest (name, version, build settings, npm dependencies)
-- `src/app.tova` -- a starter full-stack application with shared types, a server route, and a reactive client
+- Source file (varies by template) -- e.g., `src/app.tova` for fullstack, `src/main.tova` for script
 - `.gitignore` -- ignores `node_modules/`, `.tova-out/`, `package.json`, `bun.lock`
 - `README.md` -- basic project documentation
 
@@ -35,9 +48,25 @@ After scaffolding:
 
 ```bash
 cd my-app
-tova install
 tova dev
 ```
+
+### `tova init`
+
+Initialize a Tova project in the current directory. Unlike `tova new`, this does not create a new directory -- it sets up the project structure in place.
+
+```bash
+tova init
+```
+
+This creates:
+
+- `tova.toml` -- project manifest using the current directory name
+- `src/` directory
+- `.gitignore` (if not already present)
+- `src/app.tova` starter file (only if no `.tova` files exist in `src/`)
+
+If a `tova.toml` already exists, the command exits with an error.
 
 ### `tova.toml` Manifest
 
@@ -96,7 +125,10 @@ Add an npm package to `tova.toml` and install it.
 tova add htmx
 tova add zod@3.22.0
 tova add prettier --dev
+tova add npm:lodash
 ```
+
+Packages can be specified with or without the `npm:` prefix. Version pinning is supported with `@version`. For native Tova dependencies, use `file:` or `git:` prefixes.
 
 **Flags:**
 
@@ -106,7 +138,7 @@ tova add prettier --dev
 
 ### `tova remove <package>`
 
-Remove an npm package from `tova.toml` and update the install.
+Remove an npm package from `tova.toml` and update the install. Searches `[dependencies]`, `[npm]`, and `[npm.dev]` sections.
 
 ```bash
 tova remove htmx
@@ -127,6 +159,16 @@ You can also pass a `.tova` file directly without the `run` subcommand:
 tova app.tova
 ```
 
+If no file is specified and a `tova.toml` exists, the command auto-discovers `main.tova` or `app.tova` from the configured entry directory.
+
+Script arguments can be passed after `--`:
+
+```bash
+tova run script.tova -- arg1 arg2 arg3
+```
+
+If the file defines a `main()` function, it is called automatically after compilation.
+
 **Flags:**
 
 | Flag | Description |
@@ -143,6 +185,7 @@ tova build
 tova build src
 tova build src --output dist
 tova build src --production
+tova build src --binary my-app
 ```
 
 **Output structure:**
@@ -161,8 +204,47 @@ tova build src --production
 |------|-------------|
 | `--output`, `-o` | Output directory (default: `.tova-out`) |
 | `--production` | Production build with bundling, content hashing, and minification |
+| `--binary <name>` | Compile to a standalone executable via `bun build --compile` |
+| `--watch` | Watch for file changes and rebuild automatically |
+| `--no-cache` | Skip incremental build cache (force full recompile) |
 | `--strict` | Enable strict type checking |
-| `--debug` | Verbose error output |
+| `--verbose` | Show detailed output (timing, cached files) |
+| `--quiet` | Suppress non-error output |
+
+**Incremental caching:** The build system caches compilation results in `.tova-out/.cache/manifest.json`. Unchanged files are skipped on subsequent builds. Use `--no-cache` to force a full rebuild.
+
+**Binary builds:** `--binary <name>` compiles all `.tova` files into a single JavaScript bundle and uses `bun build --compile` to produce a standalone executable. If the code defines a `main()` function, it is called automatically.
+
+See [Build System](./build.md) for more details.
+
+### `tova check [dir]`
+
+Type-check `.tova` files without generating code.
+
+```bash
+tova check
+tova check src
+tova check src --explain E202
+```
+
+Reports diagnostics (errors and warnings) and exits with a summary. No JavaScript output is generated.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--explain <code>` | Show a detailed explanation for a specific error code inline |
+| `--strict` | Enable strict type checking |
+
+### `tova clean`
+
+Delete the `.tova-out/` build artifacts directory.
+
+```bash
+tova clean
+```
+
+Reads the output directory from `tova.toml` if present, otherwise defaults to `.tova-out/`.
 
 ### `tova dev [dir]`
 
@@ -193,19 +275,21 @@ Start an interactive Read-Eval-Print Loop.
 tova repl
 ```
 
-The REPL supports multi-line input, full standard library access, and special commands like `:quit`, `:help`, and `:clear`.
+The REPL supports syntax highlighting, tab completion, multi-line input, full standard library access, imports, and special commands like `:quit`, `:help`, `:clear`, and `:type`.
 
 See [REPL](./repl.md) for more details.
 
 ### `tova test [dir]`
 
-Discover and run `test` blocks in `.tova` files.
+Discover and run `test` blocks in `.tova` files. Discovers both inline `test` blocks and dedicated test files (`*.test.tova`, `*_test.tova`).
 
 ```bash
 tova test
 tova test src
 tova test --filter "math"
 tova test --watch
+tova test --coverage
+tova test --serial
 ```
 
 **Flags:**
@@ -214,8 +298,23 @@ tova test --watch
 |------|-------------|
 | `--filter` | Run only tests matching the given pattern |
 | `--watch` | Watch for file changes and re-run tests |
+| `--coverage` | Enable Bun coverage reporting |
+| `--serial` | Force sequential test execution (default is parallel) |
 
 See [Test Runner](./test-runner.md) for more details.
+
+### `tova bench [dir]`
+
+Discover and run `bench` blocks in `.tova` files.
+
+```bash
+tova bench
+tova bench src
+```
+
+Scans for files containing `bench` blocks, compiles them to `.tova-bench-out/`, and executes them via Bun.
+
+See the [Benchmarks section](./test-runner.md#benchmarks) of the Test Runner page for how to write `bench` blocks.
 
 ### `tova fmt [files]`
 
@@ -235,6 +334,26 @@ tova fmt src/app.tova --check
 
 See [Formatter](./formatter.md) for more details.
 
+### `tova doc [dir]`
+
+Generate documentation from `///` docstrings in `.tova` files.
+
+```bash
+tova doc
+tova doc src
+tova doc src --output api-docs
+tova doc src --format html
+```
+
+Scans for `.tova` files containing `///` docstrings, extracts documentation, and generates output files.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--output`, `-o` | Output directory (default: `docs-out`) |
+| `--format` | Output format (default: `html`) |
+
 ### `tova lsp`
 
 Start the Language Server Protocol server. This is typically invoked by editors rather than run directly.
@@ -246,6 +365,17 @@ tova lsp
 The LSP communicates via JSON-RPC over stdio and provides diagnostics, completion, go-to-definition, hover, and signature help.
 
 See [LSP Server](../editor/lsp.md) for more details.
+
+### `tova explain <code>`
+
+Show a detailed explanation for an error or warning code.
+
+```bash
+tova explain E202
+tova explain W301
+```
+
+Each diagnostic emitted by the compiler includes a code (e.g., `E202`). This command shows what the error means and how to fix it.
 
 ### `tova migrate:create <name>`
 
@@ -268,6 +398,39 @@ tova migrate:up src/app.tova
 
 The command reads the `db` configuration from the specified `.tova` file (or auto-discovers `main.tova` / `app.tova`), creates a `__migrations` tracking table if needed, and executes any unapplied migration files in order.
 
+### `tova migrate:down [file]`
+
+Roll back the most recently applied migration.
+
+```bash
+tova migrate:down
+tova migrate:down src/app.tova
+```
+
+Runs the `down` export of the last applied migration and removes it from the `__migrations` table.
+
+### `tova migrate:reset [file]`
+
+Roll back all applied migrations in reverse order.
+
+```bash
+tova migrate:reset
+tova migrate:reset src/app.tova
+```
+
+Iterates through all applied migrations from newest to oldest, running each `down` export.
+
+### `tova migrate:fresh [file]`
+
+Drop all tables and re-run all migrations from scratch.
+
+```bash
+tova migrate:fresh
+tova migrate:fresh src/app.tova
+```
+
+This is a destructive operation -- it drops every table in the database, re-creates the `__migrations` table, and runs all migration files. Supports SQLite, PostgreSQL, and MySQL.
+
 ### `tova migrate:status [file]`
 
 Show the current status of all migrations.
@@ -279,14 +442,93 @@ tova migrate:status src/app.tova
 
 Displays each migration file with its status (`applied` with timestamp, or `pending`).
 
+### `tova upgrade`
+
+Upgrade Tova to the latest version.
+
+```bash
+tova upgrade
+```
+
+Automatically detects the install method:
+
+- **Binary installs** (`~/.tova/bin/tova`): Downloads the latest release from GitHub
+- **npm/bun installs**: Uses the detected package manager (Bun, npm, pnpm, or yarn)
+
+### `tova info`
+
+Show Tova version, Bun version, platform info, project configuration, and installed dependencies.
+
+```bash
+tova info
+```
+
+Displays:
+
+- Tova and Bun versions
+- Platform and architecture
+- Project configuration from `tova.toml` (if present)
+- Installed npm dependencies
+- Build output status
+
+### `tova doctor`
+
+Check your development environment for common issues.
+
+```bash
+tova doctor
+```
+
+Runs a series of checks:
+
+- Tova version and install location
+- Bun availability (>= 1.0 recommended)
+- PATH configuration (`~/.tova/bin` in `$PATH`)
+- Shell profile (Tova PATH entry in `~/.zshrc`, `~/.bashrc`, etc.)
+- git availability
+- `tova.toml` in current directory
+- Build output directory status
+
+Each check shows a green `✓` (pass), yellow `⚠` (warning), or red `✗` (failure).
+
+### `tova completions <shell>`
+
+Generate shell completions for tab-completion of commands and flags.
+
+```bash
+tova completions bash
+tova completions zsh
+tova completions fish
+```
+
+**Installation:**
+
+```bash
+# Bash — add to ~/.bashrc:
+eval "$(tova completions bash)"
+
+# Zsh — add to ~/.zshrc:
+eval "$(tova completions zsh)"
+
+# Fish — save to completions directory:
+tova completions fish > ~/.config/fish/completions/tova.fish
+```
+
+Covers all subcommands and their flags, including `--template` values for `tova new`.
+
 ## Global Flags
 
 | Flag | Description |
 |------|-------------|
 | `--help`, `-h` | Show help message |
 | `--version`, `-v` | Show Tova version |
+| `--output`, `-o` | Output directory (default: `.tova-out`) |
+| `--production` | Production build (minify, bundle, hash) |
+| `--watch` | Watch for file changes and rebuild |
+| `--verbose` | Show detailed output during compilation |
+| `--quiet` | Suppress non-error output |
 | `--debug` | Verbose error output (available on most commands) |
-| `--strict` | Enable strict type checking (available on `run` and `build`) |
+| `--strict` | Enable strict type checking (available on `run`, `build`, and `check`) |
 
 ## Environment Variables
 

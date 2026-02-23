@@ -236,7 +236,7 @@ For checkboxes, `bind:group` manages an array signal. Checking a box adds its va
 Use `class:` directives to conditionally toggle CSS classes:
 
 ```tova
-<div class:active={is_active} class:error={has_error} class:hidden={!is_visible}>
+<div class:active={is_active} class:error={has_error} class:hidden={not is_visible}>
   Content
 </div>
 ```

@@ -310,7 +310,7 @@ fn process_order(order) {
     return Err("Order is nil")
   }
 
-  guard order.items.length > 0 else {
+  guard len(order.items) > 0 else {
     return Err("Order has no items")
   }
 
@@ -329,7 +329,7 @@ Compare this to the nested-if alternative:
 // Without guard -- deep nesting
 fn process_order(order) {
   if order != nil {
-    if order.items.length > 0 {
+    if len(order.items) > 0 {
       if order.total > 0 {
         submit(order)
       } else {

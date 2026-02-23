@@ -91,7 +91,8 @@ operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "&&" | "||" | "!" | "|>"
          | "=>" | "->" | "." | ".." | "..=" | "..."
          | ":" | "::" | "?" | "?." | "??"
-         | "+=" | "-=" | "*=" | "/=" | "%=" ;
+         | "+=" | "-=" | "*=" | "/="
+         | "@" ;
 
 delimiter = "(" | ")" | "{" | "}" | "[" | "]" | "," | ";" ;
 ```
@@ -104,14 +105,18 @@ program = { top_level_statement } EOF ;
 top_level_statement = server_block
                     | client_block
                     | shared_block
+                    | data_block
                     | test_block
+                    | bench_block
                     | import_declaration
                     | statement ;
 
 server_block = "server" [ STRING ] "{" { server_statement } "}" ;
 client_block = "client" [ STRING ] "{" { client_statement } "}" ;
 shared_block = "shared" [ STRING ] "{" { statement } "}" ;
+data_block   = "data"   "{" { data_statement } "}" ;
 test_block   = "test"   [ STRING ] "{" { statement } "}" ;
+bench_block  = "bench"  [ STRING ] "{" { statement } "}" ;
 ```
 
 ## Server Statements
@@ -216,11 +221,14 @@ store_declaration = "store" IDENTIFIER "{" { state_declaration | computed_declar
 statement = assignment
           | var_declaration
           | let_destructure
+          | decorated_declaration
           | function_declaration
           | type_declaration
+          | interface_declaration
           | import_declaration
           | export_statement
           | return_statement
+          | guard_statement
           | if_statement
           | for_statement
           | while_statement
@@ -235,7 +243,11 @@ var_declaration = "var" IDENTIFIER { "," IDENTIFIER } "=" expression { "," expre
 
 let_destructure = "let" ( object_pattern | array_pattern ) "=" expression ;
 
+decorated_declaration = { "@" IDENTIFIER [ "(" expression_list ")" ] } ( function_declaration | async_function_declaration ) ;
+
 function_declaration = "fn" IDENTIFIER "(" [ param_list ] ")" [ "->" type_annotation ] block ;
+
+async_function_declaration = "async" function_declaration ;
 
 param_list = parameter { "," parameter } ;
 parameter  = IDENTIFIER [ ":" type_annotation ] [ "=" expression ] ;
@@ -274,6 +286,10 @@ with_statement = "with" expression "as" IDENTIFIER block ;
 
 try_catch_statement = "try" "{" { statement } "}"
                       "catch" [ IDENTIFIER ] "{" { statement } "}" ;
+
+guard_statement = "guard" expression "else" block ;
+
+interface_declaration = "interface" IDENTIFIER "{" { "fn" IDENTIFIER "(" [ param_list ] ")" [ "->" type_annotation ] } "}" ;
 
 expression_statement = expression ;
 
@@ -451,3 +467,11 @@ jsx_for = "for" IDENTIFIER [ "," IDENTIFIER ] "in" expression
 7. **Unquoted JSX text**: Text inside JSX elements can be unquoted (`<h1>Hello World</h1>`) or quoted (`<h1>"Hello World"</h1>`). Unquoted text is scanned as raw `JSX_TEXT` tokens by the lexer. The keywords `if`, `for`, `elif`, and `else` are reserved for JSX control flow and cannot appear as unquoted text.
 
 8. **String pattern matching**: The `++` operator in patterns matches a string prefix and binds the remainder to a variable: `"api/" ++ rest` matches any string starting with `"api/"` and binds the rest.
+
+9. **Decorators**: The `@` prefix applies decorators to function declarations. `@wasm` compiles a function to WebAssembly. `@fast` enables TypedArray optimizations. Multiple decorators can be stacked.
+
+10. **Guard clauses**: `guard condition else { ... }` provides early-exit when a condition is not met. The else block must return or exit the enclosing function.
+
+11. **Data and bench blocks**: `data { ... }` defines data sources and transformations. `bench "name" { ... }` defines benchmarks.
+
+12. **`++` is patterns-only**: The `++` operator is only valid in match patterns for string prefix matching. In expression context, use `+` for string concatenation or string interpolation `"text {expr}"`.

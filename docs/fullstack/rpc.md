@@ -216,9 +216,9 @@ client {
           <li>{user.name} ({user.email})</li>
         }
       </ul>
-      <input value={name} @input={fn(e) { name = e.target.value }} placeholder="Name" />
-      <input value={email} @input={fn(e) { email = e.target.value }} placeholder="Email" />
-      <button @click={handle_create}>Create User</button>
+      <input value={name} on:input={fn(e) { name = e.target.value }} placeholder="Name" />
+      <input value={email} on:input={fn(e) { email = e.target.value }} placeholder="Email" />
+      <button on:click={handle_create}>Create User</button>
     </div>
   }
 }

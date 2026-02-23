@@ -374,7 +374,7 @@ component DataList(items) {
 
 // Parent provides a render function as children
 <DataList items={users}>
-  {fn(props) <span>{props.item.name} (#{props.index})</span>}
+  {fn(props) <span>{props.item.name} ({props.index})</span>}
 </DataList>
 ```
 

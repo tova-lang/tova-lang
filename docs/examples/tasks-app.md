@@ -143,9 +143,9 @@ client {
   state form_priority = "medium"
 
   // Computed values
-  computed total_count = tasks.length
-  computed completed_count = [t for t in tasks if t.completed].length
-  computed pending_count = tasks.length - [t for t in tasks if t.completed].length
+  computed total_count = len(tasks)
+  computed completed_count = len([t for t in tasks if t.completed])
+  computed pending_count = len(tasks) - len([t for t in tasks if t.completed])
 
   // Load tasks on mount
   effect {
@@ -485,9 +485,9 @@ fn update_task(id: Int, title: String, description: String, priority: String) {
 ### Computed Values
 
 ```tova
-computed total_count = tasks.length
-computed completed_count = [t for t in tasks if t.completed].length
-computed pending_count = tasks.length - [t for t in tasks if t.completed].length
+computed total_count = len(tasks)
+computed completed_count = len([t for t in tasks if t.completed])
+computed pending_count = len(tasks) - len([t for t in tasks if t.completed])
 ```
 
 Computed values are derived from reactive state. They automatically recalculate whenever `tasks` changes. List comprehensions (`[t for t in tasks if t.completed]`) provide a concise way to filter collections.

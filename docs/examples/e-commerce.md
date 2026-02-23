@@ -256,7 +256,7 @@ client {
     }
 
     fn toggle_cart() {
-      cart_open = !cart_open
+      cart_open = not cart_open
     }
   }
 
@@ -463,7 +463,7 @@ client {
         <input type="text" bind:value={addr_region} placeholder="State" required />
         <input type="text" bind:value={zip_code} placeholder="ZIP" required />
 
-        <button type="submit" disabled={CartStore.empty || loading}>
+        <button type="submit" disabled={CartStore.empty or loading}>
           {match loading { true => "Placing Order..." false => "Place Order" }}
         </button>
       </form>
@@ -490,7 +490,7 @@ client {
           for order in loaded_orders {
             <div class="order-card">
               <div class="order-header">
-                <span>"Order #{order.id}"</span>
+                <span>"Order {order.id}"</span>
                 <span class="status">
                   {match order.status {
                     Pending => "Pending"

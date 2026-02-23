@@ -41,6 +41,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`let`](#let) | Destructuring binding |
 | [`loop`](#loop) | Infinite loop |
 | [`match`](#match) | Pattern matching expression |
+| [`mut`](#mut) | Reserved (use `var` instead) |
 | [`nil`](#nil) | The absence-of-value literal |
 | [`not`](#not) | Logical NOT (keyword form) |
 | [`or`](#or) | Logical OR (keyword form) |
@@ -77,6 +78,8 @@ These identifiers are reserved only within `server` blocks for route declaration
 | `PUT` | HTTP PUT method |
 | `DELETE` | HTTP DELETE method |
 | `PATCH` | HTTP PATCH method |
+| `HEAD` | HTTP HEAD method |
+| `OPTIONS` | HTTP OPTIONS method |
 
 ---
 
@@ -206,7 +209,7 @@ Declares a derived value that automatically updates when its dependencies change
 
 ```tova
 state items = []
-computed total = items.length
+computed total = len(items)
 ```
 
 ### `continue`
@@ -353,7 +356,7 @@ for item in items {
   print(item)
 }
 
-for i, val in enumerate(items) {
+for i, val in items {
   print("{i}: {val}")
 }
 ```
@@ -373,7 +376,7 @@ Asserts a condition. If the condition is false, the `else` block executes (typic
 ```tova
 fn process(input) {
   guard input != nil else {
-    return Error("input is nil")
+    return Err("input is nil")
   }
   // continue with valid input
   Ok(transform(input))
@@ -500,8 +503,21 @@ Pattern matching expression. Exhaustive by design.
 ```tova
 match result {
   Ok(value) => print(value)
-  Error(msg) => print("Error: {msg}")
+  Err(msg) => print("Error: {msg}")
 }
+```
+
+### `mut`
+
+Reserved keyword that produces a compile-time error. Tova uses `var` for mutable variables instead.
+
+```tova
+// This will NOT compile:
+// mut x = 10  // Error: 'mut' is not supported in Tova. Use 'var' for mutable variables
+
+// Use 'var' instead:
+var x = 10
+x = 20  // OK
 ```
 
 ### `nil`
@@ -646,7 +662,7 @@ Groups related reactive state, computed values, and methods.
 ```tova
 store TodoStore {
   state items = []
-  computed count = items.length
+  computed count = len(items)
   fn add(text) {
     items = [...items, {text: text, done: false}]
   }

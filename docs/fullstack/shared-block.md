@@ -139,19 +139,19 @@ Any function that does not depend on server or client APIs belongs in shared:
 ```tova
 shared {
   fn format_currency(amount: Float) -> String {
-    "$" ++ amount.toFixed(2)
+    "$" + amount.toFixed(2)
   }
 
   fn truncate(text: String, max_length: Int) -> String {
     if text.length() <= max_length {
       text
     } else {
-      text.slice(0, max_length) ++ "..."
+      text.slice(0, max_length) + "..."
     }
   }
 
   fn capitalize(word: String) -> String {
-    word.charAt(0).toUpperCase() ++ word.slice(1)
+    word.charAt(0).toUpperCase() + word.slice(1)
   }
 }
 ```
@@ -240,7 +240,7 @@ shared {
 // Bad: side effects don't belong in shared
 shared {
   fn log_event(event: String) {
-    console.log(event)  // Side effect -- put in server or client
+    print(event)  // Side effect -- put in server or client
   }
 }
 ```
@@ -283,9 +283,9 @@ shared {
   }
 
   fn validate_contact_form(form: ContactForm) -> [String] {
-    errors = []
+    var errors = []
     if form.name.length() < 2 { errors = [...errors, "Name is too short"] }
-    if !form.email.contains("@") { errors = [...errors, "Invalid email"] }
+    if not form.email.contains("@") { errors = [...errors, "Invalid email"] }
     if form.message.length() < 10 { errors = [...errors, "Message is too short"] }
     errors
   }

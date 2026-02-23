@@ -269,6 +269,61 @@ doc = [
 print(render_all(doc))
 ```
 
+## Plain `impl` Blocks
+
+You can use `impl` without a trait to add methods directly to a type:
+
+```tova
+type Point {
+  x: Float
+  y: Float
+}
+
+impl Point {
+  fn distance(self, other) {
+    dx = other.x - self.x
+    dy = other.y - self.y
+    Math.sqrt(dx * dx + dy * dy)
+  }
+
+  fn magnitude(self) {
+    Math.sqrt(self.x * self.x + self.y * self.y)
+  }
+
+  fn scale(self, factor) {
+    Point(self.x * factor, self.y * factor)
+  }
+}
+```
+
+The `self` parameter refers to the instance the method is called on:
+
+```tova
+a = Point(0, 0)
+b = Point(3, 4)
+print(a.distance(b))   // 5
+print(b.magnitude())   // 5
+print(b.scale(2))      // Point(6, 8)
+```
+
+Plain `impl` blocks are compiled to prototype methods, so they are shared across all instances with no per-instance memory cost.
+
+You can combine plain `impl` blocks with trait implementations on the same type:
+
+```tova
+impl Point {
+  fn translate(self, dx, dy) {
+    Point(self.x + dx, self.y + dy)
+  }
+}
+
+impl Printable for Point {
+  fn to_string() {
+    "({self.x}, {self.y})"
+  }
+}
+```
+
 ## Practical Tips
 
 **Derive early and often.** Adding `derive [Eq, Show]` to a type costs nothing and gives you equality checks and debug printing for free. Add `JSON` when the type needs to cross a serialization boundary.

@@ -37,22 +37,21 @@ Spaces (U+0020) and tabs (U+0009) are insignificant whitespace. They separate to
 The following identifiers are reserved as keywords and may not be used as variable or function names:
 
 ```
-and       as        async     await     bench     break
-catch     client    component computed  continue  data
-defer     derive    effect    elif      else      export
-extern    false     finally   fn        for       from
-guard     if        impl      import    in        interface
-is        let       loop      match     nil       not
-or        pipeline  pub       refresh   return    route
-server    shared    source    state     store     test
-trait     true      try       type      validate  var
+and       as        async     await     break     catch
+client    component computed  continue  defer     derive
+effect    elif      else      export    extern    false
+finally   fn        for       from      guard     if
+impl      import    in        interface is        let
+loop      match     mut       nil       not       or
+pub       return    route     server    shared    state
+store     trait     true      try       type      var
 when      while     with      yield
 ```
 
 The following identifiers are contextual keywords, reserved only within `server {}` blocks for route declarations:
 
 ```
-GET  POST  PUT  DELETE  PATCH  HEAD  OPTIONS
+GET  POST  PUT  DELETE  PATCH
 ```
 
 ### 1.6 Identifiers
@@ -161,7 +160,7 @@ Represents the absence of a value. Compiles to JavaScript `null`.
 
 | Operator | Operation |
 |----------|-----------|
-| `++` | String concatenation |
+| `++` | String concatenation (match patterns only) |
 | `*` | String repetition (`"ab" * 3` = `"ababab"`) |
 
 #### Comparison
@@ -196,7 +195,6 @@ Both symbol and keyword forms are accepted. The keyword forms (`and`, `or`, `not
 | `-=` | Subtract-assign |
 | `*=` | Multiply-assign |
 | `/=` | Divide-assign |
-| `%=` | Modulo-assign |
 
 #### Other
 
@@ -468,7 +466,7 @@ member         = "." ( IDENTIFIER | NUMBER ) ;
 index          = "[" ( expression | slice ) "]" ;
 slice          = [ expression ] ":" [ expression ] [ ":" [ expression ] ] ;
 optional_chain = "?." IDENTIFIER ;
-error_prop     = "!" ;
+error_prop     = "?" ;
 
 arg_list = arg { "," arg } ;
 arg      = [ IDENTIFIER ":" ] expression | "..." expression ;
@@ -757,9 +755,9 @@ Method pipe: `x |> .method(args)` is evaluated as `x.method(args)`.
 5. The value of the selected arm body is the value of the match expression.
 6. If no arm matches, the result is `nil` (with a compiler warning about non-exhaustiveness).
 
-### 4.6 Error Propagation (`!`)
+### 4.6 Error Propagation (`?`)
 
-`expr!` evaluates `expr`. If the result is `Err(e)`, the enclosing function immediately returns `Err(e)`. If the result is `None`, the enclosing function immediately returns `None`. Otherwise, the unwrapped value is produced.
+`expr?` evaluates `expr`. If the result is `Err(e)`, the enclosing function immediately returns `Err(e)`. If the result is `None`, the enclosing function immediately returns `None`. Otherwise, the unwrapped value is produced.
 
 ### 4.7 Truthiness
 

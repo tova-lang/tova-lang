@@ -39,7 +39,7 @@ See [Two-Way Binding](/reactivity/jsx#two-way-binding) for full documentation.
 Toggle CSS classes based on expressions:
 
 ```tova
-<div class:active={is_active} class:hidden={!visible}>
+<div class:active={is_active} class:hidden={not visible}>
   Content
 </div>
 ```

@@ -12,9 +12,24 @@ The Tova build system compiles `.tova` source files into JavaScript, handling sh
 tova build
 tova build src
 tova build src --output dist
+tova build src --production
+tova build src --binary my-app
 ```
 
 By default, `tova build` compiles all `.tova` files in the current directory and outputs JavaScript to `.tova-out/`.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--output`, `-o` | Output directory (default: `.tova-out`) |
+| `--production` | Production build with bundling, content hashing, and minification |
+| `--binary <name>` | Compile to a standalone executable |
+| `--watch` | Watch for file changes and rebuild |
+| `--no-cache` | Skip incremental build cache |
+| `--strict` | Enable strict type checking |
+| `--verbose` | Show detailed output (timing, cached files) |
+| `--quiet` | Suppress non-error output |
 
 ## Output Structure
 
@@ -43,6 +58,36 @@ Each `.tova` source file produces up to several output files:
 | `<name>.client.js` | `client { ... }` | Default client block code |
 | `<name>.client.<block>.js` | `client "<block>" { ... }` | Named client blocks |
 
+## Incremental Caching
+
+The build system caches compilation results in `.tova-out/.cache/manifest.json`. On subsequent builds, files whose content has not changed are skipped automatically:
+
+```
+  Building 5 file(s)...
+
+  ○ src/types.tova (cached)
+  ○ src/utils.tova (cached)
+  ✓ src/app.tova
+```
+
+This significantly speeds up rebuilds in large projects. Use `--no-cache` to force a full recompile:
+
+```bash
+tova build --no-cache
+```
+
+For multi-file directories, the cache tracks all files in the group -- if any file changes, the entire directory is recompiled.
+
+## Watch Mode
+
+Use `--watch` to automatically rebuild when `.tova` files change:
+
+```bash
+tova build --watch
+```
+
+The watcher uses `fs.watch()` with a 100ms debounce timer to batch rapid saves. On change, only affected files and their transitive dependents are recompiled.
+
 ## Production Builds
 
 ```bash
@@ -50,13 +95,27 @@ tova build --production
 tova build src --production --output dist
 ```
 
-Production builds apply three optimizations:
+Production builds apply four optimizations:
 
-1. **Bundling** -- All imports and dependencies are resolved and inlined into single output files, eliminating the need for a module loader at runtime.
+1. **Bundling** -- All imports and dependencies are resolved and inlined into single output files, eliminating the need for a module loader at runtime. npm imports used in client code are bundled via `Bun.build`.
 
 2. **Content Hashing** -- Output filenames include content hashes (e.g., `app.client.a1b2c3d4.js`) for cache-busting. When file contents change, the hash changes, ensuring browsers fetch the new version.
 
-3. **Minification** -- Whitespace, comments, and unnecessary characters are removed to reduce file size.
+3. **Minification** -- Whitespace, comments, and unnecessary characters are removed to reduce file size. Uses `Bun.Transpiler` with a fallback to a custom minifier.
+
+4. **Dead Function Elimination** -- Unreachable top-level functions are removed via reachability analysis. Starting from non-function root code, the compiler traces all transitively called functions and removes the rest.
+
+Production builds also generate an `index.html` with hashed script references.
+
+## Binary Builds
+
+Compile a Tova project into a standalone executable:
+
+```bash
+tova build --binary my-app
+```
+
+This compiles all `.tova` files into a single JavaScript bundle and uses `bun build --compile` to produce a self-contained binary. If the code defines a `main()` function, it is called automatically.
 
 ## Source Maps
 

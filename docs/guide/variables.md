@@ -65,7 +65,6 @@ x += 5    // x is now 15
 x -= 3    // x is now 12
 x *= 2    // x is now 24
 x /= 4    // x is now 6
-x %= 5    // x is now 1
 ```
 
 <TryInPlayground :code="variablesCode" label="Variables" />

@@ -59,7 +59,7 @@ defineRoutes({
 })
 ```
 
-This matches both `/posts` (where `id` is undefined) and `/posts/42` (where `id` is `"42"`).
+This matches both `/posts` (where `id` is `nil`) and `/posts/42` (where `id` is `"42"`).
 
 ### Catch-All Route
 
@@ -281,7 +281,7 @@ onRouteChange(fn(matched) {
 })
 ```
 
-The callback receives the matched route object (or `null` if no route matched). This API works alongside the signal-based approach -- you can use both.
+The callback receives the matched route object (or `nil` if no route matched). This API works alongside the signal-based approach -- you can use both.
 
 ## Browser Integration
 

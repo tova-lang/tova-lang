@@ -34,7 +34,7 @@ INF -> Float  // Infinity
 Positive infinity. Useful as an initial value for finding minimums.
 
 ```tova
-best = INF
+var best = INF
 for val in data {
   if val < best { best = val }
 }
@@ -710,6 +710,128 @@ to_fixed(1.005, 2)       // 1
 | `/` | Division | `10 / 3` is `3.333...` |
 | `%` | Modulo (remainder) | `10 % 3` is `1` |
 | `**` | Exponentiation | `2 ** 8` is `256` |
+
+---
+
+## Typed Array Functions
+
+These functions operate on TypedArrays (`Float64Array`, `Int32Array`, etc.) for high-performance numeric computation. They are designed for use with the `@fast` decorator (see [Performance](../guide/performance.md)).
+
+### typed_sum
+
+```tova
+typed_sum(arr) -> Float
+```
+
+Computes the sum using Kahan compensated summation, which minimizes floating-point error accumulation:
+
+```tova
+@fast fn precise_total(data: [Float]) -> Float {
+  typed_sum(data)
+}
+```
+
+### typed_dot
+
+```tova
+typed_dot(a, b) -> Float
+```
+
+Computes the dot product of two arrays:
+
+```tova
+@fast fn dot(a: [Float], b: [Float]) -> Float {
+  typed_dot(a, b)
+}
+```
+
+### typed_norm
+
+```tova
+typed_norm(arr) -> Float
+```
+
+Computes the L2 (Euclidean) norm of an array.
+
+### typed_add
+
+```tova
+typed_add(a, b) -> TypedArray
+```
+
+Returns a new typed array with element-wise addition of `a` and `b`.
+
+### typed_scale
+
+```tova
+typed_scale(arr, scalar) -> TypedArray
+```
+
+Returns a new typed array with every element multiplied by `scalar`.
+
+### typed_map
+
+```tova
+typed_map(arr, f) -> TypedArray
+```
+
+Applies `f` to each element, returning a new typed array of the same type.
+
+### typed_reduce
+
+```tova
+typed_reduce(arr, f, init) -> T
+```
+
+Reduces the typed array with function `f` and initial value `init`.
+
+### typed_sort
+
+```tova
+typed_sort(arr) -> TypedArray
+```
+
+Returns a new sorted typed array.
+
+### typed_zeros
+
+```tova
+typed_zeros(n) -> Float64Array
+```
+
+Creates a `Float64Array` of `n` zeros.
+
+### typed_ones
+
+```tova
+typed_ones(n) -> Float64Array
+```
+
+Creates a `Float64Array` of `n` ones.
+
+### typed_fill
+
+```tova
+typed_fill(arr, value) -> TypedArray
+```
+
+Returns a new typed array of the same type filled with `value`.
+
+### typed_range
+
+```tova
+typed_range(start, end, step) -> Float64Array
+```
+
+Creates a `Float64Array` with values from `start` to `end` (exclusive), incrementing by `step`.
+
+### typed_linspace
+
+```tova
+typed_linspace(start, end, n) -> Float64Array
+```
+
+Creates a `Float64Array` of `n` evenly-spaced values from `start` to `end` (inclusive).
 
 ---
 

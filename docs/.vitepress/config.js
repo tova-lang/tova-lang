@@ -72,6 +72,7 @@ export default defineConfig({
             { text: 'I/O', link: '/guide/io' },
             { text: 'AI Integration', link: '/guide/ai' },
             { text: 'JS Interop', link: '/guide/js-interop' },
+            { text: 'Performance', link: '/guide/performance' },
           ],
         },
         {

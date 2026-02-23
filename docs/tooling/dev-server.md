@@ -140,7 +140,7 @@ tova new my-app
 cd my-app
 
 # 2. Install dependencies
-bun install
+tova install
 
 # 3. Start development
 tova dev src

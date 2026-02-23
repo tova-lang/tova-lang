@@ -54,6 +54,7 @@ tova-lang/
       base-codegen.js       # Shared gen* methods for all targets
       client-codegen.js     # Client-side code generation (reactivity, JSX)
       server-codegen.js     # Server-side code generation (routes, models)
+      wasm-codegen.js       # @wasm decorator — compiles to WebAssembly binary
     runtime/
       reactivity.js         # Reactive state system (state, computed, effect)
       rpc.js                # Client-to-server RPC infrastructure
@@ -68,7 +69,7 @@ tova-lang/
     diagnostics/
       formatter.js          # Rich error message formatting
     index.js                # Public API exports
-  tests/                    # Test suites (34 files, 3338 tests)
+  tests/                    # Test suites (79 files, 5985 tests)
   editors/
     vscode/                 # VS Code extension
       extension.js          # LSP client
@@ -175,7 +176,7 @@ bun test tests/parser.test.js
 bun test --filter "guard"
 ```
 
-The full test suite has 3338 tests across 34 test files with 0 failures. All tests must pass before merging.
+The full test suite has 5985 tests across 79 test files with 0 failures. All tests must pass before merging.
 
 ## Code Style
 
@@ -245,7 +246,7 @@ When filing an issue, include:
 1. Fork the repository and create a feature branch
 2. Make your changes following the code style guidelines
 3. Add tests for new functionality
-4. Run `bun test` and ensure all 3338+ tests pass
+4. Run `bun test` and ensure all 5985+ tests pass
 5. Submit a pull request with a clear description of the changes
 
 Keep pull requests focused on a single feature or fix. Large changes should be broken into smaller, reviewable PRs.

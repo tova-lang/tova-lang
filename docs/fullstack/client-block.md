@@ -62,7 +62,7 @@ client {
   state quantity = 2
 
   computed total = price * quantity
-  computed display = "Total: $#{total}"
+  computed display = "Total: ${total}"
 }
 ```
 
@@ -121,7 +121,7 @@ client {
     <div>
       <h1>Hello, Tova!</h1>
       <p>Count: {count}</p>
-      <button @click={increment}>Increment</button>
+      <button on:click={increment}>Increment</button>
     </div>
   }
 }
@@ -152,15 +152,15 @@ client {
 
 ### Event Handling
 
-Use `@event` syntax to bind event handlers:
+Use `on:event` syntax to bind event handlers:
 
 ```tova
 client {
   component App {
     <div>
-      <button @click={increment}>+1</button>
-      <input @input={fn(e) { name = e.target.value }} />
-      <form @submit={handle_submit}>
+      <button on:click={increment}>+1</button>
+      <input on:input={fn(e) { name = e.target.value }} />
+      <form on:submit={handle_submit}>
         // ...
       </form>
     </div>
@@ -329,7 +329,7 @@ server {
 
   fn get_todos() -> [Todo] { TodoModel.all() }
   fn add_todo(text: String) -> Todo { TodoModel.create({ text, done: false }) }
-  fn toggle_todo(id: Int) -> Todo { TodoModel.update(id, { done: !TodoModel.find(id).done }) }
+  fn toggle_todo(id: Int) -> Todo { TodoModel.update(id, { done: not TodoModel.find(id).done }) }
   fn remove_todo(id: Int) -> Bool { TodoModel.delete(id) }
 }
 
@@ -337,7 +337,7 @@ client {
   state todos: [Todo] = []
   state new_text = ""
 
-  computed remaining = todos.filter(fn(t) { !t.done }).length()
+  computed remaining = len(todos.filter(fn(t) { not t.done }))
 
   effect {
     todos = server.get_todos()
@@ -364,17 +364,17 @@ client {
     <div>
       <h1>Todos ({remaining} remaining)</h1>
 
-      <form @submit={handle_add}>
-        <input value={new_text} @input={fn(e) { new_text = e.target.value }} />
+      <form on:submit={handle_add}>
+        <input value={new_text} on:input={fn(e) { new_text = e.target.value }} />
         <button type="submit">Add</button>
       </form>
 
       <ul>
         for todo in todos {
           <li>
-            <input type="checkbox" checked={todo.done} @change={fn() { handle_toggle(todo.id) }} />
+            <input type="checkbox" checked={todo.done} on:change={fn() { handle_toggle(todo.id) }} />
             <span class={if todo.done { "done" } else { "" }}>{todo.text}</span>
-            <button @click={fn() { handle_remove(todo.id) }}>x</button>
+            <button on:click={fn() { handle_remove(todo.id) }}>x</button>
           </li>
         }
       </ul>

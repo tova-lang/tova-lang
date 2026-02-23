@@ -25,7 +25,7 @@ fn parse_int(s) {
 // Option: finding might return nothing
 fn find_user(id) {
   user = db.get(id)
-  if user == null { None } else { Some(user) }
+  if user == nil { None } else { Some(user) }
 }
 ```
 
@@ -251,7 +251,7 @@ Err("fail").and(Ok(99))          // Err("fail")
 
 ## Option Type
 
-The `Option` type represents a value that may or may not exist. Use it instead of `null` checks.
+The `Option` type represents a value that may or may not exist. Use it instead of `nil` checks.
 
 ### Creating Options
 
@@ -384,7 +384,7 @@ None.filter(fn(x) true)         // None
 | `.isNone()` | `false` | `true` |
 | `.or(other)` | `Some(v)` | `other` |
 | `.and(other)` | `other` | `None` |
-| `.filter(pred)` | `pred(v) ? Some(v) : None` | `None` |
+| `.filter(pred)` | `if pred(v) { Some(v) } else { None }` | `None` |
 
 ---
 
@@ -504,8 +504,8 @@ match find(items, fn(x) x.id == target_id) {
 ### Converting Between Result and Option
 
 ```tova
-// Result to value-or-null
-value = result.unwrapOr(null)
+// Result to value-or-nil
+value = result.unwrapOr(nil)
 
 // Check and branch
 if result.isOk() {
@@ -556,7 +556,7 @@ Use **Option** when:
 // Option: the item might not exist, and that is fine
 fn find_by_name(users, name) {
   result = find(users, fn(u) u.name == name)
-  if result == null { None } else { Some(result) }
+  if result == nil { None } else { Some(result) }
 }
 ```
 

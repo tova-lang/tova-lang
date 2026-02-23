@@ -8,7 +8,7 @@ Tova provides three assertion functions for verifying invariants during developm
 assert(condition, msg?) -> Nil
 ```
 
-Throws an error if `condition` is falsy (i.e., `false`, `null`, `0`, `""`, or `undefined`). If `msg` is provided, it is used as the error message.
+Throws an error if `condition` is falsy (i.e., `false` or `nil`). If `msg` is provided, it is used as the error message.
 
 ```tova
 assert(true)                       // passes
@@ -186,7 +186,7 @@ When debugging, assertions help narrow down where things go wrong:
 ```tova
 fn process_data(raw) {
   parsed = parse(raw)
-  assert(parsed != null, "parse returned null for: {raw}")
+  assert(parsed != nil, "parse returned nil for: {raw}")
 
   transformed = transform(parsed)
   assert(len(transformed) > 0, "transform produced empty result")

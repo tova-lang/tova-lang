@@ -314,7 +314,7 @@ server "worker" {
 
   schedule "0 * * * *" fn hourly_report() {
     users = api.get_users()
-    print("Total users: #{users.length()}")
+    print("Total users: {len(users)}")
   }
 }
 
@@ -327,7 +327,7 @@ client {
 
   component App {
     <div>
-      <h1>Users ({users.length()})</h1>
+      <h1>Users ({len(users)})</h1>
       <ul>
         for user in users {
           <li>{user.name}</li>

@@ -122,7 +122,7 @@ client {
 
       <div class="stats">
         <StatsCard label="Total Customers" value={customers.rows} />
-        <StatsCard label="Countries" value={summary.length} />
+        <StatsCard label="Countries" value={len(summary)} />
       </div>
 
       <SearchBar />

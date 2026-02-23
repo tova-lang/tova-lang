@@ -210,15 +210,49 @@ Common cookie options:
 Use `stream` to send chunked responses progressively:
 
 ```tova
-stream(fn(send, close) {
-  send("chunk 1\n")
-  send("chunk 2\n")
-  send("chunk 3\n")
-  close()    // end the stream
-})
+route GET "/api/feed" => fn(req) {
+  stream(fn(send, close) {
+    send("chunk 1\n")
+    send("chunk 2\n")
+    send("chunk 3\n")
+    close()
+  })
+}
 ```
 
-This is useful for large responses, real-time data feeds, or server-side rendering where you want to flush content incrementally.
+The `send` callback writes data to the response stream immediately. Call `close` to end the stream.
+
+### Streaming with Delays
+
+Stream data over time for real-time feeds or progress updates:
+
+```tova
+route GET "/api/progress" => fn(req) {
+  stream(fn(send, close) {
+    for i in range(1, 11) {
+      send("{i * 10}%\n")
+      await sleep(500)
+    }
+    close()
+  })
+}
+```
+
+### Generator Streaming
+
+If a route handler uses `yield`, the response is automatically streamed as Server-Sent Events:
+
+```tova
+route GET "/api/events" => fn(req) {
+  yield { event: "start", data: "Processing..." }
+  result = expensive_computation()
+  yield { event: "complete", data: to_json(result) }
+}
+```
+
+Each yielded value is sent as an SSE message. The stream closes when the generator finishes.
+
+Streaming is useful for large responses, real-time data feeds, AI completions, or server-side rendering where you want to flush content incrementally.
 
 ## Content Negotiation
 

@@ -24,6 +24,17 @@ import { stringifyTOML } from '../src/config/toml.js';
 
 import { VERSION } from '../src/version.js';
 
+// ─── CLI Color Helpers ──────────────────────────────────────
+const isTTY = process.stdout?.isTTY;
+const color = {
+  bold:    s => isTTY ? `\x1b[1m${s}\x1b[0m` : s,
+  green:   s => isTTY ? `\x1b[32m${s}\x1b[0m` : s,
+  yellow:  s => isTTY ? `\x1b[33m${s}\x1b[0m` : s,
+  red:     s => isTTY ? `\x1b[31m${s}\x1b[0m` : s,
+  cyan:    s => isTTY ? `\x1b[36m${s}\x1b[0m` : s,
+  dim:     s => isTTY ? `\x1b[2m${s}\x1b[0m` : s,
+};
+
 const HELP = `
   ╦  ╦ ╦═╗ ╦
   ║  ║ ║ ║ ╠╣
@@ -41,7 +52,7 @@ Commands:
   check [dir]      Type-check .tova files without generating code
   clean            Delete .tova-out build artifacts
   dev              Start development server with live reload
-  new <name>       Create a new Tova project
+  new <name>       Create a new Tova project (--template fullstack|api|script|library|blank)
   install          Install npm dependencies from tova.toml
   add <pkg>        Add an npm dependency (--dev for dev dependency)
   remove <pkg>     Remove an npm dependency
@@ -57,6 +68,8 @@ Commands:
   migrate:status [file.tova] Show migration status
   upgrade          Upgrade Tova to the latest version
   info             Show Tova version, Bun version, project config, and installed dependencies
+  doctor           Check your development environment
+  completions <sh> Generate shell completions (bash, zsh, fish)
   explain <code>   Show detailed explanation for an error/warning code (e.g., tova explain E202)
 
 Options:
@@ -116,7 +129,7 @@ async function main() {
       await startLsp();
       break;
     case 'new':
-      newProject(args[1]);
+      await newProject(args.slice(1));
       break;
     case 'init':
       initProject();
@@ -185,6 +198,12 @@ async function main() {
       break;
     case 'info':
       await infoCommand();
+      break;
+    case 'doctor':
+      await doctorCommand();
+      break;
+    case 'completions':
+      completionsCommand(args[1]);
       break;
     default:
       if (command.endsWith('.tova')) {
@@ -1405,55 +1424,16 @@ ${inlineClient}
 
 // ─── New Project ────────────────────────────────────────────
 
-function newProject(name) {
-  if (!name) {
-    console.error('Error: No project name specified');
-    console.error('Usage: tova new <project-name>');
-    process.exit(1);
-  }
+// ─── Template Definitions ────────────────────────────────────
 
-  const projectDir = resolve(name);
-  if (existsSync(projectDir)) {
-    console.error(`Error: Directory '${name}' already exists`);
-    process.exit(1);
-  }
-
-  console.log(`\n  Creating new Tova project: ${name}\n`);
-
-  mkdirSync(projectDir, { recursive: true });
-  mkdirSync(join(projectDir, 'src'));
-
-  // tova.toml
-  const tomlContent = stringifyTOML({
-    project: {
-      name,
-      version: '0.1.0',
-      description: 'A full-stack Tova application',
-      entry: 'src',
-    },
-    build: {
-      output: '.tova-out',
-    },
-    dev: {
-      port: 3000,
-    },
-    dependencies: {},
-    npm: {},
-  });
-  writeFileSync(join(projectDir, 'tova.toml'), tomlContent);
-
-  // .gitignore
-  writeFileSync(join(projectDir, '.gitignore'), `node_modules/
-.tova-out/
-package.json
-bun.lock
-*.db
-*.db-shm
-*.db-wal
-`);
-
-  // Main app file
-  writeFileSync(join(projectDir, 'src', 'app.tova'), `// ${name} — Built with Tova
+const PROJECT_TEMPLATES = {
+  fullstack: {
+    label: 'Full-stack app',
+    description: 'server + client + shared blocks',
+    tomlDescription: 'A full-stack Tova application',
+    entry: 'src',
+    file: 'src/app.tova',
+    content: name => `// ${name} — Built with Tova
 
 shared {
   type Message {
@@ -1463,7 +1443,7 @@ shared {
 
 server {
   fn get_message() -> Message {
-    Message("Hello from Tova! 🌟")
+    Message("Hello from Tova!")
   }
 
   route GET "/api/message" => get_message
@@ -1484,42 +1464,205 @@ client {
     </div>
   }
 }
+`,
+    nextSteps: name => `    cd ${name}\n    tova dev`,
+  },
+  api: {
+    label: 'API server',
+    description: 'HTTP routes, no frontend',
+    tomlDescription: 'A Tova API server',
+    entry: 'src',
+    file: 'src/app.tova',
+    content: name => `// ${name} — Built with Tova
+
+server {
+  fn health() -> { status: String } {
+    { status: "ok" }
+  }
+
+  route GET "/api/health" => health
+}
+`,
+    nextSteps: name => `    cd ${name}\n    tova dev`,
+  },
+  script: {
+    label: 'Script',
+    description: 'standalone .tova script',
+    tomlDescription: 'A Tova script',
+    entry: 'src',
+    file: 'src/main.tova',
+    content: name => `// ${name} — Built with Tova
+
+name = "world"
+print("Hello, {name}!")
+`,
+    nextSteps: name => `    cd ${name}\n    tova run src/main.tova`,
+  },
+  library: {
+    label: 'Library',
+    description: 'reusable module with exports',
+    tomlDescription: 'A Tova library',
+    entry: 'src',
+    noEntry: true,
+    file: 'src/lib.tova',
+    content: name => `// ${name} — A Tova library
+
+pub fn greet(name: String) -> String {
+  "Hello, {name}!"
+}
+`,
+    nextSteps: name => `    cd ${name}\n    tova build`,
+  },
+  blank: {
+    label: 'Blank',
+    description: 'empty project skeleton',
+    tomlDescription: 'A Tova project',
+    entry: 'src',
+    file: null,
+    content: null,
+    nextSteps: name => `    cd ${name}`,
+  },
+};
+
+const TEMPLATE_ORDER = ['fullstack', 'api', 'script', 'library', 'blank'];
+
+async function newProject(rawArgs) {
+  const name = rawArgs.find(a => !a.startsWith('-'));
+  const templateFlag = rawArgs.find(a => a.startsWith('--template'));
+  let templateName = null;
+  if (templateFlag) {
+    const idx = rawArgs.indexOf(templateFlag);
+    if (templateFlag.includes('=')) {
+      templateName = templateFlag.split('=')[1];
+    } else {
+      templateName = rawArgs[idx + 1];
+    }
+  }
+
+  if (!name) {
+    console.error(color.red('Error: No project name specified'));
+    console.error('Usage: tova new <project-name> [--template fullstack|api|script|library|blank]');
+    process.exit(1);
+  }
+
+  const projectDir = resolve(name);
+  if (existsSync(projectDir)) {
+    console.error(color.red(`Error: Directory '${name}' already exists`));
+    process.exit(1);
+  }
+
+  // Resolve template
+  if (templateName && !PROJECT_TEMPLATES[templateName]) {
+    console.error(color.red(`Error: Unknown template '${templateName}'`));
+    console.error(`Available templates: ${TEMPLATE_ORDER.join(', ')}`);
+    process.exit(1);
+  }
+
+  if (!templateName) {
+    // Interactive picker
+    console.log(`\n  ${color.bold('Creating new Tova project:')} ${color.cyan(name)}\n`);
+    console.log('  Pick a template:\n');
+    TEMPLATE_ORDER.forEach((key, i) => {
+      const t = PROJECT_TEMPLATES[key];
+      const num = color.bold(`${i + 1}`);
+      const label = color.cyan(t.label);
+      console.log(`    ${num}. ${label}  ${color.dim('—')} ${t.description}`);
+    });
+    console.log('');
+
+    const { createInterface } = await import('readline');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise(resolve => {
+      rl.question(`  Enter choice ${color.dim('[1]')}: `, ans => {
+        rl.close();
+        resolve(ans.trim());
+      });
+    });
+
+    const choice = answer === '' ? 1 : parseInt(answer, 10);
+    if (isNaN(choice) || choice < 1 || choice > TEMPLATE_ORDER.length) {
+      console.error(color.red(`\n  Invalid choice. Please enter a number 1-${TEMPLATE_ORDER.length}.`));
+      process.exit(1);
+    }
+    templateName = TEMPLATE_ORDER[choice - 1];
+  }
+
+  const template = PROJECT_TEMPLATES[templateName];
+  console.log(`\n  ${color.bold('Creating new Tova project:')} ${color.cyan(name)} ${color.dim(`(${template.label})`)}\n`);
+
+  // Create directories
+  mkdirSync(projectDir, { recursive: true });
+  mkdirSync(join(projectDir, 'src'));
+
+  const createdFiles = [];
+
+  // tova.toml
+  const tomlConfig = {
+    project: {
+      name,
+      version: '0.1.0',
+      description: template.tomlDescription,
+    },
+    build: {
+      output: '.tova-out',
+    },
+  };
+  if (!template.noEntry) {
+    tomlConfig.project.entry = template.entry;
+  }
+  if (templateName === 'fullstack' || templateName === 'api') {
+    tomlConfig.dev = { port: 3000 };
+    tomlConfig.npm = {};
+  }
+  writeFileSync(join(projectDir, 'tova.toml'), stringifyTOML(tomlConfig));
+  createdFiles.push('tova.toml');
+
+  // .gitignore
+  writeFileSync(join(projectDir, '.gitignore'), `node_modules/
+.tova-out/
+package.json
+bun.lock
+*.db
+*.db-shm
+*.db-wal
 `);
+  createdFiles.push('.gitignore');
+
+  // Template source file
+  if (template.file && template.content) {
+    writeFileSync(join(projectDir, template.file), template.content(name));
+    createdFiles.push(template.file);
+  }
 
   // README
   writeFileSync(join(projectDir, 'README.md'), `# ${name}
 
 Built with [Tova](https://github.com/tova-lang/tova-lang) — a modern full-stack language.
 
-## Development
+## Getting started
 
 \`\`\`bash
-tova install
-tova dev
-\`\`\`
-
-## Build
-
-\`\`\`bash
-tova build
-\`\`\`
-
-## Add npm packages
-
-\`\`\`bash
-tova add htmx
-tova add prettier --dev
+${template.nextSteps(name).trim()}
 \`\`\`
 `);
+  createdFiles.push('README.md');
 
-  console.log(`  ✓ Created ${name}/tova.toml`);
-  console.log(`  ✓ Created ${name}/.gitignore`);
-  console.log(`  ✓ Created ${name}/src/app.tova`);
-  console.log(`  ✓ Created ${name}/README.md`);
-  console.log(`\n  Get started:\n`);
-  console.log(`    cd ${name}`);
-  console.log(`    tova install`);
-  console.log(`    tova dev\n`);
+  // Print created files
+  for (const f of createdFiles) {
+    console.log(`  ${color.green('✓')} Created ${color.bold(name + '/' + f)}`);
+  }
+
+  // git init (silent, only if git is available)
+  try {
+    const gitProc = Bun.spawnSync(['git', 'init'], { cwd: projectDir, stdout: 'pipe', stderr: 'pipe' });
+    if (gitProc.exitCode === 0) {
+      console.log(`  ${color.green('✓')} Initialized git repository`);
+    }
+  } catch {}
+
+  console.log(`\n  ${color.green('Done!')} Next steps:\n`);
+  console.log(color.cyan(template.nextSteps(name)));
+  console.log('');
 }
 
 // ─── Init (in-place) ────────────────────────────────────────
@@ -3843,58 +3986,450 @@ function findFiles(dir, ext) {
   return results;
 }
 
+// ─── Doctor Command ──────────────────────────────────────────
+
+async function doctorCommand() {
+  console.log(`\n  ${color.bold('Tova Doctor')}\n`);
+
+  let allPassed = true;
+  let hasWarning = false;
+
+  function pass(label, detail) {
+    console.log(`  ${color.green('✓')} ${label.padEnd(22)} ${color.dim(detail)}`);
+  }
+  function warn(label, detail) {
+    console.log(`  ${color.yellow('⚠')} ${label.padEnd(22)} ${color.yellow(detail)}`);
+    hasWarning = true;
+  }
+  function fail(label, detail) {
+    console.log(`  ${color.red('✗')} ${label.padEnd(22)} ${color.red(detail)}`);
+    allPassed = false;
+  }
+
+  // 1. Tova version & location
+  const execPath = process.execPath || process.argv[0];
+  pass(`Tova v${VERSION}`, execPath);
+
+  // 2. Bun availability
+  try {
+    const bunProc = Bun.spawnSync(['bun', '--version']);
+    const bunVer = bunProc.stdout.toString().trim();
+    if (bunProc.exitCode === 0 && bunVer) {
+      const major = parseInt(bunVer.split('.')[0], 10);
+      if (major >= 1) {
+        pass(`Bun v${bunVer}`, Bun.spawnSync(['which', 'bun']).stdout.toString().trim());
+      } else {
+        warn(`Bun v${bunVer}`, 'Bun >= 1.0 recommended');
+      }
+    } else {
+      fail('Bun', 'not found — install from https://bun.sh');
+    }
+  } catch {
+    fail('Bun', 'not found — install from https://bun.sh');
+  }
+
+  // 3. PATH configured
+  const tovaDir = join(process.env.HOME || '', '.tova', 'bin');
+  if ((process.env.PATH || '').includes(tovaDir)) {
+    pass('PATH configured', `${tovaDir} in $PATH`);
+  } else if (execPath.includes('.tova/bin')) {
+    warn('PATH configured', `${tovaDir} not in $PATH`);
+  } else {
+    pass('PATH configured', 'installed via npm/bun');
+  }
+
+  // 4. Shell profile
+  const shellName = basename(process.env.SHELL || '');
+  let profilePath = '';
+  if (shellName === 'zsh') profilePath = join(process.env.HOME || '', '.zshrc');
+  else if (shellName === 'bash') profilePath = join(process.env.HOME || '', '.bashrc');
+  else if (shellName === 'fish') profilePath = join(process.env.HOME || '', '.config', 'fish', 'conf.d', 'tova.fish');
+  else profilePath = join(process.env.HOME || '', '.profile');
+
+  if (profilePath && existsSync(profilePath)) {
+    try {
+      const profileContent = readFileSync(profilePath, 'utf-8');
+      if (profileContent.includes('.tova/bin') || !execPath.includes('.tova/bin')) {
+        pass('Shell profile', profilePath);
+      } else {
+        warn('Shell profile', `${profilePath} missing Tova PATH entry`);
+      }
+    } catch {
+      warn('Shell profile', `could not read ${profilePath}`);
+    }
+  } else if (!execPath.includes('.tova/bin')) {
+    pass('Shell profile', 'installed via npm/bun');
+  } else {
+    warn('Shell profile', `${profilePath} not found`);
+  }
+
+  // 5. git
+  try {
+    const gitProc = Bun.spawnSync(['git', '--version']);
+    if (gitProc.exitCode === 0) {
+      const gitVer = gitProc.stdout.toString().trim();
+      pass('git available', gitVer);
+    } else {
+      warn('git', 'not found');
+    }
+  } catch {
+    warn('git', 'not found');
+  }
+
+  // 6. tova.toml
+  const tomlPath = resolve('tova.toml');
+  if (existsSync(tomlPath)) {
+    pass('tova.toml', 'found in current directory');
+  } else {
+    warn('No tova.toml', 'not in a Tova project');
+  }
+
+  // 7. Build output
+  const config = resolveConfig(process.cwd());
+  const outDir = resolve(config.build?.output || '.tova-out');
+  if (existsSync(outDir)) {
+    try {
+      const testFile = join(outDir, '.doctor-check');
+      writeFileSync(testFile, '');
+      rmSync(testFile);
+      pass('Build output', `${relative('.', outDir)}/ exists and writable`);
+    } catch {
+      warn('Build output', `${relative('.', outDir)}/ exists but not writable`);
+    }
+  } else if (existsSync(tomlPath)) {
+    warn('Build output', 'not built yet — run tova build');
+  }
+
+  // Summary
+  console.log('');
+  if (allPassed && !hasWarning) {
+    console.log(`  ${color.green('All checks passed.')}\n`);
+  } else if (allPassed) {
+    console.log(`  ${color.yellow('All checks passed with warnings.')}\n`);
+  } else {
+    console.log(`  ${color.red('Some checks failed.')}\n`);
+    process.exit(1);
+  }
+}
+
+// ─── Completions Command ─────────────────────────────────────
+
+function completionsCommand(shell) {
+  if (!shell) {
+    console.error('Usage: tova completions <bash|zsh|fish>');
+    process.exit(1);
+  }
+
+  const commands = [
+    'run', 'build', 'check', 'clean', 'dev', 'new', 'install', 'add', 'remove',
+    'repl', 'lsp', 'fmt', 'test', 'bench', 'doc', 'init', 'upgrade', 'info',
+    'explain', 'doctor', 'completions',
+    'migrate:create', 'migrate:up', 'migrate:down', 'migrate:reset', 'migrate:fresh', 'migrate:status',
+  ];
+
+  const globalFlags = ['--help', '--version', '--output', '--production', '--watch', '--verbose', '--quiet', '--debug', '--strict'];
+
+  switch (shell) {
+    case 'bash': {
+      const script = `# tova bash completions
+# Add to ~/.bashrc: eval "$(tova completions bash)"
+_tova() {
+  local cur prev commands
+  COMPREPLY=()
+  cur="\${COMP_WORDS[COMP_CWORD]}"
+  prev="\${COMP_WORDS[COMP_CWORD-1]}"
+  commands="${commands.join(' ')}"
+
+  case "\${prev}" in
+    tova)
+      COMPREPLY=( $(compgen -W "\${commands}" -- "\${cur}") )
+      return 0
+      ;;
+    new)
+      COMPREPLY=( $(compgen -W "--template" -- "\${cur}") )
+      return 0
+      ;;
+    --template)
+      COMPREPLY=( $(compgen -W "fullstack api script library blank" -- "\${cur}") )
+      return 0
+      ;;
+    completions)
+      COMPREPLY=( $(compgen -W "bash zsh fish" -- "\${cur}") )
+      return 0
+      ;;
+    run|build|check|fmt|doc)
+      COMPREPLY=( $(compgen -f -X '!*.tova' -- "\${cur}") $(compgen -d -- "\${cur}") )
+      return 0
+      ;;
+  esac
+
+  if [[ "\${cur}" == -* ]]; then
+    COMPREPLY=( $(compgen -W "${globalFlags.join(' ')} --filter --coverage --serial --check --template --dev --binary --no-cache" -- "\${cur}") )
+    return 0
+  fi
+}
+complete -F _tova tova
+`;
+      console.log(script);
+      console.error(`${color.dim('# Add to your ~/.bashrc:')}`);
+      console.error(`${color.dim('#   eval "$(tova completions bash)"')}`);
+      break;
+    }
+    case 'zsh': {
+      const script = `#compdef tova
+# tova zsh completions
+# Add to ~/.zshrc: eval "$(tova completions zsh)"
+
+_tova() {
+  local -a commands
+  commands=(
+${commands.map(c => `    '${c}:${c} command'`).join('\n')}
+  )
+
+  _arguments -C \\
+    '1:command:->cmd' \\
+    '*::arg:->args'
+
+  case $state in
+    cmd)
+      _describe -t commands 'tova command' commands
+      ;;
+    args)
+      case $words[1] in
+        new)
+          _arguments \\
+            '--template[Project template]:template:(fullstack api script library blank)' \\
+            '*:name:'
+          ;;
+        run|build|check|fmt|doc)
+          _files -g '*.tova'
+          ;;
+        test|bench)
+          _arguments \\
+            '--filter[Filter pattern]:pattern:' \\
+            '--watch[Watch mode]' \\
+            '--coverage[Enable coverage]' \\
+            '--serial[Sequential execution]'
+          ;;
+        completions)
+          _values 'shell' bash zsh fish
+          ;;
+        explain)
+          _message 'error code (e.g., E202)'
+          ;;
+        *)
+          _arguments \\
+            '--help[Show help]' \\
+            '--version[Show version]' \\
+            '--output[Output directory]:dir:_dirs' \\
+            '--production[Production build]' \\
+            '--watch[Watch mode]' \\
+            '--verbose[Verbose output]' \\
+            '--quiet[Quiet mode]' \\
+            '--debug[Debug output]' \\
+            '--strict[Strict type checking]'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_tova "$@"
+`;
+      console.log(script);
+      console.error(`${color.dim('# Add to your ~/.zshrc:')}`);
+      console.error(`${color.dim('#   eval "$(tova completions zsh)"')}`);
+      break;
+    }
+    case 'fish': {
+      const descriptions = {
+        run: 'Compile and execute a .tova file',
+        build: 'Compile .tova files to JavaScript',
+        check: 'Type-check without generating code',
+        clean: 'Delete build artifacts',
+        dev: 'Start development server',
+        new: 'Create a new Tova project',
+        install: 'Install npm dependencies',
+        add: 'Add an npm dependency',
+        remove: 'Remove an npm dependency',
+        repl: 'Start interactive REPL',
+        lsp: 'Start Language Server Protocol server',
+        fmt: 'Format .tova files',
+        test: 'Run test blocks',
+        bench: 'Run bench blocks',
+        doc: 'Generate documentation',
+        init: 'Initialize project in current directory',
+        upgrade: 'Upgrade Tova to latest version',
+        info: 'Show version and project info',
+        explain: 'Explain an error code',
+        doctor: 'Check development environment',
+        completions: 'Generate shell completions',
+        'migrate:create': 'Create a migration file',
+        'migrate:up': 'Run pending migrations',
+        'migrate:down': 'Roll back last migration',
+        'migrate:reset': 'Roll back all migrations',
+        'migrate:fresh': 'Drop tables and re-migrate',
+        'migrate:status': 'Show migration status',
+      };
+
+      let script = `# tova fish completions
+# Save to: tova completions fish > ~/.config/fish/completions/tova.fish
+
+`;
+      for (const [cmd, desc] of Object.entries(descriptions)) {
+        script += `complete -c tova -n '__fish_use_subcommand' -a '${cmd}' -d '${desc}'\n`;
+      }
+      script += `\n# Flags\n`;
+      script += `complete -c tova -l help -s h -d 'Show help'\n`;
+      script += `complete -c tova -l version -s v -d 'Show version'\n`;
+      script += `complete -c tova -l output -s o -d 'Output directory'\n`;
+      script += `complete -c tova -l production -d 'Production build'\n`;
+      script += `complete -c tova -l watch -d 'Watch mode'\n`;
+      script += `complete -c tova -l verbose -d 'Verbose output'\n`;
+      script += `complete -c tova -l quiet -d 'Quiet mode'\n`;
+      script += `complete -c tova -l debug -d 'Debug output'\n`;
+      script += `complete -c tova -l strict -d 'Strict type checking'\n`;
+      script += `\n# Template completions for 'new'\n`;
+      script += `complete -c tova -n '__fish_seen_subcommand_from new' -l template -d 'Project template' -xa 'fullstack api script library blank'\n`;
+      script += `\n# Shell completions for 'completions'\n`;
+      script += `complete -c tova -n '__fish_seen_subcommand_from completions' -xa 'bash zsh fish'\n`;
+
+      console.log(script);
+      console.error(`${color.dim('# Save to:')}`);
+      console.error(`${color.dim('#   tova completions fish > ~/.config/fish/completions/tova.fish')}`);
+      break;
+    }
+    default:
+      console.error(`Unknown shell: ${shell}. Supported: bash, zsh, fish`);
+      process.exit(1);
+  }
+}
+
 // ─── Upgrade Command ─────────────────────────────────────────
 
+function detectInstallMethod() {
+  const execPath = process.execPath || process.argv[0];
+  if (execPath.includes('.tova/bin')) return 'binary';
+  return 'npm';
+}
+
 async function upgradeCommand() {
-  console.log(`\n  Current version: Tova v${VERSION}\n`);
+  console.log(`\n  Current version: ${color.bold('Tova v' + VERSION)}\n`);
   console.log('  Checking for updates...');
 
+  const installMethod = detectInstallMethod();
+
   try {
-    // Check the npm registry for the latest version
-    const res = await fetch('https://registry.npmjs.org/tova/latest');
-    if (!res.ok) {
-      console.error('  Could not reach the npm registry. Check your network connection.');
-      process.exit(1);
-    }
-    const data = await res.json();
-    const latestVersion = data.version;
+    if (installMethod === 'binary') {
+      // Binary install: check GitHub releases
+      const res = await fetch('https://api.github.com/repos/tova-lang/tova-lang/releases/latest');
+      if (!res.ok) {
+        console.error(color.red('  Could not reach GitHub. Check your network connection.'));
+        process.exit(1);
+      }
+      const data = await res.json();
+      const latestVersion = (data.tag_name || '').replace(/^v/, '');
 
-    if (latestVersion === VERSION) {
-      console.log(`  Already on the latest version (v${VERSION}).\n`);
-      return;
-    }
+      if (latestVersion === VERSION) {
+        console.log(`  ${color.green('Already on the latest version')} (v${VERSION}).\n`);
+        return;
+      }
 
-    console.log(`  New version available: v${latestVersion}\n`);
-    console.log('  Upgrading...');
+      console.log(`  New version available: ${color.green('v' + latestVersion)}\n`);
+      console.log('  Upgrading via binary...');
 
-    // Detect the package manager used to install tova
-    const pm = detectPackageManager();
-    const installCmd = pm === 'bun' ? ['bun', ['add', '-g', 'tova@latest']]
-                     : pm === 'pnpm' ? ['pnpm', ['add', '-g', 'tova@latest']]
-                     : pm === 'yarn' ? ['yarn', ['global', 'add', 'tova@latest']]
-                     : ['npm', ['install', '-g', 'tova@latest']];
+      // Detect platform
+      const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'linux' ? 'linux' : 'windows';
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+      const assetName = `tova-${platform}-${arch}`;
+      const downloadUrl = `https://github.com/tova-lang/tova-lang/releases/download/${data.tag_name}/${assetName}.gz`;
 
-    const proc = spawn(installCmd[0], installCmd[1], { stdio: 'inherit' });
-    const exitCode = await new Promise(res => proc.on('close', res));
+      const installDir = join(process.env.HOME || '', '.tova', 'bin');
+      const tmpPath = join(installDir, 'tova.download');
+      const binPath = join(installDir, 'tova');
 
-    if (exitCode === 0) {
-      console.log(`\n  Upgraded to Tova v${latestVersion}.\n`);
+      // Download compressed binary
+      const dlRes = await fetch(downloadUrl);
+      if (!dlRes.ok) {
+        // Fall back to uncompressed
+        const dlRes2 = await fetch(downloadUrl.replace('.gz', ''));
+        if (!dlRes2.ok) {
+          console.error(color.red(`  Download failed. URL: ${downloadUrl.replace('.gz', '')}`));
+          process.exit(1);
+        }
+        writeFileSync(tmpPath, new Uint8Array(await dlRes2.arrayBuffer()));
+      } else {
+        // Decompress gzip
+        const compressed = new Uint8Array(await dlRes.arrayBuffer());
+        const decompressed = Bun.gunzipSync(compressed);
+        writeFileSync(tmpPath, decompressed);
+      }
+
+      // Make executable
+      const { chmodSync } = await import('fs');
+      chmodSync(tmpPath, 0o755);
+
+      // Verify the new binary works
+      const verifyProc = Bun.spawnSync([tmpPath, '--version'], { stdout: 'pipe', stderr: 'pipe' });
+      if (verifyProc.exitCode !== 0) {
+        rmSync(tmpPath, { force: true });
+        console.error(color.red('  Downloaded binary verification failed.'));
+        process.exit(1);
+      }
+
+      // Atomic rename
+      const { renameSync } = await import('fs');
+      renameSync(tmpPath, binPath);
+
+      console.log(`\n  ${color.green('✓')} Upgraded: v${VERSION} -> ${color.bold('v' + latestVersion)}\n`);
     } else {
-      console.error(`\n  Upgrade failed (exit code ${exitCode}).`);
-      console.error(`  Try manually: ${installCmd[0]} ${installCmd[1].join(' ')}\n`);
-      process.exit(1);
+      // npm/bun install: check npm registry
+      const res = await fetch('https://registry.npmjs.org/tova/latest');
+      if (!res.ok) {
+        console.error(color.red('  Could not reach the npm registry. Check your network connection.'));
+        process.exit(1);
+      }
+      const data = await res.json();
+      const latestVersion = data.version;
+
+      if (latestVersion === VERSION) {
+        console.log(`  ${color.green('Already on the latest version')} (v${VERSION}).\n`);
+        return;
+      }
+
+      console.log(`  New version available: ${color.green('v' + latestVersion)}\n`);
+      console.log('  Upgrading...');
+
+      const pm = detectPackageManager();
+      const installCmd = pm === 'bun' ? ['bun', ['add', '-g', 'tova@latest']]
+                       : pm === 'pnpm' ? ['pnpm', ['add', '-g', 'tova@latest']]
+                       : pm === 'yarn' ? ['yarn', ['global', 'add', 'tova@latest']]
+                       : ['npm', ['install', '-g', 'tova@latest']];
+
+      const proc = spawn(installCmd[0], installCmd[1], { stdio: 'inherit' });
+      const exitCode = await new Promise(res => proc.on('close', res));
+
+      if (exitCode === 0) {
+        console.log(`\n  ${color.green('✓')} Upgraded to Tova v${latestVersion}.\n`);
+      } else {
+        console.error(color.red(`\n  Upgrade failed (exit code ${exitCode}).`));
+        console.error(`  Try manually: ${installCmd[0]} ${installCmd[1].join(' ')}\n`);
+        process.exit(1);
+      }
     }
   } catch (err) {
-    console.error(`  Upgrade failed: ${err.message}`);
-    console.error('  Try manually: bun add -g tova@latest\n');
+    console.error(color.red(`  Upgrade failed: ${err.message}`));
+    if (installMethod === 'binary') {
+      console.error('  Try manually: curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh\n');
+    } else {
+      console.error('  Try manually: bun add -g tova@latest\n');
+    }
     process.exit(1);
   }
 }
 
 function detectPackageManager() {
-  // Check if we're running under bun (most likely for Tova)
   if (typeof Bun !== 'undefined') return 'bun';
-  // Check npm_config_user_agent for the package manager
   const ua = process.env.npm_config_user_agent || '';
   if (ua.includes('pnpm')) return 'pnpm';
   if (ua.includes('yarn')) return 'yarn';

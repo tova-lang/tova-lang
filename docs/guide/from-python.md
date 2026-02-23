@@ -471,9 +471,9 @@ result = first + ", " + second
 ```
 
 ```tova [Tova]
-result = first ++ ", " ++ second
-// or better:
 result = "{first}, {second}"
+// or with + operator:
+result = first + ", " + second
 ```
 :::
 
@@ -813,7 +813,7 @@ In Python, you would need Flask/Django for the server, a separate React/Vue app 
 | Comments | `#` | `//` and `/* */` |
 | None/nil | `None` | `nil` |
 | Boolean operators | `and`, `or`, `not` | `and`, `or`, `not` (same!) |
-| String concat | `+` | `++` |
+| String concat | `+` | `+` or `"{a}{b}"` |
 | String format | `f"Hello, {name}"` | `"Hello, {name}"` |
 | Raw strings | `r"no\escape"` | `'no\escape'` |
 | Mutability | Everything mutable | Immutable default, `var` for mutable |

@@ -241,11 +241,11 @@ Put validation functions in `shared {}` so the same logic runs on both the clien
 ```tova
 shared {
   fn validate_email(email: String) -> Bool {
-    email.contains("@") && email.length() > 3
+    email.contains("@") and email.length() > 3
   }
 
   fn validate_name(name: String) -> Bool {
-    name.length() >= 2 && name.length() <= 100
+    name.length() >= 2 and name.length() <= 100
   }
 }
 

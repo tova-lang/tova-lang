@@ -31,7 +31,7 @@ counter_ref.current = 5
 print(counter_ref.current)  // 5
 ```
 
-When called without an argument, `current` defaults to `null`.
+When called without an argument, `current` defaults to `nil`.
 
 ::: warning
 Refs are **not reactive**. Changing `ref.current` does not trigger effects or re-render components. Use signals for reactive values and refs for imperative DOM access.
@@ -237,7 +237,7 @@ Error boundaries catch errors in reactive code and display fallback UI instead o
 ### createErrorBoundary
 
 `createErrorBoundary(options?)` returns an object with:
-- **error** -- a signal getter that returns the current error (or `null` if no error)
+- **error** -- a signal getter that returns the current error (or `nil` if no error)
 - **run(fn)** -- executes a function within the error boundary; if it throws, the error signal is set
 - **reset()** -- clears the error signal, allowing recovery
 

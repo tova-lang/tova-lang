@@ -229,7 +229,7 @@ fn identity(x) {
 }
 
 fn first(items) {
-  if items.length > 0 {
+  if len(items) > 0 {
     Some(items[0])
   } else {
     None

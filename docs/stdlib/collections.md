@@ -35,14 +35,14 @@ print("Items: {len(items)}")
 len(v) -> Int
 ```
 
-Returns the length of a string, array, or the number of keys in an object. Returns `0` for `null`.
+Returns the length of a string, array, or the number of keys in an object. Returns `0` for `nil`.
 
 ```tova
 len([1, 2, 3])         // 3
 len("hello")            // 5
 len({ a: 1, b: 2 })   // 2
 len([])                 // 0
-len(null)               // 0
+len(nil)                // 0
 ```
 
 ### type_of
@@ -59,7 +59,7 @@ type_of(3.14)           // "Float"
 type_of("hello")        // "String"
 type_of(true)           // "Bool"
 type_of([1, 2])         // "List"
-type_of(null)           // "Nil"
+type_of(nil)            // "Nil"
 type_of(print)          // "Function"
 type_of({ a: 1 })      // "Object"
 
@@ -95,6 +95,27 @@ for i in range(5) {
   print("Iteration {i}")
 }
 ```
+
+### filled
+
+```tova
+filled(n, value) -> List[T]
+```
+
+Creates a pre-allocated array of `n` elements, all set to `value`. More efficient than building an array with a push loop.
+
+```tova
+filled(5, 0)        // [0, 0, 0, 0, 0]
+filled(3, "hello")  // ["hello", "hello", "hello"]
+filled(100, false)  // [false, false, ..., false]
+```
+
+```tova
+// Use filled() instead of a push loop for constant values
+var grid = filled(rows * cols, 0)
+```
+
+---
 
 ### enumerate
 
@@ -226,7 +247,7 @@ Folds an array into a single value using an accumulator function. If `init` is o
 reduce([1, 2, 3, 4], fn(acc, x) acc + x, 0)
 // 10
 
-reduce(["a", "b", "c"], fn(acc, x) acc ++ x, "")
+reduce(["a", "b", "c"], fn(acc, x) acc + x, "")
 // "abc"
 
 // Without initial value
@@ -270,12 +291,12 @@ count(["apple", "avocado", "banana"], fn(s) starts_with(s, "a"))
 min(arr) -> T | Nil
 ```
 
-Returns the minimum element in the array. Returns `null` for an empty array.
+Returns the minimum element in the array. Returns `nil` for an empty array.
 
 ```tova
 min([3, 1, 4, 1, 5])   // 1
 min(["c", "a", "b"])    // "a"
-min([])                  // null
+min([])                  // nil
 ```
 
 ### max
@@ -284,12 +305,12 @@ min([])                  // null
 max(arr) -> T | Nil
 ```
 
-Returns the maximum element in the array. Returns `null` for an empty array.
+Returns the maximum element in the array. Returns `nil` for an empty array.
 
 ```tova
 max([3, 1, 4, 1, 5])   // 5
 max(["c", "a", "b"])    // "c"
-max([])                  // null
+max([])                  // nil
 ```
 
 ---
@@ -302,7 +323,7 @@ max([])                  // null
 find(arr, fn) -> T | Nil
 ```
 
-Returns the first element where the function returns `true`. Returns `null` if no element matches.
+Returns the first element where the function returns `true`. Returns `nil` if no element matches.
 
 ```tova
 find([1, 2, 3, 4], fn(x) x > 2)
@@ -312,7 +333,7 @@ find(users, fn(u) u.name == "Alice")
 // { name: "Alice", age: 30 }
 
 find([1, 2, 3], fn(x) x > 10)
-// null
+// nil
 ```
 
 ### find_index
@@ -321,7 +342,7 @@ find([1, 2, 3], fn(x) x > 10)
 find_index(arr, fn) -> Int | Nil
 ```
 
-Returns the index of the first element where the function returns `true`. Returns `null` if no element matches.
+Returns the index of the first element where the function returns `true`. Returns `nil` if no element matches.
 
 ```tova
 find_index([10, 20, 30], fn(x) x > 15)
@@ -331,7 +352,7 @@ find_index(["a", "b", "c"], fn(s) s == "b")
 // 1
 
 find_index([1, 2, 3], fn(x) x > 10)
-// null
+// nil
 ```
 
 ### includes
@@ -448,11 +469,11 @@ drop([1, 2], 10)              // []
 first(arr) -> T | Nil
 ```
 
-Returns the first element, or `null` if the array is empty.
+Returns the first element, or `nil` if the array is empty.
 
 ```tova
 first([10, 20, 30])    // 10
-first([])               // null
+first([])               // nil
 ```
 
 ### last
@@ -461,11 +482,11 @@ first([])               // null
 last(arr) -> T | Nil
 ```
 
-Returns the last element, or `null` if the array is empty.
+Returns the last element, or `nil` if the array is empty.
 
 ```tova
 last([10, 20, 30])     // 30
-last([])                // null
+last([])                // nil
 ```
 
 ---
@@ -876,11 +897,11 @@ is_sorted([{n: 1}, {n: 2}, {n: 3}], fn(x) x.n)  // true
 compact(arr) -> List
 ```
 
-Removes `null` and `undefined` values from an array. Keeps other falsy values like `0`, `""`, and `false`.
+Removes `nil` values from an array. Keeps other falsy values like `0`, `""`, and `false`.
 
 ```tova
-compact([1, null, 2, undefined, 3])    // [1, 2, 3]
-compact([0, "", false, null])          // [0, "", false]
+compact([1, nil, 2, nil, 3])          // [1, 2, 3]
+compact([0, "", false, nil])          // [0, "", false]
 ```
 
 ### rotate
@@ -1025,3 +1046,32 @@ todos
   |> insert_at(0, new_todo)
   |> remove_at(completed_idx)
 ```
+
+## Parallel Processing
+
+### parallel_map
+
+```tova
+await parallel_map(arr, f) -> [T]
+await parallel_map(arr, f, num_workers) -> [T]
+```
+
+Distributes array processing across multiple CPU cores using a persistent worker pool. Workers are created once and reused across calls.
+
+```tova
+results = await parallel_map(large_dataset, fn(item) {
+  expensive_computation(item)
+})
+
+// Specify number of workers
+results = await parallel_map(data, process_item, 8)
+```
+
+- Automatically detects available CPU cores
+- Falls back to sequential processing for arrays smaller than 4 elements
+- Workers persist across calls (no startup overhead on subsequent calls)
+- Returns results in the same order as the input array
+
+Use `parallel_map` for CPU-bound work on large arrays. For I/O-bound work (network requests, file reads), use `async` with `parallel()` instead.
+
+See the [Performance guide](../guide/performance.md) for benchmarks and usage patterns.

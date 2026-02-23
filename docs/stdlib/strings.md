@@ -659,18 +659,23 @@ user_input
 
 ## String Concatenation
 
-Tova uses `++` for string concatenation:
+Use string interpolation or the `+` operator for concatenation:
 
 ```tova
-"hello" ++ " " ++ "world"   // "hello world"
+// Interpolation (preferred)
+greeting = "Hello, {name}!"
 
-greeting = "Hello, " ++ name ++ "!"
+// Plus operator
+"hello" + " " + "world"   // "hello world"
 ```
 
-For most cases, string interpolation is more readable:
+The `++` operator is available in **match patterns** for string prefix matching:
 
 ```tova
-greeting = "Hello, {name}!"
+match url {
+  "/api/" ++ rest => handle_api(rest)
+  _ => not_found()
+}
 ```
 
 ## Terminal Formatting

@@ -50,7 +50,7 @@ server {
   }
 
   fn search_users(query: String, limit: Int) -> [User] {
-    UserModel.where("name LIKE ?", "%#{query}%").limit(limit)
+    UserModel.where("name LIKE ?", "%{query}%").limit(limit)
   }
 
   fn create_user(name: String, email: String) -> User {
@@ -165,7 +165,7 @@ server {
   }
 
   fn search(query: String) -> [User] {
-    UserModel.where("name LIKE ?", "%#{query}%")
+    UserModel.where("name LIKE ?", "%{query}%")
   }
 }
 ```
@@ -177,7 +177,7 @@ Middleware functions run before route handlers:
 ```tova
 server {
   middleware fn log_request(req) {
-    print("#{req.method} #{req.url}")
+    print("{req.method} {req.url}")
   }
 
   middleware fn cors(req) {
@@ -217,7 +217,7 @@ server {
     }
 
     on_message fn(socket, message) {
-      socket.send("Echo: #{message}")
+      socket.send("Echo: {message}")
     }
 
     on_close fn(socket) {
@@ -263,7 +263,7 @@ Custom error handlers for unhandled errors:
 ```tova
 server {
   on_error fn(error, req) {
-    print("Error: #{error.message}")
+    print("Error: {error.message}")
     { status: 500, body: "Internal Server Error" }
   }
 }

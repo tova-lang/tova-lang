@@ -13,6 +13,8 @@ tova test              # Run tests in the current directory
 tova test src          # Run tests in the src/ directory
 tova test --filter "math"   # Run only tests matching "math"
 tova test --watch      # Watch for changes and re-run
+tova test --coverage   # Enable coverage reporting
+tova test --serial     # Force sequential execution
 ```
 
 ## Writing Tests
@@ -25,7 +27,7 @@ test "addition works" {
 }
 
 test "string concatenation" {
-  result = "Hello" ++ " " ++ "World"
+  result = "Hello" + " " + "World"
   assert_eq(result, "Hello World")
 }
 ```
@@ -170,6 +172,26 @@ tova test --watch
 
 The watcher monitors the target directory recursively and re-runs the full test suite whenever a `.tova` file is modified.
 
+## Coverage
+
+Use `--coverage` to enable Bun's built-in coverage reporting:
+
+```bash
+tova test --coverage
+```
+
+This shows which lines of your compiled code were exercised by the test suite.
+
+## Sequential Execution
+
+By default, Bun runs test files in parallel. Use `--serial` to force sequential execution:
+
+```bash
+tova test --serial
+```
+
+This is useful when tests share global state (e.g., a database) and cannot run concurrently.
+
 ## Test Organization
 
 A recommended approach for organizing tests:
@@ -226,15 +248,16 @@ bench "array sorting" {
 bench "string concatenation" {
   var result = ""
   for i in range(1000) {
-    result = result ++ "{i}"
+    result = result + "{i}"
   }
 }
 ```
 
-Run benchmarks with:
+Run benchmarks with the dedicated bench command:
 
 ```bash
-tova test --bench
+tova bench
+tova bench src
 ```
 
 ## Property-Based Testing

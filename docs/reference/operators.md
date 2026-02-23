@@ -13,10 +13,11 @@ This page provides a complete reference for all operators in Tova, organized by 
 | `%` | Modulo | `10 % 3` | `1` |
 | `**` | Power | `2 ** 10` | `1024` |
 
-The `+` operator also works for string concatenation:
+For string concatenation, use `+` or string interpolation:
 
 ```tova
 "hello" + " " + "world"   // "hello world"
+"{first} {last}"           // string interpolation (preferred)
 ```
 
 The `*` operator supports **string repetition** when used with a string and a number:
@@ -139,7 +140,6 @@ Supported type checks: `String`, `Int`, `Float`, `Bool`, `Nil`, `Array`, `Functi
 | `-=` | Subtract and assign | `x = x - 10` |
 | `*=` | Multiply and assign | `x = x * 10` |
 | `/=` | Divide and assign | `x = x / 10` |
-| `%=` | Modulo and assign | `x = x % 10` |
 
 ```tova
 var counter = 0
@@ -227,7 +227,7 @@ user?.address?.city     // nil if user or address is nil
 items?.length           // nil if items is nil
 ```
 
-## Null Coalescing
+## Nil Coalescing
 
 The `??` operator returns the left operand if it is not `nil`, otherwise the right:
 
@@ -276,7 +276,7 @@ fn add(a: Int, b: Int) -> Int {
 |----------|------|-------|
 | `:` | Type annotation / object field | `x: Int`, `{name: "Alice"}` |
 | `::` | Slice step | `items[::2]`, `items[1::3]` |
-| `++` | String concatenation (in patterns) | `"api/" ++ rest` |
+| `++` | String prefix matching (in `match` patterns) | `"api/" ++ rest` |
 
 ## Operator Precedence
 

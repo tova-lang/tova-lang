@@ -293,7 +293,7 @@ server "api" {
     alerts = AlertRecord.all()
 
     match active_only {
-      Some(true) => alerts |> filter(fn(a) !a.resolved)
+      Some(true) => alerts |> filter(fn(a) not a.resolved)
       _ => alerts
     }
   }

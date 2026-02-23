@@ -201,7 +201,7 @@ raw = 'no {interpolation} here'
 
 ### String Concatenation
 
-JavaScript uses `+`. Tova uses `++` (to avoid ambiguity with numeric addition):
+JavaScript uses `+`. Tova also uses `+` for concatenation, but string interpolation is preferred:
 
 ::: code-group
 ```javascript [JavaScript]
@@ -209,9 +209,9 @@ const full = first + " " + last;
 ```
 
 ```tova [Tova]
-full = first ++ " " ++ last
-// or better:
 full = "{first} {last}"
+// or with + operator:
+full = first + " " + last
 ```
 :::
 

@@ -52,6 +52,16 @@ curl -fsSL https://bun.sh/install | bash
 
 You need Bun 1.0 or later.
 
+### Check Your Setup
+
+Run `tova doctor` to verify your environment is configured correctly:
+
+```bash
+tova doctor
+```
+
+This checks Tova, Bun, PATH configuration, git, and your shell profile.
+
 ## Create a New Project
 
 Scaffold a new project with `tova new`:
@@ -59,6 +69,13 @@ Scaffold a new project with `tova new`:
 ```bash
 tova new my-app
 cd my-app
+```
+
+You'll be prompted to choose a template (full-stack app, API server, script, library, or blank). You can also specify one directly:
+
+```bash
+tova new my-api --template api
+tova new my-script --template script
 ```
 
 ## Run a Script
@@ -126,7 +143,7 @@ This compiles all `.tova` files to JavaScript, bundles assets, adds content hash
 
 | Command | Description |
 |---------|-------------|
-| `tova new <name>` | Scaffold a new project |
+| `tova new <name>` | Scaffold a new project (with template picker) |
 | `tova install` | Install npm dependencies from `tova.toml` |
 | `tova add <pkg>` | Add an npm dependency (`--dev` for dev) |
 | `tova remove <pkg>` | Remove an npm dependency |
@@ -137,6 +154,9 @@ This compiles all `.tova` files to JavaScript, bundles assets, adds content hash
 | `tova test [dir]` | Run tests |
 | `tova fmt [files]` | Format Tova source files |
 | `tova lsp` | Start the Language Server Protocol server |
+| `tova doctor` | Check your development environment |
+| `tova completions <sh>` | Generate shell completions (bash, zsh, fish) |
+| `tova upgrade` | Upgrade Tova to latest version |
 | `tova migrate:create <name>` | Create a new database migration |
 | `tova migrate:up [file]` | Run pending migrations |
 | `tova migrate:status [file]` | Show migration status |

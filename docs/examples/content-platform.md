@@ -502,7 +502,7 @@ fn search_articles(query: String) -> [EnrichedArticle] {
 }
 ```
 
-The `where` clause supports complex boolean expressions with `||` for matching across title, AI-generated summary, and extracted keywords.
+The `where` clause supports complex boolean expressions with `or` for matching across title, AI-generated summary, and extracted keywords.
 
 ### Client Dashboard
 
