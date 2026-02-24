@@ -1319,13 +1319,19 @@ async function generateDevHTML(clientCode, srcDir, reloadPort = 0) {
   const liveReloadScript = reloadPort ? `
   <script>
     (function() {
-      var es = new EventSource("http://localhost:${reloadPort}/__tova_reload");
+      var reloadUrl = "http://localhost:${reloadPort}/__tova_reload";
+      var es = new EventSource(reloadUrl);
+      var errorCount = 0;
+      es.onopen = function() { errorCount = 0; };
       es.onmessage = function(e) { if (e.data === "reload") window.location.reload(); };
       es.onerror = function() {
+        errorCount++;
+        // EventSource auto-reconnects — only intervene after repeated failures
+        if (errorCount < 3) return;
         es.close();
-        // Server is rebuilding — poll until it's back, then reload
+        // SSE server is likely gone (dev server restarting) — poll until back
         var check = setInterval(function() {
-          fetch(window.location.href, { mode: "no-cors" }).then(function() {
+          fetch(reloadUrl, { mode: "no-cors" }).then(function(r) {
             clearInterval(check);
             window.location.reload();
           }).catch(function() {});
