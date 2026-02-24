@@ -4495,9 +4495,9 @@ async function upgradeCommand() {
       }
 
       if (!ghTag) {
-        // No newer binary release available — fall back to npm install
-        console.log(`  ${color.dim('No binary release for v' + latestVersion + ' yet. Falling back to npm...')}\n`);
-        await npmUpgrade(latestVersion);
+        // No newer binary release — install from npm tarball directly
+        console.log(`  ${color.dim('No binary release for v' + latestVersion + ' yet. Installing from npm...')}`);
+        await npmTarballUpgrade(latestVersion);
         return;
       }
 
@@ -4585,6 +4585,52 @@ async function npmUpgrade(latestVersion) {
     console.error(`  Try manually: ${installCmd[0]} ${installCmd[1].join(' ')}\n`);
     process.exit(1);
   }
+}
+
+async function npmTarballUpgrade(latestVersion) {
+  const installDir = join(process.env.HOME || '', '.tova');
+  const binDir = join(installDir, 'bin');
+  const libDir = join(installDir, 'lib');
+  mkdirSync(libDir, { recursive: true });
+
+  // Download npm tarball
+  const tarballUrl = `https://registry.npmjs.org/tova/-/tova-${latestVersion}.tgz`;
+  const tarballPath = join(installDir, 'tova.tgz');
+
+  const dlResult = await downloadWithProgress(tarballUrl, tarballPath);
+  if (!dlResult) {
+    console.error(color.red('  Failed to download npm package. Try manually: bun add -g tova@latest'));
+    process.exit(1);
+  }
+
+  // Extract tarball into lib dir
+  console.log('  Extracting...');
+  const { spawnSync: spawnTar } = await import('child_process');
+  rmSync(libDir, { recursive: true, force: true });
+  mkdirSync(libDir, { recursive: true });
+  const tarResult = spawnTar('tar', ['-xzf', tarballPath, '-C', libDir, '--strip-components=1'], { stdio: 'pipe' });
+  rmSync(tarballPath, { force: true });
+  if (tarResult.status !== 0) {
+    console.error(color.red('  Failed to extract package. Try manually: bun add -g tova@latest'));
+    process.exit(1);
+  }
+
+  // Create wrapper script at ~/.tova/bin/tova
+  const libBin = join(libDir, 'bin', 'tova.js');
+  const wrapperScript = `#!/bin/sh\nexec bun "${libBin}" "$@"\n`;
+  const binPath = join(binDir, 'tova');
+  writeFileSync(binPath, wrapperScript);
+  chmodSync(binPath, 0o755);
+
+  // Verify
+  console.log('  Verifying...');
+  const verifyProc = spawnTar(binPath, ['--version'], { timeout: 10000 });
+  if (verifyProc.status !== 0) {
+    console.error(color.red('  Verification failed. Try manually: bun add -g tova@latest'));
+    process.exit(1);
+  }
+
+  console.log(`\n  ${color.green('✓')} Upgraded: v${VERSION} -> ${color.bold('v' + latestVersion)}\n`);
 }
 
 function detectPackageManager() {
