@@ -12,6 +12,9 @@ native/Cargo.lock
 # Benchmark build artifacts
 benchmarks/.go-bins/
 
+# VitePress cache (root-level, created by dev server)
+.vitepress/
+
 # Editor / IDE
 .vscode/
 .idea/

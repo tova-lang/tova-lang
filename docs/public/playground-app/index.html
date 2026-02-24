@@ -10769,11 +10769,13 @@ class Analyzer {
     if (typeName) {
       const existingImpls = this.typeRegistry.impls.get(typeName) || [];
       for (const method of node.methods) {
+        const hasSelf = (method.params || []).some(p => p.name === 'self');
         existingImpls.push({
           name: method.name,
           params: (method.params || []).map(p => p.name),
           paramTypes: (method.params || []).map(p => typeAnnotationToType(p.typeAnnotation)),
           returnType: typeAnnotationToType(method.returnType),
+          isAssociated: !hasSelf,
         });
       }
       this.typeRegistry.impls.set(typeName, existingImpls);
@@ -10805,13 +10807,16 @@ class Analyzer {
 
     // Validate that methods reference the type
     for (const method of node.methods) {
+      const hasSelf = (method.params || []).some(p => p.name === 'self');
       this.pushScope('function');
       try {
-        // self is implicitly available
-        try {
-          this.currentScope.define('self',
-            new Symbol('self', 'variable', null, true, method.loc));
-        } catch (e) { /* ignore */ }
+        // self is only available for instance methods (not associated functions)
+        if (hasSelf) {
+          try {
+            this.currentScope.define('self',
+              new Symbol('self', 'variable', null, true, method.loc));
+          } catch (e) { /* ignore */ }
+        }
         for (const p of method.params) {
           if (p.name && p.name !== 'self') {
             try {
@@ -15714,11 +15719,22 @@ class BaseCodegen {
       }
       const body = this.genBlockBody(method.body);
       this.popScope();
-      const selfBinding = hasSelf ? `\n${this.i()}  const self = this;` : '';
-      if (hasPropagate) {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+
+      if (hasSelf) {
+        // Instance method → prototype
+        const selfBinding = `\n${this.i()}  const self = this;`;
+        if (hasPropagate) {
+          lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+        } else {
+          lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${body}\n${this.i()}};`);
+        }
       } else {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${body}\n${this.i()}};`);
+        // Associated function → constructor namespace (callable as Type.method())
+        if (hasPropagate) {
+          lines.push(`${this.i()}${node.typeName}.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+        } else {
+          lines.push(`${this.i()}${node.typeName}.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${body}\n${this.i()}};`);
+        }
       }
     }
     return lines.join('\n');
