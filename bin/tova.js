@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { resolve, basename, dirname, join, relative } from 'path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, watch as fsWatch } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, chmodSync, renameSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
 // Bun.hash used instead of crypto.createHash for faster hashing
 import { Lexer } from '../src/lexer/lexer.js';
@@ -4397,6 +4397,17 @@ function detectInstallMethod() {
   return 'npm';
 }
 
+function compareSemver(a, b) {
+  // Returns: -1 if a < b, 0 if a === b, 1 if a > b
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+  }
+  return 0;
+}
+
 async function upgradeCommand() {
   console.log(`\n  Current version: ${color.bold('Tova v' + VERSION)}\n`);
   console.log('  Checking for updates...');
@@ -4404,33 +4415,55 @@ async function upgradeCommand() {
   const installMethod = detectInstallMethod();
 
   try {
-    if (installMethod === 'binary') {
-      // Binary install: check GitHub releases
-      const res = await fetch('https://api.github.com/repos/tova-lang/tova-lang/releases/latest');
-      if (!res.ok) {
-        console.error(color.red('  Could not reach GitHub. Check your network connection.'));
-        process.exit(1);
-      }
-      const data = await res.json();
-      const latestVersion = (data.tag_name || '').replace(/^v/, '');
+    // Always check npm registry as the source of truth for latest version
+    const res = await fetch('https://registry.npmjs.org/tova/latest');
+    if (!res.ok) {
+      console.error(color.red('  Could not reach the npm registry. Check your network connection.'));
+      process.exit(1);
+    }
+    const data = await res.json();
+    const latestVersion = data.version;
 
-      if (latestVersion === VERSION) {
-        console.log(`  ${color.green('Already on the latest version')} (v${VERSION}).\n`);
+    if (compareSemver(VERSION, latestVersion) >= 0) {
+      console.log(`  ${color.green('Already on the latest version')} (v${VERSION}).\n`);
+      return;
+    }
+
+    console.log(`  New version available: ${color.green('v' + latestVersion)}\n`);
+
+    if (installMethod === 'binary') {
+      console.log('  Upgrading via binary...');
+
+      // Check GitHub releases for the matching binary
+      const ghRes = await fetch('https://api.github.com/repos/tova-lang/tova-lang/releases/latest');
+      let ghTag = null;
+      if (ghRes.ok) {
+        const ghData = await ghRes.json();
+        const ghVersion = (ghData.tag_name || '').replace(/^v/, '');
+        if (compareSemver(ghVersion, VERSION) > 0) {
+          ghTag = ghData.tag_name;
+        }
+      }
+
+      if (!ghTag) {
+        // No newer binary release available — fall back to npm install
+        console.log(`  ${color.dim('No binary release for v' + latestVersion + ' yet. Falling back to npm...')}\n`);
+        await npmUpgrade(latestVersion);
         return;
       }
-
-      console.log(`  New version available: ${color.green('v' + latestVersion)}\n`);
-      console.log('  Upgrading via binary...');
 
       // Detect platform
       const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'linux' ? 'linux' : 'windows';
       const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
       const assetName = `tova-${platform}-${arch}`;
-      const downloadUrl = `https://github.com/tova-lang/tova-lang/releases/download/${data.tag_name}/${assetName}.gz`;
+      const downloadUrl = `https://github.com/tova-lang/tova-lang/releases/download/${ghTag}/${assetName}.gz`;
 
       const installDir = join(process.env.HOME || '', '.tova', 'bin');
       const tmpPath = join(installDir, 'tova.download');
       const binPath = join(installDir, 'tova');
+
+      // Ensure install directory exists
+      mkdirSync(installDir, { recursive: true });
 
       // Download compressed binary
       const dlRes = await fetch(downloadUrl);
@@ -4438,68 +4471,39 @@ async function upgradeCommand() {
         // Fall back to uncompressed
         const dlRes2 = await fetch(downloadUrl.replace('.gz', ''));
         if (!dlRes2.ok) {
-          console.error(color.red(`  Download failed. URL: ${downloadUrl.replace('.gz', '')}`));
-          process.exit(1);
+          console.log(`  ${color.dim('Binary download failed. Falling back to npm...')}\n`);
+          await npmUpgrade(latestVersion);
+          return;
         }
         writeFileSync(tmpPath, new Uint8Array(await dlRes2.arrayBuffer()));
       } else {
         // Decompress gzip
         const compressed = new Uint8Array(await dlRes.arrayBuffer());
-        const decompressed = Bun.gunzipSync(compressed);
+        const { gunzipSync } = await import('zlib');
+        const decompressed = gunzipSync(compressed);
         writeFileSync(tmpPath, decompressed);
       }
 
       // Make executable
-      const { chmodSync } = await import('fs');
       chmodSync(tmpPath, 0o755);
 
       // Verify the new binary works
-      const verifyProc = Bun.spawnSync([tmpPath, '--version'], { stdout: 'pipe', stderr: 'pipe' });
-      if (verifyProc.exitCode !== 0) {
+      const { spawnSync } = await import('child_process');
+      const verifyProc = spawnSync(tmpPath, ['--version'], { timeout: 10000 });
+      if (verifyProc.status !== 0) {
         rmSync(tmpPath, { force: true });
-        console.error(color.red('  Downloaded binary verification failed.'));
-        process.exit(1);
+        console.error(color.red('  Downloaded binary verification failed. Falling back to npm...'));
+        await npmUpgrade(latestVersion);
+        return;
       }
 
       // Atomic rename
-      const { renameSync } = await import('fs');
       renameSync(tmpPath, binPath);
 
       console.log(`\n  ${color.green('✓')} Upgraded: v${VERSION} -> ${color.bold('v' + latestVersion)}\n`);
     } else {
-      // npm/bun install: check npm registry
-      const res = await fetch('https://registry.npmjs.org/tova/latest');
-      if (!res.ok) {
-        console.error(color.red('  Could not reach the npm registry. Check your network connection.'));
-        process.exit(1);
-      }
-      const data = await res.json();
-      const latestVersion = data.version;
-
-      if (latestVersion === VERSION) {
-        console.log(`  ${color.green('Already on the latest version')} (v${VERSION}).\n`);
-        return;
-      }
-
-      console.log(`  New version available: ${color.green('v' + latestVersion)}\n`);
       console.log('  Upgrading...');
-
-      const pm = detectPackageManager();
-      const installCmd = pm === 'bun' ? ['bun', ['add', '-g', 'tova@latest']]
-                       : pm === 'pnpm' ? ['pnpm', ['add', '-g', 'tova@latest']]
-                       : pm === 'yarn' ? ['yarn', ['global', 'add', 'tova@latest']]
-                       : ['npm', ['install', '-g', 'tova@latest']];
-
-      const proc = spawn(installCmd[0], installCmd[1], { stdio: 'inherit' });
-      const exitCode = await new Promise(res => proc.on('close', res));
-
-      if (exitCode === 0) {
-        console.log(`\n  ${color.green('✓')} Upgraded to Tova v${latestVersion}.\n`);
-      } else {
-        console.error(color.red(`\n  Upgrade failed (exit code ${exitCode}).`));
-        console.error(`  Try manually: ${installCmd[0]} ${installCmd[1].join(' ')}\n`);
-        process.exit(1);
-      }
+      await npmUpgrade(latestVersion);
     }
   } catch (err) {
     console.error(color.red(`  Upgrade failed: ${err.message}`));
@@ -4508,6 +4512,25 @@ async function upgradeCommand() {
     } else {
       console.error('  Try manually: bun add -g tova@latest\n');
     }
+    process.exit(1);
+  }
+}
+
+async function npmUpgrade(latestVersion) {
+  const pm = detectPackageManager();
+  const installCmd = pm === 'bun' ? ['bun', ['add', '-g', 'tova@latest']]
+                   : pm === 'pnpm' ? ['pnpm', ['add', '-g', 'tova@latest']]
+                   : pm === 'yarn' ? ['yarn', ['global', 'add', 'tova@latest']]
+                   : ['npm', ['install', '-g', 'tova@latest']];
+
+  const proc = spawn(installCmd[0], installCmd[1], { stdio: 'inherit' });
+  const exitCode = await new Promise(res => proc.on('close', res));
+
+  if (exitCode === 0) {
+    console.log(`\n  ${color.green('✓')} Upgraded to Tova v${latestVersion}.\n`);
+  } else {
+    console.error(color.red(`\n  Upgrade failed (exit code ${exitCode}).`));
+    console.error(`  Try manually: ${installCmd[0]} ${installCmd[1].join(' ')}\n`);
     process.exit(1);
   }
 }
