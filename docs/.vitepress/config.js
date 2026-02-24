@@ -314,5 +314,17 @@ export default defineConfig({
         scopeName: tovaGrammar.scopeName || 'source.tova',
       },
     ] : [],
+    codeTransformers: [
+      {
+        name: 'escape-vue-curly-braces',
+        postprocess(html) {
+          // Escape { and } in code block HTML so Vue's SFC parser
+          // doesn't interpret them as template expressions
+          return html
+            .replace(/\{/g, '&#123;')
+            .replace(/\}/g, '&#125;')
+        },
+      },
+    ],
   },
 })

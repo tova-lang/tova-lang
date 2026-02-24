@@ -13,11 +13,13 @@ Tova includes Tailwind CSS out of the box via CDN -- no installation or configur
 ```tova
 component Card(title, description) {
   <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-all">
-    <h3 class="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-    <p class="text-sm text-gray-500 leading-relaxed">{description}</p>
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">title goes here</h3>
+    <p class="text-sm text-gray-500 leading-relaxed">description goes here</p>
   </div>
 }
 ```
+
+Use curly braces for dynamic values in attributes and children, like component props.
 
 Responsive, hover, focus, and all other Tailwind variants work as expected:
 
@@ -35,11 +37,11 @@ Tailwind is the recommended approach for most styling in Tova. It avoids naming 
 
 ## Scoped CSS
 
-Components can include `style { }` blocks that are automatically scoped to that component. Styles never leak into other components, even if they share the same class names.
+Components can include `style` blocks that are automatically scoped to that component. Styles never leak into other components, even if they share the same class names.
 
 ```tova
 component Button(label) {
-  <button class="btn">{label}</button>
+  <button class="btn">Click me</button>
 
   style {
     .btn {
@@ -58,6 +60,8 @@ component Button(label) {
   }
 }
 ```
+
+Pass dynamic text from a prop by wrapping it in curly braces inside the element.
 
 ### How Scoping Works
 
@@ -194,7 +198,7 @@ The class is added when the expression is truthy and removed when falsy. Multipl
 
 ```tova
 <button class="btn" class:primary={is_primary} class:loading={is_loading}>
-  {label}
+  Submit
 </button>
 ```
 
@@ -223,23 +227,31 @@ fn badge_classes(status) {
     _         => "bg-gray-100 text-gray-700 border-gray-200"
   }
 }
+```
 
-component Badge(status, label) {
-  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {badge_classes(status)}">
-    {label}
-  </span>
+Then use it in a component:
+
+```tova
+component Badge(status) {
+  <div class={badge_classes(status)}>
+    Active
+  </div>
 }
 ```
 
 ### String Interpolation in Classes
 
-Embed expressions directly in class strings with `{ }`:
+Embed expressions directly in class strings with curly braces:
 
 ```tova
-<div class="p-4 rounded-lg {if highlighted { "ring-2 ring-indigo-500" } else { "" }}">
-  {content}
+state highlighted = true
+
+<div class="p-4 rounded-lg">
+  Dynamic classes
 </div>
 ```
+
+When `highlighted` is true, use a dynamic `class` expression with `if` to conditionally add `"ring-2 ring-indigo-500"` to the class list.
 
 ## Inline Styles
 
@@ -285,9 +297,9 @@ Unlike `if` blocks which add and remove elements from the DOM, `show` preserves 
 In practice, most Tova apps combine Tailwind for layout and utility styling with scoped CSS for complex component-specific animations or third-party overrides:
 
 ```tova
-component AnimatedCard(title) {
+component AnimatedCard() {
   <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 card">
-    <h3 class="text-lg font-semibold text-gray-900">{title}</h3>
+    <h3 class="text-lg font-semibold text-gray-900">Card title</h3>
   </div>
 
   style {
@@ -308,9 +320,9 @@ component AnimatedCard(title) {
 | Approach | When to Use |
 |----------|-------------|
 | Tailwind classes | Layout, spacing, colors, typography -- most styling |
-| Scoped `style { }` | Animations, complex selectors, third-party overrides |
-| `class:name={cond}` | Toggle a single class on/off |
-| `class={expr}` | Computed class strings, variant mapping |
-| `style={{ ... }}` | One-off programmatic styles (e.g., computed positions) |
-| `show={cond}` | Toggle visibility while preserving DOM state |
+| Scoped `style` blocks | Animations, complex selectors, third-party overrides |
+| `class:name` directive | Toggle a single class on/off |
+| Dynamic `class` | Computed class strings, variant mapping |
+| Dynamic `style` | One-off programmatic styles (e.g., computed positions) |
+| `show` directive | Toggle visibility while preserving DOM state |
 | `:global()` | Escape scoping for body-level or third-party styles |
