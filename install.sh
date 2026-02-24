@@ -94,10 +94,30 @@ main() {
   TMPFILE="${INSTALL_DIR}/${BINARY_NAME}.download"
   trap 'rm -f "$TMPFILE"' EXIT
 
-  # Try compressed version first (.gz), fall back to uncompressed
-  DOWNLOAD_URL="${BASE_URL}/${ASSET_NAME}.gz"
-  printf "  Downloading ${BOLD}${ASSET_NAME}.gz${RESET}...\n"
-  if download "$DOWNLOAD_URL" "$TMPFILE" 2>/dev/null; then
+  # Determine download URL — try compressed (.gz) first, fall back to uncompressed
+  GZ_URL="${BASE_URL}/${ASSET_NAME}.gz"
+  RAW_URL="${BASE_URL}/${ASSET_NAME}"
+  USE_GZ=false
+
+  if command -v curl > /dev/null 2>&1; then
+    if curl -fsSL --head "$GZ_URL" > /dev/null 2>&1; then
+      USE_GZ=true
+    fi
+  elif command -v wget > /dev/null 2>&1; then
+    if wget --spider -q "$GZ_URL" 2>/dev/null; then
+      USE_GZ=true
+    fi
+  fi
+
+  if [ "$USE_GZ" = true ]; then
+    DOWNLOAD_URL="$GZ_URL"
+    printf "  Downloading ${BOLD}${ASSET_NAME}.gz${RESET}...\n"
+    if ! download "$DOWNLOAD_URL" "$TMPFILE"; then
+      printf "\n"
+      err "Download failed."
+      printf "  URL: ${DOWNLOAD_URL}\n\n"
+      exit 1
+    fi
     # Decompress
     if command -v gzip > /dev/null 2>&1; then
       gzip -d -c "$TMPFILE" > "${INSTALL_DIR}/${BINARY_NAME}"
@@ -109,8 +129,7 @@ main() {
     fi
     rm -f "$TMPFILE"
   else
-    # Fall back to uncompressed binary
-    DOWNLOAD_URL="${BASE_URL}/${ASSET_NAME}"
+    DOWNLOAD_URL="$RAW_URL"
     printf "  Downloading ${BOLD}${ASSET_NAME}${RESET}...\n"
     if ! download "$DOWNLOAD_URL" "${INSTALL_DIR}/${BINARY_NAME}"; then
       printf "\n"
