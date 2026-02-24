@@ -4393,7 +4393,8 @@ _tova "$@"
 
 function detectInstallMethod() {
   const execPath = process.execPath || process.argv[0];
-  if (execPath.includes('.tova/bin')) return 'binary';
+  const scriptPath = process.argv[1] || '';
+  if (execPath.includes('.tova/bin') || scriptPath.includes('.tova/')) return 'binary';
   return 'npm';
 }
 
