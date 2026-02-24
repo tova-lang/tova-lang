@@ -9,6 +9,7 @@ const props = defineProps({
 
 const { isDark } = useData()
 const iframeRef = ref(null)
+const loading = ref(true)
 
 const theme = computed(() => isDark.value ? 'dark' : 'light')
 
@@ -27,6 +28,10 @@ onMounted(async () => {
   iframeSrc.value = src
 })
 
+function onIframeLoad() {
+  loading.value = false
+}
+
 // After initial load, sync theme changes via postMessage only
 watch(isDark, () => {
   if (iframeRef.value?.contentWindow) {
@@ -40,6 +45,12 @@ watch(isDark, () => {
 
 <template>
   <div class="tov-playground-wrapper">
+    <div v-if="loading && iframeSrc" class="tov-playground-loading">
+      <svg width="20" height="20" viewBox="0 0 20 20" class="spinner">
+        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="40 20" />
+      </svg>
+      Loading playground...
+    </div>
     <iframe
       v-if="iframeSrc"
       ref="iframeRef"
@@ -47,6 +58,7 @@ watch(isDark, () => {
       sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
       allow="clipboard-write"
       frameborder="0"
+      @load="onIframeLoad"
     />
   </div>
 </template>
@@ -54,15 +66,40 @@ watch(isDark, () => {
 <style scoped>
 .tov-playground-wrapper {
   flex: 1;
-  display: flex;
+  position: relative;
   min-height: 0;
   width: 100%;
 }
 
 .tov-playground-wrapper iframe {
-  flex: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
+  height: 100%;
   border: none;
-  display: block;
+}
+
+.tov-playground-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  z-index: 1;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
 }
 </style>

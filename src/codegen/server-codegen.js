@@ -744,7 +744,17 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('      return obj;');
     lines.push('    } catch { return null; }');
     lines.push('  }');
-    lines.push('  try { return JSON.parse(text); } catch { return null; }');
+    lines.push('  try { return __sanitizeBody(JSON.parse(text)); } catch { return null; }');
+    lines.push('}');
+    lines.push('function __sanitizeBody(obj) {');
+    lines.push('  if (obj === null || typeof obj !== "object") return obj;');
+    lines.push('  if (Array.isArray(obj)) return obj.map(__sanitizeBody);');
+    lines.push('  const clean = {};');
+    lines.push('  for (const key of Object.keys(obj)) {');
+    lines.push('    if (key === "__proto__" || key === "constructor" || key === "prototype") continue;');
+    lines.push('    clean[key] = __sanitizeBody(obj[key]);');
+    lines.push('  }');
+    lines.push('  return clean;');
     lines.push('}');
 
     // ════════════════════════════════════════════════════════════
@@ -817,7 +827,7 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('// ── Auth Builtins ──');
     lines.push('let __jwtSignKey = null;');
     lines.push('async function sign_jwt(payload, secret, options = {}) {');
-    lines.push('  const __secret = secret || (typeof __authSecret !== "undefined" ? __authSecret : "secret");');
+    lines.push('  const __secret = secret || (typeof __authSecret !== "undefined" ? __authSecret : (process.env.AUTH_SECRET || process.env.JWT_SECRET || ""));');
     lines.push('  if (!__jwtSignKey || __secret !== (typeof __authSecret !== "undefined" ? __authSecret : "")) {');
     lines.push('    __jwtSignKey = await crypto.subtle.importKey(');
     lines.push('      "raw", new TextEncoder().encode(__secret),');
@@ -891,9 +901,15 @@ export class ServerCodegen extends BaseCodegen {
       const methods = corsConfig.methods ? this.genExpression(corsConfig.methods) : '["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]';
       const headers = corsConfig.headers ? this.genExpression(corsConfig.headers) : '["Content-Type", "Authorization"]';
       const credentials = corsConfig.credentials ? this.genExpression(corsConfig.credentials) : 'false';
+      const maxAge = corsConfig.max_age ? this.genExpression(corsConfig.max_age) : '"86400"';
+      // Compile-time warning: credentials + wildcard origin is a CORS spec violation
+      if (credentials === 'true' && (origins === '["*"]' || (corsConfig.origins && corsConfig.origins.type === 'ArrayExpression' && corsConfig.origins.elements.some(e => e.value === '*')))) {
+        lines.push('console.warn("[tova] CORS warning: credentials: true with wildcard origin \\"*\\" violates the CORS spec. Browsers will reject these responses. Use explicit origins instead.");');
+      }
       lines.push('// ── CORS ──');
       lines.push(`const __corsOrigins = ${origins};`);
       lines.push(`const __corsCredentials = ${credentials};`);
+      lines.push(`const __corsMaxAge = String(${maxAge});`);
       lines.push('function __getCorsHeaders(req) {');
       lines.push('  const origin = req.headers.get("Origin") || "*";');
       lines.push('  const allowed = __corsOrigins.includes("*") || __corsOrigins.includes(origin);');
@@ -901,6 +917,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push(`    "Access-Control-Allow-Origin": allowed ? (__corsCredentials ? origin : (origin === "*" ? "*" : origin)) : "",`);
       lines.push(`    "Access-Control-Allow-Methods": ${methods}.join(", "),`);
       lines.push(`    "Access-Control-Allow-Headers": ${headers}.join(", "),`);
+      lines.push('    "Access-Control-Max-Age": __corsMaxAge,');
       lines.push('  };');
       lines.push('  if (__corsCredentials) h["Access-Control-Allow-Credentials"] = "true";');
       lines.push('  return h;');
@@ -911,6 +928,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('const __corsHeadersConst = Object.freeze({');
       lines.push('  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",');
       lines.push('  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Tova-CSRF",');
+      lines.push('  "Access-Control-Max-Age": "86400",');
       lines.push('});');
       lines.push('function __getCorsHeaders(req) {');
       lines.push('  const origin = req && req.headers ? req.headers.get("Origin") : null;');
@@ -927,10 +945,35 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  "Access-Control-Allow-Origin": "*",');
       lines.push('  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",');
       lines.push('  "Access-Control-Allow-Headers": "Content-Type, Authorization",');
+      lines.push('  "Access-Control-Max-Age": "86400",');
       lines.push('});');
       lines.push('function __getCorsHeaders() { return __corsHeadersConst; }');
     }
     lines.push('');
+
+    // ════════════════════════════════════════════════════════════
+    // 8b. Security Headers — OWASP recommended
+    // ════════════════════════════════════════════════════════════
+    if (!isFastMode) {
+      lines.push('// ── Security Headers ──');
+      lines.push('const __securityHeaders = Object.freeze({');
+      lines.push('  "X-Content-Type-Options": "nosniff",');
+      lines.push('  "X-Frame-Options": "DENY",');
+      lines.push('  "X-XSS-Protection": "0",');
+      lines.push('  "Referrer-Policy": "strict-origin-when-cross-origin",');
+      lines.push('  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",');
+      lines.push('});');
+      if (tlsConfig) {
+        lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
+      }
+      lines.push('function __applySecurityHeaders(headers) {');
+      lines.push('  for (const [k, v] of Object.entries(__securityHeaders)) headers.set(k, v);');
+      if (tlsConfig) {
+        lines.push('  headers.set("Strict-Transport-Security", __hstsHeader["Strict-Transport-Security"]);');
+      }
+      lines.push('}');
+      lines.push('');
+    }
 
     // ════════════════════════════════════════════════════════════
     // 9. Auth (F1) — fixed JWT / API key
@@ -951,8 +994,11 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('}');
       } else {
         // JWT auth (default)
-        const secretExpr = authConfig.secret ? this.genExpression(authConfig.secret) : '"secret"';
+        const secretExpr = authConfig.secret ? this.genExpression(authConfig.secret) : 'process.env.AUTH_SECRET || process.env.JWT_SECRET';
         lines.push(`const __authSecret = ${secretExpr};`);
+        if (!authConfig.secret) {
+          lines.push('if (!process.env.AUTH_SECRET && !process.env.JWT_SECRET) console.warn("[tova] WARNING: No auth secret configured. Set AUTH_SECRET or JWT_SECRET env var, or use auth { secret: \\"...\\" }");');
+        }
         lines.push('let __authKey = null;');
         lines.push('async function __authenticate(req) {');
         lines.push('  const authHeader = req.headers.get("Authorization");');
@@ -1008,24 +1054,37 @@ export class ServerCodegen extends BaseCodegen {
         lines.push(`const __rateLimitWindow = ${windowExpr};`);
       }
       lines.push('const __rateLimitStore = new Map();');
+      lines.push('const __rateLimitMaxKeys = 100000;');
       lines.push('function __checkRateLimit(key, max, windowSec) {');
       lines.push('  const now = Date.now();');
       lines.push('  const windowMs = windowSec * 1000;');
       lines.push('  let entry = __rateLimitStore.get(key);');
-      lines.push('  if (!entry) { entry = { timestamps: [] }; __rateLimitStore.set(key, entry); }');
-      lines.push('  entry.timestamps = entry.timestamps.filter(t => now - t < windowMs);');
-      lines.push('  if (entry.timestamps.length >= max) {');
-      lines.push('    const retryAfter = Math.ceil((entry.timestamps[0] + windowMs - now) / 1000);');
-      lines.push('    return { limited: true, retryAfter };');
+      lines.push('  if (!entry) {');
+      lines.push('    if (__rateLimitStore.size >= __rateLimitMaxKeys) {');
+      lines.push('      const oldest = __rateLimitStore.keys().next().value;');
+      lines.push('      __rateLimitStore.delete(oldest);');
+      lines.push('    }');
+      lines.push('    entry = { prevCount: 0, currCount: 0, windowStart: now };');
+      lines.push('    __rateLimitStore.set(key, entry);');
       lines.push('  }');
-      lines.push('  entry.timestamps.push(now);');
+      lines.push('  if (now - entry.windowStart >= windowMs) {');
+      lines.push('    entry.prevCount = entry.currCount;');
+      lines.push('    entry.currCount = 0;');
+      lines.push('    entry.windowStart = now;');
+      lines.push('  }');
+      lines.push('  const elapsed = (now - entry.windowStart) / windowMs;');
+      lines.push('  const estimate = entry.prevCount * (1 - elapsed) + entry.currCount;');
+      lines.push('  if (estimate >= max) {');
+      lines.push('    const retryAfter = Math.ceil(windowSec * (1 - elapsed));');
+      lines.push('    return { limited: true, retryAfter: retryAfter || 1 };');
+      lines.push('  }');
+      lines.push('  entry.currCount++;');
       lines.push('  return { limited: false };');
       lines.push('}');
       lines.push('setInterval(() => {');
       lines.push('  const now = Date.now();');
       lines.push('  for (const [key, entry] of __rateLimitStore) {');
-      lines.push('    entry.timestamps = entry.timestamps.filter(t => now - t < 120000);');
-      lines.push('    if (entry.timestamps.length === 0) __rateLimitStore.delete(key);');
+      lines.push('    if (now - entry.windowStart > 120000) __rateLimitStore.delete(key);');
       lines.push('  }');
       lines.push('}, 60000);');
       lines.push('');
@@ -1076,10 +1135,13 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     if (sessionConfig) {
       lines.push('// ── Session Management ──');
-      const secretExpr = sessionConfig.secret ? this.genExpression(sessionConfig.secret) : '"tova-session-secret"';
+      const secretExpr = sessionConfig.secret ? this.genExpression(sessionConfig.secret) : 'process.env.SESSION_SECRET';
       const maxAgeExpr = sessionConfig.max_age ? this.genExpression(sessionConfig.max_age) : '3600';
       const cookieNameExpr = sessionConfig.cookie_name ? this.genExpression(sessionConfig.cookie_name) : '"__sid"';
       lines.push(`const __sessionSecret = ${secretExpr};`);
+      if (!sessionConfig.secret) {
+        lines.push('if (!process.env.SESSION_SECRET) console.warn("[tova] WARNING: No session secret configured. Set SESSION_SECRET env var, or use session { secret: \\"...\\" }");');
+      }
       lines.push(`const __sessionMaxAge = ${maxAgeExpr};`);
       lines.push(`const __sessionCookieName = ${cookieNameExpr};`);
       lines.push('let __sessionKey = null;');
@@ -1144,8 +1206,13 @@ export class ServerCodegen extends BaseCodegen {
       } else {
         lines.push('// In-memory session store');
         lines.push('const __sessionStore = new Map();');
+        lines.push('const __sessionMaxKeys = 50000;');
         lines.push('function __createSession(id) {');
         lines.push('  if (!__sessionStore.has(id)) {');
+        lines.push('    if (__sessionStore.size >= __sessionMaxKeys) {');
+        lines.push('      const oldest = __sessionStore.keys().next().value;');
+        lines.push('      __sessionStore.delete(oldest);');
+        lines.push('    }');
         lines.push('    __sessionStore.set(id, { data: {}, createdAt: Date.now() });');
         lines.push('  }');
         lines.push('  const entry = __sessionStore.get(id);');
@@ -1177,7 +1244,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('let __csrfKey = null;');
       lines.push('async function __getCSRFKey() {');
       lines.push('  if (!__csrfKey) {');
-      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : "tova-csrf-secret");');
+      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : (process.env.CSRF_SECRET || process.env.AUTH_SECRET || ""));');
       lines.push('    __csrfKey = await crypto.subtle.importKey(');
       lines.push('      "raw", new TextEncoder().encode(secret + ":csrf"),');
       lines.push('      { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]');
@@ -1254,16 +1321,24 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('// ── Background Jobs ──');
       lines.push('const __jobQueue = [];');
       lines.push('let __jobProcessing = false;');
+      lines.push('const __JOB_BASE_DELAY = 1000;');
+      lines.push('const __JOB_MAX_DELAY = 30000;');
+      lines.push('function __jobBackoffDelay(attempt) {');
+      lines.push('  const exp = Math.min(__JOB_BASE_DELAY * Math.pow(2, attempt), __JOB_MAX_DELAY);');
+      lines.push('  const jitter = exp * (0.5 + Math.random() * 0.5);');
+      lines.push('  return Math.round(jitter);');
+      lines.push('}');
       lines.push('async function __processJobQueue() {');
       lines.push('  if (__jobProcessing) return;');
       lines.push('  __jobProcessing = true;');
       lines.push('  while (__jobQueue.length > 0) {');
       lines.push('    const job = __jobQueue.shift();');
       lines.push('    try { await job.fn(...job.args); } catch (err) {');
-      lines.push('      __log("error", `Background job ${job.name} failed`, { error: err.message });');
-      lines.push('      if (job.retries > 0) {');
-      lines.push('        job.retries--;');
-      lines.push('        __jobQueue.push(job);');
+      lines.push('      __log("error", `Background job ${job.name} failed (attempt ${job.attempt + 1}/${job.maxRetries + 1})`, { error: err.message });');
+      lines.push('      if (job.attempt < job.maxRetries) {');
+      lines.push('        const delay = __jobBackoffDelay(job.attempt);');
+      lines.push('        job.attempt++;');
+      lines.push('        setTimeout(() => { __jobQueue.push(job); __processJobQueue(); }, delay);');
       lines.push('      }');
       lines.push('    }');
       lines.push('  }');
@@ -1288,7 +1363,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  };');
       lines.push('  const fn = __jobFns[name];');
       lines.push('  if (!fn) throw new Error(`Unknown background job: ${name}`);');
-      lines.push('  __jobQueue.push({ name, fn, args, retries: 2 });');
+      lines.push('  __jobQueue.push({ name, fn, args, attempt: 0, maxRetries: 3 });');
       lines.push('  setTimeout(__processJobQueue, 0);');
       lines.push('}');
       lines.push('');
@@ -1554,6 +1629,48 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('    return row ? row.count : 0;');
         lines.push('  },');
 
+        // paginate(page, perPage) — returns { data, page, perPage, total, totalPages }
+        lines.push(`  ${isAsync ? 'async ' : ''}paginate(page = 1, perPage = 20) {`);
+        lines.push('    const p = Math.max(1, Math.floor(page));');
+        lines.push('    const pp = Math.max(1, Math.min(100, Math.floor(perPage)));');
+        lines.push('    const offset = (p - 1) * pp;');
+        if (dbDriver === 'postgres') {
+          lines.push(`    const rows = ${aw}db.query("SELECT * FROM ${tableName} ORDER BY id LIMIT $1 OFFSET $2", pp, offset);`);
+        } else {
+          lines.push(`    const rows = ${aw}db.query("SELECT * FROM ${tableName} ORDER BY id LIMIT ? OFFSET ?", pp, offset);`);
+        }
+        lines.push(`    const countRow = ${aw}db.get("SELECT COUNT(*) as count FROM ${tableName}");`);
+        lines.push('    const total = countRow ? countRow.count : 0;');
+        lines.push('    return { data: rows, page: p, perPage: pp, total, totalPages: Math.ceil(total / pp) };');
+        lines.push('  },');
+
+        // soft_delete(id) — sets deleted_at timestamp instead of removing row
+        lines.push(`  ${isAsync ? 'async ' : ''}soft_delete(id) {`);
+        if (dbDriver === 'postgres') {
+          lines.push(`    const rows = ${aw}db.query("UPDATE ${tableName} SET deleted_at = NOW() WHERE id = $1 RETURNING *", id);`);
+          lines.push('    return rows[0];');
+        } else {
+          lines.push(`    ${aw}db.run("UPDATE ${tableName} SET deleted_at = datetime('now') WHERE id = ?", id);`);
+          lines.push(`    return ${aw}db.get("SELECT * FROM ${tableName} WHERE id = ?", id);`);
+        }
+        lines.push('  },');
+
+        // restore(id) — clears deleted_at to restore a soft-deleted row
+        lines.push(`  ${isAsync ? 'async ' : ''}restore(id) {`);
+        if (dbDriver === 'postgres') {
+          lines.push(`    const rows = ${aw}db.query("UPDATE ${tableName} SET deleted_at = NULL WHERE id = $1 RETURNING *", id);`);
+          lines.push('    return rows[0];');
+        } else {
+          lines.push(`    ${aw}db.run("UPDATE ${tableName} SET deleted_at = NULL WHERE id = ?", id);`);
+          lines.push(`    return ${aw}db.get("SELECT * FROM ${tableName} WHERE id = ?", id);`);
+        }
+        lines.push('  },');
+
+        // active() — returns only non-soft-deleted rows
+        lines.push(`  ${isAsync ? 'async ' : ''}active() {`);
+        lines.push(`    return ${aw}db.query("SELECT * FROM ${tableName} WHERE deleted_at IS NULL");`);
+        lines.push('  },');
+
         // belongs_to accessors: PostModel.user(user_id) → single parent record
         for (const parentName of belongsToNames) {
           const parentTable = parentName.toLowerCase() + 's';
@@ -1587,12 +1704,18 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     if (sseDecls.length > 0) {
       lines.push('// ── SSE (Server-Sent Events) ──');
+      lines.push('let __sseEventId = 0;');
       lines.push('class __SSEChannel {');
       lines.push('  constructor() { this.clients = new Set(); }');
-      lines.push('  subscribe(controller) { this.clients.add(controller); }');
+      lines.push('  subscribe(controller) {');
+      lines.push('    this.clients.add(controller);');
+      lines.push('    // Send retry directive so browser reconnects after 3s');
+      lines.push('    try { controller.enqueue(new TextEncoder().encode("retry: 3000\\n\\n")); } catch {}');
+      lines.push('  }');
       lines.push('  unsubscribe(controller) { this.clients.delete(controller); }');
       lines.push('  send(data, event = null) {');
       lines.push('    let msg = "";');
+      lines.push('    msg += `id: ${++__sseEventId}\\n`;');
       lines.push('    if (event) msg += `event: ${event}\\n`;');
       lines.push('    msg += `data: ${typeof data === "string" ? data : JSON.stringify(data)}\\n\\n`;');
       lines.push('    const encoded = new TextEncoder().encode(msg);');
@@ -1600,6 +1723,13 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  }');
       lines.push('  get count() { return this.clients.size; }');
       lines.push('}');
+      // Periodic heartbeat to detect dead connections
+      lines.push('setInterval(() => {');
+      lines.push('  const hb = new TextEncoder().encode(": heartbeat\\n\\n");');
+      lines.push('  for (const [, ch] of __sseChannels) {');
+      lines.push('    for (const c of ch.clients) { try { c.enqueue(hb); } catch { ch.clients.delete(c); } }');
+      lines.push('  }');
+      lines.push('}, 30000);');
       lines.push('const __sseChannels = new Map();');
       lines.push('function sse_channel(name) {');
       lines.push('  if (!__sseChannels.has(name)) __sseChannels.set(name, new __SSEChannel());');
@@ -1615,10 +1745,12 @@ export class ServerCodegen extends BaseCodegen {
         this.popScope();
 
         lines.push(`__addRoute("GET", ${JSON.stringify(sse.path)}, async (req) => {`);
+        lines.push('  const __lastEventId = req.headers.get("Last-Event-ID");');
         lines.push('  const stream = new ReadableStream({');
         lines.push(`    start(controller) {`);
+        lines.push('      controller.enqueue(new TextEncoder().encode("retry: 3000\\n\\n"));');
         lines.push('      const send = (data, event) => {');
-        lines.push('        let msg = "";');
+        lines.push('        let msg = `id: ${++__sseEventId}\\n`;');
         lines.push('        if (event) msg += `event: ${event}\\n`;');
         lines.push('        msg += `data: ${typeof data === "string" ? data : JSON.stringify(data)}\\n\\n`;');
         lines.push('        controller.enqueue(new TextEncoder().encode(msg));');
@@ -1695,6 +1827,7 @@ export class ServerCodegen extends BaseCodegen {
     if (!isFastMode) {
       lines.push('// ── Idempotency Key Cache ──');
       lines.push('const __idempotencyCache = new Map();');
+      lines.push('const __idempotencyMaxKeys = 10000;');
       lines.push('const __idempotencyTTL = 86400000;'); // 24h default
       lines.push('function __checkIdempotencyKey(key) {');
       lines.push('  const entry = __idempotencyCache.get(key);');
@@ -1703,6 +1836,10 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  return entry;');
       lines.push('}');
       lines.push('function __storeIdempotencyResult(key, status, body, headers) {');
+      lines.push('  if (__idempotencyCache.size >= __idempotencyMaxKeys) {');
+      lines.push('    const oldest = __idempotencyCache.keys().next().value;');
+      lines.push('    __idempotencyCache.delete(oldest);');
+      lines.push('  }');
       lines.push('  __idempotencyCache.set(key, { status, body, headers, timestamp: Date.now() });');
       lines.push('}');
       lines.push('setInterval(() => {');
@@ -2217,6 +2354,18 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  components: { schemas: {}, securitySchemes: {} },');
       lines.push('};');
 
+      // Standard error response schema
+      lines.push('__openApiSpec.components.schemas.ErrorResponse = {');
+      lines.push('  type: "object",');
+      lines.push('  properties: {');
+      lines.push('    error: { type: "object", properties: {');
+      lines.push('      code: { type: "string", description: "Machine-readable error code" },');
+      lines.push('      message: { type: "string", description: "Human-readable error message" },');
+      lines.push('      details: { type: "array", items: { type: "string" }, description: "Validation error details", nullable: true },');
+      lines.push('    }, required: ["code", "message"] },');
+      lines.push('  },');
+      lines.push('};');
+
       // Add auth security schemes to OpenAPI spec
       if (authConfig) {
         const authType = authConfig.type ? authConfig.type.value : 'jwt';
@@ -2337,15 +2486,37 @@ export class ServerCodegen extends BaseCodegen {
           lines.push('  responses: { "200": { description: "Success" } },');
         }
 
-        // Add security and 401 response for auth-protected routes
+        // Auto-generate error responses based on route context
         const routeHasAuth = (route.decorators || []).some(d => d.name === 'auth');
+        const routeHasRateLimit = (route.decorators || []).some(d => d.name === 'rate_limit');
+        const routeHasValidation = (route.decorators || []).some(d => d.name === 'validate') || route.bodyType;
+        const routeHasTimeout = (route.decorators || []).some(d => d.name === 'timeout');
+        const errRef = '{ "$ref": "#/components/schemas/ErrorResponse" }';
+
+        // Merge error responses into existing 200 response
+        lines.push(`const __r = __openApiSpec.paths[${JSON.stringify(path)}][${JSON.stringify(method)}].responses;`);
+        if (routeHasValidation || ['post', 'put', 'patch'].includes(method)) {
+          lines.push(`__r["400"] = { description: "Validation Failed", content: { "application/json": { schema: ${errRef} } } };`);
+        }
         if (routeHasAuth && authConfig) {
           const authType = authConfig.type ? authConfig.type.value : 'jwt';
           const schemeName = authType === 'api_key' ? 'ApiKeyAuth' : 'BearerAuth';
-          lines.push(`  security: [{ "${schemeName}": [] }],`);
-          // Merge 401 into responses
-          lines.push(`  responses: { ...__openApiSpec.paths[${JSON.stringify(path)}][${JSON.stringify(method)}].responses, "401": { description: "Unauthorized" } },`);
+          lines.push(`__openApiSpec.paths[${JSON.stringify(path)}][${JSON.stringify(method)}].security = [{ "${schemeName}": [] }];`);
+          lines.push(`__r["401"] = { description: "Unauthorized", content: { "application/json": { schema: ${errRef} } } };`);
+          if ((route.decorators || []).some(d => d.name === 'role')) {
+            lines.push(`__r["403"] = { description: "Forbidden", content: { "application/json": { schema: ${errRef} } } };`);
+          }
         }
+        if (pathParams.length > 0) {
+          lines.push(`__r["404"] = { description: "Not Found", content: { "application/json": { schema: ${errRef} } } };`);
+        }
+        if (routeHasRateLimit || rateLimitConfig) {
+          lines.push(`__r["429"] = { description: "Too Many Requests", content: { "application/json": { schema: ${errRef} } } };`);
+        }
+        if (routeHasTimeout) {
+          lines.push(`__r["504"] = { description: "Gateway Timeout", content: { "application/json": { schema: ${errRef} } } };`);
+        }
+        lines.push(`__r["500"] = { description: "Internal Server Error", content: { "application/json": { schema: ${errRef} } } };`);
 
         lines.push('};');
       }
@@ -2435,8 +2606,13 @@ export class ServerCodegen extends BaseCodegen {
       if (staticDecl.fallback) {
         lines.push(`const __staticFallback = ${JSON.stringify(staticDecl.fallback)};`);
       }
+      lines.push('const __path = await import("node:path");');
+      lines.push('const __resolvedStaticDir = __path.resolve(__staticDir);');
       lines.push('async function __serveStatic(pathname, req) {');
-      lines.push('  const filePath = __staticDir + pathname.slice(__staticPrefix.length);');
+      lines.push('  const relative = pathname.slice(__staticPrefix.length);');
+      lines.push('  const filePath = __path.join(__staticDir, relative);');
+      lines.push('  const resolved = __path.resolve(filePath);');
+      lines.push('  if (!resolved.startsWith(__resolvedStaticDir + __path.sep) && resolved !== __resolvedStaticDir) return null;');
       lines.push('  try {');
       lines.push('    const file = Bun.file(filePath);');
       lines.push('    if (await file.exists()) {');
@@ -2464,6 +2640,20 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('// ── WebSocket Handlers ──');
       lines.push('const __wsClients = new Set();');
       lines.push('const __wsRooms = new Map();');
+      // Per-client message rate limiting
+      lines.push('const __wsRateLimit = new Map();');
+      lines.push('const __wsRateLimitMax = 100;');  // max messages per window
+      lines.push('const __wsRateLimitWindow = 10000;'); // 10 second window
+      lines.push('function __wsCheckRate(ws) {');
+      lines.push('  const now = Date.now();');
+      lines.push('  let entry = __wsRateLimit.get(ws);');
+      lines.push('  if (!entry || now - entry.windowStart >= __wsRateLimitWindow) {');
+      lines.push('    entry = { count: 0, windowStart: now };');
+      lines.push('    __wsRateLimit.set(ws, entry);');
+      lines.push('  }');
+      lines.push('  entry.count++;');
+      lines.push('  return entry.count <= __wsRateLimitMax;');
+      lines.push('}');
       lines.push('function broadcast(data, exclude = null) {');
       lines.push('  const msg = typeof data === "string" ? data : JSON.stringify(data);');
       lines.push('  for (const c of __wsClients) { if (c !== exclude) c.send(msg); }');
@@ -2899,7 +3089,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('    if (__res && __sessionIsNew) {');
       lines.push('      const __signed = await __signSessionId(__sessionId);');
       lines.push('      const __h = new Headers(__res.headers);');
-      lines.push('      __h.set("Set-Cookie", `${__sessionCookieName}=${__signed}; Path=/; HttpOnly; Max-Age=${__sessionMaxAge}`);');
+      lines.push('      __h.set("Set-Cookie", `${__sessionCookieName}=${__signed}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${__sessionMaxAge}`);');
       lines.push('      return new Response(__res.body, { status: __res.status, headers: __h });');
       lines.push('    }');
       lines.push('    return __res;');
@@ -2924,18 +3114,39 @@ export class ServerCodegen extends BaseCodegen {
     const portVar = blockName ? `PORT_${blockName.toUpperCase().replace(/[^A-Z0-9]/g, '_')}` : 'PORT';
     lines.push('// ── Start Server ──');
     lines.push(`const __port = process.env.${portVar} || process.env.PORT || 3000;`);
-    // Compression wrapper
-    if (compressionConfig) {
-      lines.push('const __fetchHandler = async (req) => {');
+    // Idempotency + Compression wrapper
+    if (!isFastMode) {
+      lines.push('const __idempotentFetch = async (req) => {');
+      if (compressionConfig) {
+        lines.push('  const __rawRes = await __handleRequest(req);');
+        lines.push('  if (!__rawRes) return __rawRes;');
+        lines.push('  const res = await __compressResponse(req, __rawRes);');
+      } else {
+        lines.push('  const res = await __handleRequest(req);');
+      }
+      lines.push('  const __idk = req.headers.get("Idempotency-Key");');
+      lines.push('  if (__idk && res && req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
+      lines.push('    try {');
+      lines.push('      const __cloned = res.clone();');
+      lines.push('      const __resBody = await __cloned.json();');
+      lines.push('      __storeIdempotencyResult(__idk, res.status, __resBody, {});');
+      lines.push('    } catch {}');
+      lines.push('  }');
+      lines.push('  if (res) __applySecurityHeaders(res.headers);');
+      lines.push('  return res;');
+      lines.push('};');
+    } else if (compressionConfig) {
+      lines.push('const __idempotentFetch = async (req) => {');
       lines.push('  const res = await __handleRequest(req);');
       lines.push('  if (!res) return res;');
       lines.push('  return __compressResponse(req, res);');
       lines.push('};');
     }
+    const fetchHandler = (!isFastMode || compressionConfig) ? '__idempotentFetch' : '__handleRequest';
     lines.push(`const __server = Bun.serve({`);
     lines.push(`  port: __port,`);
     lines.push(`  maxRequestBodySize: __maxBodySize,`);
-    lines.push(`  fetch: ${compressionConfig ? '__fetchHandler' : '__handleRequest'},`);
+    lines.push(`  fetch: ${fetchHandler},`);
     if (tlsConfig) {
       const certExpr = tlsConfig.cert ? this.genExpression(tlsConfig.cert) : 'undefined';
       const keyExpr = tlsConfig.key ? this.genExpression(tlsConfig.key) : 'undefined';
@@ -2949,18 +3160,23 @@ export class ServerCodegen extends BaseCodegen {
     }
     if (wsDecl) {
       lines.push(`  websocket: {`);
+      lines.push(`    idleTimeout: 120,`);  // 2 minute idle timeout with auto-ping
       if (wsDecl.handlers.on_open) {
         lines.push(`    open(ws) { __wsClients.add(ws); __wsHandlers.on_open(ws); },`);
       } else {
         lines.push(`    open(ws) { __wsClients.add(ws); },`);
       }
       if (wsDecl.handlers.on_message) {
-        lines.push(`    message(ws, message) { __wsHandlers.on_message(ws, message); },`);
+        // Rate limit check before dispatching to user handler
+        lines.push(`    message(ws, message) {`);
+        lines.push(`      if (!__wsCheckRate(ws)) { ws.send(JSON.stringify({ error: "RATE_LIMITED", message: "Too many messages" })); return; }`);
+        lines.push(`      __wsHandlers.on_message(ws, message);`);
+        lines.push(`    },`);
       }
       if (wsDecl.handlers.on_close) {
-        lines.push(`    close(ws, code, reason) { __wsClients.delete(ws); for (const [,r] of __wsRooms) r.delete(ws); __wsHandlers.on_close(ws, code, reason); },`);
+        lines.push(`    close(ws, code, reason) { __wsClients.delete(ws); __wsRateLimit.delete(ws); for (const [,r] of __wsRooms) r.delete(ws); __wsHandlers.on_close(ws, code, reason); },`);
       } else {
-        lines.push(`    close(ws) { __wsClients.delete(ws); for (const [,r] of __wsRooms) r.delete(ws); },`);
+        lines.push(`    close(ws) { __wsClients.delete(ws); __wsRateLimit.delete(ws); for (const [,r] of __wsRooms) r.delete(ws); },`);
       }
       if (wsDecl.handlers.on_error) {
         lines.push(`    error(ws, error) { __wsHandlers.on_error(ws, error); },`);

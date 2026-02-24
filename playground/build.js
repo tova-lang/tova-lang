@@ -1245,7 +1245,7 @@ for pair in inputs {
 }
 
 // ─── Generate the full HTML ─────────────────────────────
-function generateHTML(compilerBundle, runtimeBundle, stringProto, arrayProto, stdlib, examples, reference, tutorial) {
+function generateHTML(compilerBundle, runtimeBundle, stringProto, arrayProto, stdlib, examples, reference, tutorial, cmBundle) {
   // Group examples by category
   const categories = [];
   const catMap = {};
@@ -1842,38 +1842,9 @@ var STDLIB_CODE = ${JSON.stringify(stdlib)};
 ${compilerBundle}
 ${"</"}script>
 
-<!-- ─── CodeMirror shared dependency map ──────────── -->
-<script type="importmap">
-{
-  "imports": {
-    "codemirror": "https://esm.sh/*codemirror@6.0.1",
-    "@codemirror/state": "https://esm.sh/*@codemirror/state@6.4.1",
-    "@codemirror/view": "https://esm.sh/*@codemirror/view@6.26.0",
-    "@codemirror/language": "https://esm.sh/*@codemirror/language@6.10.1",
-    "@codemirror/commands": "https://esm.sh/*@codemirror/commands@6.3.3",
-    "@codemirror/search": "https://esm.sh/*@codemirror/search@6.5.5",
-    "@codemirror/autocomplete": "https://esm.sh/*@codemirror/autocomplete@6.12.0",
-    "@codemirror/lint": "https://esm.sh/*@codemirror/lint@6.5.0",
-    "@codemirror/theme-one-dark": "https://esm.sh/*@codemirror/theme-one-dark@6.1.2",
-    "@lezer/common": "https://esm.sh/*@lezer/common@1.2.1",
-    "@lezer/highlight": "https://esm.sh/*@lezer/highlight@1.2.0",
-    "@lezer/lr": "https://esm.sh/*@lezer/lr@1.4.0",
-    "crelt": "https://esm.sh/*crelt@1.0.6",
-    "style-mod": "https://esm.sh/*style-mod@4.1.2",
-    "w3c-keyname": "https://esm.sh/*w3c-keyname@2.2.8"
-  }
-}
-${"</"}script>
-
-<!-- ─── CodeMirror & App ─────────────────────────── -->
-<script type="module">
-import {basicSetup} from 'codemirror';
-import {EditorState, StateField, StateEffect, Compartment} from '@codemirror/state';
-import {EditorView, keymap, Decoration} from '@codemirror/view';
-import {StreamLanguage, HighlightStyle, syntaxHighlighting} from '@codemirror/language';
-import {oneDark} from '@codemirror/theme-one-dark';
-import {autocompletion} from '@codemirror/autocomplete';
-import {tags} from '@lezer/highlight';
+<!-- ─── CodeMirror & App (bundled locally) ────────── -->
+<script>
+${cmBundle}
 
 // ─── Tova Syntax Highlighting ────────────────────────
 const tovaLanguage = StreamLanguage.define({
@@ -2083,6 +2054,8 @@ const lightHighlightStyle = HighlightStyle.define([
 
 const themeCompartment = new Compartment();
 const jsThemeCompartment = new Compartment();
+var lightTheme = false;
+try { lightTheme = localStorage.getItem('tova-playground-theme') === 'light'; } catch(e) {}
 function getEditorTheme() {
   return lightTheme
     ? [tovaLightTheme, syntaxHighlighting(lightHighlightStyle)]
@@ -2100,6 +2073,8 @@ let autoRun = true;
 let sidebarMode = null; // 'reference' | 'tutorial' | null
 let tutorialStep = 0;
 let compileTimer = null;
+var layoutVertical = false;
+try { layoutVertical = localStorage.getItem('tova-playground-layout') === 'vertical'; } catch(e) {}
 
 // ─── Early embed mode detection ─────────────────────
 const __isEmbed = new URLSearchParams(location.search).get('embed') === 'true';
@@ -2962,11 +2937,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── Layout Toggle ──────────────────────────────────
-let layoutVertical = false;
-try {
-  layoutVertical = localStorage.getItem('tova-playground-layout') === 'vertical';
-} catch(e) {}
-
 function toggleLayout() {
   layoutVertical = !layoutVertical;
   document.querySelector('.main').classList.toggle('vertical', layoutVertical);
@@ -2979,9 +2949,6 @@ if (layoutVertical) document.querySelector('.main').classList.add('vertical');
 document.getElementById('btn-layout').addEventListener('click', toggleLayout);
 
 // ─── Theme Toggle ───────────────────────────────────
-let lightTheme = false;
-try { lightTheme = localStorage.getItem('tova-playground-theme') === 'light'; } catch(e) {}
-
 function applyTheme() {
   document.body.classList.toggle('light-theme', lightTheme);
   document.getElementById('setting-theme').classList.toggle('on', lightTheme);
@@ -3191,7 +3158,23 @@ console.log('  Examples: ' + examples.length + ' (in ' + [...new Set(examples.ma
 console.log('  Reference sections: ' + reference.length);
 console.log('  Tutorial steps: ' + tutorial.length);
 
-const html = generateHTML(compilerBundle, runtimeBundle, stringProto, arrayProto, stdlib, examples, reference, tutorial);
+// Bundle CodeMirror locally (no CDN dependency)
+const cmEntryPath = resolve(import.meta.dir, 'cm-entry.js');
+const cmBuildResult = await Bun.build({
+  entrypoints: [cmEntryPath],
+  bundle: true,
+  minify: true,
+  format: 'iife',
+  target: 'browser',
+});
+if (!cmBuildResult.success) {
+  console.error('CodeMirror bundle failed:', cmBuildResult.logs);
+  process.exit(1);
+}
+const cmBundle = await cmBuildResult.outputs[0].text();
+console.log('  CodeMirror bundle: ' + (cmBundle.length / 1024).toFixed(1) + ' KB');
+
+const html = generateHTML(compilerBundle, runtimeBundle, stringProto, arrayProto, stdlib, examples, reference, tutorial, cmBundle);
 const outPath = resolve(import.meta.dir, 'index.html');
 writeFileSync(outPath, html);
 

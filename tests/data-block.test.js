@@ -266,8 +266,7 @@ describe('Data block codegen — additional', () => {
     }`);
     const shared = result.shared;
     expect(shared).toContain('__validate_Customer');
-    expect(shared).toContain('Validation rule 1 failed');
-    expect(shared).toContain('Validation rule 2 failed');
+    expect(shared).toContain('Validation failed for Customer');
     expect(shared).toContain('valid: true');
     expect(shared).toContain('valid: false');
   });

@@ -527,7 +527,7 @@ describe('Server — Rate limiting window calculation', () => {
     expect(code).toContain('const __rateLimitStore = new Map()');
     expect(code).toContain('function __checkRateLimit');
     expect(code).toContain('windowSec * 1000');
-    expect(code).toContain('entry.timestamps.filter');
+    expect(code).toContain('entry.prevCount');
   });
 });
 
@@ -600,7 +600,7 @@ describe('Server — Background job queue generation', () => {
     expect(code).toContain('async function __bg_send_email(to)');
     expect(code).toContain('function spawn_job(name');
     expect(code).toContain('"send_email": __bg_send_email');
-    expect(code).toContain('retries: 2');
+    expect(code).toContain('maxRetries: 3');
   });
 });
 
@@ -618,8 +618,8 @@ describe('Server — Response compression generation', () => {
     expect(code).toContain('Bun.deflateSync');
     expect(code).toContain('Content-Encoding');
     // Check that fetch handler wraps compression
-    expect(code).toContain('__fetchHandler');
-    expect(code).toContain('__compressResponse(req, res)');
+    expect(code).toContain('fetch: __idempotentFetch');
+    expect(code).toContain('__compressResponse(req,');
   });
 });
 
@@ -1155,7 +1155,7 @@ describe('Server — Async mutex / withLock generation', () => {
     expect(code).toContain('class __Mutex');
     expect(code).toContain('async acquire()');
     expect(code).toContain('release()');
-    expect(code).toContain('async function withLock(fn)');
+    expect(code).toContain('async function withLock(nameOrFn, fn)');
   });
 });
 

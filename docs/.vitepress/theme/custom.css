@@ -36,16 +36,20 @@
 /*
  * Playground page — full-bleed iframe, no scrollbar, no footer.
  *
- * DOM structure (actual VitePress output):
+ * DOM structure (actual VitePress 1.6.x output):
  *   div.Layout.playground-page
- *     VPNav                          (fixed, height = --vp-nav-height)
+ *     VPNav                                (fixed at >=960px, in-flow on mobile)
  *     div.VPContent
  *       div.VPPage
- *         div                        (VitePress page wrapper)
- *           div                      (VitePress content wrapper)
- *             div.tov-playground-wrapper  (our component)
- *               iframe
+ *         div[style=position:relative]     (VitePress Content component wrapper)
+ *           div                            (playground.md render wrapper)
+ *             div.tov-playground-wrapper    (our component — position:relative)
+ *               iframe                     (position:absolute, fills wrapper)
  *     VPFooter
+ *
+ * Strategy: propagate flex height through VPContent → VPPage → wrappers,
+ * then use position:absolute on the iframe inside a position:relative wrapper.
+ * This avoids relying on flex sizing for replaced elements (iframe).
  */
 .playground-page {
   overflow: hidden;           /* no page-level scrollbar */
@@ -81,8 +85,8 @@
   min-height: 0;              /* allow flex child to shrink */
 }
 
-/* VitePress inserts anonymous wrapper divs between VPPage and our component.
-   Make every div in the chain a flex-growing column so the iframe fills the space. */
+/* VitePress inserts wrapper divs between VPPage and our component.
+   Make every div in the chain a flex-growing column. */
 .playground-page .VPPage > div {
   flex: 1;
   display: flex;

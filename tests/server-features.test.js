@@ -810,7 +810,7 @@ describe('Feature 1 — Runtime Input Validation', () => {
     expect(result.server).toContain('name is required');
     expect(result.server).toContain('typeof name !== "string"');
     expect(result.server).toContain('!Number.isInteger(age)');
-    expect(result.server).toContain('status: 400');
+    expect(result.server).toContain('__errorResponse(400, "VALIDATION_FAILED"');
   });
 
   test('validation checks Float type', () => {
@@ -868,7 +868,7 @@ describe('Feature 1 — Runtime Input Validation', () => {
       }
     `);
     expect(result.server).toContain('"Validation failed"');
-    expect(result.server).toContain('details: __validationErrors');
+    expect(result.server).toContain('__errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors)');
   });
 });
 
@@ -3117,7 +3117,7 @@ describe('Input Validation Decorator', () => {
         route POST "/users" with validate({name: {required: true}}) => create
       }
     `);
-    expect(result.server).toContain('status: 400');
+    expect(result.server).toContain('__errorResponse(400, "VALIDATION_FAILED"');
     expect(result.server).toContain('Validation failed');
   });
 });
@@ -3165,7 +3165,7 @@ describe('File Uploads', () => {
     expect(result.server).toContain('__uploadField');
     expect(result.server).toContain('"avatar"');
     expect(result.server).toContain('__validateFile');
-    expect(result.server).toContain('status: 400');
+    expect(result.server).toContain('__errorResponse(400, "VALIDATION_FAILED"');
   });
 
   test('upload helpers include Bun.write', () => {
@@ -3656,8 +3656,8 @@ describe('Response compression', () => {
         fn hello() { "world" }
       }
     `);
-    expect(result.server).toContain('fetch: __fetchHandler');
-    expect(result.server).toContain('__compressResponse(req, res)');
+    expect(result.server).toContain('fetch: __idempotentFetch');
+    expect(result.server).toContain('__compressResponse(req,');
   });
 });
 
@@ -3721,9 +3721,9 @@ describe('Background jobs', () => {
         fn hello() { "world" }
       }
     `);
-    expect(result.server).toContain('retries: 2');
-    expect(result.server).toContain('job.retries > 0');
-    expect(result.server).toContain('job.retries--');
+    expect(result.server).toContain('maxRetries: 3');
+    expect(result.server).toContain('job.attempt < job.maxRetries');
+    expect(result.server).toContain('job.attempt++');
   });
 
   test('background jobs drain on shutdown', () => {
@@ -4135,7 +4135,7 @@ describe('Type-Safe Request Body Deserialization', () => {
         route POST "/api/users" => create_user
       }
     `);
-    expect(result.server).toContain('status: 400');
+    expect(result.server).toContain('__errorResponse(400, "VALIDATION_FAILED"');
     expect(result.server).toContain('Validation failed');
   });
 });
@@ -4383,16 +4383,16 @@ describe('Race Condition Protection', () => {
     const result = compile(`
       server { fn hello() { "ok" } }
     `);
-    expect(result.server).toContain('async function withLock(fn)');
-    expect(result.server).toContain('__mutex.acquire()');
-    expect(result.server).toContain('__mutex.release()');
+    expect(result.server).toContain('async function withLock(nameOrFn, fn)');
+    expect(result.server).toContain('lock.acquire()');
+    expect(result.server).toContain('lock.release()');
   });
 
   test('withLock wraps function in try/finally', () => {
     const result = compile(`
       server { fn hello() { "ok" } }
     `);
-    expect(result.server).toContain('try { return await fn(); } finally { __mutex.release(); }');
+    expect(result.server).toContain('try { return await fn(); } finally { lock.release(); }');
   });
 });
 
@@ -4601,7 +4601,7 @@ describe('Gap 1 — Streaming body enforcement', () => {
       }
     `);
     expect(result.server).toContain('err.message === "__BODY_TOO_LARGE__"');
-    expect(result.server).toContain('status: 413');
+    expect(result.server).toContain('__errorResponse(413, "PAYLOAD_TOO_LARGE"');
   });
 
   test('custom max_body size is used', () => {
@@ -4861,7 +4861,7 @@ describe('Gap 4 — WebSocket authentication', () => {
     expect(result.server).toContain('__authenticate(req)');
     expect(result.server).toContain('__wsUser');
     expect(result.server).toContain('user: __wsUser');
-    expect(result.server).toContain('status: 401');
+    expect(result.server).toContain('__errorResponse(401, "AUTH_REQUIRED"');
   });
 
   test('WS upgrade skips auth when auth: false', () => {
@@ -4978,7 +4978,7 @@ describe('P0 Security — CSRF server-side validation', () => {
     expect(result.server).toContain('req.method !== "OPTIONS"');
     expect(result.server).toContain('X-Tova-CSRF');
     expect(result.server).toContain('CSRF token invalid or missing');
-    expect(result.server).toContain('status: 403');
+    expect(result.server).toContain('__errorResponse(403, "CSRF_INVALID"');
   });
 
   test('CSRF infrastructure generated when sessions are configured', () => {
@@ -5109,5 +5109,965 @@ describe('P0 Security — CORS defaults with auth/sessions', () => {
       }
     `);
     expect(result.server).toContain('X-Tova-CSRF');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P1-P3 NEW: Structured Error Codes
+// ═══════════════════════════════════════════════════════════════
+
+describe('P1 — Structured Error Codes', () => {
+  test('__errorResponse helper is generated', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('function __errorResponse(status, code, message, details, headers)');
+    expect(result.server).toContain('const body = { error: { code, message } }');
+    expect(result.server).toContain('Response.json(body, { status');
+  });
+
+  test('__errorResponse includes details when provided', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('if (details !== undefined && details !== null) body.error.details = details');
+  });
+
+  test('validation errors use VALIDATION_FAILED code', () => {
+    const result = compile(`
+      server {
+        fn signup(name: String) { name }
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors)');
+  });
+
+  test('body too large uses PAYLOAD_TOO_LARGE code', () => {
+    const result = compile(`
+      server {
+        cors { origins: ["*"] }
+        fn create(name) { name }
+        route POST "/api/items" => create
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(413, "PAYLOAD_TOO_LARGE"');
+  });
+
+  test('rate limit uses RATE_LIMITED code', () => {
+    const result = compile(`
+      server {
+        rate_limit { max: 100, window: 60 }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(429, "RATE_LIMITED"');
+  });
+
+  test('auth failure uses AUTH_REQUIRED code', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "secret" }
+        fn hello() { "world" }
+        route GET "/api/hello" with auth => hello
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(401, "AUTH_REQUIRED"');
+  });
+
+  test('CSRF failure uses CSRF_INVALID code', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(403, "CSRF_INVALID"');
+  });
+
+  test('internal error uses INTERNAL_ERROR code', () => {
+    const result = compile(`
+      server {
+        cors { origins: ["*"] }
+        fn hello() { "world" }
+        route GET "/api/hello" => hello
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(500, "INTERNAL_ERROR"');
+  });
+
+  test('404 not found uses NOT_FOUND code', () => {
+    const result = compile(`
+      server {
+        cors { origins: ["*"] }
+        fn hello() { "world" }
+        route GET "/api/hello" => hello
+      }
+    `);
+    expect(result.server).toContain('__errorResponse(404, "NOT_FOUND"');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P1 NEW: Request ID Sanitization
+// ═══════════════════════════════════════════════════════════════
+
+describe('P1 — Request ID Sanitization', () => {
+  const fullServer = `
+    server {
+      cors { origins: ["*"] }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }
+  `;
+
+  test('__sanitizeRequestId function is generated', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('function __sanitizeRequestId(raw)');
+    expect(result.server).toContain('__validRequestId');
+  });
+
+  test('sanitizer validates against regex pattern', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('/^[a-zA-Z0-9\\-_.]{1,128}$/');
+  });
+
+  test('sanitizer generates fallback ID when invalid', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('__genRequestId()');
+  });
+
+  test('request handler uses sanitized request ID', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('__sanitizeRequestId(req.headers.get("X-Request-Id"))');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P1 NEW: Named Mutexes
+// ═══════════════════════════════════════════════════════════════
+
+describe('P1 — Named Mutexes', () => {
+  test('__locks Map is generated instead of single __mutex', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('const __locks = new Map()');
+    expect(result.server).toContain('function __getLock(name)');
+  });
+
+  test('withLock accepts name parameter (backward compatible)', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('async function withLock(nameOrFn, fn)');
+    // Backward compat: if first arg is function, use "default" as name
+    expect(result.server).toContain('typeof nameOrFn === "function"');
+    expect(result.server).toContain('"default"');
+  });
+
+  test('__getLock creates per-name mutex', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('__locks.has(name)');
+    expect(result.server).toContain('__locks.set(name, new __Mutex())');
+    expect(result.server).toContain('return __locks.get(name)');
+  });
+
+  test('withLock uses named lock', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('const lock = __getLock(nameOrFn)');
+    expect(result.server).toContain('lock.acquire()');
+    expect(result.server).toContain('try { return await fn(); } finally { lock.release(); }');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P2 NEW: Better Data Block Validation Messages
+// ═══════════════════════════════════════════════════════════════
+
+describe('P2 — Better Data Block Validation Messages', () => {
+  test('validation error includes rule expression', () => {
+    const result = compile(`
+      shared {
+        type Customer {
+          name: String
+          age: Int
+        }
+      }
+      data {
+        validate Customer {
+          it.age > 0
+          it.name != ""
+        }
+      }
+      server { fn hello() { "world" } }
+    `);
+    // Should include the rule expression in the error message
+    expect(result.shared).toContain('Validation failed for Customer');
+    expect(result.shared).toContain('expected');
+  });
+
+  test('validate block generates function with rule source', () => {
+    const result = compile(`
+      shared {
+        type Order {
+          total: Float
+        }
+      }
+      data {
+        validate Order {
+          it.total > 0
+        }
+      }
+      server { fn hello() { "world" } }
+    `);
+    expect(result.shared).toContain('__validate_Order');
+    expect(result.shared).toContain('it.total > 0');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P2 NEW: OpenAPI Auth Schemes
+// ═══════════════════════════════════════════════════════════════
+
+describe('P2 — OpenAPI Auth Schemes', () => {
+  test('JWT auth generates BearerAuth security scheme', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test" }
+        fn get_users() { [] }
+        route GET "/api/users" with auth => get_users
+      }
+    `);
+    expect(result.server).toContain('BearerAuth');
+    expect(result.server).toContain('bearer');
+    expect(result.server).toContain('securitySchemes');
+  });
+
+  test('API key auth generates ApiKeyAuth scheme', () => {
+    const result = compile(`
+      server {
+        auth { type: "api_key", header: "X-API-Key" }
+        fn get_users() { [] }
+        route GET "/api/users" with auth => get_users
+      }
+    `);
+    expect(result.server).toContain('ApiKeyAuth');
+    expect(result.server).toContain('apiKey');
+    expect(result.server).toContain('securitySchemes');
+  });
+
+  test('protected routes get security requirement and 401 response', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test" }
+        fn get_users() { [] }
+        route GET "/api/users" with auth => get_users
+      }
+    `);
+    const openapi = result.server;
+    expect(openapi).toContain('"401"');
+    expect(openapi).toContain('security');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P2 NEW: Nested Object Validation
+// ═══════════════════════════════════════════════════════════════
+
+describe('P2 — Nested Object Validation', () => {
+  test('nested type fields are validated recursively', () => {
+    const result = compile(`
+      shared {
+        type Address {
+          street: String
+          city: String
+        }
+        type User {
+          name: String
+          address: Address
+        }
+      }
+      server {
+        fn create_user(req) { req.body }
+        route POST "/api/users" body: User => create_user
+      }
+    `);
+    // Should validate nested address fields
+    expect(result.server).toContain('address.street');
+    expect(result.server).toContain('address.city');
+  });
+
+  test('nested validation generates dotted error paths', () => {
+    const result = compile(`
+      shared {
+        type Contact {
+          email: String
+          phone: String
+        }
+        type Profile {
+          name: String
+          contact: Contact
+        }
+      }
+      server {
+        fn create_profile(req) { req.body }
+        route POST "/api/profiles" body: Profile => create_profile
+      }
+    `);
+    // Error paths should be dotted: "contact.email", "contact.phone"
+    expect(result.server).toContain('contact.email');
+    expect(result.server).toContain('contact.phone');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P1 NEW: Enriched Health Check
+// ═══════════════════════════════════════════════════════════════
+
+describe('P1 — Enriched Health Check', () => {
+  test('health check with checks array parses correctly', () => {
+    const ast = parse(`
+      server {
+        health "/health" { check_memory }
+        fn hello() { "world" }
+      }
+    `);
+    const serverBlock = ast.body.find(n => n.type === 'ServerBlock');
+    const health = serverBlock.body.find(n => n.type === 'HealthCheckDeclaration');
+    expect(health).toBeDefined();
+    expect(health.path).toBe('/health');
+    expect(health.checks).toContain('check_memory');
+  });
+
+  test('enriched health generates memory check', () => {
+    const result = compile(`
+      server {
+        health "/health" { check_memory }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('process.memoryUsage');
+    expect(result.server).toContain('heapUsed');
+  });
+
+  test('enriched health generates status field', () => {
+    const result = compile(`
+      server {
+        health "/health" { check_memory }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('status:');
+    expect(result.server).toContain('checks:');
+    expect(result.server).toContain('timestamp');
+  });
+
+  test('basic health check without checks still works', () => {
+    const result = compile(`
+      server {
+        health "/health"
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('/health');
+  });
+
+  test('health check with db check', () => {
+    const result = compile(`
+      server {
+        db { path: "./test.db" }
+        health "/health" { check_memory, check_db }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('__checks.db');
+    expect(result.server).toContain('db.query("SELECT 1")');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// P3 NEW: Idempotency Key Support
+// ═══════════════════════════════════════════════════════════════
+
+describe('P3 — Idempotency Key Support', () => {
+  // Use a server with a route to force full mode (non-fast mode)
+  const fullModeServer = `server {
+    cors { origins: ["*"] }
+    fn hello() { "world" }
+    route GET "/api/hello" => hello
+  }`;
+
+  test('idempotency cache is generated', () => {
+    const result = compile(fullModeServer);
+    expect(result.server).toContain('__idempotencyCache');
+    expect(result.server).toContain('__idempotencyTTL');
+  });
+
+  test('idempotency check function is generated', () => {
+    const result = compile(fullModeServer);
+    expect(result.server).toContain('__checkIdempotencyKey');
+    expect(result.server).toContain('Idempotency-Key');
+  });
+
+  test('idempotency stores result for replay', () => {
+    const result = compile(fullModeServer);
+    expect(result.server).toContain('__storeIdempotencyResult');
+  });
+
+  test('idempotent fetch wrapper is generated', () => {
+    const result = compile(fullModeServer);
+    expect(result.server).toContain('__idempotentFetch');
+  });
+
+  test('idempotency TTL defaults to 24 hours', () => {
+    const result = compile(fullModeServer);
+    expect(result.server).toContain('86400000'); // 24h in ms
+  });
+
+  test('idempotency returns cached response on duplicate key', () => {
+    const result = compile(fullModeServer);
+    // Check that the function returns cached result when key is found
+    expect(result.server).toContain('__idempotencyCache.get(');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SECURITY: Tier 1 Critical Fixes
+// ═══════════════════════════════════════════════════════════════
+
+describe('Security — Security Headers', () => {
+  const fullServer = `server {
+    cors { origins: ["*"] }
+    fn hello() { "world" }
+    route GET "/api/hello" => hello
+  }`;
+
+  test('security headers constant is generated in full mode', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('__securityHeaders');
+    expect(result.server).toContain('X-Content-Type-Options');
+    expect(result.server).toContain('nosniff');
+  });
+
+  test('X-Frame-Options DENY is set', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('X-Frame-Options');
+    expect(result.server).toContain('DENY');
+  });
+
+  test('Referrer-Policy is set', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('Referrer-Policy');
+    expect(result.server).toContain('strict-origin-when-cross-origin');
+  });
+
+  test('Permissions-Policy is set', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('Permissions-Policy');
+    expect(result.server).toContain('camera=()');
+  });
+
+  test('__applySecurityHeaders function is generated', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('function __applySecurityHeaders(headers)');
+  });
+
+  test('security headers are applied in idempotent fetch wrapper', () => {
+    const result = compile(fullServer);
+    expect(result.server).toContain('__applySecurityHeaders(res.headers)');
+  });
+
+  test('HSTS header is added when TLS is configured', () => {
+    const result = compile(`server {
+      tls { cert: "./cert.pem", key: "./key.pem" }
+      cors { origins: ["*"] }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('Strict-Transport-Security');
+    expect(result.server).toContain('max-age=31536000');
+  });
+});
+
+describe('Security — Session Cookie Flags', () => {
+  test('session cookie includes Secure and SameSite=Lax', () => {
+    const result = compile(`server {
+      session { secret: "test-secret" }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('Secure');
+    expect(result.server).toContain('SameSite=Lax');
+    expect(result.server).toContain('HttpOnly');
+  });
+});
+
+describe('Security — Default Secret Warnings', () => {
+  test('auth without explicit secret uses env var fallback', () => {
+    const result = compile(`server {
+      auth { type: "jwt" }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('process.env.AUTH_SECRET');
+    expect(result.server).toContain('process.env.JWT_SECRET');
+    expect(result.server).toContain('WARNING');
+  });
+
+  test('session without explicit secret uses env var fallback', () => {
+    const result = compile(`server {
+      session {}
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('process.env.SESSION_SECRET');
+    expect(result.server).toContain('WARNING');
+  });
+
+  test('auth with explicit secret does not warn', () => {
+    const result = compile(`server {
+      auth { type: "jwt", secret: "my-secret-key" }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).not.toContain('WARNING');
+    expect(result.server).toContain('"my-secret-key"');
+  });
+});
+
+describe('Security — Prototype Pollution Protection', () => {
+  test('__sanitizeBody function is generated', () => {
+    const result = compile(`server {
+      cors { origins: ["*"] }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('function __sanitizeBody(obj)');
+    expect(result.server).toContain('__proto__');
+    expect(result.server).toContain('constructor');
+    expect(result.server).toContain('prototype');
+  });
+
+  test('JSON body parsing uses __sanitizeBody', () => {
+    const result = compile(`server {
+      cors { origins: ["*"] }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__sanitizeBody(JSON.parse(text))');
+  });
+});
+
+describe('Security — Static File Path Traversal Protection', () => {
+  test('static file serving includes path resolution check', () => {
+    const result = compile(`server {
+      static "/public" => "./dist"
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__path.resolve(filePath)');
+    expect(result.server).toContain('__resolvedStaticDir');
+    expect(result.server).toContain('startsWith');
+  });
+});
+
+describe('Scalability — Bounded In-Memory Stores', () => {
+  test('rate limit store has max key limit', () => {
+    const result = compile(`server {
+      rate_limit { max: 100, window: 60 }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__rateLimitMaxKeys');
+    expect(result.server).toContain('100000');
+  });
+
+  test('idempotency cache has max key limit', () => {
+    const result = compile(`server {
+      cors { origins: ["*"] }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__idempotencyMaxKeys');
+    expect(result.server).toContain('10000');
+  });
+
+  test('in-memory session store has max key limit', () => {
+    const result = compile(`server {
+      session { secret: "test" }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__sessionMaxKeys');
+    expect(result.server).toContain('50000');
+  });
+});
+
+describe('Scalability — O(1) Sliding Window Rate Limiter', () => {
+  test('rate limiter uses sliding window counters', () => {
+    const result = compile(`server {
+      rate_limit { max: 50, window: 30 }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('prevCount');
+    expect(result.server).toContain('currCount');
+    expect(result.server).toContain('windowStart');
+  });
+
+  test('rate limiter estimates using weighted average', () => {
+    const result = compile(`server {
+      rate_limit { max: 50, window: 30 }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('entry.prevCount * (1 - elapsed) + entry.currCount');
+  });
+
+  test('rate limiter evicts oldest entry when full', () => {
+    const result = compile(`server {
+      rate_limit { max: 50, window: 30 }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__rateLimitStore.size >= __rateLimitMaxKeys');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Tier 2: Important Fixes
+// ═══════════════════════════════════════════════════════════════
+
+describe('Tier 2 — CORS Preflight Caching', () => {
+  test('explicit CORS includes Access-Control-Max-Age', () => {
+    const result = compile(`server {
+      cors { origins: ["https://example.com"] }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('Access-Control-Max-Age');
+    expect(result.server).toContain('__corsMaxAge');
+  });
+
+  test('CORS max_age is configurable', () => {
+    const result = compile(`server {
+      cors { origins: ["*"], max_age: 3600 }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__corsMaxAge');
+  });
+
+  test('default CORS includes Access-Control-Max-Age', () => {
+    const result = compile(`server {
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('"Access-Control-Max-Age": "86400"');
+  });
+
+  test('auth-restricted CORS includes Access-Control-Max-Age', () => {
+    const result = compile(`server {
+      auth { type: "jwt", secret: "test" }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('"Access-Control-Max-Age": "86400"');
+  });
+
+  test('credentials with wildcard origin emits warning', () => {
+    const result = compile(`server {
+      cors { origins: ["*"], credentials: true }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('CORS warning');
+    expect(result.server).toContain('credentials: true with wildcard origin');
+  });
+});
+
+describe('Tier 2 — WebSocket Rate Limiting and Keepalive', () => {
+  test('WebSocket handlers include rate limiting', () => {
+    const result = compile(`server {
+      ws {
+        on_message fn(ws, message) { broadcast(message) }
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__wsRateLimit');
+    expect(result.server).toContain('__wsCheckRate');
+    expect(result.server).toContain('__wsRateLimitMax');
+  });
+
+  test('WS message handler checks rate before dispatching', () => {
+    const result = compile(`server {
+      ws {
+        on_message fn(ws, message) { broadcast(message) }
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('if (!__wsCheckRate(ws))');
+    expect(result.server).toContain('RATE_LIMITED');
+  });
+
+  test('WS close handler cleans up rate limit entries', () => {
+    const result = compile(`server {
+      ws {
+        on_message fn(ws, message) { broadcast(message) }
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__wsRateLimit.delete(ws)');
+  });
+
+  test('WS config includes idleTimeout for keepalive', () => {
+    const result = compile(`server {
+      ws {
+        on_open fn(ws) { print("connected") }
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('idleTimeout: 120');
+  });
+});
+
+describe('Tier 2 — SSE Heartbeat and Reconnection', () => {
+  test('SSE channel subscribe sends retry directive', () => {
+    const result = compile(`server {
+      sse "/events" fn(send, close) {
+        send("hello")
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('retry: 3000');
+  });
+
+  test('SSE sends include event IDs', () => {
+    const result = compile(`server {
+      sse "/events" fn(send, close) {
+        send("hello")
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('__sseEventId');
+    expect(result.server).toContain('id: ${++__sseEventId}');
+  });
+
+  test('SSE channel has periodic heartbeat', () => {
+    const result = compile(`server {
+      sse "/events" fn(send, close) {
+        send("hello")
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain(': heartbeat');
+    expect(result.server).toContain('setInterval');
+    expect(result.server).toContain('30000');
+  });
+
+  test('SSE route captures Last-Event-ID header', () => {
+    const result = compile(`server {
+      sse "/events" fn(send, close) {
+        send("hello")
+      }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('Last-Event-ID');
+    expect(result.server).toContain('__lastEventId');
+  });
+});
+
+describe('Tier 2 — Background Job Exponential Backoff', () => {
+  test('background jobs use exponential backoff', () => {
+    const result = compile(`server {
+      background fn process_data(data) { print(data) }
+      fn hello() { "world" }
+    }`);
+    expect(result.server).toContain('__jobBackoffDelay');
+    expect(result.server).toContain('Math.pow(2, attempt)');
+    expect(result.server).toContain('__JOB_BASE_DELAY');
+    expect(result.server).toContain('__JOB_MAX_DELAY');
+  });
+
+  test('background jobs use attempt counter instead of retries', () => {
+    const result = compile(`server {
+      background fn process_data(data) { print(data) }
+      fn hello() { "world" }
+    }`);
+    expect(result.server).toContain('attempt: 0');
+    expect(result.server).toContain('maxRetries: 3');
+    expect(result.server).toContain('job.attempt < job.maxRetries');
+    expect(result.server).toContain('job.attempt++');
+  });
+
+  test('backoff includes jitter', () => {
+    const result = compile(`server {
+      background fn process_data(data) { print(data) }
+      fn hello() { "world" }
+    }`);
+    expect(result.server).toContain('Math.random()');
+  });
+
+  test('retry uses setTimeout for delayed re-enqueue', () => {
+    const result = compile(`server {
+      background fn process_data(data) { print(data) }
+      fn hello() { "world" }
+    }`);
+    expect(result.server).toContain('setTimeout(() => { __jobQueue.push(job); __processJobQueue(); }, delay)');
+  });
+});
+
+describe('Tier 2 — ORM Pagination and Soft Deletes', () => {
+  test('ORM model has paginate method', () => {
+    const result = compile(`server {
+      db { driver: "sqlite", path: "test.db" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('paginate(page = 1, perPage = 20)');
+    expect(result.server).toContain('LIMIT');
+    expect(result.server).toContain('OFFSET');
+    expect(result.server).toContain('totalPages');
+  });
+
+  test('paginate clamps perPage to max 100', () => {
+    const result = compile(`server {
+      db { driver: "sqlite", path: "test.db" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('Math.min(100, Math.floor(perPage))');
+  });
+
+  test('ORM model has soft_delete method', () => {
+    const result = compile(`server {
+      db { driver: "sqlite", path: "test.db" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('soft_delete(id)');
+    expect(result.server).toContain('deleted_at');
+  });
+
+  test('ORM model has restore method', () => {
+    const result = compile(`server {
+      db { driver: "sqlite", path: "test.db" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('restore(id)');
+    expect(result.server).toContain('deleted_at = NULL');
+  });
+
+  test('ORM model has active method', () => {
+    const result = compile(`server {
+      db { driver: "sqlite", path: "test.db" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('active()');
+    expect(result.server).toContain('deleted_at IS NULL');
+  });
+
+  test('postgres paginate uses $1/$2 placeholders', () => {
+    const result = compile(`server {
+      db { driver: "postgres", url: "postgres://localhost/test" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('LIMIT $1 OFFSET $2');
+  });
+
+  test('postgres soft_delete uses NOW()', () => {
+    const result = compile(`server {
+      db { driver: "postgres", url: "postgres://localhost/test" }
+      model User { name: String, email: String }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('SET deleted_at = NOW()');
+  });
+});
+
+describe('Tier 2 — OpenAPI Error Responses', () => {
+  test('OpenAPI includes ErrorResponse schema', () => {
+    const result = compile(`server {
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('ErrorResponse');
+    expect(result.server).toContain('Machine-readable error code');
+  });
+
+  test('POST routes get 400 validation error response', () => {
+    const result = compile(`server {
+      fn create_user(name) { name }
+      route POST "/api/users" => create_user
+    }`);
+    expect(result.server).toContain('"400"');
+    expect(result.server).toContain('Validation Failed');
+  });
+
+  test('auth routes get 401 response', () => {
+    const result = compile(`server {
+      auth { type: "jwt", secret: "test" }
+      fn hello() { "world" }
+      route GET "/api/hello" with auth => hello
+    }`);
+    expect(result.server).toContain('"401"');
+    expect(result.server).toContain('Unauthorized');
+  });
+
+  test('role-protected routes get 403 response', () => {
+    const result = compile(`server {
+      auth { type: "jwt", secret: "test" }
+      fn hello() { "world" }
+      route GET "/api/hello" with auth, role("admin") => hello
+    }`);
+    expect(result.server).toContain('"403"');
+    expect(result.server).toContain('Forbidden');
+  });
+
+  test('routes with path params get 404 response', () => {
+    const result = compile(`server {
+      fn get_user(id) { id }
+      route GET "/api/users/:id" => get_user
+    }`);
+    expect(result.server).toContain('"404"');
+    expect(result.server).toContain('Not Found');
+  });
+
+  test('rate-limited routes get 429 response', () => {
+    const result = compile(`server {
+      rate_limit { max: 100, window: 60 }
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('"429"');
+    expect(result.server).toContain('Too Many Requests');
+  });
+
+  test('all routes get 500 response', () => {
+    const result = compile(`server {
+      fn hello() { "world" }
+      route GET "/api/hello" => hello
+    }`);
+    expect(result.server).toContain('"500"');
+    expect(result.server).toContain('Internal Server Error');
+  });
+
+  test('timeout routes get 504 response', () => {
+    const result = compile(`server {
+      fn slow_op() { "done" }
+      route GET "/api/slow" with timeout(5000) => slow_op
+    }`);
+    expect(result.server).toContain('"504"');
+    expect(result.server).toContain('Gateway Timeout');
   });
 });
