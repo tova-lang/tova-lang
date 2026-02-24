@@ -4408,6 +4408,55 @@ function compareSemver(a, b) {
   return 0;
 }
 
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+async function downloadWithProgress(url, destPath) {
+  const res = await fetch(url);
+  if (!res.ok) return null;
+
+  const contentLength = parseInt(res.headers.get('content-length'), 10) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+
+  const barWidth = 20;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+
+    if (isTTY) {
+      if (contentLength > 0) {
+        const pct = Math.min(100, Math.round((received / contentLength) * 100));
+        const filled = Math.round((pct / 100) * barWidth);
+        const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(barWidth - filled);
+        process.stdout.write(`\r  Downloading... [${bar}] ${pct}% (${formatBytes(received)} / ${formatBytes(contentLength)})`);
+      } else {
+        process.stdout.write(`\r  Downloading... ${formatBytes(received)}`);
+      }
+    }
+  }
+
+  if (isTTY) process.stdout.write('\n');
+
+  // Combine chunks into a single Uint8Array
+  const result = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  writeFileSync(destPath, result);
+  return { compressed: url.endsWith('.gz'), size: received };
+}
+
 async function upgradeCommand() {
   console.log(`\n  Current version: ${color.bold('Tova v' + VERSION)}\n`);
   console.log('  Checking for updates...');
@@ -4465,20 +4514,22 @@ async function upgradeCommand() {
       // Ensure install directory exists
       mkdirSync(installDir, { recursive: true });
 
-      // Download compressed binary
-      const dlRes = await fetch(downloadUrl);
-      if (!dlRes.ok) {
+      // Download compressed binary with progress
+      let dlResult = await downloadWithProgress(downloadUrl, tmpPath);
+      if (!dlResult) {
         // Fall back to uncompressed
-        const dlRes2 = await fetch(downloadUrl.replace('.gz', ''));
-        if (!dlRes2.ok) {
+        dlResult = await downloadWithProgress(downloadUrl.replace('.gz', ''), tmpPath);
+        if (!dlResult) {
           console.log(`  ${color.dim('Binary download failed. Falling back to npm...')}\n`);
           await npmUpgrade(latestVersion);
           return;
         }
-        writeFileSync(tmpPath, new Uint8Array(await dlRes2.arrayBuffer()));
-      } else {
+      }
+
+      if (dlResult.compressed) {
         // Decompress gzip
-        const compressed = new Uint8Array(await dlRes.arrayBuffer());
+        console.log('  Decompressing...');
+        const compressed = readFileSync(tmpPath);
         const { gunzipSync } = await import('zlib');
         const decompressed = gunzipSync(compressed);
         writeFileSync(tmpPath, decompressed);
@@ -4488,6 +4539,7 @@ async function upgradeCommand() {
       chmodSync(tmpPath, 0o755);
 
       // Verify the new binary works
+      console.log('  Verifying binary...');
       const { spawnSync } = await import('child_process');
       const verifyProc = spawnSync(tmpPath, ['--version'], { timeout: 10000 });
       if (verifyProc.status !== 0) {
