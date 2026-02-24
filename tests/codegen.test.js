@@ -1007,12 +1007,12 @@ describe('Feature — JSX for-loop destructuring', () => {
 });
 
 describe('Feature — dangerouslySetInnerHTML codegen', () => {
-  test('innerHTML attribute passes through', () => {
+  test('dangerouslySetInnerHTML attribute generates correct code', () => {
     const result = compile(`client {
       component App {
-        <div innerHTML={"<b>bold</b>"} />
+        <div dangerouslySetInnerHTML={{__html: "<b>bold</b>"}} />
       }
     }`);
-    expect(result.client).toContain('innerHTML');
+    expect(result.client).toContain('dangerouslySetInnerHTML');
   });
 });

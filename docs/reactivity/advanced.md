@@ -230,6 +230,140 @@ effect {
 }
 ```
 
+## Head Component
+
+The `Head` component lets components declaratively manage document head tags (`<title>`, `<meta>`, `<link>`, etc.). When a component unmounts, its head contributions are automatically cleaned up.
+
+```tova
+component BlogPost(post) {
+  <Head>
+    <title>{post.title} - My Blog</title>
+    <meta name="description" content={post.summary} />
+    <meta property="og:title" content={post.title} />
+    <link rel="canonical" href="/posts/{post.slug}" />
+  </Head>
+
+  <article>
+    <h1>{post.title}</h1>
+    <div>{post.content}</div>
+  </article>
+}
+```
+
+### How It Works
+
+1. `Head` processes its vnode children and adds them to `document.head`
+2. `<title>` children update `document.title` directly
+3. Other elements (`<meta>`, `<link>`, `<style>`, `<script>`) are appended to `<head>`
+4. When the component's ownership root is disposed (unmount), all added elements are removed and the previous title is restored
+
+### Multiple Head Components
+
+Each component can have its own `Head`. The last one to render wins for `<title>`, while `<meta>` and `<link>` tags accumulate:
+
+```tova
+component App {
+  <Head>
+    <title>My App</title>
+    <meta name="viewport" content="width=device-width" />
+  </Head>
+  <Router />
+}
+
+component AboutPage {
+  <Head>
+    <title>About - My App</title>
+    <meta name="description" content="About our company" />
+  </Head>
+  <div>...</div>
+}
+```
+
+When navigating to `/about`, the title becomes "About - My App". When navigating away, it reverts to "My App".
+
+### SSR
+
+During SSR, use the `head` parameter in `renderPage()` for static head content. The `Head` component activates during client-side hydration.
+
+## createResource
+
+`createResource` is an async data fetching primitive that integrates with the signal system. It manages loading state, error handling, and stale response cancellation automatically.
+
+### Basic Usage
+
+```tova
+client {
+  [users, { loading, error, refetch }] = createResource(fn() {
+    server.get_users()
+  })
+
+  component App {
+    if loading() {
+      <p>Loading...</p>
+    } elif error() {
+      <p>Error: {error().message}</p>
+      <button on:click={refetch}>Retry</button>
+    } else {
+      <ul>
+        for user in users() {
+          <li>{user.name}</li>
+        }
+      </ul>
+    }
+  }
+}
+```
+
+### With Reactive Source
+
+Pass a signal as the first argument to re-fetch whenever the source changes:
+
+```tova
+client {
+  state user_id = 1
+
+  [user, { loading, error }] = createResource(
+    fn() user_id,
+    fn(id) server.get_user(id)
+  )
+
+  // When user_id changes, the fetcher re-runs automatically
+}
+```
+
+The fetcher is skipped when the source value is `nil`, `undefined`, or `false`.
+
+### Return Value
+
+`createResource(fetcher)` returns `[data, controls]`:
+
+| Field | Type | Description |
+|---|---|---|
+| `data` | signal getter | The fetched data (or `undefined` before first load) |
+| `controls.loading` | signal getter | `true` while a fetch is in progress |
+| `controls.error` | signal getter | The error object if the fetch failed, otherwise `undefined` |
+| `controls.refetch` | function | Manually re-invoke the fetcher |
+| `controls.mutate` | function | Directly update the data signal (for optimistic updates) |
+
+### Stale Response Handling
+
+If the source changes while a fetch is in progress, the previous response is discarded. Only the most recent fetch updates the data signal.
+
+### Optimistic Updates
+
+Use `mutate` to update data immediately before the server responds:
+
+```tova
+fn handle_toggle(todo) {
+  // Optimistic update
+  mutate(todos().map(fn(t) {
+    if t.id == todo.id { { ...t, done: not t.done } } else { t }
+  }))
+  // Then sync with server
+  server.toggle_todo(todo.id)
+}
+```
+
 ## Error Boundaries
 
 Error boundaries catch errors in reactive code and display fallback UI instead of crashing the entire application. Boundaries can be nested -- an inner boundary catches errors first, and only if it doesn't handle them (or its fallback throws) does the error propagate to outer boundaries.
@@ -383,6 +517,8 @@ component Modal(title, on_close) {
 
 The `target` prop accepts a CSS selector string (like `"#modal-root"` or `"body"`) or a DOM element reference. The children are rendered into that target node via `queueMicrotask`, ensuring the target element exists in the DOM.
 
+When the Portal component unmounts, its children are automatically removed from the target element and their reactive roots are disposed.
+
 Make sure the target element exists in your HTML:
 
 ```html
@@ -494,7 +630,7 @@ mount(App, document.getElementById("app"))
 `mount(component, container)`:
 1. Creates a reactive ownership root (`createRoot`)
 2. Calls the component function to produce vnodes
-3. Clears the container's innerHTML
+3. Safely clears the container's children
 4. Renders the vnodes into real DOM and appends to the container
 5. Returns a dispose function to tear down the reactive tree
 
@@ -619,6 +755,137 @@ Root (App mount)
 
 Disposing the top-level root disposes everything: Component B's Effect 3 and Computed 1 first, then Component A's Effect 2 and Effect 1.
 
+## createForm
+
+`createForm` provides reactive form handling with field-level validation, submission management, and dirty tracking.
+
+### Basic Usage
+
+```tova
+client {
+  form = createForm({
+    fields: {
+      email: {
+        initial: "",
+        validate: fn(v) if v.includes("@") { nil } else { "Invalid email" }
+      },
+      password: {
+        initial: "",
+        validate: fn(v) if len(v) >= 8 { nil } else { "At least 8 characters" }
+      }
+    },
+    onSubmit: async fn(values) {
+      server.register(values)
+    }
+  })
+
+  component RegisterForm {
+    email = form.field("email")
+    password = form.field("password")
+
+    <form on:submit={form.submit}>
+      <input
+        type="email"
+        bind:value={email.value}
+        on:blur={fn() email.blur()}
+        placeholder="Email"
+      />
+      if email.error() {
+        <span class="error">{email.error()}</span>
+      }
+
+      <input
+        type="password"
+        bind:value={password.value}
+        on:blur={fn() password.blur()}
+        placeholder="Password"
+      />
+      if password.error() {
+        <span class="error">{password.error()}</span>
+      }
+
+      <button type="submit" disabled={form.submitting()}>
+        {if form.submitting() { "Submitting..." } else { "Register" }}
+      </button>
+
+      if form.submitError() {
+        <p class="error">Server error: {form.submitError().message}</p>
+      }
+    </form>
+  }
+}
+```
+
+### Configuration
+
+```
+createForm({
+  fields: { [name]: { initial, validate? } },
+  onSubmit?: async fn(values) -> void,
+  validateOnChange?: bool,   // default: true
+  validateOnBlur?: bool,     // default: true
+})
+```
+
+### Field Object
+
+Each `form.field(name)` returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `value` | signal getter | Current field value |
+| `error` | signal getter | Validation error message or `nil` |
+| `touched` | signal getter | Whether the field has been blurred |
+| `set(val)` | function | Update the field value |
+| `blur()` | function | Mark as touched, trigger validation |
+| `validate()` | function | Run validation manually |
+
+### Form-Level API
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `field(name)` | function | Get a field accessor |
+| `values()` | function | Get all field values as an object |
+| `reset()` | function | Reset all fields to initial values |
+| `submit(event?)` | async function | Validate and submit (calls `preventDefault` on events) |
+| `validate()` | function | Validate all fields, returns `true` if valid |
+| `submitting` | signal getter | `true` while `onSubmit` is running |
+| `submitError` | signal getter | Error from the last `onSubmit` failure |
+| `submitCount` | signal getter | Number of submit attempts |
+| `isValid` | computed | `true` when all fields pass validation |
+| `isDirty` | computed | `true` when any field differs from its initial value |
+
+## configureCSP
+
+`configureCSP` enables Content Security Policy (CSP) compliance for dynamically injected `<style>` tags:
+
+```tova
+// Set the nonce at app startup
+configureCSP({ nonce: "abc123xyz" })
+```
+
+When a nonce is configured, all scoped CSS style tags created by `tova_inject_css` will include the `nonce` attribute, allowing them to pass strict CSP policies.
+
+### Auto-Detection
+
+If you include a meta tag in your HTML, the nonce is auto-detected:
+
+```html
+<meta name="csp-nonce" content="abc123xyz">
+```
+
+### SSR Integration
+
+When using `renderPage()` or `renderPageToStream()`, pass `cspNonce` to add the nonce to the script tag:
+
+```js
+renderPage(App, {
+  title: 'My App',
+  cspNonce: 'abc123xyz',
+})
+// Output: <script type="module" src="/client.js" nonce="abc123xyz"></script>
+```
+
 ## Summary
 
 | API | Purpose |
@@ -638,3 +905,7 @@ Disposing the top-level root disposes everything: Component B's Effect 3 and Com
 | `hydrate(component, container)` | Attach reactivity to server-rendered HTML, dispatches `tova:hydrated` event |
 | `hydrateWhenVisible(component, node)` | Defer hydration until element is visible in viewport |
 | `createRoot(fn)` | Create an ownership root for manual control |
+| `Head({ title?, meta?, children? })` | Declarative document head management with cleanup |
+| `createResource(fetcher, opts?)` | Async data fetching with `loading`, `error`, `refetch`, `mutate` signals |
+| `createForm({ fields, onSubmit? })` | Reactive form handling with validation, submission, and dirty tracking |
+| `configureCSP({ nonce })` | Set CSP nonce for dynamically injected style tags |

@@ -279,12 +279,13 @@ export class CodeGenerator {
           break;
         }
         case 'ValidateBlock': {
-          // Validate: validator function
+          // Validate: validator function — include rule expression in error for debuggability
           const rules = stmt.rules.map(r => gen.genExpression(r));
           lines.push(`function __validate_${stmt.typeName}(it) {`);
           lines.push(`  const errors = [];`);
           for (let i = 0; i < rules.length; i++) {
-            lines.push(`  if (!(${rules[i]})) errors.push("Validation rule ${i + 1} failed for ${stmt.typeName}");`);
+            const escapedRule = rules[i].replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            lines.push(`  if (!(${rules[i]})) errors.push("Validation failed for ${stmt.typeName}: expected \`${escapedRule}\`");`);
           }
           lines.push(`  return errors.length === 0 ? { valid: true, errors: [] } : { valid: false, errors };`);
           lines.push(`}`);

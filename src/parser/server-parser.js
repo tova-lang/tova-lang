@@ -137,7 +137,18 @@ export function installServerParser(ParserClass) {
     const l = this.loc();
     this.advance(); // consume 'health'
     const path = this.expect(TokenType.STRING, "Expected health check path string");
-    return new AST.HealthCheckDeclaration(path.value, l);
+    // Optional enriched checks block: health "/health" { check_memory, check_db }
+    const checks = [];
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume '{'
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        const checkName = this.expect(TokenType.IDENTIFIER, "Expected health check name").value;
+        checks.push(checkName);
+        this.match(TokenType.COMMA);
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close health check config");
+    }
+    return new AST.HealthCheckDeclaration(path.value, l, checks);
   };
 
   ParserClass.prototype.parseCorsConfig = function() {

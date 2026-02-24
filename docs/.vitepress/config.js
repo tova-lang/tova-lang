@@ -149,6 +149,7 @@ export default defineConfig({
             { text: 'SSR', link: '/reactivity/ssr' },
             { text: 'DevTools', link: '/reactivity/devtools' },
             { text: 'Router', link: '/reactivity/router' },
+            { text: 'Testing', link: '/reactivity/testing' },
           ],
         },
       ],

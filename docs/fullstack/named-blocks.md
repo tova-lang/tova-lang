@@ -1,8 +1,10 @@
 # Named Blocks
 
-For applications that outgrow a single server process, Tova supports **named blocks**. A named block is a `server` (or `client`) block with a string label. Each named block compiles to its own JavaScript file and runs as a separate process, letting you split your backend into multiple services within a single `.tova` file.
+For applications that outgrow a single server process or need separate client bundles, Tova supports **named blocks**. A named block is a `server` or `client` block with a string label. Each named block compiles to its own JavaScript file, letting you split your application into multiple independent outputs from a single `.tova` file.
 
 ## Syntax
+
+### Named Server Blocks
 
 A named block has a string after the `server` keyword:
 
@@ -29,6 +31,47 @@ server "worker" {
 
 An unnamed `server { }` block is the "default" server. Named blocks are additional servers that run alongside it.
 
+### Named Client Blocks
+
+Client blocks can also be named, producing separate client bundles:
+
+```tova
+client "admin" {
+  state adminUsers = []
+
+  component AdminPanel {
+    <div>
+      <h1>"Admin Dashboard"</h1>
+      for user in adminUsers {
+        <div>{user.name} — {user.role}</div>
+      }
+    </div>
+  }
+}
+
+client "public" {
+  state posts = []
+
+  component Blog {
+    <div>
+      <h1>"Blog"</h1>
+      for post in posts {
+        <article>{post.title}</article>
+      }
+    </div>
+  }
+}
+```
+
+Named client blocks are **completely separate** — they do not share state, components, or any runtime scope. Each compiles to its own JavaScript file with its own reactive root.
+
+::: tip Unnamed vs Named Client Blocks
+- **Multiple unnamed `client {}` blocks** in the same file or directory are **merged** into one output. They share state, components, and the same reactive scope. Use this to organize code by concern.
+- **Named `client "name" {}` blocks** produce **separate** outputs. They are independent client applications. Use this when you need truly separate bundles (e.g., admin panel vs public site).
+
+See [Client Block — Multiple Client Blocks](/fullstack/client-block#multiple-client-blocks) for more details on merging behavior.
+:::
+
 ## Output Structure
 
 Each named block compiles to its own JavaScript file. For a single file named `app.tova` (or a directory of `.tova` files):
@@ -40,7 +83,9 @@ Each named block compiles to its own JavaScript file. For a single file named `a
   app.server.api.js            # server "api" { }
   app.server.events.js         # server "events" { }
   app.server.worker.js         # server "worker" { }
-  app.client.js                # client block
+  app.client.js                # unnamed client { } block (default)
+  app.client.admin.js          # client "admin" { }
+  app.client.public.js         # client "public" { }
   runtime/
     reactivity.js
     rpc.js
@@ -48,6 +93,8 @@ Each named block compiles to its own JavaScript file. For a single file named `a
 ```
 
 Each named server file is a standalone Bun script. It imports `app.shared.js` for shared types, registers its own routes and RPC endpoints, and starts its own `Bun.serve()` instance.
+
+Each named client file is an independent client bundle with its own reactive runtime, signals, and components. Named client blocks import `app.shared.js` for shared types but are otherwise self-contained.
 
 ### Named Blocks Across Files
 

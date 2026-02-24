@@ -25,9 +25,10 @@ export class MiddlewareDeclaration {
 }
 
 export class HealthCheckDeclaration {
-  constructor(path, loc) {
+  constructor(path, loc, checks = []) {
     this.type = 'HealthCheckDeclaration';
     this.path = path;       // string literal, e.g. "/health"
+    this.checks = checks;   // optional array of check names, e.g. ["check_memory", "check_db"]
     this.loc = loc;
   }
 }

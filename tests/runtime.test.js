@@ -1379,15 +1379,24 @@ describe('Feature — lazy', () => {
   });
 });
 
-describe('Feature — innerHTML prop', () => {
-  test('innerHTML is applied to element', () => {
+describe('Feature — dangerouslySetInnerHTML prop (security)', () => {
+  test('innerHTML prop is blocked for security', () => {
+    const origError = console.error;
+    let errorCalled = false;
+    console.error = () => { errorCalled = true; };
     const el = render(tova_el('div', { innerHTML: '<b>bold</b>' }));
-    expect(el.innerHTML).toBe('<b>bold</b>');
+    // innerHTML should NOT be set — blocked to prevent accidental XSS
+    expect(el.innerHTML).toBe('');
+    expect(errorCalled).toBe(true);
+    console.error = origError;
   });
 
-  test('dangerouslySetInnerHTML with __html property', () => {
+  test('dangerouslySetInnerHTML with __html property works', () => {
+    const origWarn = console.warn;
+    console.warn = () => {};
     const el = render(tova_el('div', { dangerouslySetInnerHTML: { __html: '<i>italic</i>' } }));
     expect(el.innerHTML).toBe('<i>italic</i>');
+    console.warn = origWarn;
   });
 });
 

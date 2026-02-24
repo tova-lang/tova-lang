@@ -186,3 +186,46 @@ for item in items key={item.id} {
 ```
 
 Each item animates independently when added or removed from the list.
+
+## TransitionGroup
+
+`TransitionGroup` animates enter and leave transitions for items in a keyed list. It wraps a list of keyed children in a container element and applies transitions to each child.
+
+### Basic Usage
+
+```tova
+component TodoList(items) {
+  <TransitionGroup name="fade" tag="ul">
+    for item in items key={item.id} {
+      <li>{item.text}</li>
+    }
+  </TransitionGroup>
+}
+```
+
+When items are added to or removed from the list, each item animates with the specified transition.
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `name` | String | `"fade"` | Built-in transition name (`fade`, `slide`, `scale`, `fly`) |
+| `tag` | String | `"div"` | HTML tag for the wrapper element |
+| `config` | Object | `{}` | Transition configuration (duration, easing, etc.) |
+
+### Configuration
+
+```tova
+<TransitionGroup name="slide" tag="ul" config={{duration: 300, axis: "x"}}>
+  for item in items key={item.id} {
+    <li>{item.text}</li>
+  }
+</TransitionGroup>
+```
+
+### How It Works
+
+1. `TransitionGroup` annotates each child vnode with the specified transition
+2. When a new child appears, its enter transition plays automatically
+3. When a child is removed, its leave transition plays before DOM removal
+4. The container element receives a `data-tova-transition-group` attribute for styling

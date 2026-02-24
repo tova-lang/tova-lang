@@ -4921,3 +4921,193 @@ describe('Gap 4 — WebSocket authentication', () => {
     `)).toThrow(/Invalid WebSocket key/);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// P0 Security Fixes
+// ═══════════════════════════════════════════════════════════════
+
+describe('P0 Security — verify_password timing-safe comparison', () => {
+  test('verify_password uses timingSafeEqual instead of ===', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    // verify_password is always emitted in auth builtins
+    expect(result.server).toContain('verify_password');
+    expect(result.server).toContain('timingSafeEqual(__a, __b)');
+    // Must NOT use direct === for hash comparison
+    expect(result.server).not.toMatch(/hashHex === expectedHash/);
+  });
+
+  test('verify_password checks length before timingSafeEqual', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('if (hashHex.length !== expectedHash.length) return false');
+  });
+});
+
+describe('P0 Security — CSRF server-side validation', () => {
+  test('CSRF infrastructure generated when auth is configured', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('__generateCSRFToken');
+    expect(result.server).toContain('__validateCSRFToken');
+    expect(result.server).toContain('__getCSRFKey');
+  });
+
+  test('CSRF token endpoint generated when auth is configured', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('/csrf-token');
+    expect(result.server).toContain('__generateCSRFToken()');
+  });
+
+  test('CSRF validation checks state-mutating methods', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('req.method !== "GET"');
+    expect(result.server).toContain('req.method !== "HEAD"');
+    expect(result.server).toContain('req.method !== "OPTIONS"');
+    expect(result.server).toContain('X-Tova-CSRF');
+    expect(result.server).toContain('CSRF token invalid or missing');
+    expect(result.server).toContain('status: 403');
+  });
+
+  test('CSRF infrastructure generated when sessions are configured', () => {
+    const result = compile(`
+      server {
+        session { secret: "sess-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('__generateCSRFToken');
+    expect(result.server).toContain('__validateCSRFToken');
+  });
+
+  test('CSRF NOT generated for simple servers without auth/sessions', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).not.toContain('__validateCSRFToken');
+    expect(result.server).not.toContain('/csrf-token');
+  });
+
+  test('CSRF token uses HMAC-SHA256 with timing-safe comparison', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('crypto.subtle.sign("HMAC"');
+    expect(result.server).toContain('timingSafeEqual');
+    // Token has expiry check (86400000ms = 24h)
+    expect(result.server).toContain('86400000');
+  });
+});
+
+describe('P0 Security — file upload path traversal', () => {
+  test('save_file sanitizes filename with path.basename', () => {
+    const result = compile(`
+      server {
+        upload { max_size: 1048576 }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('path.basename(name)');
+  });
+
+  test('save_file rejects directory traversal', () => {
+    const result = compile(`
+      server {
+        upload { max_size: 1048576 }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('directory traversal detected');
+    expect(result.server).toContain('path.resolve(dest)');
+    expect(result.server).toContain('resolved.startsWith(resolvedDir');
+  });
+
+  test('save_file handles empty/dot filenames', () => {
+    const result = compile(`
+      server {
+        upload { max_size: 1048576 }
+        fn hello() { "world" }
+      }
+    `);
+    // Falls back to "upload_" + Date.now() for dangerous names
+    expect(result.server).toContain('name === "." || name === ".."');
+  });
+
+  test('save_file strips null bytes from filename', () => {
+    const result = compile(`
+      server {
+        upload { max_size: 1048576 }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('replace(/[\\0]/g, "")');
+  });
+});
+
+describe('P0 Security — CORS defaults with auth/sessions', () => {
+  test('CORS defaults to wildcard (*) when no auth/sessions', () => {
+    const result = compile('server { fn hello() { "world" } }');
+    expect(result.server).toContain('"Access-Control-Allow-Origin": "*"');
+  });
+
+  test('CORS restricts to same-origin when auth is configured', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    // Should NOT contain wildcard origin
+    expect(result.server).not.toContain('"Access-Control-Allow-Origin": "*"');
+    // Should check same-origin
+    expect(result.server).toContain('origin === reqUrl.origin');
+    expect(result.server).toContain('Access-Control-Allow-Credentials');
+  });
+
+  test('CORS restricts to same-origin when sessions are configured', () => {
+    const result = compile(`
+      server {
+        session { secret: "sess-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).not.toContain('"Access-Control-Allow-Origin": "*"');
+    expect(result.server).toContain('origin === reqUrl.origin');
+  });
+
+  test('explicit CORS config overrides auth/session restriction', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        cors { origins: ["https://example.com"] }
+        fn hello() { "world" }
+      }
+    `);
+    // Should use explicit CORS config, not restricted
+    expect(result.server).toContain('__corsOrigins');
+    expect(result.server).not.toContain('origin === reqUrl.origin');
+  });
+
+  test('restricted CORS includes X-Tova-CSRF in allowed headers', () => {
+    const result = compile(`
+      server {
+        auth { type: "jwt", secret: "test-secret" }
+        fn hello() { "world" }
+      }
+    `);
+    expect(result.server).toContain('X-Tova-CSRF');
+  });
+});

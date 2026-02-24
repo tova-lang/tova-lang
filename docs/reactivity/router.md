@@ -283,30 +283,149 @@ onRouteChange(fn(matched) {
 
 The callback receives the matched route object (or `nil` if no route matched). This API works alongside the signal-based approach -- you can use both.
 
+## Navigation Guards
+
+Guards run before or after route changes. Use them for authentication checks, unsaved form protection, analytics tracking, or data prefetching.
+
+### beforeNavigate
+
+`beforeNavigate(callback)` registers a hook that runs before every route change. Return `false` to cancel navigation, or return a path string to redirect:
+
+```tova
+client {
+  // Protect authenticated routes
+  unsub = beforeNavigate(fn(from, to_path) {
+    if to_path.startsWith("/dashboard") and not is_logged_in() {
+      "/login"  // Redirect to login
+    }
+  })
+
+  // Prevent navigation when form has unsaved changes
+  unsub2 = beforeNavigate(fn(from, to_path) {
+    if has_unsaved_changes {
+      false  // Cancel navigation
+    }
+  })
+
+  // Stop listening
+  unsub()
+}
+```
+
+The callback receives:
+- **from** -- the current route object (`{ path, params, query, component }`)
+- **to_path** -- the path string being navigated to
+
+Return values:
+- `false` -- cancel navigation
+- a path string (e.g. `"/login"`) -- redirect to that path
+- `true`, `nil`, or nothing -- allow navigation to proceed
+
+Guards also run on browser back/forward (`popstate` events). If a guard cancels during popstate, the previous URL is restored via `pushState`.
+
+Returns an unsubscribe function to remove the hook.
+
+### afterNavigate
+
+`afterNavigate(callback)` registers a hook that runs after every route change:
+
+```tova
+client {
+  // Track page views
+  unsub = afterNavigate(fn(current_route) {
+    analytics.track("page_view", current_route.path)
+  })
+
+  // Stop tracking
+  unsub()
+}
+```
+
+Returns an unsubscribe function.
+
+## Nested Routes
+
+For applications with shared layouts (dashboards, admin panels, settings pages), use nested route definitions with an `Outlet` component:
+
+```tova
+client {
+  defineRoutes({
+    "/": HomePage,
+    "/dashboard": {
+      component: DashboardLayout,
+      children: {
+        "/": DashboardHome,
+        "/analytics": AnalyticsPage,
+        "/settings": SettingsPage
+      }
+    },
+    "404": NotFoundPage
+  })
+}
+```
+
+### Route Definition Format
+
+A nested route uses an object with `component` and `children`:
+
+```tova
+"/parent-path": {
+  component: LayoutComponent,
+  children: {
+    "/": DefaultChild,        // matches /parent-path
+    "/sub": SubPage,          // matches /parent-path/sub
+    "/sub/:id": SubDetail     // matches /parent-path/sub/42
+  }
+}
+```
+
+The parent component renders for all child routes. Child paths are concatenated with the parent path (except `"/"` which matches the parent path exactly).
+
+### Outlet Component
+
+Inside a layout component, use `<Outlet />` to render the matched child route:
+
+```tova
+component DashboardLayout {
+  <div class="dashboard">
+    <aside>
+      <nav>
+        <Link href="/dashboard">Overview</Link>
+        <Link href="/dashboard/analytics">Analytics</Link>
+        <Link href="/dashboard/settings">Settings</Link>
+      </nav>
+    </aside>
+    <main>
+      <Outlet />
+    </main>
+  </div>
+}
+```
+
+When the URL is `/dashboard/analytics`, `DashboardLayout` renders with `AnalyticsPage` in the `<Outlet />` slot.
+
 ## Browser Integration
 
 The router automatically integrates with the browser's navigation APIs:
 
 ### History API
 
-- `navigate(path)` calls `window.history.pushState({}, '', path)` to update the URL without a page reload
+- `navigate(path)` calls `window.history.pushState` to update the URL without a page reload
 - The router listens for `popstate` events (triggered by the browser's back/forward buttons) and re-matches the route
 
 ### Link Interception
 
-The router installs a global click handler on `document` that intercepts clicks on `<a>` tags. If a link's `href` points to the same origin, the click is intercepted for client-side navigation instead of a full page load:
+The router installs a global click handler on `document` that intercepts clicks on `<a>` tags. If a link's `href` points to the same origin, the click is intercepted for client-side navigation instead of a full page load. Links with `target="_blank"`, `download`, or `rel="external"` are skipped.
 
-```javascript
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('a[href]');
-  if (link && link.href.startsWith(window.location.origin)) {
-    e.preventDefault();
-    navigate(link.getAttribute('href'));
-  }
-});
-```
+### Path Validation (Security)
 
-This means even regular `<a>` tags (not just `<Link>` components) get client-side navigation automatically when they link to same-origin paths.
+`navigate()` validates all paths before navigation. The following are rejected to prevent open redirects and XSS:
+
+- Protocol-relative URLs (`//evil.com`)
+- Absolute URLs with schemes (`http://evil.com`, `javascript:alert(1)`, `data:...`)
+- Non-string values
+
+Only relative paths (starting with `/` or a path segment) are allowed.
 
 ## Full Router Example
 
@@ -412,12 +531,15 @@ client {
 | API | Description |
 |---|---|
 | `defineRoutes(map)` | Declare route patterns and their components |
-| `navigate(path)` | Programmatic navigation via `pushState` |
+| `navigate(path)` | Programmatic navigation via `pushState` (validates path) |
 | `getCurrentRoute()` | Signal getter for the full route object |
 | `getParams()` | Signal getter for `route().params` |
 | `getPath()` | Signal getter for `route().path` |
 | `getQuery()` | Signal getter for `route().query` |
+| `beforeNavigate(cb)` | Guard that runs before navigation (return `false` to cancel) |
+| `afterNavigate(cb)` | Hook that runs after navigation completes |
 | `Router` | Component that renders the matched route |
+| `Outlet` | Component that renders the matched child route in nested layouts |
 | `Link({ href })` | Client-side navigation link |
 | `Redirect({ to })` | Immediate redirect component |
 | `onRouteChange(cb)` | Legacy callback for route change events |
@@ -425,3 +547,4 @@ client {
 | `:param?` | Optional path parameter |
 | `"404"` | Not-found component key |
 | `"*"` | Catch-all route pattern |
+| `{ component, children }` | Nested route definition with layout |

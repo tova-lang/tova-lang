@@ -80,16 +80,13 @@ When you write `server.get_users()` in Tova, the generated JavaScript calls `rpc
 
 ### The `rpc()` Function
 
-The `rpc()` function lives in `src/runtime/rpc.js` and handles the HTTP communication:
+The `rpc()` function lives in `src/runtime/rpc.js` and handles the HTTP communication. It includes CSRF protection, request timeouts, and interceptor middleware:
 
 ```javascript
-const RPC_BASE = typeof window !== 'undefined'
-  ? (window.__TOVA_RPC_BASE || '')
-  : 'http://localhost:3000';
-
 export async function rpc(functionName, args = []) {
-  const url = `${RPC_BASE}/rpc/${functionName}`;
+  const url = `${config.base}/rpc/${functionName}`;
 
+  // Build body from args
   let body;
   if (args.length === 1 && typeof args[0] === 'object' && !Array.isArray(args[0])) {
     body = args[0];              // Single object arg: send as-is
@@ -99,16 +96,19 @@ export async function rpc(functionName, args = []) {
     body = {};                   // No args
   }
 
+  // Headers include CSRF token when available
+  const headers = { 'Content-Type': 'application/json' };
+  const csrf = getCSRFToken();
+  if (csrf) headers['X-Tova-CSRF'] = csrf;
+
+  // Request with AbortController timeout (30s default)
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
+    credentials: config.credentials, // 'same-origin' by default
+    signal: controller.signal,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`RPC call to '${functionName}' failed: ${response.status} ${errorText}`);
-  }
 
   const data = await response.json();
   return data.result;
@@ -121,8 +121,11 @@ Key details:
 - **Single object argument:** If you pass a single object, it is sent directly as the body (useful for structured payloads).
 - **Multiple arguments:** Wrapped in `{ "__args": [arg1, arg2, ...] }`.
 - **No arguments:** Empty body `{}`.
-- **Error handling:** Non-OK responses throw an error with the status code and response text.
+- **Error handling:** Non-OK responses throw an error with the status code and response text. Errors include `.status` and `.functionName` properties.
 - **Return value:** The `.result` field from the JSON response is unwrapped and returned.
+- **CSRF protection:** Automatically attaches a CSRF token header when available (see [CSRF Protection](#csrf-protection) below).
+- **Timeout:** Requests abort after 30 seconds by default (see [Configuration](#rpc-configuration)).
+- **Interceptors:** Request, response, and error interceptors can modify behavior (see [Interceptors](#request-interceptors)).
 
 ## Automatic Async Handling
 
@@ -336,20 +339,155 @@ server.create_user({ name: "Alice", email: "alice@example.com" })
 // Body: { "name": "Alice", "email": "alice@example.com" }
 ```
 
-## Configuring the RPC Base URL
+## RPC Configuration {#rpc-configuration}
 
-By default, RPC calls use the same origin as the page (in the browser) or `http://localhost:3000` (in non-browser contexts). You can configure this:
-
-```javascript
-// In client code or an initialization script:
-window.__TOVA_RPC_BASE = "https://api.example.com";
-```
-
-Or use the `configureRPC` function exported by the RPC runtime:
+By default, RPC calls use the same origin as the page (in the browser) or `http://localhost:3000` (in non-browser contexts). Use `configureRPC` to customize behavior:
 
 ```javascript
 import { configureRPC } from './runtime/rpc.js';
+
+// Simple: just set the base URL (backward compatible)
 configureRPC("https://api.example.com");
+
+// Full: pass an options object
+configureRPC({
+  baseUrl: "https://api.example.com",
+  timeout: 15000,                   // 15s timeout (default: 30000)
+  csrfToken: "my-csrf-token",       // Set CSRF token manually
+  csrfHeader: "X-Custom-CSRF",      // Custom header name (default: "X-Tova-CSRF")
+  credentials: "include",           // fetch credentials mode (default: "same-origin")
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `baseUrl` | String | `''` (same origin) | Base URL for all RPC calls |
+| `timeout` | Number | `30000` | Request timeout in milliseconds. Set to `0` to disable |
+| `csrfToken` | String | `null` | CSRF token value (auto-detected from meta tag if not set) |
+| `csrfHeader` | String | `'X-Tova-CSRF'` | HTTP header name for the CSRF token |
+| `credentials` | String | `'same-origin'` | fetch `credentials` mode (`'same-origin'`, `'include'`, `'omit'`) |
+
+You can also set the base URL via a global:
+
+```javascript
+window.__TOVA_RPC_BASE = "https://api.example.com";
+```
+
+## CSRF Protection {#csrf-protection}
+
+Tova's RPC bridge includes built-in CSRF (Cross-Site Request Forgery) protection. When a CSRF token is available, it is automatically included as a custom HTTP header on every RPC request.
+
+### Automatic Detection
+
+If your server renders a `<meta>` tag with the token, Tova detects it automatically:
+
+```html
+<!-- Server-rendered HTML -->
+<meta name="csrf-token" content="abc123-token-value">
+```
+
+No client-side setup is needed — the RPC bridge reads the token from the meta tag on the first request.
+
+### Manual Token Management
+
+For SPAs or cases where the token is provided differently:
+
+```javascript
+import { setCSRFToken } from './runtime/rpc.js';
+
+// Set the token after login or page load
+setCSRFToken("abc123-token-value");
+```
+
+### Server-Side Validation
+
+Your server should validate the CSRF header on every RPC request:
+
+```tova
+server {
+  fn validate_csrf(req) {
+    token = req.headers.get("X-Tova-CSRF")
+    if token != expected_token {
+      // Reject the request
+    }
+  }
+}
+```
+
+## Request Interceptors {#request-interceptors}
+
+Interceptors let you add cross-cutting concerns to all RPC calls — authentication headers, logging, error reporting, response transformation, and more.
+
+### Adding an Interceptor
+
+```javascript
+import { addRPCInterceptor } from './runtime/rpc.js';
+
+const removeInterceptor = addRPCInterceptor({
+  // Called before each request — modify headers, add auth, log, etc.
+  request({ url, functionName, args, options }) {
+    options.headers['Authorization'] = 'Bearer ' + getAuthToken();
+    return options;
+  },
+
+  // Called after a successful response — transform data, log, etc.
+  response(data, { url, functionName, args, response }) {
+    console.log(`RPC ${functionName} completed`);
+    return data; // return modified data, or undefined to keep original
+  },
+
+  // Called when an error occurs — log, report, suppress, etc.
+  error(err, { url, functionName, args, response }) {
+    reportError(err);
+    // Return false to suppress the error (prevents throw)
+    // Return anything else (or undefined) to let it propagate
+  },
+});
+
+// Later, remove the interceptor:
+removeInterceptor();
+```
+
+### Interceptor Hooks
+
+| Hook | Arguments | Return | Description |
+|------|-----------|--------|-------------|
+| `request` | `{ url, functionName, args, options }` | Modified `options` object, or `undefined` | Runs before `fetch()`. Return modified request options to override headers, body, etc. |
+| `response` | `(data, { url, functionName, args, response })` | Modified `data`, or `undefined` | Runs after a successful response. Return transformed data or `undefined` to keep the original |
+| `error` | `(error, { url, functionName, args, response? })` | `false` to suppress | Runs on request failure or non-OK response. Return `false` to suppress the error |
+
+All hooks are optional — include only the ones you need.
+
+### Common Patterns
+
+**Authentication:**
+
+```javascript
+addRPCInterceptor({
+  request({ options }) {
+    options.headers['Authorization'] = `Bearer ${getToken()}`;
+    return options;
+  },
+  error(err) {
+    if (err.status === 401) {
+      redirectToLogin();
+      return false; // suppress the error
+    }
+  },
+});
+```
+
+**Request logging:**
+
+```javascript
+addRPCInterceptor({
+  request({ functionName, args }) {
+    console.log(`→ RPC ${functionName}`, args);
+  },
+  response(data, { functionName }) {
+    console.log(`← RPC ${functionName}`, data);
+  },
+});
 ```
 
 ## Limitations and Considerations
@@ -390,7 +528,14 @@ RPC calls are request-response. The client sends a request, the server processes
 
 ### Security
 
-RPC endpoints are standard HTTP POST endpoints. They are accessible to anyone who can reach the server. Always validate inputs on the server side (type annotations help with this), implement authentication for sensitive operations, and never trust client-supplied data.
+RPC endpoints are standard HTTP POST endpoints. They are accessible to anyone who can reach the server. Tova provides several built-in security mechanisms:
+
+- **CSRF protection:** The RPC bridge automatically attaches a CSRF token header to every request (see [CSRF Protection](#csrf-protection)). Configure your server to validate this token.
+- **Request timeouts:** All requests abort after 30 seconds by default, preventing hung connections. Configure via `configureRPC({ timeout: ms })`.
+- **Input validation:** When server functions have type annotations, the compiler generates validation checks that reject invalid input before your function body runs.
+- **Credentials control:** The `credentials` option (default `'same-origin'`) controls whether cookies are sent with cross-origin requests.
+
+Always validate inputs on the server side, implement authentication for sensitive operations, and never trust client-supplied data.
 
 ### Performance
 

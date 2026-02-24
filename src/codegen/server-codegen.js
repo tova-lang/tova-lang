@@ -98,6 +98,43 @@ export class ServerCodegen extends BaseCodegen {
     return checks;
   }
 
+  // Generate nested validation checks for a type, recursing into nested types
+  _genNestedTypeValidation(sharedTypes, objExpr, typeInfo, prefix, indent = '  ') {
+    const checks = [];
+    for (const f of typeInfo.fields) {
+      if (f.name === 'id') continue;
+      const fieldPath = prefix ? `${prefix}.${f.name}` : f.name;
+      const fieldAccess = `${objExpr}.${f.name}`;
+      // Check if this field type references another shared type (nested object)
+      if (sharedTypes.has(f.type)) {
+        const nestedType = sharedTypes.get(f.type);
+        checks.push(`${indent}if (${fieldAccess} !== undefined && ${fieldAccess} !== null) {`);
+        checks.push(`${indent}  if (typeof ${fieldAccess} !== "object" || Array.isArray(${fieldAccess})) __bodyTypeErrors.push("${fieldPath} must be an object");`);
+        checks.push(`${indent}  else {`);
+        const nestedChecks = this._genNestedTypeValidation(sharedTypes, fieldAccess, nestedType, fieldPath, indent + '    ');
+        checks.push(...nestedChecks);
+        checks.push(`${indent}  }`);
+        checks.push(`${indent}}`);
+      } else {
+        switch (f.type) {
+          case 'String':
+            checks.push(`${indent}if (${fieldAccess} !== undefined && typeof ${fieldAccess} !== "string") __bodyTypeErrors.push("${fieldPath} must be a string");`);
+            break;
+          case 'Int':
+            checks.push(`${indent}if (${fieldAccess} !== undefined && !Number.isInteger(${fieldAccess})) __bodyTypeErrors.push("${fieldPath} must be an integer");`);
+            break;
+          case 'Float':
+            checks.push(`${indent}if (${fieldAccess} !== undefined && typeof ${fieldAccess} !== "number") __bodyTypeErrors.push("${fieldPath} must be a number");`);
+            break;
+          case 'Bool':
+            checks.push(`${indent}if (${fieldAccess} !== undefined && typeof ${fieldAccess} !== "boolean") __bodyTypeErrors.push("${fieldPath} must be a boolean");`);
+            break;
+        }
+      }
+    }
+    return checks;
+  }
+
   // Emit handler call, optionally wrapped in Promise.race for timeout
   _emitHandlerCall(lines, callExpr, timeoutMs) {
     if (timeoutMs) {
@@ -108,7 +145,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push(`      new Promise((_, rej) => setTimeout(() => rej(new Error("__timeout__")), ${timeoutMs}))`);
       lines.push(`    ]);`);
       lines.push(`  } catch (__err) {`);
-      lines.push(`    if (__err.message === "__timeout__") return Response.json({ error: "Gateway Timeout" }, { status: 504 });`);
+      lines.push(`    if (__err.message === "__timeout__") return __errorResponse(504, "GATEWAY_TIMEOUT", "Gateway Timeout");`);
       lines.push(`    throw __err;`);
       lines.push(`  }`);
     } else {
@@ -132,6 +169,7 @@ export class ServerCodegen extends BaseCodegen {
     const middlewares = [];
     const otherStatements = [];
     let healthPath = null;
+    let healthChecks = null;
     let corsConfig = null;
     let errorHandler = null;
     let wsDecl = null;
@@ -180,6 +218,10 @@ export class ServerCodegen extends BaseCodegen {
           middlewares.push(stmt);
         } else if (stmt.type === 'HealthCheckDeclaration') {
           healthPath = stmt.path;
+          if (stmt.checks && stmt.checks.length > 0) {
+            if (!healthChecks) healthChecks = [];
+            healthChecks.push(...stmt.checks);
+          }
         } else if (stmt.type === 'CorsDeclaration') {
           corsConfig = stmt.config;
         } else if (stmt.type === 'ErrorHandlerDeclaration') {
@@ -763,6 +805,14 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('}');
     lines.push('');
 
+    // ── Structured Error Response ──
+    lines.push('function __errorResponse(status, code, message, details, headers) {');
+    lines.push('  const body = { error: { code, message } };');
+    lines.push('  if (details !== undefined && details !== null) body.error.details = details;');
+    lines.push('  return Response.json(body, { status, headers: headers || {} });');
+    lines.push('}');
+    lines.push('');
+
     // ── Auth Builtins: sign_jwt, hash_password, verify_password ──
     lines.push('// ── Auth Builtins ──');
     lines.push('let __jwtSignKey = null;');
@@ -806,7 +856,10 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);');
     lines.push('  const hash = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);');
     lines.push('  const hashHex = [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");');
-    lines.push('  return hashHex === expectedHash;');
+    lines.push('  if (hashHex.length !== expectedHash.length) return false;');
+    lines.push('  const __a = Buffer.from(hashHex);');
+    lines.push('  const __b = Buffer.from(expectedHash);');
+    lines.push('  return require("crypto").timingSafeEqual(__a, __b);');
     lines.push('}');
     lines.push('');
 
@@ -851,6 +904,22 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  };');
       lines.push('  if (__corsCredentials) h["Access-Control-Allow-Credentials"] = "true";');
       lines.push('  return h;');
+      lines.push('}');
+    } else if (authConfig || sessionConfig) {
+      // When auth or sessions are configured but no explicit CORS, restrict to same-origin
+      lines.push('// ── CORS (restricted — auth/sessions enabled) ──');
+      lines.push('const __corsHeadersConst = Object.freeze({');
+      lines.push('  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",');
+      lines.push('  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Tova-CSRF",');
+      lines.push('});');
+      lines.push('function __getCorsHeaders(req) {');
+      lines.push('  const origin = req && req.headers ? req.headers.get("Origin") : null;');
+      lines.push('  if (!origin) return __corsHeadersConst;');
+      lines.push('  const reqUrl = req.url ? new URL(req.url) : null;');
+      lines.push('  if (reqUrl && origin === reqUrl.origin) {');
+      lines.push('    return { ...__corsHeadersConst, "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" };');
+      lines.push('  }');
+      lines.push('  return __corsHeadersConst;');
       lines.push('}');
     } else {
       lines.push('// ── CORS ──');
@@ -985,9 +1054,17 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('}');
       lines.push('async function save_file(file, dir) {');
       lines.push('  const fs = await import("node:fs/promises");');
+      lines.push('  const path = await import("node:path");');
       lines.push('  await fs.mkdir(dir, { recursive: true });');
-      lines.push('  const name = file.name || "upload_" + Date.now();');
-      lines.push('  const dest = dir + "/" + name;');
+      lines.push('  let name = file.name || "upload_" + Date.now();');
+      lines.push('  name = path.basename(name).replace(/[\\0]/g, "");');
+      lines.push('  if (!name || name === "." || name === "..") name = "upload_" + Date.now();');
+      lines.push('  const dest = path.join(dir, name);');
+      lines.push('  const resolved = path.resolve(dest);');
+      lines.push('  const resolvedDir = path.resolve(dir);');
+      lines.push('  if (!resolved.startsWith(resolvedDir + path.sep) && resolved !== resolvedDir) {');
+      lines.push('    throw new Error("Invalid file path: directory traversal detected");');
+      lines.push('  }');
       lines.push('  await Bun.write(dest, file);');
       lines.push('  return dest;');
       lines.push('}');
@@ -1088,6 +1165,52 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('  }');
         lines.push('}, 60000);');
       }
+      lines.push('');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 11d. CSRF Protection — server-side token generation + validation
+    // ════════════════════════════════════════════════════════════
+    const needsCsrf = !isFastMode && (sessionConfig || authConfig);
+    if (needsCsrf) {
+      lines.push('// ── CSRF Protection ──');
+      lines.push('let __csrfKey = null;');
+      lines.push('async function __getCSRFKey() {');
+      lines.push('  if (!__csrfKey) {');
+      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : "tova-csrf-secret");');
+      lines.push('    __csrfKey = await crypto.subtle.importKey(');
+      lines.push('      "raw", new TextEncoder().encode(secret + ":csrf"),');
+      lines.push('      { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]');
+      lines.push('    );');
+      lines.push('  }');
+      lines.push('  return __csrfKey;');
+      lines.push('}');
+      lines.push('async function __generateCSRFToken() {');
+      lines.push('  const key = await __getCSRFKey();');
+      lines.push('  const timestamp = Date.now().toString(36);');
+      lines.push('  const nonce = crypto.getRandomValues(new Uint8Array(8));');
+      lines.push('  const nonceHex = [...nonce].map(b => b.toString(16).padStart(2, "0")).join("");');
+      lines.push('  const data = timestamp + ":" + nonceHex;');
+      lines.push('  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));');
+      lines.push('  const sigHex = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");');
+      lines.push('  return data + ":" + sigHex;');
+      lines.push('}');
+      lines.push('async function __validateCSRFToken(token) {');
+      lines.push('  if (!token || typeof token !== "string") return false;');
+      lines.push('  const parts = token.split(":");');
+      lines.push('  if (parts.length !== 3) return false;');
+      lines.push('  const [timestamp, nonce, sig] = parts;');
+      lines.push('  const age = Date.now() - parseInt(timestamp, 36);');
+      lines.push('  if (isNaN(age) || age < 0 || age > 86400000) return false;');
+      lines.push('  const key = await __getCSRFKey();');
+      lines.push('  const data = timestamp + ":" + nonce;');
+      lines.push('  const expectedSig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));');
+      lines.push('  const expectedHex = [...new Uint8Array(expectedSig)].map(b => b.toString(16).padStart(2, "0")).join("");');
+      lines.push('  if (sig.length !== expectedHex.length) return false;');
+      lines.push('  const __a = Buffer.from(sig);');
+      lines.push('  const __b = Buffer.from(expectedHex);');
+      lines.push('  return require("crypto").timingSafeEqual(__a, __b);');
+      lines.push('}');
       lines.push('');
     }
 
@@ -1541,7 +1664,7 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     // 12h. Race Condition Protection — Async Mutex for shared state
     // ════════════════════════════════════════════════════════════
-    lines.push('// ── Async Mutex ──');
+    lines.push('// ── Async Mutex (Named) ──');
     lines.push('class __Mutex {');
     lines.push('  constructor() { this._queue = []; this._locked = false; }');
     lines.push('  async acquire() {');
@@ -1553,12 +1676,43 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('    else { this._locked = false; }');
     lines.push('  }');
     lines.push('}');
-    lines.push('const __mutex = new __Mutex();');
-    lines.push('async function withLock(fn) {');
-    lines.push('  await __mutex.acquire();');
-    lines.push('  try { return await fn(); } finally { __mutex.release(); }');
+    lines.push('const __locks = new Map();');
+    lines.push('function __getLock(name) {');
+    lines.push('  if (!__locks.has(name)) __locks.set(name, new __Mutex());');
+    lines.push('  return __locks.get(name);');
+    lines.push('}');
+    lines.push('async function withLock(nameOrFn, fn) {');
+    lines.push('  if (typeof nameOrFn === "function") { fn = nameOrFn; nameOrFn = "default"; }');
+    lines.push('  const lock = __getLock(nameOrFn);');
+    lines.push('  await lock.acquire();');
+    lines.push('  try { return await fn(); } finally { lock.release(); }');
     lines.push('}');
     lines.push('');
+
+    // ════════════════════════════════════════════════════════════
+    // 12i. Idempotency Key Support
+    // ════════════════════════════════════════════════════════════
+    if (!isFastMode) {
+      lines.push('// ── Idempotency Key Cache ──');
+      lines.push('const __idempotencyCache = new Map();');
+      lines.push('const __idempotencyTTL = 86400000;'); // 24h default
+      lines.push('function __checkIdempotencyKey(key) {');
+      lines.push('  const entry = __idempotencyCache.get(key);');
+      lines.push('  if (!entry) return null;');
+      lines.push('  if (Date.now() - entry.timestamp > __idempotencyTTL) { __idempotencyCache.delete(key); return null; }');
+      lines.push('  return entry;');
+      lines.push('}');
+      lines.push('function __storeIdempotencyResult(key, status, body, headers) {');
+      lines.push('  __idempotencyCache.set(key, { status, body, headers, timestamp: Date.now() });');
+      lines.push('}');
+      lines.push('setInterval(() => {');
+      lines.push('  const now = Date.now();');
+      lines.push('  for (const [key, entry] of __idempotencyCache) {');
+      lines.push('    if (now - entry.timestamp > __idempotencyTTL) __idempotencyCache.delete(key);');
+      lines.push('  }');
+      lines.push('}, 3600000);'); // cleanup every hour
+      lines.push('');
+    }
 
     // ════════════════════════════════════════════════════════════
     // 13. Other statements + Server Functions
@@ -1627,7 +1781,48 @@ export class ServerCodegen extends BaseCodegen {
     if (healthPath) {
       lines.push('// ── Health Check ──');
       lines.push(`__addRoute("GET", ${JSON.stringify(healthPath)}, async () => {`);
-      lines.push('  return Response.json({ status: "ok", uptime: process.uptime() });');
+      if (healthChecks && healthChecks.length > 0) {
+        lines.push('  const __checks = {};');
+        lines.push('  let __overallStatus = "healthy";');
+        // check_memory: report heap usage
+        if (healthChecks.includes('check_memory')) {
+          lines.push('  const __mem = process.memoryUsage();');
+          lines.push('  const __heapPct = __mem.heapUsed / __mem.heapTotal;');
+          lines.push('  __checks.memory = { status: __heapPct > 0.9 ? "degraded" : "healthy", heapUsed: __mem.heapUsed, heapTotal: __mem.heapTotal, rss: __mem.rss };');
+          lines.push('  if (__heapPct > 0.9) __overallStatus = "degraded";');
+        }
+        // check_db: ping database
+        if (healthChecks.includes('check_db') && (dbConfig || usesDb)) {
+          lines.push('  try {');
+          if (dbDriver === 'postgres') {
+            lines.push('    await db.query("SELECT 1");');
+          } else if (dbDriver === 'mysql') {
+            lines.push('    await db.query("SELECT 1");');
+          } else {
+            lines.push('    db.query("SELECT 1");');
+          }
+          lines.push('    __checks.db = { status: "healthy" };');
+          lines.push('  } catch (__dbErr) {');
+          lines.push('    __checks.db = { status: "unhealthy", error: __dbErr.message };');
+          lines.push('    __overallStatus = "unhealthy";');
+          lines.push('  }');
+        }
+        // Always include uptime
+        lines.push('  __checks.uptime = { seconds: Math.floor(process.uptime()) };');
+        lines.push('  return Response.json({ status: __overallStatus, checks: __checks, timestamp: new Date().toISOString() });');
+      } else {
+        lines.push('  return Response.json({ status: "ok", uptime: process.uptime() });');
+      }
+      lines.push('});');
+      lines.push('');
+    }
+
+    // CSRF Token Endpoint
+    if (needsCsrf) {
+      lines.push('// ── CSRF Token Endpoint ──');
+      lines.push('__addRoute("GET", "/csrf-token", async () => {');
+      lines.push('  const token = await __generateCSRFToken();');
+      lines.push('  return Response.json({ token });');
       lines.push('});');
       lines.push('');
     }
@@ -1650,7 +1845,7 @@ export class ServerCodegen extends BaseCodegen {
             for (const check of validationChecks) {
               lines.push(check);
             }
-            lines.push(`  if (__validationErrors.length > 0) return Response.json({ error: "Validation failed", details: __validationErrors }, { status: 400 });`);
+            lines.push(`  if (__validationErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors);`);
           }
           lines.push(`  const result = await ${name}(${paramNames.join(', ')});`);
         } else {
@@ -1736,10 +1931,10 @@ export class ServerCodegen extends BaseCodegen {
         // Auth decorator check
         if (hasAuth && authConfig) {
           lines.push(`  const __user = await __authenticate(req);`);
-          lines.push(`  if (!__user) return Response.json({ error: "Unauthorized" }, { status: 401 });`);
+          lines.push(`  if (!__user) return __errorResponse(401, "AUTH_REQUIRED", "Unauthorized");`);
           if (roleDecorator && roleDecorator.args.length > 0) {
             const roleExpr = this.genExpression(roleDecorator.args[0]);
-            lines.push(`  if (__user.role !== ${roleExpr}) return Response.json({ error: "Forbidden" }, { status: 403 });`);
+            lines.push(`  if (__user.role !== ${roleExpr}) return __errorResponse(403, "FORBIDDEN", "Forbidden");`);
           }
         }
 
@@ -1749,7 +1944,7 @@ export class ServerCodegen extends BaseCodegen {
           const rlWindow = rateLimitDec.args[1] ? this.genExpression(rateLimitDec.args[1]) : '60';
           lines.push(`  const __rlIp = req.headers.get("x-forwarded-for") || "unknown";`);
           lines.push(`  const __rlRoute = __checkRateLimit(\`route:${path}:\${__rlIp}\`, ${rlMax}, ${rlWindow});`);
-          lines.push(`  if (__rlRoute.limited) return Response.json({ error: "Too Many Requests" }, { status: 429, headers: { "Retry-After": String(__rlRoute.retryAfter) } });`);
+          lines.push(`  if (__rlRoute.limited) return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { "Retry-After": String(__rlRoute.retryAfter) });`);
         }
 
         // Upload decorator — parse multipart body, validate file field
@@ -1759,7 +1954,7 @@ export class ServerCodegen extends BaseCodegen {
           lines.push(`  const __uploadField = ${fieldExpr};`);
           lines.push(`  const __uploadFile = __body[__uploadField];`);
           lines.push(`  const __uploadCheck = __validateFile(__uploadFile, __uploadField);`);
-          lines.push(`  if (!__uploadCheck.valid) return Response.json({ error: __uploadCheck.error }, { status: 400 });`);
+          lines.push(`  if (!__uploadCheck.valid) return __errorResponse(400, "VALIDATION_FAILED", __uploadCheck.error);`);
         }
 
         // Validate decorator — advanced field validation on body
@@ -1770,7 +1965,7 @@ export class ServerCodegen extends BaseCodegen {
           lines.push(`  const __validationErrors = [];`);
           const advChecks = this._genAdvancedValidationCode(validateDec.args[0]);
           for (const check of advChecks) lines.push(check);
-          lines.push(`  if (__validationErrors.length > 0) return Response.json({ error: "Validation failed", details: __validationErrors }, { status: 400 });`);
+          lines.push(`  if (__validationErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors);`);
         }
 
         // T9-1: Route-level body type validation — route POST "/api/users" body: User => handler
@@ -1783,7 +1978,7 @@ export class ServerCodegen extends BaseCodegen {
             }
             const isArray = route.bodyType.type === 'ArrayTypeAnnotation';
             if (isArray) {
-              lines.push(`  if (!Array.isArray(__body)) return Response.json({ error: "Request body must be an array of ${typeName}" }, { status: 400 });`);
+              lines.push(`  if (!Array.isArray(__body)) return __errorResponse(400, "VALIDATION_FAILED", "Request body must be an array of ${typeName}");`);
               lines.push(`  const __bodyTypeErrors = [];`);
               lines.push(`  for (let __i = 0; __i < __body.length; __i++) {`);
               lines.push(`    const __item = __body[__i];`);
@@ -1805,32 +2000,18 @@ export class ServerCodegen extends BaseCodegen {
                 }
               }
               lines.push(`  }`);
-              lines.push(`  if (__bodyTypeErrors.length > 0) return Response.json({ error: "Validation failed for ${typeName}[]", details: __bodyTypeErrors }, { status: 400 });`);
+              lines.push(`  if (__bodyTypeErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed for ${typeName}[]", __bodyTypeErrors);`);
             } else {
               lines.push(`  const __bodyTypeErrors = [];`);
-              for (const f of typeInfo.fields) {
-                if (f.name === 'id') continue;
-                switch (f.type) {
-                  case 'String':
-                    lines.push(`  if (__body.${f.name} !== undefined && typeof __body.${f.name} !== "string") __bodyTypeErrors.push("${f.name} must be a string");`);
-                    break;
-                  case 'Int':
-                    lines.push(`  if (__body.${f.name} !== undefined && !Number.isInteger(__body.${f.name})) __bodyTypeErrors.push("${f.name} must be an integer");`);
-                    break;
-                  case 'Float':
-                    lines.push(`  if (__body.${f.name} !== undefined && typeof __body.${f.name} !== "number") __bodyTypeErrors.push("${f.name} must be a number");`);
-                    break;
-                  case 'Bool':
-                    lines.push(`  if (__body.${f.name} !== undefined && typeof __body.${f.name} !== "boolean") __bodyTypeErrors.push("${f.name} must be a boolean");`);
-                    break;
-                }
-              }
+              // Recursive nested validation for body type fields
+              const nestedChecks = this._genNestedTypeValidation(sharedTypes, '__body', typeInfo, '');
+              for (const check of nestedChecks) lines.push(check);
               // Check for required fields (non-id fields without defaults)
               for (const f of typeInfo.fields) {
                 if (f.name === 'id') continue;
                 lines.push(`  if (__body.${f.name} === undefined || __body.${f.name} === null) __bodyTypeErrors.push("${f.name} is required");`);
               }
-              lines.push(`  if (__bodyTypeErrors.length > 0) return Response.json({ error: "Validation failed for type ${typeName}", details: __bodyTypeErrors }, { status: 400 });`);
+              lines.push(`  if (__bodyTypeErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed for type ${typeName}", __bodyTypeErrors);`);
             }
           }
         }
@@ -1862,7 +2043,7 @@ export class ServerCodegen extends BaseCodegen {
                     break;
                 }
               }
-              lines.push(`  if (__tsErrors_${p.name}.length > 0) return Response.json({ error: "Validation failed", details: __tsErrors_${p.name} }, { status: 400 });`);
+              lines.push(`  if (__tsErrors_${p.name}.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __tsErrors_${p.name});`);
             }
           }
         }
@@ -1906,7 +2087,7 @@ export class ServerCodegen extends BaseCodegen {
                 if (validationChecks.length > 0) {
                   lines.push(`  const __validationErrors = [];`);
                   for (const check of validationChecks) lines.push(check);
-                  lines.push(`  if (__validationErrors.length > 0) return Response.json({ error: "Validation failed", details: __validationErrors }, { status: 400 });`);
+                  lines.push(`  if (__validationErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors);`);
                 }
               }
               if (groupMws.length > 0) {
@@ -1938,7 +2119,7 @@ export class ServerCodegen extends BaseCodegen {
               if (validationChecks.length > 0) {
                 lines.push(`  const __validationErrors = [];`);
                 for (const check of validationChecks) lines.push(check);
-                lines.push(`  if (__validationErrors.length > 0) return Response.json({ error: "Validation failed", details: __validationErrors }, { status: 400 });`);
+                lines.push(`  if (__validationErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors);`);
               }
             }
             if (groupMws.length > 0) {
@@ -2033,8 +2214,19 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  openapi: "3.0.3",');
       lines.push(`  info: { title: ${JSON.stringify(blockName || 'Tova API')}, version: "1.0.0" },`);
       lines.push('  paths: {},');
-      lines.push('  components: { schemas: {} },');
+      lines.push('  components: { schemas: {}, securitySchemes: {} },');
       lines.push('};');
+
+      // Add auth security schemes to OpenAPI spec
+      if (authConfig) {
+        const authType = authConfig.type ? authConfig.type.value : 'jwt';
+        if (authType === 'api_key') {
+          const headerExpr = authConfig.header ? this.genExpression(authConfig.header) : '"X-API-Key"';
+          lines.push(`__openApiSpec.components.securitySchemes.ApiKeyAuth = { type: "apiKey", in: "header", name: ${headerExpr} };`);
+        } else {
+          lines.push('__openApiSpec.components.securitySchemes.BearerAuth = { type: "http", scheme: "bearer", bearerFormat: "JWT" };');
+        }
+      }
 
       // Generate schemas from shared types
       for (const [typeName, typeInfo] of sharedTypes) {
@@ -2145,6 +2337,16 @@ export class ServerCodegen extends BaseCodegen {
           lines.push('  responses: { "200": { description: "Success" } },');
         }
 
+        // Add security and 401 response for auth-protected routes
+        const routeHasAuth = (route.decorators || []).some(d => d.name === 'auth');
+        if (routeHasAuth && authConfig) {
+          const authType = authConfig.type ? authConfig.type.value : 'jwt';
+          const schemeName = authType === 'api_key' ? 'ApiKeyAuth' : 'BearerAuth';
+          lines.push(`  security: [{ "${schemeName}": [] }],`);
+          // Merge 401 into responses
+          lines.push(`  responses: { ...__openApiSpec.paths[${JSON.stringify(path)}][${JSON.stringify(method)}].responses, "401": { description: "Unauthorized" } },`);
+        }
+
         lines.push('};');
       }
 
@@ -2202,8 +2404,13 @@ export class ServerCodegen extends BaseCodegen {
     if (!isFastMode) {
     lines.push('// ── Structured Logging ──');
     lines.push('let __reqCounter = 0;');
+    lines.push('const __validRequestId = /^[a-zA-Z0-9\\-_.]{1,128}$/;');
     lines.push('function __genRequestId() {');
     lines.push('  return `${Date.now().toString(36)}-${(++__reqCounter).toString(36)}`;');
+    lines.push('}');
+    lines.push('function __sanitizeRequestId(raw) {');
+    lines.push('  if (raw && __validRequestId.test(raw)) return raw;');
+    lines.push('  return __genRequestId();');
     lines.push('}');
     lines.push('const __logLevels = { debug: 0, info: 1, warn: 2, error: 3 };');
     lines.push('const __logMinLevel = __logLevels[process.env.LOG_LEVEL || "info"] || 1;');
@@ -2457,7 +2664,7 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');  // skip "http://x:p" or "https://x:p"
     lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
     lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
-    lines.push('  const __rid = req.headers.get("X-Request-Id") || __genRequestId();');
+    lines.push('  const __rid = __sanitizeRequestId(req.headers.get("X-Request-Id"));');
     lines.push('  const __startTime = Date.now();');
     lines.push('  const __cors = __getCorsHeaders(req);');
 
@@ -2482,7 +2689,7 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('      if (upgraded) return undefined;');
         lines.push('      return new Response("WebSocket upgrade failed", { status: 400 });');
         lines.push('    } catch (__authErr) {');
-        lines.push('      return Response.json({ error: "Unauthorized" }, { status: 401 });');
+        lines.push('      return __errorResponse(401, "AUTH_REQUIRED", "Unauthorized");');
         lines.push('    }');
       } else {
         lines.push('    const upgraded = __server.upgrade(req, { data: { rid: __rid } });');
@@ -2499,7 +2706,7 @@ export class ServerCodegen extends BaseCodegen {
     // Max body size check
     lines.push('  const __contentLength = parseInt(req.headers.get("Content-Length") || "0", 10);');
     lines.push('  if (__contentLength > __maxBodySize) {');
-    lines.push('    return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+    lines.push('    return __errorResponse(413, "PAYLOAD_TOO_LARGE", "Payload Too Large", null, __cors);');
     lines.push('  }');
 
     // Global rate limit check (F2)
@@ -2507,7 +2714,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  const __clientIp = req.headers.get("x-forwarded-for") || "unknown";');
       lines.push('  const __rl = __checkRateLimit(__clientIp, __rateLimitMax, __rateLimitWindow);');
       lines.push('  if (__rl.limited) {');
-      lines.push('    return Response.json({ error: "Too Many Requests" }, { status: 429, headers: { ...__cors, "Retry-After": String(__rl.retryAfter) } });');
+      lines.push('    return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__rl.retryAfter) });');
       lines.push('  }');
     }
 
@@ -2526,6 +2733,28 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  }');
       lines.push('  req.__session = __createSession(__sessionId);');
     }
+
+    // CSRF validation on state-mutating requests
+    if (needsCsrf) {
+      lines.push('  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
+      lines.push('    const __csrfToken = req.headers.get("X-Tova-CSRF") || req.headers.get("x-tova-csrf");');
+      lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken);');
+      lines.push('    if (!__csrfValid) {');
+      lines.push('      __log("warn", "CSRF validation failed", { rid: __rid, method: req.method, path: __pathname });');
+      lines.push('      return __errorResponse(403, "CSRF_INVALID", "CSRF token invalid or missing", null, __cors);');
+      lines.push('    }');
+      lines.push('  }');
+    }
+
+    // Idempotency key check
+    lines.push('  const __idempotencyKey = req.headers.get("Idempotency-Key");');
+    lines.push('  if (__idempotencyKey && req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
+    lines.push('    const __cached = __checkIdempotencyKey(__idempotencyKey);');
+    lines.push('    if (__cached) {');
+    lines.push('      const __cachedHeaders = { ...__cors, ...(__cached.headers || {}), "X-Idempotent-Replayed": "true" };');
+    lines.push('      return new Response(JSON.stringify(__cached.body), { status: __cached.status, headers: { "Content-Type": "application/json", ...__cachedHeaders } });');
+    lines.push('    }');
+    lines.push('  }');
 
     // Static file serving
     if (staticDecl) {
@@ -2556,7 +2785,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('      for (const [k, v] of Object.entries(__cors)) headers.set(k, v);');
       lines.push('      return new Response(res.body, { status: res.status, headers });');
       lines.push('    } catch (err) {');
-      lines.push('      if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+      lines.push('      if (err.message === "__BODY_TOO_LARGE__") return __errorResponse(413, "PAYLOAD_TOO_LARGE", "Payload Too Large", null, __cors);');
       if (errorHandler) {
         lines.push('      try {');
         lines.push('        const errRes = await __errorHandler(err, req);');
@@ -2569,7 +2798,7 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('      } catch { /**/ }');
       }
       lines.push('      __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
-      lines.push('      return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
+      lines.push('      return __errorResponse(500, "INTERNAL_ERROR", "Internal Server Error", null, __cors);');
       lines.push('    }');
     } else {
       lines.push('    try {');
@@ -2578,7 +2807,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('      for (const [k, v] of Object.entries(__cors)) res.headers.set(k, v);');
       lines.push('      return res;');
       lines.push('    } catch (err) {');
-      lines.push('      if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+      lines.push('      if (err.message === "__BODY_TOO_LARGE__") return __errorResponse(413, "PAYLOAD_TOO_LARGE", "Payload Too Large", null, __cors);');
       if (errorHandler) {
         lines.push('      try {');
         lines.push('        const errRes = await __errorHandler(err, req);');
@@ -2590,7 +2819,7 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('      } catch { /**/ }');
       }
       lines.push('      __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
-      lines.push('      return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
+      lines.push('      return __errorResponse(500, "INTERNAL_ERROR", "Internal Server Error", null, __cors);');
       lines.push('    }');
     }
     lines.push('  }');
@@ -2614,7 +2843,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('          for (const [k, v] of Object.entries(__cors)) res.headers.set(k, v);');
       lines.push('          return res;');
       lines.push('        } catch (err) {');
-      lines.push('          if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+      lines.push('          if (err.message === "__BODY_TOO_LARGE__") return __errorResponse(413, "PAYLOAD_TOO_LARGE", "Payload Too Large", null, __cors);');
       if (errorHandler) {
         lines.push('          try {');
         lines.push('            const errRes = await __errorHandler(err, req);');
@@ -2626,7 +2855,7 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('          } catch { /**/ }');
       }
       lines.push('          __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
-      lines.push('          return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
+      lines.push('          return __errorResponse(500, "INTERNAL_ERROR", "Internal Server Error", null, __cors);');
       lines.push('        }');
     } else {
       lines.push('        try {');
@@ -2635,7 +2864,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('          for (const [k, v] of Object.entries(__cors)) res.headers.set(k, v);');
       lines.push('          return res;');
       lines.push('        } catch (err) {');
-      lines.push('          if (err.message === "__BODY_TOO_LARGE__") return Response.json({ error: "Payload Too Large" }, { status: 413, headers: __cors });');
+      lines.push('          if (err.message === "__BODY_TOO_LARGE__") return __errorResponse(413, "PAYLOAD_TOO_LARGE", "Payload Too Large", null, __cors);');
       if (errorHandler) {
         lines.push('          try {');
         lines.push('            const errRes = await __errorHandler(err, req);');
@@ -2647,7 +2876,7 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('          } catch { /**/ }');
       }
       lines.push('          __log("error", `Unhandled error: ${err.message}`, { error: err.stack || err.message });');
-      lines.push('          return Response.json({ error: "Internal Server Error" }, { status: 500, headers: __cors });');
+      lines.push('          return __errorResponse(500, "INTERNAL_ERROR", "Internal Server Error", null, __cors);');
       lines.push('        }');
     }
 
@@ -2659,7 +2888,7 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  if (__pathname === "/" && typeof __clientHTML !== "undefined") {');
     lines.push('    return new Response(__clientHTML, { status: 200, headers: { "Content-Type": "text/html", ...(__cors) } });');
     lines.push('  }');
-    lines.push('  const __notFound = Response.json({ error: "Not Found" }, { status: 404, headers: __cors });');
+    lines.push('  const __notFound = __errorResponse(404, "NOT_FOUND", "Not Found", null, __cors);');
     lines.push('  __log("warn", "Not Found", { rid: __rid, method: req.method, path: __pathname, status: 404, ms: Date.now() - __startTime });');
     lines.push('  return __notFound;');
 

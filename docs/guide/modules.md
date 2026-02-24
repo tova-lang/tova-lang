@@ -123,7 +123,7 @@ pub default_config = {
 
 ## Multi-File Block Merging
 
-Tova automatically merges all `.tova` files in the same directory. All `shared {}` blocks merge into one shared output, all `server {}` blocks merge into one server output, and all `client {}` blocks merge into one client output. No imports are needed between files in the same directory.
+Tova automatically merges all `.tova` files in the **same directory**. All `shared {}` blocks merge into one shared output, all `server {}` blocks merge into one server output, and all `client {}` blocks merge into one client output. No imports are needed between files in the same directory.
 
 This means you can split a large application across multiple files by concern:
 
@@ -135,19 +135,67 @@ my-app/src/
   app.tova             # client { state, computed, effects, component App }
 ```
 
+All four files merge by block type:
+- `shared` blocks → `src.shared.js`
+- `server` blocks → `src.server.js`
+- `client` blocks → `src.client.js`
+
 Components from `components.tova` are available in `app.tova` without imports. Shared types from `types.tova` are available in both server and client output. Server functions from `server.tova` are callable via `server.fn_name()` from client code in `app.tova`.
+
+### Multiple Blocks in One File
+
+A single `.tova` file can also contain multiple blocks of the same type. They merge the same way:
+
+```tova
+// State and data loading
+client {
+  state users: [User] = []
+
+  effect {
+    users = server.get_users()
+  }
+}
+
+// Components (same file, separate block)
+client {
+  component App {
+    <ul>
+      for user in users {
+        <li>{user.name}</li>
+      }
+    </ul>
+  }
+}
+```
+
+Both client blocks merge into one output — `App` can reference `users` directly.
 
 ### How It Works
 
 When `tova build` or `tova dev` finds multiple `.tova` files in a directory, it:
 
 1. Parses all files in the directory
-2. Merges same-type blocks into a single AST
+2. Merges same-type blocks (including multiple blocks within a single file) into a single AST
 3. Checks for duplicate declarations across files
 4. Runs the analyzer and code generator on the merged AST
 5. Outputs one set of files per directory (e.g., `src.shared.js`, `src.server.js`, `src.client.js`)
 
 Single-file directories compile exactly as before -- no behavior change.
+
+### What Gets Shared After Merging
+
+When client blocks merge (whether from the same file or different files in the same directory), everything in the merged output shares the same runtime scope:
+
+| Declaration | Shared across merged blocks? |
+|-------------|------------------------------|
+| `state` variables | Yes — all blocks read/write the same signals |
+| `computed` values | Yes — derived values available everywhere |
+| `store` instances | Yes — shared reactive stores |
+| `component` definitions | Yes — any block can render any component |
+| `fn` functions | Yes — callable from any block |
+| `effect` blocks | Yes — all effects run in the same reactive root |
+
+This means a `state` declared in one file's client block is the same signal referenced in another file's component — no wiring required.
 
 ### Duplicate Detection
 
@@ -165,7 +213,7 @@ The following are checked for conflicts:
 - **Server blocks:** fn names, model names, route conflicts (same method + path), singleton configs (db, cors, auth, session, etc.)
 - **Shared blocks:** type names, fn names, interface/trait names
 
-Declarations scoped inside components or stores (like `state` inside a `component`) do **not** conflict across files.
+Declarations **scoped inside** components or stores (like `state` inside a `component`) do **not** conflict across files. Two components can each have their own `state count` without issues.
 
 ### Same-Directory Imports
 
@@ -191,6 +239,25 @@ my-app/src/
 ```tova
 // src/app.tova -- import from subdirectory
 import { validate_email } from "./utils/validators.tova"
+```
+
+### Named Blocks Are Kept Separate
+
+[Named blocks](/fullstack/named-blocks) (`client "admin" {}`, `server "api" {}`) with **different names** are not merged together — each produces its own output file. Named blocks with the **same name** from different files in the same directory are merged:
+
+```tova
+// admin-state.tova
+client "admin" { state users = [] }
+
+// admin-ui.tova
+client "admin" { component AdminPanel { ... } }
+// → Both merge into one admin client output
+```
+
+```tova
+// These are SEPARATE outputs — not merged:
+client "admin" { ... }   // → app.client.admin.js
+client "public" { ... }  // → app.client.public.js
 ```
 
 ## Cross-File Imports

@@ -17,9 +17,9 @@ function escapeHtml(str) {
   return str.replace(_RE_HTML_G, ch => _ESC_HTML[ch]);
 }
 
-const _ESC_ATTR = { '&': '&amp;', '"': '&quot;' };
-const _RE_ATTR = /[&"]/;
-const _RE_ATTR_G = /[&"]/g;
+const _ESC_ATTR = { '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' };
+const _RE_ATTR = /[&"<>]/;
+const _RE_ATTR_G = /[&"<>]/g;
 
 function escapeAttr(str) {
   if (typeof str !== 'string') return String(str);
@@ -28,14 +28,40 @@ function escapeAttr(str) {
 }
 
 // ─── SSR ID Counter for hydration markers ─────────────────
+// Request-scoped via AsyncLocalStorage (Node.js) or fallback to global.
+// Use createSSRContext() for concurrent-safe SSR rendering.
 let ssrIdCounter = 0;
 
+// Per-request context for concurrent SSR safety
+let _currentSSRContext = null;
+
+export function createSSRContext() {
+  return { idCounter: 0 };
+}
+
 function nextSSRId() {
+  if (_currentSSRContext) {
+    return ++_currentSSRContext.idCounter;
+  }
   return ++ssrIdCounter;
 }
 
 export function resetSSRIdCounter() {
   ssrIdCounter = 0;
+}
+
+// Run a render function within an isolated SSR context.
+// This ensures concurrent SSR requests don't share state.
+// Usage: const html = withSSRContext(() => renderToString(App()));
+export function withSSRContext(fn) {
+  const ctx = createSSRContext();
+  const prev = _currentSSRContext;
+  _currentSSRContext = ctx;
+  try {
+    return fn();
+  } finally {
+    _currentSSRContext = prev;
+  }
 }
 
 // ─── Render props to attribute string ─────────────────────
@@ -190,9 +216,37 @@ function flattenSSR(children) {
   return result;
 }
 
-// Render a full HTML page with the app component for SSR
-export function renderPage(component, { title = 'Tova App', head = '', scriptSrc = '/client.js' } = {}) {
+// Build safe head HTML from structured tag descriptors.
+// Usage: renderHeadTags([{ tag: 'meta', attrs: { name: 'desc', content: userInput } }])
+// All attribute values are escaped — safe for user input.
+export function renderHeadTags(tags) {
+  if (!tags || !Array.isArray(tags)) return '';
+  const parts = [];
+  for (const { tag, attrs = {}, content } of tags) {
+    let html = `<${escapeHtml(tag)}`;
+    for (const [key, val] of Object.entries(attrs)) {
+      if (val === false || val == null) continue;
+      html += ` ${escapeHtml(key)}="${escapeAttr(String(val))}"`;
+    }
+    if (VOID_ELEMENTS.has(tag)) {
+      html += ' />';
+    } else {
+      html += `>${content ? escapeHtml(content) : ''}</${escapeHtml(tag)}>`;
+    }
+    parts.push(html);
+  }
+  return parts.join('\n  ');
+}
+
+// Render a full HTML page with the app component for SSR.
+// `head` accepts either a raw HTML string (trusted content only) or an array
+// of tag descriptors for safe rendering: [{ tag: 'meta', attrs: { name: 'desc', content: '...' } }]
+// SECURITY: Raw string `head` must contain only developer-authored content — never user input.
+// Use the array form or renderHeadTags() for safe user-controlled head content.
+export function renderPage(component, { title = 'Tova App', head = '', scriptSrc = '/client.js', cspNonce } = {}) {
   const appHtml = renderToString(typeof component === 'function' ? component() : component);
+  const headHtml = Array.isArray(head) ? renderHeadTags(head) : head;
+  const nonceAttr = cspNonce ? ` nonce="${escapeAttr(cspNonce)}"` : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -200,11 +254,11 @@ export function renderPage(component, { title = 'Tova App', head = '', scriptSrc
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
-  ${head}
+  ${headHtml}
 </head>
 <body>
   <div id="app">${appHtml}</div>
-  <script type="module" src="${escapeAttr(scriptSrc)}"></script>
+  <script type="module" src="${escapeAttr(scriptSrc)}"${nonceAttr}></script>
 </body>
 </html>`;
 }
@@ -349,12 +403,14 @@ export function renderToReadableStream(vnode, options = {}) {
 
 // Render a full HTML page as a stream
 export function renderPageToStream(component, options = {}) {
-  const { title = 'Tova App', head = '', scriptSrc = '/client.js', onError, bufferSize } = options;
+  const { title = 'Tova App', head = '', scriptSrc = '/client.js', onError, bufferSize, cspNonce } = options;
+  const headHtml = Array.isArray(head) ? renderHeadTags(head) : head;
+  const nonceAttr = cspNonce ? ` nonce="${escapeAttr(cspNonce)}"` : '';
 
   return new ReadableStream({
     start(controller) {
       // Flush head immediately so CSS/JS start downloading (bypass buffer)
-      controller.enqueue(`<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>${escapeHtml(title)}</title>\n  ${head}\n</head>\n<body>\n  <div id="app">`);
+      controller.enqueue(`<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>${escapeHtml(title)}</title>\n  ${headHtml}\n</head>\n<body>\n  <div id="app">`);
 
       const buf = new BufferedController(controller, bufferSize);
       try {
@@ -366,7 +422,7 @@ export function renderPageToStream(component, options = {}) {
       }
 
       buf.flush();
-      controller.enqueue(`</div>\n  <script type="module" src="${escapeAttr(scriptSrc)}"></script>\n</body>\n</html>`);
+      controller.enqueue(`</div>\n  <script type="module" src="${escapeAttr(scriptSrc)}"${nonceAttr}></script>\n</body>\n</html>`);
       controller.close();
     },
   });

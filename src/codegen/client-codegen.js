@@ -189,8 +189,9 @@ export class ClientCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, onBeforeUpdate, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy, Suspense, __tova_action } from './runtime/reactivity.js';`);
-    lines.push(`import { rpc } from './runtime/rpc.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, onBeforeUpdate, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy, Suspense, Head, createResource, __tova_action, TransitionGroup, createForm, configureCSP } from './runtime/reactivity.js';`);
+    lines.push(`import { rpc, configureRPC, addRPCInterceptor, setCSRFToken } from './runtime/rpc.js';`);
+    lines.push(`import { navigate, getCurrentRoute, getParams, getPath, getQuery, defineRoutes, onRouteChange, beforeNavigate, afterNavigate, Router, Outlet, Link, Redirect } from './runtime/router.js';`);
 
     // Hoist import lines from shared code to the top of the module
     let sharedRest = sharedCode;
@@ -394,14 +395,16 @@ export class ClientCodegen extends BaseCodegen {
     return p.join('');
   }
 
-  // Generate a short hash from component name + CSS content (for CSS scoping)
+  // Generate a scope hash from component name + CSS content (for CSS scoping)
+  // Uses FNV-1a for better distribution and 8-char output to reduce collision risk.
   _genScopeId(name, css) {
     const str = name + ':' + (css || '');
-    let h = 0;
+    let h = 0x811c9dc5; // FNV offset basis
     for (let i = 0; i < str.length; i++) {
-      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193); // FNV prime
     }
-    return Math.abs(h).toString(36).slice(0, 6);
+    return (h >>> 0).toString(36).padStart(8, '0').slice(0, 8);
   }
 
   // Scope CSS selectors by appending [data-tova-HASH] to each selector

@@ -310,6 +310,138 @@ client {
 }
 ```
 
+## Multiple Client Blocks
+
+### Multiple Blocks in One File
+
+A single `.tova` file can contain multiple `client {}` blocks. They are **merged** into one client output, sharing the same runtime scope. This lets you organize code by concern within a file:
+
+```tova
+// State and data loading
+client {
+  state users: [User] = []
+  state loading = false
+
+  effect {
+    loading = true
+    users = server.get_users()
+    loading = false
+  }
+}
+
+// Components
+client {
+  component UserCard(user) {
+    <div class="card">
+      <h2>{user.name}</h2>
+      <p>{user.email}</p>
+    </div>
+  }
+
+  component App {
+    <div>
+      if loading {
+        <p>"Loading..."</p>
+      } else {
+        for user in users {
+          <UserCard user={user} />
+        }
+      }
+    </div>
+  }
+}
+```
+
+Both blocks merge — `App` can reference `users`, `loading`, and `UserCard` because they compile into the same module. State, computed values, effects, components, stores, and functions from all client blocks in a file are combined.
+
+### Cross-File Client Blocks (Same Directory)
+
+All `.tova` files in the **same directory** are automatically merged by type. Client blocks from different files share the same scope with no imports needed:
+
+```
+my-app/src/
+  types.tova           # shared { type User { ... } }
+  server.tova          # server { fn get_users() -> [User] { ... } }
+  components.tova      # client { component UserCard(user) { ... } }
+  app.tova             # client { state users = []; component App { ... } }
+```
+
+`App` in `app.tova` can use `UserCard` from `components.tova` directly — no import needed. The compiler merges all client blocks from the directory into a single `src.client.js` output.
+
+This is the recommended way to scale a Tova application: split by concern across files, and let the compiler handle the wiring.
+
+### Duplicate Detection
+
+If two client blocks (in the same file or across files in the same directory) declare the **same top-level name**, the compiler reports an error:
+
+```
+Error: Duplicate component 'App'
+  → first defined in app.tova:15
+  → also defined in main.tova:42
+```
+
+The following are checked for conflicts at the top level:
+- Component names
+- State variable names
+- Computed value names
+- Store names
+- Function names
+
+Declarations **scoped inside** a component or store do not conflict. Two components can each have their own `state count` without issues:
+
+```tova
+// components.tova — no conflict, count is scoped inside each component
+client {
+  component Counter {
+    state count = 0
+    <button on:click={fn() count = count + 1}>{count}</button>
+  }
+
+  component Timer {
+    state count = 0
+    // ...
+  }
+}
+```
+
+### Cross-Directory Client Blocks
+
+Files in **different directories** are compiled separately and do not auto-merge. Use explicit imports:
+
+```tova
+// src/app.tova — import from subdirectory
+import { SharedWidget } from "./widgets/shared.tova"
+```
+
+Each subdirectory produces its own output files. Cross-directory imports are rewritten to point to the generated `.js` files.
+
+### Named Client Blocks
+
+For applications that need entirely **separate** client outputs (e.g., an admin panel and a public site), use named client blocks:
+
+```tova
+client "admin" {
+  state adminUsers = []
+  component AdminPanel {
+    <div>"Admin Dashboard"</div>
+  }
+}
+
+client "public" {
+  state posts = []
+  component Blog {
+    <div>"Public Blog"</div>
+  }
+}
+```
+
+Named blocks compile to separate files (`app.client.admin.js`, `app.client.public.js`) rather than merging. They do **not** share state or components. See [Named Blocks](./named-blocks) for details.
+
+::: tip When to use what
+- **Multiple unnamed `client {}` blocks** (same file or same directory): Merged into one output. Use for organizing code by concern.
+- **Named `client "name" {}` blocks**: Separate outputs. Use when you need completely independent client applications.
+:::
+
 ## A Complete Example
 
 Here is a complete client block for a simple todo application:
@@ -385,9 +517,11 @@ client {
 
 ## Related Pages
 
-- [Architecture Overview](./architecture) -- how the three-block model works
+- [Architecture Overview](./architecture) -- how the four-block model works
 - [RPC Bridge](./rpc) -- how `server.fn_name()` calls work
 - [Shared Block](./shared-block) -- types shared between client and server
+- [Named Blocks](./named-blocks) -- named client and server blocks for separate outputs
+- [Modules](/guide/modules) -- multi-file merging and import system
 - [Compilation](./compilation) -- how the client output is generated
 
 For detailed reference on each reactive primitive, see the Reactive UI pages:
@@ -399,3 +533,4 @@ For detailed reference on each reactive primitive, see the Reactive UI pages:
 - [Stores](/reactivity/stores)
 - [Lifecycle](/reactivity/lifecycle)
 - [Router](/reactivity/router)
+- [Testing](/reactivity/testing)

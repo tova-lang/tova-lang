@@ -26,7 +26,7 @@ client {
 }
 ```
 
-You can write all four in a single file, or spread them across multiple files in the same directory. The compiler merges same-type blocks from all files in a directory, then separates them at build time.
+You can write all four in a single file, or spread them across multiple files in the same directory. A single file can also contain multiple blocks of the same type (e.g., two `client {}` blocks). The compiler merges same-type blocks from all files in a directory into a single output, then separates them by block type at build time. See [Multi-File Block Merging](/guide/modules#multi-file-block-merging) for details.
 
 ### Shared Block
 
@@ -86,13 +86,13 @@ Typical contents:
 When you run `tova build`, the compiler performs the following steps:
 
 1. **Group** `.tova` files by directory
-2. **Merge** same-type blocks from all files in each directory into a unified AST
-3. **Validate** the merged AST for duplicate declarations across files
+2. **Merge** same-type blocks into a unified AST — this includes multiple blocks within a single file **and** blocks from different files in the same directory
+3. **Validate** the merged AST for duplicate declarations (component names, state, functions, etc.)
 4. **Generate** JavaScript for each block type using its specialized code generator
 5. **Wire** the RPC bridge -- server functions get HTTP endpoints, client code gets a `server` proxy
 6. **Output** separate files to the `.tova-out/` directory
 
-For a single-file project, this is identical to the previous behavior. For multi-file projects, the merge step combines blocks before code generation:
+For a single-file project with one block of each type, this is straightforward. For multi-file projects or files with multiple blocks of the same type, the merge step combines them before code generation:
 
 ```
                          tova build

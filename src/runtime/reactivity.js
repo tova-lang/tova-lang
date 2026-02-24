@@ -25,6 +25,9 @@ let pendingEffects = new Set();
 let batchDepth = 0;
 let flushing = false;
 
+// Reusable array for flush cycle — avoids allocation on every flush
+let _flushBuf = [];
+
 function flush() {
   if (flushing) return; // prevent re-entrant flush
   flushing = true;
@@ -52,14 +55,17 @@ function flush() {
       const toRun = pendingEffects;
       pendingEffects = new Set();
       // Sort by depth (parents first) to avoid redundant child re-runs
+      // Reuse buffer to reduce GC pressure
       if (toRun.size > 1) {
-        const sorted = Array.from(toRun);
-        sorted.sort((a, b) => (a._depth || 0) - (b._depth || 0));
-        for (const effect of sorted) {
-          if (!effect._disposed) {
-            effect();
+        _flushBuf.length = 0;
+        for (const effect of toRun) _flushBuf.push(effect);
+        _flushBuf.sort((a, b) => (a._depth || 0) - (b._depth || 0));
+        for (let i = 0; i < _flushBuf.length; i++) {
+          if (!_flushBuf[i]._disposed) {
+            _flushBuf[i]();
           }
         }
+        _flushBuf.length = 0;
       } else {
         for (const effect of toRun) {
           if (!effect._disposed) {
@@ -626,6 +632,7 @@ export function Dynamic({ component, ...rest }) {
 // ─── Portal ─────────────────────────────────────────────
 // Renders children into a different DOM target.
 // Usage: Portal({ target: "#modal-root", children })
+// Cleans up children from the target when the component unmounts.
 
 export function Portal({ target, children }) {
   return {
@@ -633,6 +640,7 @@ export function Portal({ target, children }) {
     tag: '__portal',
     props: { target },
     children: children || [],
+    _portalCleanup: true, // Signal to render() to register cleanup
   };
 }
 
@@ -678,6 +686,8 @@ export function lazy(loader) {
   let resolved = null;
   let loadError = null;
   let promise = null;
+  // Signal is shared across all renders of this lazy component (not per-call)
+  const [tick, setTick] = createSignal(0);
 
   return function LazyWrapper(props) {
     if (resolved) {
@@ -693,17 +703,14 @@ export function lazy(loader) {
         .then(mod => {
           resolved = mod.default || mod;
           if (suspense) suspense.resolve();
+          setTick(1);
         })
         .catch(e => {
           loadError = e;
           if (suspense) suspense.resolve();
+          setTick(1);
         });
     }
-
-    const [tick, setTick] = createSignal(0);
-
-    // Trigger re-render when promise settles
-    promise.then(() => setTick(1)).catch(() => setTick(1));
 
     return {
       __tova: true,
@@ -748,17 +755,209 @@ export function inject(context) {
   return context._default;
 }
 
+// ─── Head Component ──────────────────────────────────────
+// Declarative document head management.
+// Usage: Head({ children: [tova_el('title', {}, ['My Page']), tova_el('meta', {name: 'description', content: '...'})] })
+// Components can render <Head> to set title, meta, link, and script tags in <head>.
+// When the component unmounts, its head contributions are removed.
+
+const __tovaHeadTags = [];
+
+export function Head({ children }) {
+  if (typeof document === 'undefined') return null;
+
+  const addedElements = [];
+  const childList = Array.isArray(children) ? children : [children];
+
+  for (const child of childList) {
+    if (!child || !child.__tova) continue;
+    const tag = child.tag;
+    const props = child.props || {};
+    const text = child.children && child.children.length > 0 ? child.children.join('') : null;
+
+    if (tag === 'title') {
+      // Special case: update document.title directly
+      const prevTitle = document.title;
+      document.title = text || '';
+      addedElements.push({ type: 'title', prev: prevTitle });
+    } else {
+      const el = document.createElement(tag);
+      for (const [key, val] of Object.entries(props)) {
+        if (key.startsWith('on') || key === 'key' || key === 'ref') continue;
+        const attrName = key === 'className' ? 'class' : key;
+        const attrVal = typeof val === 'function' ? val() : val;
+        if (attrVal !== false && attrVal != null) {
+          el.setAttribute(attrName, String(attrVal));
+        }
+      }
+      if (text) el.textContent = text;
+      document.head.appendChild(el);
+      addedElements.push({ type: 'element', el });
+    }
+  }
+
+  // Register cleanup: remove added elements when component unmounts
+  if (currentOwner) {
+    const cleanup = () => {
+      for (const item of addedElements) {
+        if (item.type === 'element') {
+          if (typeof item.el.remove === 'function') {
+            item.el.remove();
+          } else if (item.el.parentNode && typeof item.el.parentNode.removeChild === 'function') {
+            item.el.parentNode.removeChild(item.el);
+          }
+        } else if (item.type === 'title') {
+          document.title = item.prev;
+        }
+      }
+    };
+    if (!currentOwner._cleanups) currentOwner._cleanups = [];
+    currentOwner._cleanups.push(cleanup);
+  }
+
+  return null; // Head renders nothing in the component tree
+}
+
+// ─── createResource ──────────────────────────────────────
+// Async data fetching primitive integrated with signals.
+// Usage: const [data, { loading, error, refetch }] = createResource(fetcher)
+// Usage with source: const [data, { loading, error, refetch }] = createResource(sourceSignal, fetcher)
+// When source changes, fetcher is re-invoked automatically.
+
+export function createResource(sourceOrFetcher, maybeFetcher) {
+  let source, fetcher;
+  if (typeof maybeFetcher === 'function') {
+    source = sourceOrFetcher;
+    fetcher = maybeFetcher;
+  } else {
+    source = null;
+    fetcher = sourceOrFetcher;
+  }
+
+  const [data, setData] = createSignal(undefined);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal(undefined);
+  let version = 0; // Guards against stale responses
+
+  function doFetch(sourceVal) {
+    const currentVersion = ++version;
+    setLoading(true);
+    setError(undefined);
+    try {
+      const result = source ? fetcher(sourceVal) : fetcher();
+      if (result && typeof result.then === 'function') {
+        result.then(
+          (val) => {
+            if (currentVersion === version) {
+              setData(() => val);
+              setLoading(false);
+            }
+          },
+          (err) => {
+            if (currentVersion === version) {
+              setError(() => err);
+              setLoading(false);
+            }
+          },
+        );
+      } else {
+        // Synchronous fetcher
+        if (currentVersion === version) {
+          setData(() => result);
+          setLoading(false);
+        }
+      }
+    } catch (err) {
+      if (currentVersion === version) {
+        setError(() => err);
+        setLoading(false);
+      }
+    }
+  }
+
+  function refetch() {
+    const sourceVal = source ? (typeof source === 'function' ? source() : source) : undefined;
+    doFetch(sourceVal);
+  }
+
+  // If source is provided, track it reactively
+  if (source) {
+    createEffect(() => {
+      const sourceVal = typeof source === 'function' ? source() : source;
+      if (sourceVal !== undefined && sourceVal !== null && sourceVal !== false) {
+        doFetch(sourceVal);
+      }
+    });
+  } else {
+    // Fetch immediately
+    doFetch();
+  }
+
+  return [data, { loading, error, refetch, mutate: setData }];
+}
+
 // ─── DOM Rendering ────────────────────────────────────────
 
-// Inject scoped CSS into the page (idempotent — only injects once per id)
-const __tovaInjectedStyles = new Set();
+// CSP nonce — set via configureCSP({ nonce: '...' }) or auto-detected from
+// <meta name="csp-nonce" content="...">. Used for style tags to comply with
+// Content-Security-Policy headers.
+let __cspNonce = null;
+
+export function configureCSP(options) {
+  if (options && options.nonce) __cspNonce = options.nonce;
+}
+
+function getCSPNonce() {
+  if (__cspNonce) return __cspNonce;
+  if (typeof document !== 'undefined' && typeof document.querySelector === 'function') {
+    const meta = document.querySelector('meta[name="csp-nonce"]');
+    if (meta) {
+      __cspNonce = meta.getAttribute('content');
+      return __cspNonce;
+    }
+  }
+  return null;
+}
+
+// Inject scoped CSS into the page with reference counting.
+// Style tags are created on first use and removed when no component instances reference them.
+// Supports CSP nonce for Content-Security-Policy compliance.
+const __tovaStyleRefs = new Map(); // id → { el, count }
 export function tova_inject_css(id, css) {
-  if (__tovaInjectedStyles.has(id)) return;
-  __tovaInjectedStyles.add(id);
-  const style = document.createElement('style');
-  style.setAttribute('data-tova-style', id);
-  style.textContent = css;
-  document.head.appendChild(style);
+  const ref = __tovaStyleRefs.get(id);
+  if (ref) {
+    ref.count++;
+  } else {
+    const style = document.createElement('style');
+    style.setAttribute('data-tova-style', id);
+    const nonce = getCSPNonce();
+    if (nonce) style.setAttribute('nonce', nonce);
+    style.textContent = css;
+    document.head.appendChild(style);
+    __tovaStyleRefs.set(id, { el: style, count: 1 });
+  }
+  // Register cleanup on the current owner so unmount decrements the ref count
+  if (currentOwner) {
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      const r = __tovaStyleRefs.get(id);
+      if (r) {
+        r.count--;
+        if (r.count <= 0) {
+          if (typeof r.el.remove === 'function') {
+            r.el.remove();
+          } else if (r.el.parentNode && typeof r.el.parentNode.removeChild === 'function') {
+            r.el.parentNode.removeChild(r.el);
+          }
+          __tovaStyleRefs.delete(id);
+        }
+      }
+    };
+    if (!currentOwner._cleanups) currentOwner._cleanups = [];
+    currentOwner._cleanups.push(cleanup);
+  }
 }
 
 export function tova_el(tag, props = {}, children = []) {
@@ -840,6 +1039,31 @@ export function tova_transition(vnode, nameOrConfig, config = {}) {
   // Built-in transition: tova_transition(vnode, "fade", config)
   vnode._transition = { name: nameOrConfig, config };
   return vnode;
+}
+
+// ─── TransitionGroup ──────────────────────────────────────
+// Animates enter, leave, and move for keyed list items.
+// Usage: TransitionGroup({ name: "fade", tag: "ul", children: items.map(i => ...) })
+// Each child MUST have a `key` prop.
+// Supports FLIP-based move animations when items reorder.
+
+export function TransitionGroup({ name = 'fade', tag = 'div', config = {}, children, ...rest }) {
+  const transName = name;
+  const transConfig = config;
+  const childList = Array.isArray(children) ? children : (children ? [children] : []);
+
+  // Annotate each child vnode with the transition
+  const annotated = childList.map(child => {
+    if (child && child.__tova && !child._transition) {
+      child._transition = { name: transName, config: transConfig };
+    }
+    return child;
+  });
+
+  // Wrap in a container element (default <div>)
+  const wrapper = tova_el(tag, { ...rest, 'data-tova-transition-group': '' }, annotated);
+  wrapper._transitionGroup = { name: transName, config: transConfig };
+  return wrapper;
 }
 
 // ─── Actions ──────────────────────────────────────────────
@@ -1202,16 +1426,30 @@ export function render(vnode) {
   if (vnode.tag === '__portal') {
     const placeholder = document.createComment('portal');
     const targetSelector = vnode.props.target;
+    const portalNodes = [];
     queueMicrotask(() => {
       const targetEl = typeof targetSelector === 'string'
         ? document.querySelector(targetSelector)
         : targetSelector;
       if (targetEl) {
         for (const child of flattenVNodes(vnode.children)) {
-          targetEl.appendChild(render(child));
+          const rendered = render(child);
+          targetEl.appendChild(rendered);
+          portalNodes.push(rendered);
         }
       }
     });
+    // Register cleanup: remove portal children when component unmounts
+    if (currentOwner && !currentOwner._disposed) {
+      if (!currentOwner._cleanups) currentOwner._cleanups = [];
+      currentOwner._cleanups.push(() => {
+        for (const node of portalNodes) {
+          disposeNode(node);
+          if (node.parentNode) node.parentNode.removeChild(node);
+        }
+        portalNodes.length = 0;
+      });
+    }
     return placeholder;
   }
 
@@ -1306,12 +1544,18 @@ function applyReactiveProps(el, props) {
 function applyPropValue(el, key, val) {
   if (key === 'className') {
     if (el.className !== val) el.className = val || '';
-  } else if (key === 'innerHTML' || key === 'dangerouslySetInnerHTML') {
-    const html = typeof val === 'object' && val !== null ? val.__html || '' : val || '';
+  } else if (key === 'dangerouslySetInnerHTML') {
+    // Explicit unsafe HTML injection — requires {__html: "..."} format
+    const html = typeof val === 'object' && val !== null ? val.__html || '' : '';
     if (__DEV__ && html) {
-      console.warn('Tova: Setting innerHTML can expose your app to XSS attacks. Ensure the content is sanitized.');
+      console.warn('Tova: dangerouslySetInnerHTML bypasses XSS protection. Ensure content is sanitized.');
     }
     if (el.innerHTML !== html) el.innerHTML = html;
+  } else if (key === 'innerHTML') {
+    // Blocked: use dangerouslySetInnerHTML instead
+    if (__DEV__) {
+      console.error('Tova: innerHTML is not allowed. Use dangerouslySetInnerHTML={{__html: value}} to acknowledge XSS risk.');
+    }
   } else if (key === 'value') {
     if (el !== document.activeElement && el.value !== val) {
       el.value = val;
@@ -2011,7 +2255,11 @@ export function mount(component, container) {
 
   const result = createRoot((dispose) => {
     const vnode = typeof component === 'function' ? component() : component;
-    container.innerHTML = '';
+    if (typeof container.replaceChildren === 'function') {
+      container.replaceChildren();
+    } else {
+      while (container.firstChild) container.removeChild(container.firstChild);
+    }
     container.appendChild(render(vnode));
     return dispose;
   });
@@ -2052,5 +2300,139 @@ export function hydrateWhenVisible(component, domNode, options = {}) {
 
   return () => {
     observer.disconnect();
+  };
+}
+
+// ─── Form Handling ──────────────────────────────────────────
+// Reactive form primitives with field-level validation.
+// Usage:
+//   const form = createForm({
+//     fields: { email: { initial: '', validate: (v) => v.includes('@') ? null : 'Invalid email' } },
+//     onSubmit: async (values) => { await server.register(values); }
+//   });
+//   <input bind:value={form.field('email').value} />
+//   {form.field('email').error()}
+//   <button on:click={form.submit} disabled={form.submitting()}>Submit</button>
+
+export function createForm({ fields = {}, onSubmit, validateOnChange = true, validateOnBlur = true }) {
+  const fieldSignals = {};
+  const errorSignals = {};
+  const touchedSignals = {};
+  const [submitting, setSubmitting] = createSignal(false);
+  const [submitError, setSubmitError] = createSignal(null);
+  const [submitCount, setSubmitCount] = createSignal(0);
+
+  // Initialize field signals
+  for (const [name, config] of Object.entries(fields)) {
+    const initial = config.initial !== undefined ? config.initial : '';
+    const [value, setValue] = createSignal(initial);
+    const [error, setError] = createSignal(null);
+    const [touched, setTouched] = createSignal(false);
+    fieldSignals[name] = { value, setValue, validate: config.validate || null, initial };
+    errorSignals[name] = { error, setError };
+    touchedSignals[name] = { touched, setTouched };
+  }
+
+  function validateField(name) {
+    const f = fieldSignals[name];
+    const e = errorSignals[name];
+    if (!f || !e || !f.validate) return null;
+    const err = f.validate(f.value());
+    e.setError(err);
+    return err;
+  }
+
+  function validateAll() {
+    let hasErrors = false;
+    for (const name of Object.keys(fieldSignals)) {
+      const err = validateField(name);
+      if (err) hasErrors = true;
+    }
+    return !hasErrors;
+  }
+
+  function field(name) {
+    const f = fieldSignals[name];
+    const e = errorSignals[name];
+    const t = touchedSignals[name];
+    if (!f) throw new Error(`Tova form: unknown field "${name}"`);
+    return {
+      value: f.value,
+      error: e.error,
+      touched: t.touched,
+      set(val) {
+        f.setValue(val);
+        if (validateOnChange && t.touched()) validateField(name);
+      },
+      blur() {
+        t.setTouched(true);
+        if (validateOnBlur) validateField(name);
+      },
+      validate() { return validateField(name); },
+    };
+  }
+
+  function values() {
+    const result = {};
+    for (const [name, f] of Object.entries(fieldSignals)) {
+      result[name] = f.value();
+    }
+    return result;
+  }
+
+  function reset() {
+    for (const [name, f] of Object.entries(fieldSignals)) {
+      f.setValue(f.initial);
+      errorSignals[name].setError(null);
+      touchedSignals[name].setTouched(false);
+    }
+    setSubmitError(null);
+  }
+
+  async function submit(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    // Touch all fields
+    for (const name of Object.keys(touchedSignals)) {
+      touchedSignals[name].setTouched(true);
+    }
+    if (!validateAll()) return;
+    if (!onSubmit) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    setSubmitCount(c => c + 1);
+    try {
+      await onSubmit(values());
+    } catch (err) {
+      setSubmitError(err);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const isValid = createComputed(() => {
+    for (const name of Object.keys(errorSignals)) {
+      if (errorSignals[name].error()) return false;
+    }
+    return true;
+  });
+
+  const isDirty = createComputed(() => {
+    for (const [name, f] of Object.entries(fieldSignals)) {
+      if (f.value() !== f.initial) return true;
+    }
+    return false;
+  });
+
+  return {
+    field,
+    values,
+    reset,
+    submit,
+    submitting,
+    submitError,
+    submitCount,
+    isValid,
+    isDirty,
+    validate: validateAll,
   };
 }

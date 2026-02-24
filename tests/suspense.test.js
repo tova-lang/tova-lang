@@ -416,7 +416,7 @@ describe('CSS Scoping (_scopeCSS)', () => {
   test('_genScopeId produces short alphanumeric strings', () => {
     const id = codegen._genScopeId('TestComp', '.test { display: flex; }');
     expect(typeof id).toBe('string');
-    expect(id.length).toBeLessThanOrEqual(6);
+    expect(id.length).toBeLessThanOrEqual(8);
     expect(/^[a-z0-9]+$/.test(id)).toBe(true);
   });
 });
