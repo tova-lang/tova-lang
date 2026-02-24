@@ -2380,11 +2380,16 @@ export class ServerCodegen extends BaseCodegen {
     // 21. Request Handler — with global rate limit check (F2)
     // ════════════════════════════════════════════════════════════
     if (isFastMode) {
+      // Build combined list of all static routes (declared routes + RPC endpoints)
+      const rpcRoutes = functions.map(fn => ({ method: 'POST', path: `/rpc/${fn.name}` }));
+      const allFastRoutes = [...routes, ...rpcRoutes];
+      const allFastStatic = allFastRoutes.every(r => !r.path.includes(':') && !r.path.includes('*'));
+
       // Fast mode: emit direct handler references for static routes
-      if (allRoutesStatic && routes.length <= 16) {
-        for (let ri = 0; ri < routes.length; ri++) {
-          const method = routes[ri].method.toUpperCase();
-          const path = routes[ri].path;
+      if (allFastStatic && allFastRoutes.length <= 16) {
+        for (let ri = 0; ri < allFastRoutes.length; ri++) {
+          const method = allFastRoutes[ri].method.toUpperCase();
+          const path = allFastRoutes[ri].path;
           lines.push(`const __fh${ri} = __staticRoutes.get(${JSON.stringify(method + ' ' + path)}).handler;`);
         }
       }
@@ -2401,18 +2406,18 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  if (__method === "OPTIONS") return new Response(null, { status: 204, headers: __corsHeadersConst });');
 
       // Static route dispatch — emit direct if/else chain using named handler refs
-      if (allRoutesStatic && routes.length <= 16) {
-        for (let ri = 0; ri < routes.length; ri++) {
-          const method = routes[ri].method.toUpperCase();
-          const path = routes[ri].path;
+      if (allFastStatic && allFastRoutes.length <= 16) {
+        for (let ri = 0; ri < allFastRoutes.length; ri++) {
+          const method = allFastRoutes[ri].method.toUpperCase();
+          const path = allFastRoutes[ri].path;
           const handlerVar = `__fh${ri}`;
           lines.push(`  if (__method === ${JSON.stringify(method)} && __pathname === ${JSON.stringify(path)}) return ${handlerVar}(req, {});`);
         }
         // HEAD fallback for GET routes
-        for (let ri = 0; ri < routes.length; ri++) {
-          if (routes[ri].method.toUpperCase() === 'GET') {
+        for (let ri = 0; ri < allFastRoutes.length; ri++) {
+          if (allFastRoutes[ri].method.toUpperCase() === 'GET') {
             const handlerVar = `__fh${ri}`;
-            lines.push(`  if (__method === "HEAD" && __pathname === ${JSON.stringify(routes[ri].path)}) return ${handlerVar}(req, {});`);
+            lines.push(`  if (__method === "HEAD" && __pathname === ${JSON.stringify(allFastRoutes[ri].path)}) return ${handlerVar}(req, {});`);
           }
         }
       } else {
