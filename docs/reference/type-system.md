@@ -323,6 +323,33 @@ Point.__show(p1)          // "Point(x: 1.0, y: 2.0)"
 json_str = Point.toJSON(p1)  // JSON serialization
 ```
 
+## Impl Blocks
+
+`impl` blocks add behavior to types. Methods with `self` are **instance methods** (called on instances). Methods without `self` are **associated functions** (called on the type).
+
+```tova
+type Circle {
+  radius: Float
+}
+
+impl Circle {
+  // Associated function — Circle.unit()
+  fn unit() -> Circle {
+    Circle(1.0)
+  }
+
+  // Instance method — c.area()
+  fn area(self) -> Float {
+    3.14159 * self.radius * self.radius
+  }
+}
+
+c = Circle.unit()
+print(c.area())    // 3.14159
+```
+
+Instance methods compile to prototype methods. Associated functions compile to properties on the constructor.
+
 ## Interfaces
 
 Interfaces define a structural contract that types can implement:

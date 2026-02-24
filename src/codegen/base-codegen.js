@@ -2898,11 +2898,22 @@ export class BaseCodegen {
       }
       const body = this.genBlockBody(method.body);
       this.popScope();
-      const selfBinding = hasSelf ? `\n${this.i()}  const self = this;` : '';
-      if (hasPropagate) {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+
+      if (hasSelf) {
+        // Instance method → prototype
+        const selfBinding = `\n${this.i()}  const self = this;`;
+        if (hasPropagate) {
+          lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+        } else {
+          lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${body}\n${this.i()}};`);
+        }
       } else {
-        lines.push(`${this.i()}${node.typeName}.prototype.${method.name} = ${asyncPrefix}function(${paramStr}) {${selfBinding}\n${body}\n${this.i()}};`);
+        // Associated function → constructor namespace (callable as Type.method())
+        if (hasPropagate) {
+          lines.push(`${this.i()}${node.typeName}.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${this.i()}  try {\n${body}\n${this.i()}  } catch (__e) {\n${this.i()}    if (__e && __e.__tova_propagate) return __e.value;\n${this.i()}    throw __e;\n${this.i()}  }\n${this.i()}};`);
+        } else {
+          lines.push(`${this.i()}${node.typeName}.${method.name} = ${asyncPrefix}function(${paramStr}) {\n${body}\n${this.i()}};`);
+        }
       }
     }
     return lines.join('\n');

@@ -271,7 +271,11 @@ print(render_all(doc))
 
 ## Plain `impl` Blocks
 
-You can use `impl` without a trait to add methods directly to a type:
+You can use `impl` without a trait to add methods and associated functions directly to a type:
+
+### Instance Methods
+
+Functions with a `self` parameter are **instance methods** — called on an instance via dot notation:
 
 ```tova
 type Point {
@@ -306,7 +310,70 @@ print(b.magnitude())   // 5
 print(b.scale(2))      // Point(6, 8)
 ```
 
-Plain `impl` blocks are compiled to prototype methods, so they are shared across all instances with no per-instance memory cost.
+### Associated Functions
+
+Functions **without** `self` are **associated functions** — called on the type itself, not on an instance. Use these for constructors, factory methods, and type-level utilities:
+
+```tova
+impl Point {
+  fn origin() {
+    Point(0.0, 0.0)
+  }
+
+  fn from_polar(r: Float, theta: Float) {
+    Point(r * Math.cos(theta), r * Math.sin(theta))
+  }
+
+  fn unit_x() {
+    Point(1.0, 0.0)
+  }
+}
+```
+
+Call them on the type name:
+
+```tova
+o = Point.origin()              // Point(0.0, 0.0)
+p = Point.from_polar(1.0, 0.0)  // Point(1.0, 0.0)
+i = Point.unit_x()              // Point(1.0, 0.0)
+```
+
+::: tip
+The distinction is simple: if the function needs access to an existing instance, add `self` as the first parameter. If it creates a new value or doesn't need an instance, omit `self`.
+:::
+
+### Mixing Both
+
+A single `impl` block can contain both instance methods and associated functions:
+
+```tova
+type Rect {
+  width: Float
+  height: Float
+}
+
+impl Rect {
+  // Associated functions (no self) — called as Rect.square(5.0)
+  fn square(size: Float) {
+    Rect(size, size)
+  }
+
+  // Instance methods (self) — called as rect.area()
+  fn area(self) {
+    self.width * self.height
+  }
+
+  fn is_square(self) {
+    self.width == self.height
+  }
+}
+
+r = Rect.square(5.0)
+print(r.area())        // 25.0
+print(r.is_square())   // true
+```
+
+Instance methods are compiled to prototype methods (shared across all instances). Associated functions are placed directly on the constructor function.
 
 You can combine plain `impl` blocks with trait implementations on the same type:
 

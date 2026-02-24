@@ -1676,6 +1676,511 @@ impl Point {
     expect(code).toContain('Point.prototype.distance');
     expect(code).toContain('Point.prototype.scale');
   });
+
+  test('associated function (no self) goes on constructor, not prototype', () => {
+    const code = compileShared(`
+type Point {
+  x: Float
+  y: Float
+}
+
+impl Point {
+  fn origin() {
+    Point(0.0, 0.0)
+  }
+}
+`);
+    // Should be Point.origin, NOT Point.prototype.origin
+    expect(code).toContain('Point.origin');
+    expect(code).not.toContain('Point.prototype.origin');
+  });
+
+  test('mixed associated functions and instance methods', () => {
+    const code = compileShared(`
+type Point {
+  x: Float
+  y: Float
+}
+
+impl Point {
+  fn origin() {
+    Point(0.0, 0.0)
+  }
+
+  fn from_polar(r: Float, theta: Float) {
+    Point(r * Math.cos(theta), r * Math.sin(theta))
+  }
+
+  fn distance(self, other) {
+    Math.sqrt((other.x - self.x) ** 2 + (other.y - self.y) ** 2)
+  }
+
+  fn magnitude(self) {
+    Math.sqrt(self.x * self.x + self.y * self.y)
+  }
+}
+`);
+    // Associated functions on constructor
+    expect(code).toContain('Point.origin');
+    expect(code).toContain('Point.from_polar');
+    expect(code).not.toContain('Point.prototype.origin');
+    expect(code).not.toContain('Point.prototype.from_polar');
+    // Instance methods on prototype
+    expect(code).toContain('Point.prototype.distance');
+    expect(code).toContain('Point.prototype.magnitude');
+  });
+
+  test('associated function does not bind self', () => {
+    const code = compileShared(`
+type Counter {
+  value: Int
+}
+
+impl Counter {
+  fn zero() {
+    Counter(0)
+  }
+}
+`);
+    expect(code).toContain('Counter.zero');
+    // The associated function should not have self binding
+    const afterZero = code.split('Counter.zero')[1];
+    const fnBody = afterZero.slice(0, afterZero.indexOf('};') + 2);
+    expect(fnBody).not.toContain('const self = this');
+  });
+
+  test('async associated function', () => {
+    const code = compileShared(`
+type DataLoader {
+  data: String
+}
+
+impl DataLoader {
+  async fn fetch_default() {
+    DataLoader("default")
+  }
+}
+`);
+    expect(code).toContain('DataLoader.fetch_default');
+    expect(code).not.toContain('DataLoader.prototype.fetch_default');
+    expect(code).toContain('async function');
+  });
+
+  test('associated function with multiple parameters', () => {
+    const code = compileShared(`
+type Color {
+  r: Int
+  g: Int
+  b: Int
+}
+
+impl Color {
+  fn rgb(r: Int, g: Int, b: Int) {
+    Color(r, g, b)
+  }
+}
+`);
+    expect(code).toContain('Color.rgb');
+    expect(code).not.toContain('Color.prototype.rgb');
+    // Verify the params are preserved (not stripped like self would be)
+    expect(code).toMatch(/Color\.rgb\s*=\s*function\s*\(r,\s*g,\s*b\)/);
+  });
+
+  test('instance method self is stripped from params', () => {
+    const code = compileShared(`
+type Box {
+  value: Int
+}
+
+impl Box {
+  fn get(self) {
+    self.value
+  }
+}
+`);
+    expect(code).toContain('Box.prototype.get');
+    // self should be stripped from the function parameters
+    expect(code).toMatch(/Box\.prototype\.get\s*=\s*function\s*\(\)/);
+    // but bound inside the body
+    expect(code).toContain('const self = this');
+  });
+
+  test('associated function runtime: factory returning struct', () => {
+    const code = compileShared(`
+type Vec2 {
+  x: Float
+  y: Float
+}
+
+impl Vec2 {
+  fn zero() {
+    Vec2(0.0, 0.0)
+  }
+
+  fn unit_x() {
+    Vec2(1.0, 0.0)
+  }
+
+  fn unit_y() {
+    Vec2(0.0, 1.0)
+  }
+}
+`);
+    const run = (expr) => {
+      const fn = new Function(code + '\nreturn ' + expr + ';');
+      return fn();
+    };
+    expect(run('Vec2.zero()')).toEqual({ x: 0.0, y: 0.0 });
+    expect(run('Vec2.unit_x()')).toEqual({ x: 1.0, y: 0.0 });
+    expect(run('Vec2.unit_y()')).toEqual({ x: 0.0, y: 1.0 });
+  });
+
+  test('associated function runtime: factory with args', () => {
+    const code = compileShared(`
+type Range {
+  lo: Int
+  hi: Int
+}
+
+impl Range {
+  fn inclusive(lo: Int, hi: Int) {
+    Range(lo, hi)
+  }
+
+  fn size(self) {
+    self.hi - self.lo + 1
+  }
+}
+`);
+    const fn = new Function(code + '\nconst r = Range.inclusive(3, 7); return r.size();');
+    expect(fn()).toBe(5);
+  });
+
+  test('associated function and instance method on same type coexist at runtime', () => {
+    const code = compileShared(`
+type Stack {
+  items: String
+}
+
+impl Stack {
+  fn empty() {
+    Stack("")
+  }
+
+  fn is_empty(self) {
+    self.items == ""
+  }
+}
+`);
+    const fn = new Function(code + `
+      const s = Stack.empty();
+      return s.is_empty();
+    `);
+    expect(fn()).toBe(true);
+  });
+
+  test('multiple separate impl blocks for the same type', () => {
+    const code = compileShared(`
+type Point {
+  x: Float
+  y: Float
+}
+
+impl Point {
+  fn origin() {
+    Point(0.0, 0.0)
+  }
+}
+
+impl Point {
+  fn magnitude(self) {
+    Math.sqrt(self.x * self.x + self.y * self.y)
+  }
+}
+`);
+    // First impl: associated function
+    expect(code).toContain('Point.origin');
+    expect(code).not.toContain('Point.prototype.origin');
+    // Second impl: instance method
+    expect(code).toContain('Point.prototype.magnitude');
+  });
+
+  test('separate impl blocks runtime', () => {
+    const code = compileShared(`
+type Tally {
+  n: Int
+}
+
+impl Tally {
+  fn start(n: Int) {
+    Tally(n)
+  }
+}
+
+impl Tally {
+  fn value(self) {
+    self.n
+  }
+}
+`);
+    const fn = new Function(code + '\nreturn Tally.start(42).value();');
+    expect(fn()).toBe(42);
+  });
+
+  test('impl for trait: all methods go to prototype (trait methods always have self)', () => {
+    const code = compileShared(`
+type Point {
+  x: Float
+  y: Float
+}
+
+trait Describable {
+  fn describe(self) -> String
+}
+
+impl Describable for Point {
+  fn describe(self) -> String {
+    "point"
+  }
+}
+`);
+    expect(code).toContain('Point.prototype.describe');
+    expect(code).not.toMatch(/(?<!prototype\.)describe\s*=\s*function/);
+  });
+
+  test('trait impl with associated function on same type', () => {
+    const code = compileShared(`
+type Circle {
+  radius: Float
+}
+
+trait HasArea {
+  fn area(self) -> Float
+}
+
+impl Circle {
+  fn unit() {
+    Circle(1.0)
+  }
+}
+
+impl HasArea for Circle {
+  fn area(self) -> Float {
+    3.14159 * self.radius * self.radius
+  }
+}
+`);
+    // Associated function on constructor
+    expect(code).toContain('Circle.unit');
+    expect(code).not.toContain('Circle.prototype.unit');
+    // Trait method on prototype
+    expect(code).toContain('Circle.prototype.area');
+  });
+
+  test('trait impl + associated function runtime together', () => {
+    const code = compileShared(`
+type Circle {
+  radius: Float
+}
+
+impl Circle {
+  fn unit() {
+    Circle(1.0)
+  }
+
+  fn area(self) {
+    self.radius * self.radius * 3
+  }
+}
+`);
+    const fn = new Function(code + '\nreturn Circle.unit().area();');
+    expect(fn()).toBe(3);
+  });
+
+  test('associated function with error propagation operator', () => {
+    const code = compileShared(`
+type Parser {
+  input: String
+}
+
+impl Parser {
+  fn create(input: String) {
+    val = Ok(input)?
+    Parser(val)
+  }
+}
+`);
+    expect(code).toContain('Parser.create');
+    expect(code).not.toContain('Parser.prototype.create');
+    // Should have try/catch for propagation
+    expect(code).toContain('__tova_propagate');
+  });
+
+  test('instance method with error propagation operator', () => {
+    const code = compileShared(`
+type Processor {
+  data: String
+}
+
+impl Processor {
+  fn process(self) {
+    val = Ok(self.data)?
+    val
+  }
+}
+`);
+    expect(code).toContain('Processor.prototype.process');
+    expect(code).toContain('__tova_propagate');
+    expect(code).toContain('const self = this');
+  });
+
+  test('all-associated impl block (no instance methods)', () => {
+    const code = compileShared(`
+type Config {
+  host: String
+  port: Int
+}
+
+impl Config {
+  fn default_config() {
+    Config("localhost", 8080)
+  }
+
+  fn production() {
+    Config("0.0.0.0", 443)
+  }
+
+  fn development() {
+    Config("localhost", 3000)
+  }
+}
+`);
+    expect(code).toContain('Config.default_config');
+    expect(code).toContain('Config.production');
+    expect(code).toContain('Config.development');
+    expect(code).not.toContain('Config.prototype.default_config');
+    expect(code).not.toContain('Config.prototype.production');
+    expect(code).not.toContain('Config.prototype.development');
+  });
+
+  test('all-associated impl runtime', () => {
+    const code = compileShared(`
+type Config {
+  host: String
+  port: Int
+}
+
+impl Config {
+  fn default_config() {
+    Config("localhost", 8080)
+  }
+
+  fn production() {
+    Config("0.0.0.0", 443)
+  }
+}
+`);
+    const run = (expr) => new Function(code + '\nreturn ' + expr + ';')();
+    expect(run('Config.default_config().port')).toBe(8080);
+    expect(run('Config.production().host')).toBe("0.0.0.0");
+  });
+
+  test('associated function that takes same type as argument', () => {
+    const code = compileShared(`
+type Point {
+  x: Float
+  y: Float
+}
+
+impl Point {
+  fn midpoint(a, b) {
+    Point((a.x + b.x) / 2, (a.y + b.y) / 2)
+  }
+}
+`);
+    expect(code).toContain('Point.midpoint');
+    expect(code).not.toContain('Point.prototype.midpoint');
+    const fn = new Function(code + '\nreturn Point.midpoint(Point(0, 0), Point(4, 6));');
+    const result = fn();
+    expect(result.x).toBe(2);
+    expect(result.y).toBe(3);
+  });
+
+  test('associated function returning non-self type', () => {
+    const code = compileShared(`
+type MathUtils {
+  dummy: Int
+}
+
+impl MathUtils {
+  fn add(a: Int, b: Int) {
+    a + b
+  }
+
+  fn max(a: Int, b: Int) {
+    if a > b { a } else { b }
+  }
+}
+`);
+    expect(code).toContain('MathUtils.add');
+    expect(code).toContain('MathUtils.max');
+    expect(code).not.toContain('MathUtils.prototype.add');
+    expect(code).not.toContain('MathUtils.prototype.max');
+  });
+
+  test('chaining: associated function result used to call instance method', () => {
+    const code = compileShared(`
+type Builder {
+  value: Int
+}
+
+impl Builder {
+  fn new_builder() {
+    Builder(0)
+  }
+
+  fn get(self) {
+    self.value
+  }
+}
+`);
+    const fn = new Function(code + '\nreturn Builder.new_builder().get();');
+    expect(fn()).toBe(0);
+  });
+
+  test('associated function with default parameters', () => {
+    const code = compileShared(`
+type Server {
+  host: String
+  port: Int
+}
+
+impl Server {
+  fn create(host = "localhost", port = 8080) {
+    Server(host, port)
+  }
+}
+`);
+    expect(code).toContain('Server.create');
+    expect(code).not.toContain('Server.prototype.create');
+  });
+
+  test('ADT type with associated function', () => {
+    const code = compileShared(`
+type Shape {
+  Circle(radius: Float)
+  Rectangle(width: Float, height: Float)
+}
+
+impl Shape {
+  fn unit_circle() {
+    Circle(1.0)
+  }
+}
+`);
+    expect(code).toContain('Shape.unit_circle');
+    expect(code).not.toContain('Shape.prototype.unit_circle');
+  });
 });
 
 // ─── Trait System ───────────────────────────────────────────────

@@ -2547,11 +2547,13 @@ export class Analyzer {
     if (typeName) {
       const existingImpls = this.typeRegistry.impls.get(typeName) || [];
       for (const method of node.methods) {
+        const hasSelf = (method.params || []).some(p => p.name === 'self');
         existingImpls.push({
           name: method.name,
           params: (method.params || []).map(p => p.name),
           paramTypes: (method.params || []).map(p => typeAnnotationToType(p.typeAnnotation)),
           returnType: typeAnnotationToType(method.returnType),
+          isAssociated: !hasSelf,
         });
       }
       this.typeRegistry.impls.set(typeName, existingImpls);
@@ -2583,13 +2585,16 @@ export class Analyzer {
 
     // Validate that methods reference the type
     for (const method of node.methods) {
+      const hasSelf = (method.params || []).some(p => p.name === 'self');
       this.pushScope('function');
       try {
-        // self is implicitly available
-        try {
-          this.currentScope.define('self',
-            new Symbol('self', 'variable', null, true, method.loc));
-        } catch (e) { /* ignore */ }
+        // self is only available for instance methods (not associated functions)
+        if (hasSelf) {
+          try {
+            this.currentScope.define('self',
+              new Symbol('self', 'variable', null, true, method.loc));
+          } catch (e) { /* ignore */ }
+        }
         for (const p of method.params) {
           if (p.name && p.name !== 'self') {
             try {

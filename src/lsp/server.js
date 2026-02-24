@@ -526,13 +526,14 @@ class TovaLanguageServer {
     const sym = this._findSymbolInScopes(cached.analyzer, objectName);
     if (!sym) return items;
 
-    // Determine the type name
+    // Determine the type name and whether we're accessing the type itself
     let typeName = null;
+    const isTypeAccess = sym.kind === 'type';
     if (sym.inferredType) {
       typeName = sym.inferredType;
     } else if (sym._variantOf) {
       typeName = sym._variantOf;
-    } else if (sym.kind === 'type' && sym._typeStructure) {
+    } else if (isTypeAccess && sym._typeStructure) {
       typeName = sym.name;
     }
 
@@ -541,31 +542,49 @@ class TovaLanguageServer {
     // Get members from type registry
     const typeRegistry = cached.typeRegistry;
     if (typeRegistry) {
-      const members = typeRegistry.getMembers(typeName);
-
-      // Add fields
-      for (const [fieldName, fieldType] of members.fields) {
-        if (!partial || fieldName.startsWith(partial)) {
-          items.push({
-            label: fieldName,
-            kind: 5, // Field
-            detail: fieldType ? fieldType.toString() : 'field',
-            sortText: `0${fieldName}`, // Fields first
-          });
+      if (isTypeAccess) {
+        // Type access (e.g., Point.) → show associated functions
+        const assocFns = typeRegistry.getAssociatedFunctions(typeName);
+        for (const fn of assocFns) {
+          if (!partial || fn.name.startsWith(partial)) {
+            const paramStr = (fn.params || []).filter(p => p !== 'self').join(', ');
+            const retStr = fn.returnType ? ` -> ${fn.returnType}` : '';
+            items.push({
+              label: fn.name,
+              kind: 3, // Function
+              detail: `fn(${paramStr})${retStr}`,
+              sortText: `0${fn.name}`,
+            });
+          }
         }
-      }
+      } else {
+        // Instance access (e.g., point.) → show fields + instance methods
+        const members = typeRegistry.getMembers(typeName);
 
-      // Add impl methods
-      for (const method of members.methods) {
-        if (!partial || method.name.startsWith(partial)) {
-          const paramStr = (method.params || []).filter(p => p !== 'self').join(', ');
-          const retStr = method.returnType ? ` -> ${method.returnType}` : '';
-          items.push({
-            label: method.name,
-            kind: 2, // Method
-            detail: `fn(${paramStr})${retStr}`,
-            sortText: `1${method.name}`, // Methods after fields
-          });
+        // Add fields
+        for (const [fieldName, fieldType] of members.fields) {
+          if (!partial || fieldName.startsWith(partial)) {
+            items.push({
+              label: fieldName,
+              kind: 5, // Field
+              detail: fieldType ? fieldType.toString() : 'field',
+              sortText: `0${fieldName}`, // Fields first
+            });
+          }
+        }
+
+        // Add instance methods
+        for (const method of members.methods) {
+          if (!partial || method.name.startsWith(partial)) {
+            const paramStr = (method.params || []).filter(p => p !== 'self').join(', ');
+            const retStr = method.returnType ? ` -> ${method.returnType}` : '';
+            items.push({
+              label: method.name,
+              kind: 2, // Method
+              detail: `fn(${paramStr})${retStr}`,
+              sortText: `1${method.name}`, // Methods after fields
+            });
+          }
         }
       }
     }

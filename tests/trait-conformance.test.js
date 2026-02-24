@@ -176,6 +176,332 @@ describe('Trait Conformance Checking', () => {
     const methods = result.typeRegistry.impls.get('Point');
     expect(methods.some(m => m.name === 'magnitude')).toBe(true);
   });
+
+  test('instance methods are tagged as not associated', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Int, y: Int)
+      }
+      impl Point {
+        fn magnitude(self) -> Float {
+          0.0
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Point');
+    const mag = methods.find(m => m.name === 'magnitude');
+    expect(mag.isAssociated).toBe(false);
+  });
+
+  test('associated functions are tagged as associated', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Int, y: Int)
+      }
+      impl Point {
+        fn origin() {
+          Point(0, 0)
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Point');
+    const origin = methods.find(m => m.name === 'origin');
+    expect(origin.isAssociated).toBe(true);
+  });
+
+  test('mixed impl tags associated and instance correctly', () => {
+    const result = analyze(`
+      type Vec2 {
+        Create(x: Float, y: Float)
+      }
+      impl Vec2 {
+        fn zero() {
+          Vec2(0.0, 0.0)
+        }
+        fn unit_x() {
+          Vec2(1.0, 0.0)
+        }
+        fn length(self) -> Float {
+          0.0
+        }
+        fn add(self, other) {
+          Vec2(0.0, 0.0)
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Vec2');
+    expect(methods.find(m => m.name === 'zero').isAssociated).toBe(true);
+    expect(methods.find(m => m.name === 'unit_x').isAssociated).toBe(true);
+    expect(methods.find(m => m.name === 'length').isAssociated).toBe(false);
+    expect(methods.find(m => m.name === 'add').isAssociated).toBe(false);
+  });
+
+  test('multiple impl blocks accumulate in registry', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Float, y: Float)
+      }
+      impl Point {
+        fn origin() {
+          Point(0.0, 0.0)
+        }
+      }
+      impl Point {
+        fn magnitude(self) -> Float {
+          0.0
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Point');
+    expect(methods).toHaveLength(2);
+    expect(methods.find(m => m.name === 'origin').isAssociated).toBe(true);
+    expect(methods.find(m => m.name === 'magnitude').isAssociated).toBe(false);
+  });
+
+  test('trait impl methods are tagged as not associated', () => {
+    const result = analyze(`
+      type Circle {
+        Create(radius: Float)
+      }
+      trait HasArea {
+        fn area(self) -> Float
+      }
+      impl HasArea for Circle {
+        fn area(self) -> Float {
+          0.0
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Circle');
+    expect(methods.find(m => m.name === 'area').isAssociated).toBe(false);
+  });
+
+  test('associated function with params preserves paramTypes', () => {
+    const result = analyze(`
+      type Rect {
+        Create(w: Float, h: Float)
+      }
+      impl Rect {
+        fn square(size: Float) {
+          Rect(size, size)
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Rect');
+    const square = methods.find(m => m.name === 'square');
+    expect(square.isAssociated).toBe(true);
+    expect(square.params).toEqual(['size']);
+  });
+
+  test('all-associated impl block has no instance methods in registry', () => {
+    const result = analyze(`
+      type Config {
+        Create(host: String, port: Int)
+      }
+      impl Config {
+        fn dev() {
+          Config("localhost", 3000)
+        }
+        fn prod() {
+          Config("0.0.0.0", 443)
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Config');
+    expect(methods.every(m => m.isAssociated)).toBe(true);
+    expect(methods).toHaveLength(2);
+  });
+
+  test('all-instance impl block has no associated functions in registry', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Float, y: Float)
+      }
+      impl Point {
+        fn magnitude(self) -> Float {
+          0.0
+        }
+        fn translate(self, dx: Float, dy: Float) {
+          Point(0.0, 0.0)
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Point');
+    expect(methods.every(m => !m.isAssociated)).toBe(true);
+    expect(methods).toHaveLength(2);
+  });
+
+  test('associated function does not get self defined in scope (no false unused warning)', () => {
+    const warnings = getWarnings(`
+      type Box {
+        Create(v: Int)
+      }
+      impl Box {
+        fn empty() {
+          Box(0)
+        }
+      }
+    `);
+    // Should NOT warn about unused 'self' since self is not defined for associated functions
+    expect(warnings.some(w => w.message.includes("'self'") && w.message.includes('unused'))).toBe(false);
+  });
+
+  test('instance method gets self defined in scope', () => {
+    const warnings = getWarnings(`
+      type Box {
+        Create(v: Int)
+      }
+      impl Box {
+        fn get_value(self) {
+          self.v
+        }
+      }
+    `);
+    // self is used, no warning
+    expect(warnings.some(w => w.message.includes("'self'") && w.message.includes('not defined'))).toBe(false);
+  });
+
+  test('trait with associated + instance: conformance check counts correctly', () => {
+    // Trait expects instance method with self, impl provides it
+    const warnings = getWarnings(`
+      type User {
+        Create(name: String)
+      }
+      interface Displayable {
+        fn display(self) -> String
+      }
+      impl Displayable for User {
+        fn display(self) -> String {
+          "user"
+        }
+      }
+    `);
+    // No missing method warnings
+    expect(warnings.some(w => w.message.includes('missing required method'))).toBe(false);
+  });
+
+  test('mixed impl and trait impl on same type both register', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Float, y: Float)
+      }
+      trait Showable {
+        fn show(self) -> String
+      }
+      impl Point {
+        fn origin() {
+          Point(0.0, 0.0)
+        }
+        fn magnitude(self) -> Float {
+          0.0
+        }
+      }
+      impl Showable for Point {
+        fn show(self) -> String {
+          "point"
+        }
+      }
+    `);
+    const methods = result.typeRegistry.impls.get('Point');
+    expect(methods).toHaveLength(3);
+    const origin = methods.find(m => m.name === 'origin');
+    const magnitude = methods.find(m => m.name === 'magnitude');
+    const show = methods.find(m => m.name === 'show');
+    expect(origin.isAssociated).toBe(true);
+    expect(magnitude.isAssociated).toBe(false);
+    expect(show.isAssociated).toBe(false);
+  });
+});
+
+// ─── TypeRegistry getMembers / getAssociatedFunctions ──────
+
+describe('TypeRegistry Associated Function Filtering', () => {
+  test('getMembers excludes associated functions', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Float, y: Float)
+      }
+      impl Point {
+        fn origin() {
+          Point(0.0, 0.0)
+        }
+        fn magnitude(self) -> Float {
+          0.0
+        }
+      }
+    `);
+    // Build TypeRegistry from analyzer
+    const { TypeRegistry } = require('../src/analyzer/type-registry.js');
+    const registry = TypeRegistry.fromAnalyzer({ typeRegistry: result.typeRegistry });
+    const members = registry.getMembers('Point');
+    // getMembers should only return instance methods
+    expect(members.methods).toHaveLength(1);
+    expect(members.methods[0].name).toBe('magnitude');
+  });
+
+  test('getAssociatedFunctions returns only associated functions', () => {
+    const result = analyze(`
+      type Point {
+        Create(x: Float, y: Float)
+      }
+      impl Point {
+        fn origin() {
+          Point(0.0, 0.0)
+        }
+        fn from_xy(x: Float, y: Float) {
+          Point(x, y)
+        }
+        fn magnitude(self) -> Float {
+          0.0
+        }
+      }
+    `);
+    const { TypeRegistry } = require('../src/analyzer/type-registry.js');
+    const registry = TypeRegistry.fromAnalyzer({ typeRegistry: result.typeRegistry });
+    const assocFns = registry.getAssociatedFunctions('Point');
+    expect(assocFns).toHaveLength(2);
+    expect(assocFns.map(f => f.name).sort()).toEqual(['from_xy', 'origin']);
+  });
+
+  test('getAssociatedFunctions returns empty for all-instance impl', () => {
+    const result = analyze(`
+      type Box {
+        Create(v: Int)
+      }
+      impl Box {
+        fn get(self) {
+          self.v
+        }
+      }
+    `);
+    const { TypeRegistry } = require('../src/analyzer/type-registry.js');
+    const registry = TypeRegistry.fromAnalyzer({ typeRegistry: result.typeRegistry });
+    expect(registry.getAssociatedFunctions('Box')).toHaveLength(0);
+  });
+
+  test('getMembers returns empty methods for all-associated impl', () => {
+    const result = analyze(`
+      type Config {
+        Create(host: String, port: Int)
+      }
+      impl Config {
+        fn dev() {
+          Config("localhost", 3000)
+        }
+      }
+    `);
+    const { TypeRegistry } = require('../src/analyzer/type-registry.js');
+    const registry = TypeRegistry.fromAnalyzer({ typeRegistry: result.typeRegistry });
+    const members = registry.getMembers('Config');
+    expect(members.methods).toHaveLength(0);
+  });
+
+  test('getAssociatedFunctions on unknown type returns empty', () => {
+    const result = analyze('fn dummy() { 1 }');
+    const { TypeRegistry } = require('../src/analyzer/type-registry.js');
+    const registry = TypeRegistry.fromAnalyzer({ typeRegistry: result.typeRegistry });
+    expect(registry.getAssociatedFunctions('NonExistent')).toHaveLength(0);
+  });
 });
 
 // ─── Float Narrowing ──────────────────────────────────────

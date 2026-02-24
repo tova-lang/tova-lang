@@ -25,7 +25,7 @@ export class TypeRegistry {
 
   /**
    * Get all members (fields + impl methods) for a type name.
-   * Used for dot-completion.
+   * Used for dot-completion on instances.
    */
   getMembers(typeName) {
     const fields = new Map();
@@ -48,15 +48,34 @@ export class TypeRegistry {
       }
     }
 
-    // Get impl methods
+    // Get instance methods (methods with self)
     const implMethods = this.impls.get(typeName);
     if (implMethods) {
       for (const method of implMethods) {
-        methods.push(method);
+        if (!method.isAssociated) {
+          methods.push(method);
+        }
       }
     }
 
     return { fields, methods };
+  }
+
+  /**
+   * Get associated functions for a type name (functions without self).
+   * Used for dot-completion on the type itself (e.g., Point.origin()).
+   */
+  getAssociatedFunctions(typeName) {
+    const functions = [];
+    const implMethods = this.impls.get(typeName);
+    if (implMethods) {
+      for (const method of implMethods) {
+        if (method.isAssociated) {
+          functions.push(method);
+        }
+      }
+    }
+    return functions;
   }
 
   /**
