@@ -1438,12 +1438,13 @@ const PROJECT_TEMPLATES = {
 shared {
   type Message {
     text: String
+    timestamp: String
   }
 }
 
 server {
   fn get_message() -> Message {
-    Message("Hello from Tova!")
+    Message("Hello from Tova!", Date.new().toLocaleTimeString())
   }
 
   route GET "/api/message" => get_message
@@ -1451,16 +1452,99 @@ server {
 
 client {
   state message = ""
+  state timestamp = ""
+  state refreshing = false
 
   effect {
     result = server.get_message()
     message = result.text
+    timestamp = result.timestamp
+  }
+
+  fn handle_refresh() {
+    refreshing = true
+    result = server.get_message()
+    message = result.text
+    timestamp = result.timestamp
+    refreshing = false
+  }
+
+  component FeatureCard(icon, title, description) {
+    <div class="group relative bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:border-indigo-100 transition-all duration-300">
+      <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-lg mb-4 group-hover:bg-indigo-100 transition-colors">
+        "{icon}"
+      </div>
+      <h3 class="font-semibold text-gray-900 mb-1">"{title}"</h3>
+      <p class="text-sm text-gray-500 leading-relaxed">"{description}"</p>
+    </div>
   }
 
   component App {
-    <div class="app">
-      <h1>"{message}"</h1>
-      <p>"Edit src/app.tova to get started."</p>
+    <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+      <nav class="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg"></div>
+            <span class="font-bold text-gray-900 text-lg">"${name}"</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="https://github.com/tova-lang/tova-lang" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">"Docs"</a>
+            <a href="https://github.com/tova-lang/tova-lang" class="text-sm bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors">"GitHub"</a>
+          </div>
+        </div>
+      </nav>
+
+      <main class="max-w-5xl mx-auto px-6">
+        <div class="py-20 text-center">
+          <div class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
+            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+            "Powered by Tova"
+          </div>
+          <h1 class="text-5xl font-bold text-gray-900 tracking-tight mb-4">"Welcome to " <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">"${name}"</span></h1>
+          <p class="text-xl text-gray-500 max-w-2xl mx-auto mb-10">"A modern full-stack app. Edit " <code class="text-sm bg-gray-100 text-indigo-600 px-2 py-1 rounded-md font-mono">"src/app.tova"</code> " to get started."</p>
+
+          <div class="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm">
+            <div class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-5 py-2.5 rounded-xl font-medium">
+              "{message}"
+            </div>
+            <button
+              on:click={handle_refresh}
+              class="px-4 py-2.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all font-medium text-sm"
+            >
+              if refreshing {
+                "..."
+              } else {
+                "Refresh"
+              }
+            </button>
+          </div>
+          if timestamp != "" {
+            <p class="text-xs text-gray-400 mt-3">"Last fetched at " "{timestamp}"</p>
+          }
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pb-20">
+          <FeatureCard
+            icon="&#9881;"
+            title="Full-Stack"
+            description="Server and client in one file. Shared types, RPC calls, and reactive UI — all type-safe."
+          />
+          <FeatureCard
+            icon="&#9889;"
+            title="Fast Refresh"
+            description="Edit your code and see changes instantly. The dev server recompiles on save."
+          />
+          <FeatureCard
+            icon="&#127912;"
+            title="Tailwind Built-in"
+            description="Style with utility classes out of the box. No config or build step needed."
+          />
+        </div>
+
+        <div class="border-t border-gray-100 py-8 text-center">
+          <p class="text-sm text-gray-400">"Built with " <a href="https://github.com/tova-lang/tova-lang" class="text-indigo-500 hover:text-indigo-600 transition-colors">"Tova"</a></p>
+        </div>
+      </main>
     </div>
   }
 }

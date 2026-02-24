@@ -17,23 +17,62 @@ const ARITHMETIC_OPS = new Set(['-', '*', '/', '%', '**']);
 const NUMERIC_TYPES = new Set(['Int', 'Float']);
 
 const _JS_GLOBALS = new Set([
+  // Core globals
   'console', 'document', 'window', 'globalThis', 'self',
   'JSON', 'Math', 'Date', 'RegExp', 'Error', 'TypeError', 'RangeError',
-  'Promise', 'Set', 'Map', 'WeakSet', 'WeakMap', 'Symbol',
+  'SyntaxError', 'ReferenceError', 'URIError', 'EvalError', 'AggregateError',
+  'Promise', 'Set', 'Map', 'WeakSet', 'WeakMap', 'WeakRef', 'Symbol',
   'Array', 'Object', 'String', 'Number', 'Boolean', 'Function',
+  'BigInt', 'Proxy', 'Reflect',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'NaN', 'Infinity',
   'undefined', 'null', 'true', 'false',
+  'encodeURI', 'decodeURI', 'encodeURIComponent', 'decodeURIComponent',
+  // Timers & scheduling
   'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+  'requestAnimationFrame', 'cancelAnimationFrame',
+  'requestIdleCallback', 'cancelIdleCallback',
   'queueMicrotask', 'structuredClone',
+  // Fetch & network
   'URL', 'URLSearchParams', 'Headers', 'Request', 'Response',
   'FormData', 'Blob', 'File', 'FileReader',
   'AbortController', 'AbortSignal',
+  'fetch', 'WebSocket', 'EventSource', 'XMLHttpRequest',
+  // Encoding
   'TextEncoder', 'TextDecoder',
-  'crypto', 'performance', 'navigator', 'location', 'history',
+  'atob', 'btoa', 'Buffer',
+  // Browser APIs
+  'crypto', 'performance', 'navigator', 'location', 'history', 'screen',
   'localStorage', 'sessionStorage',
-  'fetch', 'alert', 'confirm', 'prompt',
+  'alert', 'confirm', 'prompt',
+  'getComputedStyle', 'matchMedia', 'getSelection',
+  'scrollTo', 'scrollBy', 'scrollX', 'scrollY',
+  'innerWidth', 'innerHeight', 'outerWidth', 'outerHeight',
+  'devicePixelRatio',
+  // DOM & Events
+  'Event', 'CustomEvent', 'ErrorEvent',
+  'MouseEvent', 'KeyboardEvent', 'FocusEvent', 'InputEvent',
+  'TouchEvent', 'PointerEvent', 'WheelEvent', 'DragEvent',
+  'ClipboardEvent', 'AnimationEvent', 'TransitionEvent',
+  'HTMLElement', 'Element', 'Node', 'NodeList', 'DocumentFragment',
+  'DOMParser', 'MutationObserver', 'IntersectionObserver', 'ResizeObserver',
+  'Image', 'Audio',
+  // Workers & channels
+  'Worker', 'SharedWorker', 'BroadcastChannel', 'MessageChannel', 'MessagePort',
+  // Media & graphics
+  'AudioContext', 'OfflineAudioContext',
+  'CanvasRenderingContext2D', 'WebGLRenderingContext',
+  'MediaRecorder', 'MediaStream', 'MediaSource',
+  // Notifications & clipboard
+  'Notification', 'ClipboardItem',
+  // Typed arrays
+  'ArrayBuffer', 'SharedArrayBuffer', 'DataView',
+  'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
+  'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array',
+  'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array',
+  // Streams
+  'ReadableStream', 'WritableStream', 'TransformStream',
+  // Server / Node / Bun
   'Bun', 'Deno', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
-  'Buffer', 'atob', 'btoa',
 ]);
 
 function levenshtein(a, b) {

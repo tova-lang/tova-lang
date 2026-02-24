@@ -46,7 +46,7 @@ Toggle CSS classes based on expressions:
 
 Multiple `class:` directives merge with any static `class` attribute.
 
-See [Conditional Classes](/reactivity/jsx#conditional-classes) for full documentation.
+See [Conditional Classes](/reactivity/jsx#conditional-classes) and the [Styling guide](/reactivity/styling) for dynamic class expressions, match-based variants, and combining approaches.
 
 ## `show` — Conditional Display
 

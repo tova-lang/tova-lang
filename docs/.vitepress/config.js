@@ -140,6 +140,7 @@ export default defineConfig({
             { text: 'Effects', link: '/reactivity/effects' },
             { text: 'Components', link: '/reactivity/components' },
             { text: 'JSX', link: '/reactivity/jsx' },
+            { text: 'Styling', link: '/reactivity/styling' },
             { text: 'Directives', link: '/reactivity/directives' },
             { text: 'Transitions', link: '/reactivity/transitions' },
             { text: 'Stores', link: '/reactivity/stores' },

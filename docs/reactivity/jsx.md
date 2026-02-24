@@ -249,6 +249,8 @@ The class is added when the expression is truthy and removed when falsy. Multipl
 </button>
 ```
 
+See [Styling](/reactivity/styling) for dynamic class expressions, match-based variants, inline styles, and more.
+
 ## Spread Attributes
 
 Use the spread operator to pass all properties of an object as attributes:
@@ -380,70 +382,9 @@ component Button(label) {
 }
 ```
 
-### How Scoping Works
+The compiler generates a unique hash, adds `data-tova-HASH` to elements, and rewrites selectors (`.btn` becomes `.btn[data-tova-HASH]`) so styles never leak between components. Pseudo-classes, pseudo-elements, `@media`, `@keyframes`, and `:global()` are all handled correctly.
 
-The compiler generates a unique hash-based scope ID from the component name and CSS content. It then:
-
-1. **Adds a data attribute** to all HTML elements in the component: `data-tova-HASH`
-2. **Rewrites CSS selectors** to include the attribute selector: `.btn` becomes `.btn[data-tova-HASH]`
-3. **Injects the CSS** into the page via `tova_inject_css(id, css)`, which creates a `<style>` element in `<head>`
-
-This ensures styles from one component never leak into another, even if they use the same class names.
-
-### Scoped Pseudo-Classes and Pseudo-Elements
-
-Scoping correctly handles pseudo-classes and pseudo-elements:
-
-```tova
-style {
-  .btn:hover { background: darkblue; }
-  .btn:focus { outline: 2px solid blue; }
-  .btn::before { content: "->"; }
-  .btn::after { content: ""; display: block; }
-}
-```
-
-These compile to:
-```css
-.btn[data-tova-HASH]:hover { background: darkblue; }
-.btn[data-tova-HASH]:focus { outline: 2px solid blue; }
-.btn[data-tova-HASH]::before { content: "->"; }
-.btn[data-tova-HASH]::after { content: ""; display: block; }
-```
-
-### `:global()` Escape Hatch
-
-To opt out of CSS scoping for specific selectors, wrap them in `:global()`:
-
-```tova
-component Modal {
-  <div class="modal">
-    <div class="content">...</div>
-  </div>
-
-  style {
-    .modal { position: fixed; inset: 0; }
-    .content { max-width: 600px; margin: auto; }
-
-    // This selector is NOT scoped — it targets the body element globally
-    :global(body.modal-open) { overflow: hidden; }
-  }
-}
-```
-
-`:global()` can also be used inline within a selector:
-
-```tova
-style {
-  .widget :global(.third-party-class) { color: red; }
-}
-```
-
-The compiler properly handles `@media`, `@keyframes`, `:is()`, `:where()`, and `:has()` pseudo-functions when scoping CSS. Selectors inside `@keyframes` blocks (like `from`, `to`, and percentage values) are never scoped.
-
-### Style Injection Is Idempotent
-
-`tova_inject_css` only injects each style block once, even if the component is rendered multiple times. Subsequent calls with the same ID are no-ops.
+See [Styling](/reactivity/styling) for the full guide covering scoped CSS, Tailwind, conditional classes, dynamic class expressions, inline styles, and at-rule support.
 
 ## Refs
 
