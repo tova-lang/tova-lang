@@ -111,6 +111,31 @@ export function installClientAnalyzer(AnalyzerClass) {
     }
   };
 
+  AnalyzerClass.prototype._visitJSXChildren = function(children) {
+    for (const child of children) {
+      if (child.type === 'JSXElement') {
+        this.visitJSXElement(child);
+      } else if (child.type === 'JSXFragment') {
+        this.visitJSXFragment(child);
+      } else if (child.type === 'JSXExpression') {
+        this.visitExpression(child.expression);
+      } else if (child.type === 'JSXFor') {
+        this.visitJSXFor(child);
+      } else if (child.type === 'JSXIf') {
+        this.visitJSXIf(child);
+      } else if (child.type === 'JSXMatch') {
+        this.visitJSXMatch(child);
+      } else if (child.type === 'JSXText') {
+        // JSXText wraps a TemplateLiteral/StringLiteral in its .value
+        // Visit it so identifiers in interpolated strings are marked as used
+        if (child.value) this.visitExpression(child.value);
+      } else if (child.type) {
+        // Other expression-type children
+        this.visitExpression(child);
+      }
+    }
+  };
+
   AnalyzerClass.prototype.visitJSXElement = function(node) {
     for (const attr of node.attributes) {
       if (attr.type === 'JSXSpreadAttribute') {
@@ -119,39 +144,11 @@ export function installClientAnalyzer(AnalyzerClass) {
         this.visitExpression(attr.value);
       }
     }
-    for (const child of node.children) {
-      if (child.type === 'JSXElement') {
-        this.visitJSXElement(child);
-      } else if (child.type === 'JSXFragment') {
-        this.visitJSXFragment(child);
-      } else if (child.type === 'JSXExpression') {
-        this.visitExpression(child.expression);
-      } else if (child.type === 'JSXFor') {
-        this.visitJSXFor(child);
-      } else if (child.type === 'JSXIf') {
-        this.visitJSXIf(child);
-      } else if (child.type === 'JSXMatch') {
-        this.visitJSXMatch(child);
-      }
-    }
+    this._visitJSXChildren(node.children);
   };
 
   AnalyzerClass.prototype.visitJSXFragment = function(node) {
-    for (const child of node.children) {
-      if (child.type === 'JSXElement') {
-        this.visitJSXElement(child);
-      } else if (child.type === 'JSXFragment') {
-        this.visitJSXFragment(child);
-      } else if (child.type === 'JSXExpression') {
-        this.visitExpression(child.expression);
-      } else if (child.type === 'JSXFor') {
-        this.visitJSXFor(child);
-      } else if (child.type === 'JSXIf') {
-        this.visitJSXIf(child);
-      } else if (child.type === 'JSXMatch') {
-        this.visitJSXMatch(child);
-      }
-    }
+    this._visitJSXChildren(node.children);
   };
 
   AnalyzerClass.prototype.visitJSXFor = function(node) {

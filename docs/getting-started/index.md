@@ -91,18 +91,18 @@ This is the simplest way to get started -- a single file, no project scaffold, n
 
 ## Project Structure
 
-`tova new` generates a ready-to-run project with the following structure:
+`tova new` generates a ready-to-run project. The exact filename depends on the template you choose (`app.tova` for full-stack and API templates, `main.tova` for scripts):
 
 ```
 my-app/
 ├── src/
-│   └── app.tova            # Main application file
+│   └── app.tova            # Main application file (or main.tova for scripts)
 ├── tova.toml               # Project manifest
 ├── .gitignore
 └── README.md
 ```
 
-The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The `src/app.tova` file is where you write your application. You can write plain Tova scripts here, or use `shared`, `server`, and `client` blocks for full-stack web applications -- the compiler splits them automatically.
+The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The source file in `src/` is where you write your application. You can write plain Tova scripts here, or use `shared`, `server`, and `client` blocks for full-stack web applications -- the compiler splits them automatically.
 
 ## Install Dependencies
 

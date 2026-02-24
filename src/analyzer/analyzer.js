@@ -389,6 +389,8 @@ export class Analyzer {
         if (sym.extern) continue;
         if (sym._variantOf) continue; // ADT variant constructors
         if (name === 'main') continue;
+        // Server functions are exposed as RPC endpoints callable from client blocks
+        if (scope.context === 'server') continue;
 
         if (!sym.used && sym.loc && sym.loc.line > 0) {
           this.warn(`Function '${name}' is declared but never used`, sym.loc, "prefix with _ to suppress", {
@@ -2418,14 +2420,21 @@ export class Analyzer {
   // preventing silent shadowing of immutable bindings within the same function.
   _lookupAssignTarget(name) {
     let scope = this.currentScope;
+    let crossedFunction = false;
     while (scope) {
       const sym = scope.symbols.get(name);
-      if (sym) return sym;
-      // Stop after checking a function or top-level scope (don't cross function boundaries)
-      if (scope.context === 'function' || scope.context === 'module' ||
-          scope.context === 'server' || scope.context === 'client' || scope.context === 'shared') {
-        break;
+      if (sym) {
+        // After crossing a function boundary, only resolve to mutable symbols (var/state)
+        // so that inner functions can reassign outer var/state but not shadow immutables
+        if (crossedFunction && !sym.mutable) return null;
+        return sym;
       }
+      // Track when we cross a function boundary
+      if (scope.context === 'function') {
+        crossedFunction = true;
+      }
+      // Stop at module level
+      if (scope.context === 'module') break;
       scope = scope.parent;
     }
     return null;

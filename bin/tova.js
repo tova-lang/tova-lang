@@ -1443,7 +1443,7 @@ shared {
 }
 
 server {
-  fn get_message() -> Message {
+  fn get_message() {
     Message("Hello from Tova!", Date.new().toLocaleTimeString())
   }
 
@@ -1560,7 +1560,7 @@ client {
     content: name => `// ${name} — Built with Tova
 
 server {
-  fn health() -> { status: String } {
+  fn health() {
     { status: "ok" }
   }
 

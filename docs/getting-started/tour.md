@@ -340,8 +340,8 @@ Propagate errors with `?`:
 ```tova
 fn load_config(path) {
   content = read_file(path)?     // returns Err early if read fails
-  parse_json(content)?           // returns Err early if parse fails
-  Ok(content)
+  config = parse_json(content)?  // returns Err early if parse fails
+  Ok(config)
 }
 ```
 
@@ -410,11 +410,11 @@ shared {
 server {
   var messages = []
 
-  fn get_messages() -> [Message] {
+  fn get_messages() {
     messages
   }
 
-  fn post_message(text: String, author: String) -> Message {
+  fn post_message(text, author) {
     msg = Message(len(messages) + 1, text, author)
     messages = [...messages, msg]
     msg
