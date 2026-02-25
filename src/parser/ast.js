@@ -45,6 +45,14 @@ export class SharedBlock {
   }
 }
 
+export class SecurityBlock {
+  constructor(body, loc) {
+    this.type = 'SecurityBlock';
+    this.body = body;
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Declarations
 // ============================================================
@@ -682,6 +690,19 @@ export {
   BackgroundJobDeclaration, CacheDeclaration, SseDeclaration,
   ModelDeclaration, AiConfigDeclaration,
 } from './server-ast.js';
+
+// ============================================================
+// Security-specific nodes (lazy-loaded from security-ast.js, re-exported for backward compat)
+// ============================================================
+
+export {
+  SecurityAuthDeclaration, SecurityRoleDeclaration,
+  SecurityProtectDeclaration, SecuritySensitiveDeclaration,
+  SecurityCorsDeclaration, SecurityCspDeclaration,
+  SecurityRateLimitDeclaration, SecurityCsrfDeclaration,
+  SecurityAuditDeclaration,
+  SecurityTrustProxyDeclaration, SecurityHstsDeclaration,
+} from './security-ast.js';
 
 export class TestBlock {
   constructor(name, body, loc, options = {}) {

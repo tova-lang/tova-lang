@@ -6,6 +6,7 @@ import { SharedCodegen } from './shared-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
 import { ServerCodegen } from './server-codegen.js';
 import { ClientCodegen } from './client-codegen.js';
+import { SecurityCodegen } from './security-codegen.js';
 
 function getServerCodegen() {
   return ServerCodegen;
@@ -42,6 +43,7 @@ export class CodeGenerator {
     const testBlocks = [];
     const benchBlocks = [];
     const dataBlocks = [];
+    const securityBlocks = [];
 
     for (const node of this.ast.body) {
       switch (node.type) {
@@ -51,6 +53,7 @@ export class CodeGenerator {
         case 'TestBlock': testBlocks.push(node); break;
         case 'BenchBlock': benchBlocks.push(node); break;
         case 'DataBlock': dataBlocks.push(node); break;
+        case 'SecurityBlock': securityBlocks.push(node); break;
         default: topLevel.push(node); break;
       }
     }
@@ -59,6 +62,7 @@ export class CodeGenerator {
     const isModule = sharedBlocks.length === 0 && serverBlocks.length === 0
       && clientBlocks.length === 0 && testBlocks.length === 0
       && benchBlocks.length === 0 && dataBlocks.length === 0
+      && securityBlocks.length === 0
       && topLevel.length > 0;
 
     if (isModule) {
@@ -127,6 +131,11 @@ export class CodeGenerator {
       }
     }
 
+    // Merge security blocks into a single config
+    const securityConfig = securityBlocks.length > 0
+      ? SecurityCodegen.mergeSecurityBlocks(securityBlocks)
+      : null;
+
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
@@ -143,7 +152,7 @@ export class CodeGenerator {
           }
         }
       }
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks);
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks, securityConfig);
     }
 
     // Generate client outputs (one per named group)
@@ -152,7 +161,7 @@ export class CodeGenerator {
       const gen = new (getClientCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins);
+      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
     }
 
     // Generate tests if test blocks exist

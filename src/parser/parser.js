@@ -2,6 +2,7 @@ import { TokenType } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 import { installServerParser } from './server-parser.js';
 import { installClientParser } from './client-parser.js';
+import { installSecurityParser } from './security-parser.js';
 
 export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
@@ -290,6 +291,13 @@ export class Parser {
     // data block: data { ... }
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'data' && this.peek(1).type === TokenType.LBRACE) {
       return this.parseDataBlock();
+    }
+    // security block: security { ... }
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'security' && this.peek(1).type === TokenType.LBRACE) {
+      if (!Parser.prototype._securityParserInstalled) {
+        installSecurityParser(Parser);
+      }
+      return this.parseSecurityBlock();
     }
     // test block: test "name" { ... } or test { ... }
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'test') {

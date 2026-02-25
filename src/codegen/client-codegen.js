@@ -1,5 +1,6 @@
 import { BaseCodegen } from './base-codegen.js';
 import { getClientStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
+import { SecurityCodegen } from './security-codegen.js';
 
 export class ClientCodegen extends BaseCodegen {
   constructor() {
@@ -184,7 +185,7 @@ export class ClientCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(clientBlocks, sharedCode, sharedBuiltins = null) {
+  generate(clientBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     const lines = [];
 
@@ -237,6 +238,16 @@ export class ClientCodegen extends BaseCodegen {
     lines.push('  }');
     lines.push('});');
     lines.push('');
+
+    // Security block: auth token injection and role helpers
+    if (securityConfig) {
+      const secGen = new SecurityCodegen();
+      const clientSecurity = secGen.generateClientSecurity(securityConfig);
+      if (clientSecurity.trim()) {
+        lines.push(clientSecurity);
+        lines.push('');
+      }
+    }
 
     const states = [];
     const computeds = [];

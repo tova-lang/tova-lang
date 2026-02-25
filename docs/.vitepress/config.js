@@ -28,6 +28,7 @@ export default defineConfig({
     siteTitle: 'Tova',
 
     nav: [
+      { text: 'Why Tova?', link: '/why-tova' },
       { text: 'Guide', link: '/getting-started/' },
       { text: 'Tutorial', link: '/tutorial' },
       { text: 'Reference', link: '/reference/syntax' },
@@ -35,7 +36,6 @@ export default defineConfig({
       { text: 'Examples', link: '/examples/' },
       { text: 'Tooling', link: '/tooling/cli' },
       { text: 'Full-Stack', link: '/fullstack/architecture' },
-      { text: 'Architecture', link: '/architecture/patterns' },
       { text: 'Playground', link: '/playground' },
     ],
 
@@ -105,6 +105,7 @@ export default defineConfig({
             { text: 'Architecture Overview', link: '/fullstack/architecture' },
             { text: 'Shared Block', link: '/fullstack/shared-block' },
             { text: 'Data Block', link: '/fullstack/data-block' },
+            { text: 'Security Block', link: '/fullstack/security-block' },
             { text: 'Server Block', link: '/fullstack/server-block' },
             { text: 'Client Block', link: '/fullstack/client-block' },
             { text: 'RPC Bridge', link: '/fullstack/rpc' },

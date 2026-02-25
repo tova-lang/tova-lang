@@ -1,4 +1,5 @@
 import { BaseCodegen } from './base-codegen.js';
+import { SecurityCodegen } from './security-codegen.js';
 
 export class ServerCodegen extends BaseCodegen {
   _astUsesIdentifier(blocks, name) {
@@ -153,8 +154,15 @@ export class ServerCodegen extends BaseCodegen {
     }
   }
 
-  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = []) {
+  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = [], securityConfig = null) {
     const lines = [];
+
+    // Generate security code fragments if security block is present
+    let securityFragments = null;
+    if (securityConfig) {
+      const secGen = new SecurityCodegen();
+      securityFragments = secGen.generateServerSecurity(securityConfig);
+    }
 
     // Shared code
     if (sharedCode.trim()) {
@@ -282,6 +290,19 @@ export class ServerCodegen extends BaseCodegen {
       collectFromBody(block.body);
     }
 
+    // Security block overrides: security block takes precedence over inline declarations
+    if (securityFragments) {
+      if (securityFragments.authConfig && !authConfig) {
+        authConfig = securityFragments.authConfig;
+      }
+      if (securityFragments.corsConfig && !corsConfig) {
+        corsConfig = securityFragments.corsConfig;
+      }
+      if (securityFragments.rateLimitConfig && !rateLimitConfig) {
+        rateLimitConfig = securityFragments.rateLimitConfig;
+      }
+    }
+
     // Collect type declarations from shared blocks for model/ORM generation
     const sharedTypes = new Map(); // typeName -> { fields: [{ name, type }] }
     const _collectTypes = (stmts) => {
@@ -333,13 +354,14 @@ export class ServerCodegen extends BaseCodegen {
     const usesDb = this._astUsesIdentifier(serverBlocks, 'db');
 
     // Check if rate limiting is needed
-    const needsRateLimitStore = !!rateLimitConfig || routes.some(r => (r.decorators || []).some(d => d.name === 'rate_limit'));
+    const hasSecurityProtectRateLimit = securityConfig && securityConfig.protects && securityConfig.protects.some(p => p.config.rate_limit);
+    const needsRateLimitStore = !!rateLimitConfig || routes.some(r => (r.decorators || []).some(d => d.name === 'rate_limit')) || hasSecurityProtectRateLimit;
 
     // Fast mode: emit a minimal request handler when no complex features are used
     const allRoutesStatic = routes.every(r => !r.path.includes(':') && !r.path.includes('*'));
     const hasDynamicRoutes = !allRoutesStatic;
     const isFastMode = !corsConfig && !authConfig && !sessionConfig && !rateLimitConfig &&
-      !errorHandler && !wsDecl && !staticDecl && !compressionConfig &&
+      !errorHandler && !wsDecl && !staticDecl && !compressionConfig && !securityFragments &&
       middlewares.length === 0 && !dbConfig && subscriptions.length === 0 &&
       backgroundJobs.length === 0 && sseDecls.length === 0 && !cacheConfig &&
       routes.every(r => !(r.decorators || []).length && !r._groupMiddlewares?.length && !r._version);
@@ -839,6 +861,13 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  const claims = { ...payload, iat: now };');
     lines.push('  if (options.expires_in) claims.exp = now + options.expires_in;');
     lines.push('  if (options.exp) claims.exp = options.exp;');
+    // Fix 2: Auto-include iss/aud from auth config when not explicitly set
+    if (authConfig && authConfig.issuer) {
+      lines.push(`  if (!claims.iss) claims.iss = ${this.genExpression(authConfig.issuer)};`);
+    }
+    if (authConfig && authConfig.audience) {
+      lines.push(`  if (!claims.aud) claims.aud = ${this.genExpression(authConfig.audience)};`);
+    }
     lines.push('  const __b64url = (obj) => btoa(JSON.stringify(obj)).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");');
     lines.push('  const __headerB64 = __b64url(header);');
     lines.push('  const __payloadB64 = __b64url(claims);');
@@ -920,6 +949,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('    "Access-Control-Max-Age": __corsMaxAge,');
       lines.push('  };');
       lines.push('  if (__corsCredentials) h["Access-Control-Allow-Credentials"] = "true";');
+      lines.push('  if (!__corsOrigins.includes("*")) h["Vary"] = "Origin";');
       lines.push('  return h;');
       lines.push('}');
     } else if (authConfig || sessionConfig) {
@@ -935,7 +965,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  if (!origin) return __corsHeadersConst;');
       lines.push('  const reqUrl = req.url ? new URL(req.url) : null;');
       lines.push('  if (reqUrl && origin === reqUrl.origin) {');
-      lines.push('    return { ...__corsHeadersConst, "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" };');
+      lines.push('    return { ...__corsHeadersConst, "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin" };');
       lines.push('  }');
       lines.push('  return __corsHeadersConst;');
       lines.push('}');
@@ -963,13 +993,31 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  "Referrer-Policy": "strict-origin-when-cross-origin",');
       lines.push('  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",');
       lines.push('});');
-      if (tlsConfig) {
-        lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
+      // HSTS: explicit security block config, auto-enable with auth, or TLS config
+      const hstsConf = securityFragments && securityFragments.hstsConfig;
+      const hstsExplicitlyDisabled = hstsConf && hstsConf.enabled && hstsConf.enabled.type === 'BooleanLiteral' && hstsConf.enabled.value === false;
+      const needsHsts = !hstsExplicitlyDisabled && (tlsConfig || hstsConf);
+      if (needsHsts) {
+        if (hstsConf && !hstsConf.__autoEnabled && hstsConf.max_age) {
+          // Custom HSTS from security block
+          const maxAge = hstsConf.max_age.value || 31536000;
+          const inclSub = hstsConf.include_subdomains ? (hstsConf.include_subdomains.value !== false) : true;
+          const preload = hstsConf.preload ? hstsConf.preload.value === true : false;
+          let hstsVal = `max-age=${maxAge}`;
+          if (inclSub) hstsVal += '; includeSubDomains';
+          if (preload) hstsVal += '; preload';
+          lines.push(`const __hstsHeader = { "Strict-Transport-Security": ${JSON.stringify(hstsVal)} };`);
+        } else {
+          lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
+        }
       }
       lines.push('function __applySecurityHeaders(headers) {');
       lines.push('  for (const [k, v] of Object.entries(__securityHeaders)) headers.set(k, v);');
-      if (tlsConfig) {
+      if (needsHsts) {
         lines.push('  headers.set("Strict-Transport-Security", __hstsHeader["Strict-Transport-Security"]);');
+      }
+      if (securityFragments && securityFragments.cspCode) {
+        lines.push('  if (typeof __getCspHeader === "function") headers.set("Content-Security-Policy", __getCspHeader());');
       }
       lines.push('}');
       lines.push('');
@@ -995,18 +1043,48 @@ export class ServerCodegen extends BaseCodegen {
       } else {
         // JWT auth (default)
         const secretExpr = authConfig.secret ? this.genExpression(authConfig.secret) : 'process.env.AUTH_SECRET || process.env.JWT_SECRET';
+        const isCookieAuth = authConfig.storage && authConfig.storage.type === 'StringLiteral' && authConfig.storage.value === 'cookie';
         lines.push(`const __authSecret = ${secretExpr};`);
         if (!authConfig.secret) {
           lines.push('if (!process.env.AUTH_SECRET && !process.env.JWT_SECRET) console.warn("[tova] WARNING: No auth secret configured. Set AUTH_SECRET or JWT_SECRET env var, or use auth { secret: \\"...\\" }");');
         }
+        if (isCookieAuth) {
+          const expiresExpr = authConfig.expires ? this.genExpression(authConfig.expires) : '86400';
+          lines.push(`const __authCookieMaxAge = ${expiresExpr};`);
+          lines.push('function __setAuthCookie(res, token) {');
+          lines.push('  const h = new Headers(res.headers);');
+          lines.push('  h.set("Set-Cookie", `__tova_auth=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${__authCookieMaxAge}`);');
+          lines.push('  return new Response(res.body, { status: res.status, headers: h });');
+          lines.push('}');
+          lines.push('function __clearAuthCookie(res) {');
+          lines.push('  const h = new Headers(res.headers);');
+          lines.push('  h.set("Set-Cookie", "__tova_auth=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");');
+          lines.push('  return new Response(res.body, { status: res.status, headers: h });');
+          lines.push('}');
+        }
         lines.push('let __authKey = null;');
         lines.push('async function __authenticate(req) {');
-        lines.push('  const authHeader = req.headers.get("Authorization");');
-        lines.push('  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;');
-        lines.push('  const token = authHeader.slice(7);');
+        if (isCookieAuth) {
+          // Read token from cookie first, fall back to Authorization header
+          lines.push('  let token = null;');
+          lines.push('  const __cookieStr = req.headers.get("Cookie") || "";');
+          lines.push('  const __authCookie = __cookieStr.split(";").map(s => s.trim()).find(s => s.startsWith("__tova_auth="));');
+          lines.push('  if (__authCookie) token = __authCookie.slice("__tova_auth=".length);');
+          lines.push('  if (!token) {');
+          lines.push('    const authHeader = req.headers.get("Authorization");');
+          lines.push('    if (authHeader && authHeader.startsWith("Bearer ")) token = authHeader.slice(7);');
+          lines.push('  }');
+          lines.push('  if (!token) return null;');
+        } else {
+          lines.push('  const authHeader = req.headers.get("Authorization");');
+          lines.push('  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;');
+          lines.push('  const token = authHeader.slice(7);');
+        }
         lines.push('  try {');
         lines.push('    const parts = token.split(".");');
         lines.push('    if (parts.length !== 3) return null;');
+        lines.push('    const __header = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));');
+        lines.push('    if (__header.alg !== "HS256") return null;');
         lines.push('    if (!__authKey) {');
         lines.push('      __authKey = await crypto.subtle.importKey(');
         lines.push('        "raw", new TextEncoder().encode(__authSecret),');
@@ -1022,8 +1100,72 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('    if (__sigBuf.length !== __tokBuf.length || !require("crypto").timingSafeEqual(__sigBuf, __tokBuf)) return null;');
         lines.push('    const __payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));');
         lines.push('    if (__payload.exp && __payload.exp < Math.floor(Date.now() / 1000)) return null;');
+        lines.push('    if (__payload.nbf && __payload.nbf > Math.floor(Date.now() / 1000)) return null;');
+        // Fix 2: JWT iss/aud claim validation
+        if (authConfig.issuer) {
+          lines.push(`    if (__payload.iss !== ${this.genExpression(authConfig.issuer)}) return null;`);
+        }
+        if (authConfig.audience) {
+          lines.push(`    if (__payload.aud !== ${this.genExpression(authConfig.audience)}) return null;`);
+        }
         lines.push('    return __payload;');
         lines.push('  } catch { return null; }');
+        lines.push('}');
+      }
+      lines.push('');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 9b. Security Block — roles, protection, CSP, sensitive, audit
+    // ════════════════════════════════════════════════════════════
+    if (securityFragments) {
+      if (securityFragments.roleDefinitions) {
+        lines.push(securityFragments.roleDefinitions);
+        lines.push('');
+      }
+      if (securityFragments.protectCode) {
+        lines.push(securityFragments.protectCode);
+        lines.push('');
+      }
+      if (securityFragments.cspCode) {
+        lines.push(securityFragments.cspCode);
+        lines.push('');
+      }
+      if (securityFragments.sensitiveCode) {
+        lines.push(securityFragments.sensitiveCode);
+        lines.push('');
+      }
+      if (securityFragments.auditCode) {
+        lines.push(securityFragments.auditCode);
+        lines.push('');
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 9c. Client IP Helper — trust_proxy aware
+    // ════════════════════════════════════════════════════════════
+    if (!isFastMode) {
+      lines.push('// ── Client IP ──');
+      const trustProxy = securityFragments && securityFragments.trustProxyConfig;
+      if (trustProxy === true) {
+        lines.push('function __getClientIp(req) {');
+        lines.push('  const xff = req.headers.get("x-forwarded-for");');
+        lines.push('  if (xff) return xff.split(",")[0].trim();');
+        lines.push('  return req.headers.get("x-real-ip") || __server.requestIP(req)?.address || "unknown";');
+        lines.push('}');
+      } else if (trustProxy === 'loopback') {
+        lines.push('function __getClientIp(req) {');
+        lines.push('  const direct = req.headers.get("x-real-ip") || __server.requestIP(req)?.address || "unknown";');
+        lines.push('  if (direct === "127.0.0.1" || direct === "::1" || direct === "::ffff:127.0.0.1") {');
+        lines.push('    const xff = req.headers.get("x-forwarded-for");');
+        lines.push('    if (xff) return xff.split(",")[0].trim();');
+        lines.push('  }');
+        lines.push('  return direct;');
+        lines.push('}');
+      } else {
+        // Default: do not trust x-forwarded-for
+        lines.push('function __getClientIp(req) {');
+        lines.push('  return req.headers.get("x-real-ip") || __server.requestIP(req)?.address || "unknown";');
         lines.push('}');
       }
       lines.push('');
@@ -1232,13 +1374,29 @@ export class ServerCodegen extends BaseCodegen {
         lines.push('  }');
         lines.push('}, 60000);');
       }
+      // Fix 8: Session regeneration helper
+      lines.push('function __regenerateSession(req) {');
+      lines.push('  const oldData = req.__session ? { ...req.__session.data } : {};');
+      lines.push('  const newId = crypto.randomUUID();');
+      lines.push('  if (req.__session && req.__session.destroy) req.__session.destroy();');
+      lines.push('  req.__session = __createSession(newId);');
+      lines.push('  for (const [k, v] of Object.entries(oldData)) req.__session.set(k, v);');
+      lines.push('  req.__sessionRegenerated = true;');
+      lines.push('  req.__newSessionId = newId;');
+      lines.push('  return newId;');
+      lines.push('}');
       lines.push('');
     }
 
     // ════════════════════════════════════════════════════════════
     // 11d. CSRF Protection — server-side token generation + validation
     // ════════════════════════════════════════════════════════════
-    const needsCsrf = !isFastMode && (sessionConfig || authConfig);
+    // Check if CSRF is explicitly disabled via security block: csrf { enabled: false }
+    const csrfExplicitlyDisabled = securityFragments && securityFragments.csrfConfig &&
+      securityFragments.csrfConfig.enabled &&
+      ((securityFragments.csrfConfig.enabled.type === 'BooleanLiteral' && securityFragments.csrfConfig.enabled.value === false) ||
+       (securityFragments.csrfConfig.enabled === false));
+    const needsCsrf = !isFastMode && !csrfExplicitlyDisabled && (sessionConfig || authConfig);
     if (needsCsrf) {
       lines.push('// ── CSRF Protection ──');
       lines.push('let __csrfKey = null;');
@@ -1252,32 +1410,57 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  }');
       lines.push('  return __csrfKey;');
       lines.push('}');
-      lines.push('async function __generateCSRFToken() {');
+      lines.push('async function __generateCSRFToken(bindingId) {');
       lines.push('  const key = await __getCSRFKey();');
       lines.push('  const timestamp = Date.now().toString(36);');
       lines.push('  const nonce = crypto.getRandomValues(new Uint8Array(8));');
       lines.push('  const nonceHex = [...nonce].map(b => b.toString(16).padStart(2, "0")).join("");');
-      lines.push('  const data = timestamp + ":" + nonceHex;');
+      lines.push('  const data = timestamp + ":" + nonceHex + ":" + (bindingId || "anon");');
       lines.push('  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));');
       lines.push('  const sigHex = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");');
       lines.push('  return data + ":" + sigHex;');
       lines.push('}');
-      lines.push('async function __validateCSRFToken(token) {');
+      lines.push('async function __validateCSRFToken(token, bindingId) {');
       lines.push('  if (!token || typeof token !== "string") return false;');
       lines.push('  const parts = token.split(":");');
-      lines.push('  if (parts.length !== 3) return false;');
-      lines.push('  const [timestamp, nonce, sig] = parts;');
+      lines.push('  if (parts.length !== 4) return false;');
+      lines.push('  const [timestamp, nonce, binding, sig] = parts;');
+      lines.push('  if (binding !== (bindingId || "anon")) return false;');
       lines.push('  const age = Date.now() - parseInt(timestamp, 36);');
       lines.push('  if (isNaN(age) || age < 0 || age > 86400000) return false;');
       lines.push('  const key = await __getCSRFKey();');
-      lines.push('  const data = timestamp + ":" + nonce;');
+      lines.push('  const data = timestamp + ":" + nonce + ":" + binding;');
       lines.push('  const expectedSig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));');
-      lines.push('  const expectedHex = [...new Uint8Array(expectedSig)].map(b => b.toString(16).padStart(2, "0")).join("");');
-      lines.push('  if (sig.length !== expectedHex.length) return false;');
-      lines.push('  const __a = Buffer.from(sig);');
-      lines.push('  const __b = Buffer.from(expectedHex);');
-      lines.push('  return require("crypto").timingSafeEqual(__a, __b);');
+      lines.push('  const expectedBytes = new Uint8Array(expectedSig);');
+      lines.push('  let sigBytes; try { sigBytes = new Uint8Array(Buffer.from(sig, "hex")); } catch { return false; }');
+      lines.push('  if (sigBytes.length !== expectedBytes.length) return false;');
+      lines.push('  return require("crypto").timingSafeEqual(sigBytes, expectedBytes);');
       lines.push('}');
+      // Fix 9: CSRF exempt patterns
+      const csrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
+      if (csrfExempt) {
+        lines.push('const __csrfExemptPatterns = [');
+        // csrfExempt is an AST node (ArrayLiteral/ArrayExpression)
+        if (csrfExempt.elements) {
+          for (const elem of csrfExempt.elements) {
+            if (elem.type === 'StringLiteral' || elem.value) {
+              const pattern = elem.value;
+              const regexPattern = pattern
+                .replace(/\*\*/g, '\x00GLOBSTAR\x00')
+                .replace(/\*/g, '\x00STAR\x00')
+                .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')
+                .replace(/\x00STAR\x00/g, '[^/]*')
+                .replace(/\x00GLOBSTAR\x00/g, '.*');
+              lines.push(`  /^${regexPattern}$/,`);
+            }
+          }
+        }
+        lines.push('];');
+        lines.push('function __isCsrfExempt(path) {');
+        lines.push('  for (const p of __csrfExemptPatterns) { if (p.test(path)) return true; }');
+        lines.push('  return false;');
+        lines.push('}');
+      }
       lines.push('');
     }
 
@@ -1957,8 +2140,14 @@ export class ServerCodegen extends BaseCodegen {
     // CSRF Token Endpoint
     if (needsCsrf) {
       lines.push('// ── CSRF Token Endpoint ──');
-      lines.push('__addRoute("GET", "/csrf-token", async () => {');
-      lines.push('  const token = await __generateCSRFToken();');
+      if (sessionConfig) {
+        lines.push('__addRoute("GET", "/csrf-token", async (req) => {');
+        lines.push('  const __bindingId = req.__session ? req.__session.get("__sid") || "anon" : "anon";');
+        lines.push('  const token = await __generateCSRFToken(__bindingId);');
+      } else {
+        lines.push('__addRoute("GET", "/csrf-token", async () => {');
+        lines.push('  const token = await __generateCSRFToken();');
+      }
       lines.push('  return Response.json({ token });');
       lines.push('});');
       lines.push('');
@@ -1988,8 +2177,25 @@ export class ServerCodegen extends BaseCodegen {
         } else {
           lines.push(`  const result = await ${name}();`);
         }
-        lines.push(`  return Response.json({ result });`);
+        if (securityFragments && securityFragments.hasAutoSanitize) {
+          const userRef = authConfig ? 'await __authenticate(req)' : 'null';
+          lines.push(`  return Response.json({ result: __autoSanitize(result, ${userRef}) });`);
+        } else {
+          lines.push(`  return Response.json({ result });`);
+        }
         lines.push(`});`);
+        lines.push('');
+      }
+    }
+
+    // Cookie auth logout endpoint
+    if (authConfig) {
+      const isCookieAuth = authConfig.storage && authConfig.storage.type === 'StringLiteral' && authConfig.storage.value === 'cookie';
+      if (isCookieAuth) {
+        lines.push('// ── Cookie Auth Logout ──');
+        lines.push('__addRoute("POST", "/rpc/__logout", async (req) => {');
+        lines.push('  return __clearAuthCookie(Response.json({ ok: true }));');
+        lines.push('});');
         lines.push('');
       }
     }
@@ -2079,7 +2285,7 @@ export class ServerCodegen extends BaseCodegen {
         if (rateLimitDec && needsRateLimitStore) {
           const rlMax = rateLimitDec.args[0] ? this.genExpression(rateLimitDec.args[0]) : '100';
           const rlWindow = rateLimitDec.args[1] ? this.genExpression(rateLimitDec.args[1]) : '60';
-          lines.push(`  const __rlIp = req.headers.get("x-forwarded-for") || "unknown";`);
+          lines.push(`  const __rlIp = __getClientIp(req);`);
           lines.push(`  const __rlRoute = __checkRateLimit(\`route:${path}:\${__rlIp}\`, ${rlMax}, ${rlWindow});`);
           lines.push(`  if (__rlRoute.limited) return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { "Retry-After": String(__rlRoute.retryAfter) });`);
         }
@@ -2322,10 +2528,20 @@ export class ServerCodegen extends BaseCodegen {
           lines.push(`    return new Response(res.body, { status: res.status, headers: h });`);
           lines.push(`  };`);
           lines.push(`  if (__result instanceof Response) return __addVersionHeaders(__result);`);
-          lines.push(`  return __addVersionHeaders(Response.json(__result));`);
+          if (securityFragments && securityFragments.hasAutoSanitize) {
+            const userRef = (hasAuth && authConfig) ? '__user' : (authConfig ? 'await __authenticate(req)' : 'null');
+            lines.push(`  return __addVersionHeaders(Response.json(__autoSanitize(__result, ${userRef})));`);
+          } else {
+            lines.push(`  return __addVersionHeaders(Response.json(__result));`);
+          }
         } else {
           lines.push(`  if (__result instanceof Response) return __result;`);
-          lines.push(`  return Response.json(__result);`);
+          if (securityFragments && securityFragments.hasAutoSanitize) {
+            const userRef = (hasAuth && authConfig) ? '__user' : (authConfig ? 'await __authenticate(req)' : 'null');
+            lines.push(`  return Response.json(__autoSanitize(__result, ${userRef}));`);
+          } else {
+            lines.push(`  return Response.json(__result);`);
+          }
         }
         lines.push(`}${versionArg});`);
         lines.push('');
@@ -2796,7 +3012,10 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  const __rawUrl = req.url;');
       lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');
       lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
-      lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+      lines.push('  let __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+      lines.push('  try { __pathname = decodeURIComponent(__pathname); } catch {}');
+      lines.push('  __pathname = __pathname.replace(/\\/\\/+/g, "/");');
+      lines.push('  if (__pathname.length > 1 && __pathname.endsWith("/")) __pathname = __pathname.slice(0, -1);');
       lines.push('  const __method = req.method;');
 
       // OPTIONS fast path
@@ -2853,7 +3072,20 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('  const __rawUrl = req.url;');
     lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');  // skip "http://x:p" or "https://x:p"
     lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
-    lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+    lines.push('  let __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+    lines.push('  try { __pathname = decodeURIComponent(__pathname); } catch {}');
+    lines.push('  __pathname = __pathname.replace(/\\/\\/+/g, "/");');
+    // Resolve ../ sequences to prevent path traversal
+    lines.push('  if (__pathname.includes("..")) {');
+    lines.push('    const __parts = __pathname.split("/");');
+    lines.push('    const __resolved = [];');
+    lines.push('    for (const __seg of __parts) {');
+    lines.push('      if (__seg === "..") { __resolved.pop(); }');
+    lines.push('      else if (__seg !== ".") { __resolved.push(__seg); }');
+    lines.push('    }');
+    lines.push('    __pathname = __resolved.join("/") || "/";');
+    lines.push('  }');
+    lines.push('  if (__pathname.length > 1 && __pathname.endsWith("/")) __pathname = __pathname.slice(0, -1);');
     lines.push('  const __rid = __sanitizeRequestId(req.headers.get("X-Request-Id"));');
     lines.push('  const __startTime = Date.now();');
     lines.push('  const __cors = __getCorsHeaders(req);');
@@ -2901,7 +3133,7 @@ export class ServerCodegen extends BaseCodegen {
 
     // Global rate limit check (F2)
     if (rateLimitConfig) {
-      lines.push('  const __clientIp = req.headers.get("x-forwarded-for") || "unknown";');
+      lines.push('  const __clientIp = __getClientIp(req);');
       lines.push('  const __rl = __checkRateLimit(__clientIp, __rateLimitMax, __rateLimitWindow);');
       lines.push('  if (__rl.limited) {');
       lines.push('    return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__rl.retryAfter) });');
@@ -2926,12 +3158,47 @@ export class ServerCodegen extends BaseCodegen {
 
     // CSRF validation on state-mutating requests
     if (needsCsrf) {
+      const hasCsrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
       lines.push('  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
+      if (hasCsrfExempt) {
+        lines.push('   if (!__isCsrfExempt(__pathname)) {');
+      }
       lines.push('    const __csrfToken = req.headers.get("X-Tova-CSRF") || req.headers.get("x-tova-csrf");');
-      lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken);');
+      if (sessionConfig) {
+        lines.push('    const __csrfBindingId = req.__session ? req.__session.get("__sid") || "anon" : "anon";');
+        lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken, __csrfBindingId);');
+      } else {
+        lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken);');
+      }
       lines.push('    if (!__csrfValid) {');
       lines.push('      __log("warn", "CSRF validation failed", { rid: __rid, method: req.method, path: __pathname });');
       lines.push('      return __errorResponse(403, "CSRF_INVALID", "CSRF token invalid or missing", null, __cors);');
+      lines.push('    }');
+      if (hasCsrfExempt) {
+        lines.push('   }');
+      }
+      lines.push('  }');
+    }
+
+    // Security block: route protection check
+    if (securityFragments && securityFragments.protectCode) {
+      lines.push('  // Security block: route protection');
+      if (authConfig) {
+        lines.push('  const __secUser = await __authenticate(req);');
+      } else {
+        lines.push('  const __secUser = null;');
+      }
+      lines.push('  const __protection = __checkProtection(__pathname, __secUser);');
+      lines.push('  if (!__protection.allowed) {');
+      lines.push('    const __statusCode = __secUser ? 403 : 401;');
+      lines.push('    const __errorCode = __secUser ? "FORBIDDEN" : "AUTH_REQUIRED";');
+      lines.push('    return __errorResponse(__statusCode, __errorCode, __protection.reason, null, __cors);');
+      lines.push('  }');
+      lines.push('  if (__protection.rateLimit && __protection.rateLimit.max) {');
+      lines.push('    const __protectIp = __getClientIp(req);');
+      lines.push('    const __protectRl = __checkRateLimit("protect:" + __pathname + ":" + __protectIp, __protection.rateLimit.max, __protection.rateLimit.window || 60);');
+      lines.push('    if (__protectRl.limited) {');
+      lines.push('      return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__protectRl.retryAfter) });');
       lines.push('    }');
       lines.push('  }');
     }
@@ -3086,8 +3353,9 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  } catch (__e) { throw __e; }');
       lines.push('  }).then(async (__res) => {');
       lines.push('    if (req.__session && req.__session.__flush) await req.__session.__flush();');
-      lines.push('    if (__res && __sessionIsNew) {');
-      lines.push('      const __signed = await __signSessionId(__sessionId);');
+      lines.push('    if (__res && (__sessionIsNew || req.__sessionRegenerated)) {');
+      lines.push('      const __sid = req.__newSessionId || __sessionId;');
+      lines.push('      const __signed = await __signSessionId(__sid);');
       lines.push('      const __h = new Headers(__res.headers);');
       lines.push('      __h.set("Set-Cookie", `${__sessionCookieName}=${__signed}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${__sessionMaxAge}`);');
       lines.push('      return new Response(__res.body, { status: __res.status, headers: __h });');

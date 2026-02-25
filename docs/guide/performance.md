@@ -1,12 +1,52 @@
 # Performance
 
-Tova includes several performance features that let you write high-performance code without dropping down to a lower-level language. These range from automatic compiler optimizations (zero effort) to explicit decorators for compute-intensive workloads.
+Tova generates high-performance code through compile-time optimizations and performance decorators. You write clean, expressive code and the compiler makes it fast. These features range from automatic rewrites (zero effort) to explicit decorators (`@wasm`, `@fast`) for compute-intensive workloads.
+
+## Benchmark Results
+
+All benchmarks run on Apple Silicon. Each reports the best of 3 runs.
+
+| Benchmark | Time | Technique |
+|-----------|------|-----------|
+| Sort 1M integers | 27ms | Rust FFI radix sort (O(n)) |
+| JSON parse 11MB | 37ms | SIMD-accelerated parser |
+| JSON stringify 100K objects | 19ms | Native serialization |
+| Fibonacci iterative (n=40) | 20ms | JIT-optimized tight loop |
+| @fast dot product 1M | 97ms | Float64Array coercion |
+| N-body simulation | 22ms | Floating-point optimization |
+| @wasm integer compute (200x500K) | 117ms | Native WebAssembly binary |
+| Array find (1M items, 100x) | 7ms | Optimized builtins |
+| 10-arm match dispatch (10M iter) | 18.8ms | Compiled to if-chain |
+| @fast Kahan sum 1M | 380ms | Float64Array + compensated summation |
+| @fast vector add 1M | 90ms | TypedArray element-wise ops |
+| Prime sieve 10M | 25ms | Uint8Array fill optimization |
+| Result.map 3x chain (10M iter) | 10ms | Compile-time fusion |
+
+### HTTP Server
+
+| Mode | Requests/sec |
+|------|-------------|
+| Fast mode (auto-detected) | 108,000 |
+| Standard mode | 90,000 |
+
+HTTP fast mode is automatically enabled when the compiler detects a simple server (no middleware, sessions, or WebSockets). It emits synchronous handlers with direct if-chain dispatch instead of a middleware pipeline.
+
+### Optimization Impact
+
+Several benchmarks improved dramatically through compiler optimizations:
+
+| Benchmark | Before | After | Improvement |
+|-----------|--------|-------|-------------|
+| Prime sieve 10M | 78ms | 25ms | 3.1x (array fill + Uint8Array) |
+| Result.map 3x chain | 101ms | 10ms | 10x (map chain fusion) |
+| HTTP req/s | 66K | 108K | 1.6x (fast mode) |
+| Lexer throughput | 0.079ms/iter | 0.045ms/iter | 1.8x (substring extraction) |
 
 ## Automatic Optimizations
 
-The Tova compiler detects common patterns and rewrites them to faster equivalents. You get these for free without changing your code.
+These happen at compile time. You get them for free without changing your code.
 
-### Array Fill Pattern
+### Array Fill Pattern Detection
 
 When the compiler sees an empty array followed by a push loop with a constant value, it replaces the entire pattern with a single pre-allocated array:
 
@@ -20,7 +60,7 @@ for i in range(1000) {
 // Compiler generates: new Array(1000).fill(0)
 ```
 
-For boolean fills, the compiler goes further and uses a `Uint8Array`:
+For boolean fills, the compiler upgrades to a `Uint8Array` for contiguous memory:
 
 ```tova
 // You write:
@@ -29,13 +69,15 @@ for i in range(1000) {
   flags.push(false)
 }
 
-// Compiler generates: new Uint8Array(1000)  (3x faster)
+// Compiler generates: new Uint8Array(1000)
 ```
 
-This optimization triggers automatically when:
+**Impact:** 3x faster for the prime sieve benchmark (78ms to 25ms). The `Uint8Array` upgrade gives contiguous memory access instead of boxed boolean objects.
+
+This optimization triggers when:
 - The variable starts as an empty array literal `[]`
-- The loop body is a single `push()` call with a constant value
-- The value does not depend on the loop variable
+- The next statement is a `for i in range(n)` loop
+- The loop body is a single `push()` call with a value that doesn't reference the loop variable
 
 ### Range Loop Optimization
 
@@ -50,11 +92,11 @@ for i in range(1000000) {
 // NOT: for (const i of range(1000000)) { ... }
 ```
 
-This avoids allocating a million-element array just to iterate.
+This avoids allocating a million-element array just to iterate over indices.
 
 ### Result.map Chain Fusion
 
-Chains of `.map()` calls on `Ok` or `Some` values are fused into a single operation, eliminating intermediate allocations:
+Chains of `.map()` calls on `Ok` or `Some` values are fused into a single operation, eliminating all intermediate allocations:
 
 ```tova
 result = Ok(5)
@@ -63,14 +105,44 @@ result = Ok(5)
   .map(fn(x) x * 10)
 
 // Compiler generates: Ok((((5 * 2) + 3) * 10))
-// Instead of: Ok(5).map(...).map(...).map(...)
+// Instead of creating 3 intermediate Ok wrappers
 ```
 
-This is 10x faster for chains of 3 or more maps. The optimization applies when each `.map()` argument is a single-expression lambda.
+**Impact:** 10x faster for chains of 3+ maps (101ms to 10ms). This is a zero-cost abstraction -- the functional style compiles to the same code as manual computation.
+
+The optimization applies when:
+- The receiver is an `Ok()` or `Some()` call
+- Each `.map()` argument is a single-expression lambda with one parameter
+- Two or more `.map()` calls are chained
+
+### Lexer Fast Path
+
+The lexer uses `substring()` extraction instead of character-by-character string concatenation for identifiers and numbers:
+
+**Impact:** 43% faster lexing (0.079ms to 0.045ms per iteration), 9% faster full compilation pipeline.
+
+### HTTP Fast Mode
+
+The compiler detects simple servers at compile time and emits optimized code:
+
+```tova
+// When the server has no middleware, sessions, WebSockets, or error handlers:
+server {
+  fn get_users() -> [User] { users }
+  fn add_user(name: String) -> User { ... }
+}
+
+// Compiler emits:
+// - Synchronous handler (not async)
+// - Direct if-chain route dispatch (no middleware pipeline)
+// - No AsyncLocalStorage, request IDs, or per-request timing
+```
+
+**Impact:** 64% improvement (66K to 108K req/s).
 
 ## @wasm -- WebAssembly Compilation
 
-The `@wasm` decorator compiles a function directly to WebAssembly binary format. Use it for CPU-intensive numeric computations where every cycle counts.
+The `@wasm` decorator compiles a function directly to WebAssembly binary format. No external toolchain required. The Tova compiler includes a complete WASM code generator that produces raw binary bytes embedded in the output.
 
 ```tova
 @wasm fn fibonacci(n: Int) -> Int {
@@ -82,9 +154,20 @@ The `@wasm` decorator compiles a function directly to WebAssembly binary format.
 print(fibonacci(40))
 ```
 
-The compiler generates a raw WASM binary embedded in the JavaScript output. No external toolchain needed.
+### How it works
 
-### Supported Operations in @wasm
+The compiler's WASM code generator (`src/codegen/wasm-codegen.js`):
+
+1. Parses the function AST
+2. Infers types from annotations and context
+3. Emits WASM binary sections (type, function, export, code)
+4. Uses LEB128 encoding for variable-length integers
+5. Handles i32/f64 type conversions at instruction boundaries
+6. Generates glue code that instantiates the WASM module at runtime
+
+If WASM compilation fails (unsupported operation), the compiler falls back to standard codegen with a warning.
+
+### Supported operations
 
 | Category | Supported |
 |----------|-----------|
@@ -93,17 +176,28 @@ The compiler generates a raw WASM binary embedded in the JavaScript output. No e
 | **Comparison** | `==`, `!=`, `<`, `>`, `<=`, `>=` |
 | **Logic** | `and`, `or`, `not` |
 | **Control flow** | `if`/`elif`/`else`, `while`, `for` |
-| **Calls** | Recursion, other `@wasm` functions |
+| **Variables** | `var`, assignment |
+| **Calls** | Self-recursion, other `@wasm` functions |
 
 ### Limitations
 
 - Only numeric types and booleans -- no strings, arrays, or objects
-- Can only call other `@wasm` functions (no external JS calls)
-- Assignment targets must be simple variables (no `arr[i] = val`)
+- Can only call other `@wasm` functions (no external calls)
+- No closures or captured variables
+- Assignment targets must be simple variables
 
-### When to Use @wasm
+### Performance
 
-Use `@wasm` for tight loops over numeric data: recursive algorithms, simulations, math-heavy computations. On tight integer loops, `@wasm` runs at ~0.87x Go performance.
+| Benchmark | @wasm | Standard codegen |
+|-----------|-------|-----------------|
+| compute 200x500K | **117ms** | 170ms |
+| fibonacci(40) | **554ms** | 936ms |
+
+The WASM path avoids JIT warmup and deoptimization overhead for pure numeric computation.
+
+### When to use @wasm
+
+Use `@wasm` for CPU-bound numeric kernels: recursive algorithms, simulations, mathematical computations. The sweet spot is tight loops over integers or floats with no string/object manipulation.
 
 ## @fast -- TypedArray Optimization
 
@@ -117,44 +211,66 @@ The `@fast` decorator enables TypedArray coercion for function parameters. Array
 @fast fn scale_vector(v: [Float], factor: Float) -> [Float] {
   typed_scale(v, factor)
 }
+
+@fast fn normalize(v: [Float]) -> [Float] {
+  n = typed_norm(v)
+  typed_scale(v, 1.0 / n)
+}
 ```
 
-### Type Mapping
+### How it works
 
-| Tova Annotation | TypedArray |
-|----------------|------------|
-| `[Int]` | `Int32Array` |
-| `[Float]` | `Float64Array` |
-| `[Byte]` | `Uint8Array` |
-| `[Int8]` | `Int8Array` |
-| `[Int16]` | `Int16Array` |
-| `[Int32]` | `Int32Array` |
-| `[Uint8]` | `Uint8Array` |
-| `[Uint16]` | `Uint16Array` |
-| `[Uint32]` | `Uint32Array` |
-| `[Float32]` | `Float32Array` |
+1. The compiler detects `@fast` on a function declaration
+2. Array parameters with numeric type annotations (e.g., `[Float]`, `[Int]`) are wrapped in TypedArray constructors at function entry
+3. For-loops over typed arrays use index-based iteration (avoids iterator protocol overhead)
+4. Numeric array literals in the function body are emitted as typed arrays
 
-### Typed Stdlib Functions
+### Type mapping
 
-Use these with `@fast` for maximum performance on numeric arrays:
+| Tova Annotation | TypedArray | Bytes per element |
+|----------------|------------|-------------------|
+| `[Int]` | `Int32Array` | 4 |
+| `[Float]` | `Float64Array` | 8 |
+| `[Byte]` | `Uint8Array` | 1 |
+| `[Int8]` | `Int8Array` | 1 |
+| `[Int16]` | `Int16Array` | 2 |
+| `[Int32]` | `Int32Array` | 4 |
+| `[Uint8]` | `Uint8Array` | 1 |
+| `[Uint16]` | `Uint16Array` | 2 |
+| `[Uint32]` | `Uint32Array` | 4 |
+| `[Float32]` | `Float32Array` | 4 |
+| `[Float64]` | `Float64Array` | 8 |
+
+### Typed stdlib functions
+
+These are optimized for TypedArray input and available without imports:
 
 | Function | Description |
 |----------|-------------|
 | `typed_sum(arr)` | Sum with Kahan compensation (minimizes float error) |
 | `typed_dot(a, b)` | Dot product of two arrays |
 | `typed_norm(arr)` | L2 norm (Euclidean length) |
-| `typed_add(a, b)` | Element-wise addition |
+| `typed_add(a, b)` | Element-wise addition (returns new typed array) |
 | `typed_scale(arr, s)` | Multiply every element by scalar |
 | `typed_map(arr, f)` | Map function over elements, preserving type |
 | `typed_reduce(arr, f, init)` | Reduce with typed array input |
 | `typed_sort(arr)` | Sort (returns new typed array) |
 | `typed_zeros(n)` | Float64Array of zeros |
 | `typed_ones(n)` | Float64Array of ones |
-| `typed_fill(arr, val)` | New typed array filled with value |
+| `typed_fill(n, val)` | New Float64Array filled with value |
 | `typed_range(start, end, step)` | Float64Array range |
-| `typed_linspace(start, end, n)` | n evenly-spaced values |
+| `typed_linspace(start, end, n)` | n evenly-spaced Float64Array values |
 
-### Example: Kahan Summation
+### Performance
+
+| Operation (1M elements, 100 iterations) | Time |
+|----------------------------------------|------|
+| Dot product | 97ms |
+| Kahan sum | 380ms |
+| Vector add | 90ms |
+| Vector norm | 324ms |
+
+### Example: numerically stable summation
 
 ```tova
 @fast fn precise_sum(data: [Float]) -> Float {
@@ -162,16 +278,18 @@ Use these with `@fast` for maximum performance on numeric arrays:
 }
 
 // Regular sum of [1e16, 1, -1e16] might lose the 1
-// typed_sum uses compensated summation to preserve it
+// typed_sum uses Kahan compensated summation to preserve it
+result = precise_sum([1e16, 1.0, -1e16])
+print(result)   // 1.0 (not 0)
 ```
 
-### When to Use @fast
+### When to use @fast
 
-Use `@fast` for array-heavy numeric code: signal processing, statistics, linear algebra, simulations. `@fast` dot product runs 1.7x faster than equivalent Go code on 1M elements.
+Use `@fast` for array-heavy numeric code: signal processing, statistics, linear algebra, physics simulations, financial calculations. TypedArrays give the runtime contiguous, unboxed memory to work with, which enables SIMD-level optimization.
 
-## parallel_map -- Worker Pool
+## parallel_map -- Multi-Core Worker Pool
 
-`parallel_map` distributes array processing across multiple CPU cores using a persistent worker pool:
+`parallel_map` distributes array processing across all CPU cores using a persistent worker pool:
 
 ```tova
 results = await parallel_map(large_array, fn(item) {
@@ -179,22 +297,49 @@ results = await parallel_map(large_array, fn(item) {
 })
 ```
 
-Workers are created once and reused across calls. The array is chunked evenly across available cores.
+### How it works
+
+1. On first call, creates one worker thread per CPU core
+2. Workers persist and are reused for all subsequent calls (zero startup overhead)
+3. The array is chunked evenly across workers
+4. Each worker reconstructs the mapped function and processes its chunk
+5. Results are gathered and returned in order
 
 ```tova
 // Specify number of workers explicitly
 results = await parallel_map(data, process_item, 8)
 ```
 
-### Behavior
+### Performance
 
-- Automatically detects CPU core count
-- Falls back to sequential processing for arrays smaller than 4 elements
-- Workers persist across calls (no startup overhead on subsequent calls)
+| Implementation | Time (64 items x 10M work) | Speedup |
+|----------------|---------------------------|---------|
+| Sequential `map()` | 1,355ms | 1.0x |
+| **`parallel_map` (pooled)** | **379ms** | **3.57x** |
 
-### When to Use parallel_map
+The persistent pool eliminates worker creation overhead. Second call latency drops from 50-90ms (per-call workers) to 6ms (pooled workers).
 
-Use it when you have a large array and each element requires significant computation. The 3.5x speedup applies to CPU-bound work. For I/O-bound work (network requests, file reads), use `async` with `Promise.all` instead.
+### When to use parallel_map
+
+- Array of 4+ elements (falls back to sequential below this)
+- Each element requires significant computation (CPU-bound, not I/O-bound)
+- For I/O-bound work (network requests, file reads), use `async` with `Promise.all` instead
+
+## Radix Sort via Rust FFI
+
+Tova's `sorted()` function uses a 3-tier strategy for maximum performance on numeric arrays:
+
+1. **Arrays > 128 elements, numeric, FFI available:** Radix sort via Rust FFI (O(n) time)
+2. **Arrays > 128 elements, numeric, no FFI:** Float64Array.sort() fallback
+3. **Arrays <= 128 elements:** Standard comparator sort (low overhead)
+
+| Size | Time (Rust FFI) |
+|------|----------------|
+| 10K | 0.4ms |
+| 100K | 2.4ms |
+| 1M | 23.6ms |
+
+Radix sort achieves O(n) time complexity vs comparison sort's O(n log n), which is why it scales efficiently to large arrays.
 
 ## filled() -- Pre-allocated Arrays
 
@@ -206,23 +351,7 @@ flags = filled(256, false)
 names = filled(10, "unknown")
 ```
 
-This is faster than building an array with a push loop because it allocates the full size upfront.
-
-## Performance Comparison
-
-Tova beats Go on several benchmarks:
-
-| Benchmark | Tova vs Go |
-|-----------|-----------|
-| Sort (radix) | 3.5x faster |
-| Typed arrays | 4x faster |
-| JSON processing | 2x faster |
-| Fibonacci (iterative) | 2x faster |
-| N-body simulation | 1.5x faster |
-| @fast dot product | 1.7x faster |
-| @wasm integer compute | 0.87x (13% slower) |
-| 10-arm match | Faster |
-| unwrapOr | Faster |
+This compiles to `new Array(n).fill(val)` and is faster than building arrays with push loops because it allocates the full size upfront.
 
 ## Combining Features
 
@@ -230,12 +359,52 @@ These features compose naturally:
 
 ```tova
 @fast fn process_batch(data: [Float]) -> Float {
-  // TypedArray coercion at entry
   typed_dot(data, data) |> Math.sqrt()
 }
 
-// Process many batches in parallel
+// Process many batches in parallel across all CPU cores
 norms = await parallel_map(all_batches, process_batch)
 ```
 
-For the most demanding workloads, you can use `@wasm` for the inner kernel and `@fast` + `parallel_map` for the data pipeline around it.
+For the most demanding workloads, layer them:
+
+```tova
+@wasm fn kernel(x: Float, y: Float) -> Float {
+  // Inner computation as native WASM
+  var result = 0.0
+  var i = 0
+  while i < 1000 {
+    result = result + x * y / (1.0 + result)
+    i = i + 1
+  }
+  result
+}
+
+@fast fn process(data: [Float]) -> [Float] {
+  // TypedArray operations with WASM kernel
+  typed_map(data, fn(x) kernel(x, 1.0))
+}
+
+// Distribute across cores
+results = await parallel_map(batches, fn(batch) process(batch))
+```
+
+## Running the Benchmarks
+
+The benchmark suite lives in `benchmarks/` and includes 14 workloads:
+
+```bash
+# Run all benchmarks
+./benchmarks/run_benchmarks.sh
+
+# Quick mode (benchmarks 01-07 only)
+./benchmarks/run_benchmarks.sh --quick
+
+# Tova only
+./benchmarks/run_benchmarks.sh --tova-only
+
+# Single benchmark
+./benchmarks/run_benchmarks.sh 03
+```
+
+The runner executes each benchmark and outputs a formatted results table.

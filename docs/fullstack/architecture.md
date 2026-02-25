@@ -4,9 +4,9 @@ Tova is a general-purpose language that transpiles to JavaScript. You can use it
 
 When you need a web application, Tova's full-stack architecture lets you write server and client code in a single `.tova` file. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
 
-## The Four-Block Model
+## The Five-Block Model
 
-Every Tova application is organized into four kinds of blocks:
+Every Tova application is organized into five kinds of blocks:
 
 ```tova
 shared {
@@ -15,6 +15,10 @@ shared {
 
 data {
   // Data sources, pipelines, validation, refresh policies
+}
+
+security {
+  // Auth, roles, route protection, CORS, CSP, rate limiting
 }
 
 server {
@@ -26,7 +30,7 @@ client {
 }
 ```
 
-You can write all four in a single file, or spread them across multiple files in the same directory. A single file can also contain multiple blocks of the same type (e.g., two `client {}` blocks). The compiler merges same-type blocks from all files in a directory into a single output, then separates them by block type at build time. See [Multi-File Block Merging](/guide/modules#multi-file-block-merging) for details.
+You can write all five in a single file, or spread them across multiple files in the same directory. A single file can also contain multiple blocks of the same type (e.g., two `client {}` blocks). The compiler merges same-type blocks from all files in a directory into a single output, then separates them by block type at build time. See [Multi-File Block Merging](/guide/modules#multi-file-block-merging) for details.
 
 ### Shared Block
 
@@ -53,6 +57,21 @@ Typical contents:
 - Refresh policies (`refresh users every 15.minutes`)
 
 See [Data Block](./data-block) for full documentation.
+
+### Security Block
+
+The `security` block centralizes all security policy -- authentication, roles, route protection, sensitive field handling, CORS, CSP, rate limiting, CSRF, and audit logging. The compiler reads the security block and generates enforcement code into both server and client outputs automatically.
+
+**Runtime environment:** Both server and client (the compiler generates appropriate code for each target).
+
+Typical contents:
+- Authentication config (`auth jwt { secret: env("JWT_SECRET") }`)
+- Role definitions (`role Admin { can: [manage_users] }`)
+- Route protection rules (`protect "/api/admin/*" { require: Admin }`)
+- Sensitive field handling (`sensitive User.password { never_expose: true }`)
+- CORS, CSP, rate limiting, CSRF, audit logging
+
+See [Security Block](./security-block) for full documentation.
 
 ### Server Block
 
