@@ -18,9 +18,9 @@ try {
 export default defineConfig({
   title: 'Tova',
   description: 'A modern programming language for scripting, data, AI, and full-stack web',
-  base: '/tova-lang/',
+  base: '/',
   head: [
-    ['link', { rel: 'icon', href: '/tova-lang/favicon.ico' }],
+    ['link', { rel: 'icon', href: '/favicon.ico' }],
   ],
 
   themeConfig: {
