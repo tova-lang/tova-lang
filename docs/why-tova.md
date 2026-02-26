@@ -34,12 +34,12 @@ category = classify(text, ["positive", "negative", "neutral"])
 ```
 
 ```tova
-// Full-stack web: server + client in one file
+// Full-stack web: server + browser in one file
 server {
   fn get_users() -> [User] { UserModel.all() }
 }
 
-client {
+browser {
   state users = []
   effect { users = server.get_users() }
 
@@ -353,7 +353,7 @@ All of this from a single declarative block. No dependencies, no middleware to w
 
 ## Full-Stack Web
 
-When you need a web application, Tova's five-block model (`shared`, `data`, `security`, `server`, `client`) lets you write everything in one file:
+When you need a web application, Tova's five-block model (`shared`, `data`, `security`, `server`, `browser`) lets you write everything in one file:
 
 ### Automatic RPC
 
@@ -365,7 +365,7 @@ server {
   }
 }
 
-client {
+browser {
   state users = []
   effect { users = server.get_users() }
 
@@ -383,7 +383,7 @@ client {
 Tova uses fine-grained signals. When a signal changes, only the DOM nodes that read it update -- no diffing, no reconciliation:
 
 ```tova
-client {
+browser {
   state count = 0
   computed doubled = count * 2
 
@@ -398,7 +398,7 @@ client {
 
 ### Shared Types
 
-The `shared` block compiles to a module imported by both server and client. Same types, same validation, zero duplication:
+The `shared` block compiles to a module imported by both server and browser. Same types, same validation, zero duplication:
 
 ```tova
 shared {

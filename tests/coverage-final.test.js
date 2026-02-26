@@ -137,14 +137,14 @@ describe('Codegen Final — unknown expression type (line 128)', () => {
 });
 
 // =============================================================
-// client-codegen.js line 68 — non-state compound assignment lambda
+// browser-codegen.js line 68 — non-state compound assignment lambda
 // =============================================================
 
-describe('Client Final — lambda non-state compound assignment (line 63-68)', () => {
-  test('lambda with compound assignment on non-state var in client', () => {
-    const result = compile('client { var total = 0\ncomponent App { <button on:click={fn() total += 1}>"+"</button> } }');
+describe('Browser Final — lambda non-state compound assignment (line 63-68)', () => {
+  test('lambda with compound assignment on non-state var in browser', () => {
+    const result = compile('browser { var total = 0\ncomponent App { <button on:click={fn() total += 1}>"+"</button> } }');
     // total is not a state, so it should use parent class behavior
-    expect(result.client).toContain('total += 1');
+    expect(result.browser).toContain('total += 1');
   });
 });
 
@@ -179,13 +179,13 @@ describe('Parser Final — Error paths', () => {
   });
 
   test('mismatched JSX closing tag throws (line 327)', () => {
-    expect(() => parse('client { component App { <div>"text"</span> } }')).toThrow();
+    expect(() => parse('browser { component App { <div>"text"</span> } }')).toThrow();
   });
 });
 
 describe('Parser Final — JSX string attribute (line 312)', () => {
   test('JSX attribute with string value', () => {
-    const ast = parse('client { component App { <a href="/home">"link"</a> } }');
+    const ast = parse('browser { component App { <a href="/home">"link"</a> } }');
     const comp = ast.body[0].body[0];
     const jsx = comp.body[0];
     expect(jsx.attributes.length).toBe(1);
@@ -197,7 +197,7 @@ describe('Parser Final — JSX string attribute (line 312)', () => {
 
 describe('Parser Final — JSX string text in if/else bodies (lines 412, 428)', () => {
   test('JSXIf with string text in consequent and alternate', () => {
-    const ast = parse('client { component App { <div>if show { "yes" } else { "no" }</div> } }');
+    const ast = parse('browser { component App { <div>if show { "yes" } else { "no" }</div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const jsxIf = div.children[0];
@@ -209,7 +209,7 @@ describe('Parser Final — JSX string text in if/else bodies (lines 412, 428)', 
 
 describe('Parser Final — JSX for with text body (line 391)', () => {
   test('JSXFor body can contain expression in braces', () => {
-    const ast = parse('client { component App { <ul>for item in items { {item} }</ul> } }');
+    const ast = parse('browser { component App { <ul>for item in items { {item} }</ul> } }');
     const comp = ast.body[0].body[0];
     const ul = comp.body[0];
     const jsxFor = ul.children[0];
@@ -274,7 +274,7 @@ describe('Parser Final — Arrow lambda type annotation non-identifier (lines 15
 
 describe('Parser Final — JSX event with various names (line 291)', () => {
   test('JSX event on:change parses correctly', () => {
-    const ast = parse('client { component App { <input on:change={handler} /> } }');
+    const ast = parse('browser { component App { <input on:change={handler} /> } }');
     const comp = ast.body[0].body[0];
     const jsx = comp.body[0];
     const attr = jsx.attributes.find(a => a.name.startsWith('on:'));
@@ -285,7 +285,7 @@ describe('Parser Final — JSX event with various names (line 291)', () => {
 describe('Parser Final — JSX children break (lines 365, 367)', () => {
   test('JSX children parsing stops at non-child tokens', () => {
     // This is inherently tested by any JSX parsing that successfully closes
-    const ast = parse('client { component App { <div>"text"</div> } }');
+    const ast = parse('browser { component App { <div>"text"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('JSXElement');
   });
@@ -443,20 +443,20 @@ describe('Parser Final — Route with various methods', () => {
 
 describe('Parser Final — JSX invalid attribute name (line 282)', () => {
   test('non-identifier attribute name throws', () => {
-    expect(() => parse('client { component App { <div 123="x"/> } }')).toThrow(/Expected attribute name/);
+    expect(() => parse('browser { component App { <div 123="x"/> } }')).toThrow(/Expected attribute name/);
   });
 });
 
 describe('Parser Final — JSX invalid event name after colon (line 291)', () => {
   test('on: followed by number throws', () => {
-    expect(() => parse('client { component App { <div on:123={handler}/> } }')).toThrow(/Expected name after/);
+    expect(() => parse('browser { component App { <div on:123={handler}/> } }')).toThrow(/Expected name after/);
   });
 });
 
 describe('Parser Final — JSX children break on unexpected token (line 367)', () => {
   test('bare identifier in JSX body is now valid unquoted text', () => {
     // With unquoted JSX text support, 'hello' is lexed as JSX_TEXT
-    const ast = parse('client { component App { <div>hello</div> } }');
+    const ast = parse('browser { component App { <div>hello</div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     expect(div.children.length).toBe(1);
@@ -467,21 +467,21 @@ describe('Parser Final — JSX children break on unexpected token (line 367)', (
 describe('Parser Final — JSXFor body break on unexpected token (line 391)', () => {
   test('bare identifier in JSXFor body hits break', () => {
     // 'item' as IDENTIFIER in for body doesn't match <, string, or { — hits else break
-    expect(() => parse('client { component App { <ul>for item in items { item }</ul> } }')).toThrow();
+    expect(() => parse('browser { component App { <ul>for item in items { item }</ul> } }')).toThrow();
   });
 });
 
 describe('Parser Final — JSXIf consequent with expression (line 412)', () => {
   test('expression in JSXIf consequent body parses successfully', () => {
     // {expr} in JSXIf body — now supported as JSXExpression
-    const ast = parse('client { component App { <div>if show { {x} }</div> } }');
+    const ast = parse('browser { component App { <div>if show { {x} }</div> } }');
     expect(ast.body[0].body[0].body).toBeDefined();
   });
 });
 
 describe('Parser Final — JSXIf alternate with expression (line 428)', () => {
   test('expression in JSXIf alternate body parses successfully', () => {
-    const ast = parse('client { component App { <div>if show { "yes" } else { {x} }</div> } }');
+    const ast = parse('browser { component App { <div>if show { "yes" } else { {x} }</div> } }');
     expect(ast.body[0].body[0].body).toBeDefined();
   });
 });

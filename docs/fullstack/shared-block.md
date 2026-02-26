@@ -79,7 +79,7 @@ shared {
 The client can use these for form validation before the request is sent:
 
 ```tova
-client {
+browser {
   fn handle_signup() {
     guard validate_email(email) else {
       error_message = "Please enter a valid email"
@@ -227,7 +227,7 @@ Both types and the validation function end up in the same `app.shared.js` output
 
 ### Keep It Pure
 
-Shared code should be **pure** -- no side effects, no database calls, no DOM access, no network requests. If it touches the database, it belongs in `server {}`. If it touches the DOM, it belongs in `client {}`.
+Shared code should be **pure** -- no side effects, no database calls, no DOM access, no network requests. If it touches the database, it belongs in `server {}`. If it touches the DOM, it belongs in `browser {}`.
 
 ```tova
 // Good: pure validation
@@ -302,5 +302,5 @@ Since shared code is included in the client bundle, keep it lightweight. Heavy c
 
 - [Architecture Overview](./architecture) -- how the three-block model works
 - [Server Block](./server-block) -- server-side routes, database, and functions
-- [Client Block](./client-block) -- reactive UI and components
+- [Browser Block](./browser-block) -- reactive UI and components
 - [Compilation](./compilation) -- how shared code is compiled and bundled

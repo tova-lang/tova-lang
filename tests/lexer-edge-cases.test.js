@@ -930,9 +930,9 @@ describe('Lexer — Complex scenarios', () => {
     expect(toks).toContain(TokenType.ROUTE);
   });
 
-  test('client block with state', () => {
-    const toks = types('client { state count = 0 }');
-    expect(toks).toContain(TokenType.CLIENT);
+  test('browser block with state', () => {
+    const toks = types('browser { state count = 0 }');
+    expect(toks).toContain(TokenType.BROWSER);
     expect(toks).toContain(TokenType.STATE);
   });
 

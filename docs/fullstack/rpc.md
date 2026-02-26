@@ -1,6 +1,6 @@
 # RPC Bridge
 
-The RPC (Remote Procedure Call) bridge is the mechanism that lets client code call server functions as if they were local. When you write `server.get_users()` in a `client` block, the compiler transforms it into an async HTTP request to the server, handles serialization, and returns the result. You never write fetch calls, parse JSON, or manage endpoints manually.
+The RPC (Remote Procedure Call) bridge is the mechanism that lets client code call server functions as if they were local. When you write `server.get_users()` in a `browser` block, the compiler transforms it into an async HTTP request to the server, handles serialization, and returns the result. You never write fetch calls, parse JSON, or manage endpoints manually.
 
 ## How It Works
 
@@ -10,7 +10,7 @@ The RPC bridge has two sides:
 
 2. **Client side:** A Proxy-based `server` object intercepts property access. When you call `server.get_users()`, the proxy delegates to an async `rpc()` function that performs a `fetch()` to the matching endpoint.
 
-The compiler automatically wires both sides. You define a function in `server {}`, call it from `client {}` as `server.fn_name()`, and everything in between is generated.
+The compiler automatically wires both sides. You define a function in `server {}`, call it from `browser {}` as `server.fn_name()`, and everything in between is generated.
 
 ## Server Side: RPC Endpoints
 
@@ -132,7 +132,7 @@ Key details:
 The compiler is smart about `async/await`. When it detects a `server.fn_name()` call inside an effect, event handler, or function body, it automatically wraps the containing function as `async` and adds `await` to the RPC call:
 
 ```tova
-client {
+browser {
   effect {
     users = server.get_users()
   }
@@ -162,7 +162,7 @@ The compiler walks the AST to detect whether a function or effect body contains 
 This also works with pipe expressions. When a pipe chain involves an RPC call, the compiler automatically awaits the result:
 
 ```tova
-client {
+browser {
   fn load_active_names() {
     names = server.get_users() |> filter(fn(u) u.active) |> map(fn(u) u.name)
   }
@@ -195,7 +195,7 @@ server {
   }
 }
 
-client {
+browser {
   state users: [User] = []
   state name = ""
   state email = ""
@@ -510,7 +510,7 @@ server.process(fn(x) { x + 1 })  // Functions are not serializable
 When a server function throws an error or the HTTP request fails, the RPC call throws on the client side:
 
 ```tova
-client {
+browser {
   fn handle_action() {
     match server.risky_operation() {
       Ok(result) => show_success(result)
@@ -543,7 +543,7 @@ Each `server.fn_name()` call is a full HTTP round-trip. Avoid calling server fun
 
 ```tova
 // Bad: N+1 calls
-client {
+browser {
   fn load_details() {
     for id in user_ids {
       detail = server.get_user(id)    // One HTTP call per user
@@ -552,7 +552,7 @@ client {
 }
 
 // Good: single batch call
-client {
+browser {
   fn load_details() {
     details = server.get_users_batch(user_ids)    // One HTTP call total
   }
@@ -563,6 +563,6 @@ client {
 
 - [Architecture Overview](./architecture) -- the three-block model
 - [Server Block](./server-block) -- defining server functions
-- [Client Block](./client-block) -- calling server functions from the UI
+- [Browser Block](./browser-block) -- calling server functions from the UI
 - [Named Blocks](./named-blocks) -- cross-server RPC between named blocks
 - [Compilation](./compilation) -- how RPC code is generated

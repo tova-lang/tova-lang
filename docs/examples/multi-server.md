@@ -116,7 +116,7 @@ server "events" {
   route GET "/ws" => ws_connect
 }
 
-client {
+browser {
   state users = []
   state events = []
   state ws_connected = false
@@ -317,7 +317,7 @@ The events server manages WebSocket connections:
 ### Client Connecting to Multiple Servers
 
 ```tova
-client {
+browser {
   // REST API call to server:api
   effect {
     result = server.list_users()

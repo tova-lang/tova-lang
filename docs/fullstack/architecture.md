@@ -1,8 +1,8 @@
 # Full-Stack Architecture Overview
 
-Tova is a general-purpose language that transpiles to JavaScript. You can use it for scripting, CLI tools, data pipelines, and AI-powered applications with no server or client blocks at all. See the [I/O guide](/guide/io), [Tables & Data guide](/guide/data), and [CLI Tool example](/examples/cli-tool) for non-web usage.
+Tova is a general-purpose language that transpiles to JavaScript. You can use it for scripting, CLI tools, data pipelines, and AI-powered applications with no server or browser blocks at all. See the [I/O guide](/guide/io), [Tables & Data guide](/guide/data), and [CLI Tool example](/examples/cli-tool) for non-web usage.
 
-When you need a web application, Tova's full-stack architecture lets you write server and client code in a single `.tova` file. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
+When you need a web application, Tova's full-stack architecture lets you write server and browser code in a single `.tova` file. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets browser code call server functions as if they were local.
 
 ## The Block Model
 
@@ -10,7 +10,7 @@ Every Tova application is organized into blocks. For web applications, there are
 
 ```tova
 shared {
-  // Types, validation, constants -- available to BOTH client and server
+  // Types, validation, constants -- available to BOTH browser and server
 }
 
 data {
@@ -25,7 +25,7 @@ server {
   // HTTP routes, database, auth, business logic -- runs on Bun
 }
 
-client {
+browser {
   // Reactive state, components, UI -- runs in the browser
 }
 
@@ -34,11 +34,11 @@ cli {
 }
 ```
 
-You can write all five in a single file, or spread them across multiple files in the same directory. A single file can also contain multiple blocks of the same type (e.g., two `client {}` blocks). The compiler merges same-type blocks from all files in a directory into a single output, then separates them by block type at build time. See [Multi-File Block Merging](/guide/modules#multi-file-block-merging) for details.
+You can write all five in a single file, or spread them across multiple files in the same directory. A single file can also contain multiple blocks of the same type (e.g., two `browser {}` blocks). The compiler merges same-type blocks from all files in a directory into a single output, then separates them by block type at build time. See [Multi-File Block Merging](/guide/modules#multi-file-block-merging) for details.
 
 ### Shared Block
 
-The `shared` block defines data types, validation functions, and constants that must be identical on both sides. When the compiler processes a `.tova` file, the shared block is emitted as its own JavaScript module (e.g., `app.shared.js`) and imported by both the server and client outputs.
+The `shared` block defines data types, validation functions, and constants that must be identical on both sides. When the compiler processes a `.tova` file, the shared block is emitted as its own JavaScript module (e.g., `app.shared.js`) and imported by both the server and browser outputs.
 
 **Runtime environment:** None (it is library code imported by both runtimes).
 
@@ -64,9 +64,9 @@ See [Data Block](./data-block) for full documentation.
 
 ### Security Block
 
-The `security` block centralizes all security policy -- authentication, roles, route protection, sensitive field handling, CORS, CSP, rate limiting, CSRF, and audit logging. The compiler reads the security block and generates enforcement code into both server and client outputs automatically.
+The `security` block centralizes all security policy -- authentication, roles, route protection, sensitive field handling, CORS, CSP, rate limiting, CSRF, and audit logging. The compiler reads the security block and generates enforcement code into both server and browser outputs automatically.
 
-**Runtime environment:** Both server and client (the compiler generates appropriate code for each target).
+**Runtime environment:** Both server and browser (the compiler generates appropriate code for each target).
 
 Typical contents:
 - Authentication config (`auth jwt { secret: env("JWT_SECRET") }`)
@@ -88,7 +88,7 @@ Typical contents:
 - Command functions (`fn deploy(target: String, --env: String = "staging") { ... }`)
 - Async commands (`async fn download(url: String) { ... }`)
 
-The `cli {}` block produces a standalone executable, not a web server. It cannot be combined with `server {}` or `client {}` blocks (the analyzer warns if you try).
+The `cli {}` block produces a standalone executable, not a web server. It cannot be combined with `server {}` or `browser {}` blocks (the analyzer warns if you try).
 
 See [CLI Block](./cli-block) for full documentation.
 
@@ -106,9 +106,9 @@ Typical contents:
 - WebSocket and SSE handlers
 - Background jobs and scheduled tasks
 
-### Client Block
+### Browser Block
 
-The `client` block contains everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Tova reactive runtime.
+The `browser` block contains everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Tova reactive runtime.
 
 **Runtime environment:** Browser.
 
@@ -127,7 +127,7 @@ When you run `tova build`, the compiler performs the following steps:
 2. **Merge** same-type blocks into a unified AST — this includes multiple blocks within a single file **and** blocks from different files in the same directory
 3. **Validate** the merged AST for duplicate declarations (component names, state, functions, etc.)
 4. **Generate** JavaScript for each block type using its specialized code generator
-5. **Wire** the RPC bridge -- server functions get HTTP endpoints, client code gets a `server` proxy
+5. **Wire** the RPC bridge -- server functions get HTTP endpoints, browser code gets a `server` proxy
 6. **Output** separate files to the `.tova-out/` directory
 
 For a single-file project with one block of each type, this is straightforward. For multi-file projects or files with multiple blocks of the same type, the merge step combines them before code generation:
@@ -139,7 +139,7 @@ For a single-file project with one block of each type, this is straightforward. 
   +-----------------------------------------------------------+
   |  types.tova    server.tova   components.tova   app.tova   |
   |                                                           |
-  |  shared { }    server { }    client { }        client { } |
+  |  shared { }    server { }    browser { }       browser { } |
   +-----------------------------------------------------------+
                             |
                      merge by type
@@ -157,7 +157,7 @@ For a single-file project with one block of each type, this is straightforward. 
                             +------+------+
                                    |
                               index.html
-                       (client JS + runtime inlined)
+                       (browser JS + runtime inlined)
 ```
 
 Components defined in any file within the directory are available to all other files without imports. The `App` component in `app.tova` can reference `StatsBar` from `components.tova` directly.
@@ -166,7 +166,7 @@ The server output imports `app.shared.js` for type definitions. The client outpu
 
 ## The RPC Bridge
 
-The most powerful part of the three-block model is the automatic RPC (Remote Procedure Call) bridge. Any function defined in a `server` block can be called from the `client` block using `server.function_name()`:
+The most powerful part of the three-block model is the automatic RPC (Remote Procedure Call) bridge. Any function defined in a `server` block can be called from the `browser` block using `server.function_name()`:
 
 ```tova
 server {
@@ -179,7 +179,7 @@ server {
   }
 }
 
-client {
+browser {
   state users: [User] = []
 
   effect {
@@ -197,7 +197,7 @@ Under the hood, the compiler:
 
 1. **Server side:** Generates a `POST /rpc/get_users` endpoint for each server function. The endpoint reads `{ __args: [...] }` from the request body, spreads args into the function, and returns `{ result: value }`.
 
-2. **Client side:** Creates a `server` Proxy object. When you write `server.get_users()`, the proxy intercepts the call and delegates to an async `rpc()` function that performs a `fetch()` to the corresponding endpoint.
+2. **Browser side:** Creates a `server` Proxy object. When you write `server.get_users()`, the proxy intercepts the call and delegates to an async `rpc()` function that performs a `fetch()` to the corresponding endpoint.
 
 The result is that you write `server.get_users()` and the compiler handles all the networking, serialization, and deserialization. See [RPC Bridge](./rpc) for full details.
 
@@ -237,7 +237,7 @@ Here is the complete picture of how a Tova application runs:
 
 ### Keep Shared Lean
 
-Only put data contracts and pure validation in `shared {}`. Business logic, database calls, and anything with side effects belongs in `server {}`. UI state and rendering belongs in `client {}`.
+Only put data contracts and pure validation in `shared {}`. Business logic, database calls, and anything with side effects belongs in `server {}`. UI state and rendering belongs in `browser {}`.
 
 ```tova
 // Good: shared contains only types and validation
@@ -274,7 +274,7 @@ If a client sends incorrect types, the RPC endpoint returns a 400 error with val
 
 ### Shared Validation for Both Sides
 
-Put validation functions in `shared {}` so the same logic runs on both the client (for instant UX feedback) and the server (for security):
+Put validation functions in `shared {}` so the same logic runs on both the browser (for instant UX feedback) and the server (for security):
 
 ```tova
 shared {
@@ -287,7 +287,7 @@ shared {
   }
 }
 
-client {
+browser {
   fn handle_submit() {
     guard validate_email(email) else { show_error("Invalid email") }
     guard validate_name(name) else { show_error("Name too short") }
@@ -306,18 +306,18 @@ server {
 
 ### Prefer RPC Over Manual Routes
 
-Use `server.function_name()` from client code instead of manually fetching API endpoints. The compiler generates efficient RPC endpoints automatically and handles serialization for you.
+Use `server.function_name()` from browser code instead of manually fetching API endpoints. The compiler generates efficient RPC endpoints automatically and handles serialization for you.
 
 ```tova
 // Preferred: let the compiler handle networking
-client {
+browser {
   fn load_data() {
     users = server.get_users()
   }
 }
 
 // Avoid: manual fetch calls bypass the RPC bridge
-client {
+browser {
   fn load_data() {
     response = fetch("/api/users")   // Manual -- no type safety, no auto-wiring
     users = response.json()
@@ -332,7 +332,7 @@ client {
 - [Security Block](./security-block) -- authentication, authorization, and security policy
 - [CLI Block](./cli-block) -- build CLI tools with zero-dependency argument parsing
 - [Server Block](./server-block) -- routes, database, and server functions
-- [Client Block](./client-block) -- reactive UI and components
+- [Browser Block](./browser-block) -- reactive UI and components
 - [RPC Bridge](./rpc) -- how the automatic RPC system works
 - [Named Blocks](./named-blocks) -- multi-server architecture
 - [Compilation](./compilation) -- build output and production optimization

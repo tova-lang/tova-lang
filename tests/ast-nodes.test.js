@@ -35,9 +35,9 @@ describe('AST — Full-stack block nodes', () => {
     expect(n.name).toBeNull();
   });
 
-  test('ClientBlock', () => {
-    const n = new AST.ClientBlock(['stmt'], { line: 2 }, 'app');
-    expect(n.type).toBe('ClientBlock');
+  test('BrowserBlock', () => {
+    const n = new AST.BrowserBlock(['stmt'], { line: 2 }, 'app');
+    expect(n.type).toBe('BrowserBlock');
     expect(n.name).toBe('app');
   });
 

@@ -1,11 +1,11 @@
-// Main code generator — orchestrates shared/server/client codegen
+// Main code generator — orchestrates shared/server/browser codegen
 // Supports named multi-blocks: server "api" { }, server "ws" { }
 // Blocks with the same name are merged; different names produce separate output files.
 
 import { SharedCodegen } from './shared-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
 import { ServerCodegen } from './server-codegen.js';
-import { ClientCodegen } from './client-codegen.js';
+import { BrowserCodegen } from './browser-codegen.js';
 import { SecurityCodegen } from './security-codegen.js';
 import { CliCodegen } from './cli-codegen.js';
 import { BlockRegistry } from '../registry/register-all.js';
@@ -14,8 +14,8 @@ function getServerCodegen() {
   return ServerCodegen;
 }
 
-function getClientCodegen() {
-  return ClientCodegen;
+function getBrowserCodegen() {
+  return BrowserCodegen;
 }
 
 export class CodeGenerator {
@@ -63,7 +63,7 @@ export class CodeGenerator {
     // Convenience aliases
     const sharedBlocks = getBlocks('shared');
     const serverBlocks = getBlocks('server');
-    const clientBlocks = getBlocks('client');
+    const browserBlocks = getBlocks('browser');
     const testBlocks = getBlocks('test');
     const benchBlocks = getBlocks('bench');
     const dataBlocks = getBlocks('data');
@@ -85,7 +85,8 @@ export class CodeGenerator {
       return {
         shared: combined,
         server: '',
-        client: '',
+        browser: '',
+        client: '',  // deprecated alias
         isModule: true,
         sourceMappings: moduleGen.getSourceMappings(),
         _sourceFile: this.filename,
@@ -102,8 +103,8 @@ export class CodeGenerator {
       ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
       : '';
 
-    // Pre-scan server/client blocks for builtin usage so shared stdlib includes them
-    this._scanBlocksForBuiltins([...serverBlocks, ...clientBlocks], sharedGen._usedBuiltins);
+    // Pre-scan server/browser blocks for builtin usage so shared stdlib includes them
+    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks], sharedGen._usedBuiltins);
 
     const helpers = sharedGen.generateHelpers();
 
@@ -112,9 +113,9 @@ export class CodeGenerator {
 
     const combinedShared = [helpers, sharedCode, topLevelCode, dataCode].filter(s => s.trim()).join('\n').trim();
 
-    // Group server and client blocks by name
+    // Group server and browser blocks by name
     const serverGroups = this._groupByName(serverBlocks);
-    const clientGroups = this._groupByName(clientBlocks);
+    const browserGroups = this._groupByName(browserBlocks);
 
     // Collect function names per named server block for inter-server RPC
     const serverFunctionMap = new Map(); // blockName -> [fnName, ...]
@@ -163,13 +164,13 @@ export class CodeGenerator {
       servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks, securityConfig);
     }
 
-    // Generate client outputs (one per named group)
-    const clients = {};
-    for (const [name, blocks] of clientGroups) {
-      const gen = new (getClientCodegen())();
+    // Generate browser outputs (one per named group)
+    const browsers = {};
+    for (const [name, blocks] of browserGroups) {
+      const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
     }
 
     // Generate tests if test blocks exist
@@ -193,16 +194,18 @@ export class CodeGenerator {
     }
 
     // Backward-compatible: if only unnamed blocks, return flat structure
-    const hasNamedBlocks = [...serverGroups.keys(), ...clientGroups.keys()].some(k => k !== null);
+    const hasNamedBlocks = [...serverGroups.keys(), ...browserGroups.keys()].some(k => k !== null);
 
     // Collect source mappings from all codegens
     const sourceMappings = sharedGen.getSourceMappings();
 
     if (!hasNamedBlocks) {
+      const browserCode = browsers['default'] || '';
       const result = {
         shared: combinedShared,
         server: servers['default'] || '',
-        client: clients['default'] || '',
+        browser: browserCode,
+        client: browserCode,  // deprecated alias for backward compat
         sourceMappings,
         _sourceFile: this.filename,
       };
@@ -212,12 +215,15 @@ export class CodeGenerator {
     }
 
     // Multi-block output: separate files per named block
+    const browserDefault = browsers['default'] || '';
     const result = {
       shared: combinedShared,
       server: servers['default'] || '',
-      client: clients['default'] || '',
+      browser: browserDefault,
+      client: browserDefault,  // deprecated alias for backward compat
       servers,   // { "api": code, "ws": code, ... }
-      clients,   // { "admin": code, "dashboard": code, ... }
+      browsers,  // { "admin": code, "dashboard": code, ... }
+      clients: browsers,   // deprecated alias for backward compat
       multiBlock: true,
       sourceMappings,
       _sourceFile: this.filename,
@@ -260,7 +266,8 @@ export class CodeGenerator {
       isCli: true,
       shared: '',
       server: '',
-      client: '',
+      browser: '',
+      client: '',  // deprecated alias
       sourceMappings: sharedGen.getSourceMappings(),
       _sourceFile: this.filename,
     };

@@ -9,7 +9,7 @@ function genClient(source) {
   const parser = new Parser(tokens, '<test>');
   const ast = parser.parse();
   const gen = new CodeGenerator(ast, '<test>');
-  return gen.generate().client || '';
+  return gen.generate().browser || '';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -21,7 +21,7 @@ describe('use: action directives', () => {
   // ─── Boolean (no param) ──────────────────────────────────
   test('use:tooltip (boolean) generates __tova_action with undefined param', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           <div use:tooltip />
         }
@@ -37,7 +37,7 @@ describe('use: action directives', () => {
   // ─── With non-reactive param (plain variable) ───────────
   test('use:tooltip={text} with plain var generates __tova_action with identifier param', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           text = "hello"
           <div use:tooltip={text} />
@@ -55,7 +55,7 @@ describe('use: action directives', () => {
   // ─── Runtime import includes __tova_action ──────────────
   test('__tova_action appears in runtime import line', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           <div use:tooltip />
         }
@@ -70,7 +70,7 @@ describe('use: action directives', () => {
   // ─── Multiple use: directives on same element ───────────
   test('multiple use: directives on same element wrap nested', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           <div use:tooltip use:draggable />
         }
@@ -89,7 +89,7 @@ describe('use: action directives', () => {
   // ─── Reactive param wraps in () => ──────────────────────
   test('use:action with reactive param (state) wraps param in () =>', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           state text = "hello"
           <div use:tooltip={text} />
@@ -105,7 +105,7 @@ describe('use: action directives', () => {
   // ─── Reactive param with expression ─────────────────────
   test('use:action with reactive expression wraps in () =>', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           state count = 0
           <div use:highlight={count + 1} />
@@ -121,7 +121,7 @@ describe('use: action directives', () => {
   // ─── Non-reactive expression param ──────────────────────
   test('use:action with non-reactive expression does not wrap in () =>', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           config = { duration: 300 }
           <div use:tooltip={config} />
@@ -136,7 +136,7 @@ describe('use: action directives', () => {
   // ─── String literal param ──────────────────────────────
   test('use:action with string literal param', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           <div use:tooltip={"Click me"} />
         }
@@ -152,7 +152,7 @@ describe('use: action directives', () => {
   // ─── use: directive with other attributes ───────────────
   test('use: directive works alongside regular attributes', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           <div class="container" use:tooltip id="main" />
         }
@@ -167,7 +167,7 @@ describe('use: action directives', () => {
   // ─── Multiple directives with mixed params ─────────────
   test('multiple use: directives with different param types', () => {
     const code = genClient(`
-      client {
+      browser {
         component App() {
           state visible = true
           <div use:tooltip={"info"} use:toggle={visible} />

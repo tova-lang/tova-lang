@@ -1,8 +1,8 @@
 import { BaseCodegen } from './base-codegen.js';
-import { getClientStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
+import { getBrowserStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 import { SecurityCodegen } from './security-codegen.js';
 
-export class ClientCodegen extends BaseCodegen {
+export class BrowserCodegen extends BaseCodegen {
   constructor() {
     super();
     this.stateNames = new Set(); // Track state variable names for setter transforms
@@ -185,7 +185,7 @@ export class ClientCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(clientBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     const lines = [];
 
@@ -242,7 +242,7 @@ export class ClientCodegen extends BaseCodegen {
     // Security block: auth token injection and role helpers
     if (securityConfig) {
       const secGen = new SecurityCodegen();
-      const clientSecurity = secGen.generateClientSecurity(securityConfig);
+      const clientSecurity = secGen.generateBrowserSecurity(securityConfig);
       if (clientSecurity.trim()) {
         lines.push(clientSecurity);
         lines.push('');
@@ -257,7 +257,7 @@ export class ClientCodegen extends BaseCodegen {
     const imports = [];
     const other = [];
 
-    for (const block of clientBlocks) {
+    for (const block of browserBlocks) {
       for (const stmt of block.body) {
         switch (stmt.type) {
           case 'StateDeclaration': states.push(stmt); break;

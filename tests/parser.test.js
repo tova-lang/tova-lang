@@ -342,9 +342,9 @@ describe('Parser — Full-stack blocks', () => {
     expect(ast.body[0].body.length).toBe(1);
   });
 
-  test('client block', () => {
-    const ast = parse('client { state count = 0 }');
-    expect(ast.body[0].type).toBe('ClientBlock');
+  test('browser block', () => {
+    const ast = parse('browser { state count = 0 }');
+    expect(ast.body[0].type).toBe('BrowserBlock');
     expect(ast.body[0].body[0].type).toBe('StateDeclaration');
   });
 
@@ -362,33 +362,33 @@ describe('Parser — Full-stack blocks', () => {
   });
 
   test('state declaration', () => {
-    const ast = parse('client { state count: Int = 0 }');
+    const ast = parse('browser { state count: Int = 0 }');
     const state = ast.body[0].body[0];
     expect(state.type).toBe('StateDeclaration');
     expect(state.typeAnnotation.name).toBe('Int');
   });
 
   test('computed declaration', () => {
-    const ast = parse('client { computed doubled = count * 2 }');
+    const ast = parse('browser { computed doubled = count * 2 }');
     const comp = ast.body[0].body[0];
     expect(comp.type).toBe('ComputedDeclaration');
   });
 
   test('effect declaration', () => {
-    const ast = parse('client { effect { print("hello") } }');
+    const ast = parse('browser { effect { print("hello") } }');
     const eff = ast.body[0].body[0];
     expect(eff.type).toBe('EffectDeclaration');
   });
 
   test('component declaration', () => {
-    const ast = parse('client { component App { <div>"Hello"</div> } }');
+    const ast = parse('browser { component App { <div>"Hello"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.type).toBe('ComponentDeclaration');
     expect(comp.name).toBe('App');
   });
 
   test('component with props', () => {
-    const ast = parse('client { component Card(title, body) { <div>"test"</div> } }');
+    const ast = parse('browser { component Card(title, body) { <div>"test"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.params.length).toBe(2);
   });
@@ -402,9 +402,9 @@ describe('Parser — Named Multi-Blocks', () => {
     expect(ast.body[0].body.length).toBe(1);
   });
 
-  test('named client block', () => {
-    const ast = parse('client "dashboard" { state count = 0 }');
-    expect(ast.body[0].type).toBe('ClientBlock');
+  test('named browser block', () => {
+    const ast = parse('browser "dashboard" { state count = 0 }');
+    expect(ast.body[0].type).toBe('BrowserBlock');
     expect(ast.body[0].name).toBe('dashboard');
   });
 

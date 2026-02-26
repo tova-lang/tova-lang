@@ -4,7 +4,7 @@ title: Build System
 
 # Build System
 
-The Tova build system compiles `.tova` source files into JavaScript, handling shared types, server blocks, client blocks, and runtime dependencies.
+The Tova build system compiles `.tova` source files into JavaScript, handling shared types, server blocks, browser blocks, and runtime dependencies.
 
 ## Basic Build
 
@@ -41,7 +41,7 @@ After building, the `.tova-out/` directory contains:
   app.server.js          # Default server block
   app.server.api.js      # Named server block "api"
   app.server.events.js   # Named server block "events"
-  app.client.js          # Default client block
+  app.client.js          # Default browser block
   runtime/
     reactivity.js        # Reactive state runtime
     rpc.js               # Server RPC client
@@ -55,8 +55,8 @@ Each `.tova` source file produces up to several output files:
 | `<name>.shared.js` | `shared { ... }` | Types and functions available to both server and client |
 | `<name>.server.js` | `server { ... }` | Default server block code |
 | `<name>.server.<block>.js` | `server "<block>" { ... }` | Named server blocks |
-| `<name>.client.js` | `client { ... }` | Default client block code |
-| `<name>.client.<block>.js` | `client "<block>" { ... }` | Named client blocks |
+| `<name>.client.js` | `browser { ... }` | Default browser block code |
+| `<name>.client.<block>.js` | `browser "<block>" { ... }` | Named browser blocks |
 | `<name>.js` | `cli { ... }` | Standalone CLI executable with `#!/usr/bin/env node` shebang |
 
 ## Incremental Caching
@@ -176,11 +176,11 @@ When multiple `.tova` files exist in the same directory, the build system **merg
 src/
   types.tova           # shared { type Task { ... } }
   server.tova          # server { db, model, routes }
-  components.tova      # client { component StatsBar, component TaskItem }
-  app.tova             # client { state, effects, component App }
+  components.tova      # browser { component StatsBar, component TaskItem }
+  app.tova             # browser { state, effects, component App }
 ```
 
-All `client {}` blocks from `components.tova` and `app.tova` merge into one client output. `App` can reference `StatsBar` and `TaskItem` without imports. All `shared {}` blocks merge. All `server {}` blocks merge.
+All `browser {}` blocks from `components.tova` and `app.tova` merge into one client output. `App` can reference `StatsBar` and `TaskItem` without imports. All `shared {}` blocks merge. All `server {}` blocks merge.
 
 The output uses the directory name as the base filename:
 
@@ -188,7 +188,7 @@ The output uses the directory name as the base filename:
 .tova-out/
   src.shared.js        # merged shared blocks
   src.server.js        # merged server blocks
-  src.client.js        # merged client blocks
+  src.client.js        # merged browser blocks
   runtime/
     ...
 ```

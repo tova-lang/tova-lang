@@ -1,4 +1,4 @@
-// Tests that all DOM APIs and window globals are accessible in client blocks
+// Tests that all DOM APIs and window globals are accessible in browser blocks
 // without triggering false "undefined identifier" analyzer warnings.
 
 import { describe, test, expect } from 'bun:test';
@@ -16,13 +16,13 @@ function analyzeSource(source) {
   return analyzer.analyze();
 }
 
-function compileClient(source) {
+function compileBrowser(source) {
   const lexer = new Lexer(source, '<test>');
   const tokens = lexer.tokenize();
   const parser = new Parser(tokens, '<test>');
   const ast = parser.parse();
   const gen = new CodeGenerator(ast, '<test>');
-  return gen.generate().client || '';
+  return gen.generate().browser || '';
 }
 
 // Filter out snake_case warnings — only check for "is not defined" warnings
@@ -32,7 +32,7 @@ function undefinedWarnings(warnings) {
 
 // ─── Core Browser Globals ────────────────────────────────────
 
-describe('Client DOM APIs — Core globals', () => {
+describe('Browser DOM APIs — Core globals', () => {
   test('document is accessible', () => {
     const { warnings } = analyzeSource('el = document.getElementById("app")');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -81,7 +81,7 @@ describe('Client DOM APIs — Core globals', () => {
 
 // ─── Timers & Scheduling ─────────────────────────────────────
 
-describe('Client DOM APIs — Timers & scheduling', () => {
+describe('Browser DOM APIs — Timers & scheduling', () => {
   test('setTimeout / clearTimeout', () => {
     const { warnings } = analyzeSource('id = setTimeout(fn() { print("hi") }, 100)\nclearTimeout(id)');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -110,7 +110,7 @@ describe('Client DOM APIs — Timers & scheduling', () => {
 
 // ─── Fetch & Network ─────────────────────────────────────────
 
-describe('Client DOM APIs — Fetch & network', () => {
+describe('Browser DOM APIs — Fetch & network', () => {
   test('fetch is accessible', () => {
     const { warnings } = analyzeSource('resp = fetch("/api/data")');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -154,7 +154,7 @@ describe('Client DOM APIs — Fetch & network', () => {
 
 // ─── Storage ─────────────────────────────────────────────────
 
-describe('Client DOM APIs — Storage', () => {
+describe('Browser DOM APIs — Storage', () => {
   test('localStorage', () => {
     const { warnings } = analyzeSource('localStorage.setItem("key", "val")\nv = localStorage.getItem("key")');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -168,7 +168,7 @@ describe('Client DOM APIs — Storage', () => {
 
 // ─── DOM & Events ────────────────────────────────────────────
 
-describe('Client DOM APIs — DOM constructors & events', () => {
+describe('Browser DOM APIs — DOM constructors & events', () => {
   test('Event', () => {
     const { warnings } = analyzeSource('e = Event.new("click")');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -267,7 +267,7 @@ describe('Client DOM APIs — DOM constructors & events', () => {
 
 // ─── Observers ───────────────────────────────────────────────
 
-describe('Client DOM APIs — Observers', () => {
+describe('Browser DOM APIs — Observers', () => {
   test('IntersectionObserver', () => {
     const { warnings } = analyzeSource('obs = IntersectionObserver.new(fn(entries) { print(entries) })');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -286,7 +286,7 @@ describe('Client DOM APIs — Observers', () => {
 
 // ─── Browser Utility APIs ────────────────────────────────────
 
-describe('Client DOM APIs — Browser utilities', () => {
+describe('Browser DOM APIs — Browser utilities', () => {
   test('getComputedStyle', () => {
     const { warnings } = analyzeSource('el = document.body\nstyles = getComputedStyle(el)');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -320,7 +320,7 @@ describe('Client DOM APIs — Browser utilities', () => {
 
 // ─── Encoding ────────────────────────────────────────────────
 
-describe('Client DOM APIs — Encoding', () => {
+describe('Browser DOM APIs — Encoding', () => {
   test('TextEncoder / TextDecoder', () => {
     const { warnings } = analyzeSource('enc = TextEncoder.new()\ndec = TextDecoder.new()');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -344,7 +344,7 @@ describe('Client DOM APIs — Encoding', () => {
 
 // ─── Workers & Channels ──────────────────────────────────────
 
-describe('Client DOM APIs — Workers & channels', () => {
+describe('Browser DOM APIs — Workers & channels', () => {
   test('Worker', () => {
     const { warnings } = analyzeSource('w = Worker.new("worker.js")');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -368,7 +368,7 @@ describe('Client DOM APIs — Workers & channels', () => {
 
 // ─── Media & Graphics ────────────────────────────────────────
 
-describe('Client DOM APIs — Media & graphics', () => {
+describe('Browser DOM APIs — Media & graphics', () => {
   test('AudioContext', () => {
     const { warnings } = analyzeSource('ctx = AudioContext.new()');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -382,7 +382,7 @@ describe('Client DOM APIs — Media & graphics', () => {
 
 // ─── Typed Arrays ────────────────────────────────────────────
 
-describe('Client DOM APIs — Typed arrays', () => {
+describe('Browser DOM APIs — Typed arrays', () => {
   test('ArrayBuffer', () => {
     const { warnings } = analyzeSource('buf = ArrayBuffer.new(16)');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -421,7 +421,7 @@ describe('Client DOM APIs — Typed arrays', () => {
 
 // ─── Streams ─────────────────────────────────────────────────
 
-describe('Client DOM APIs — Streams', () => {
+describe('Browser DOM APIs — Streams', () => {
   test('ReadableStream', () => {
     const { warnings } = analyzeSource('s = ReadableStream.new({})');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -440,7 +440,7 @@ describe('Client DOM APIs — Streams', () => {
 
 // ─── JS Built-ins ────────────────────────────────────────────
 
-describe('Client DOM APIs — JS built-ins', () => {
+describe('Browser DOM APIs — JS built-ins', () => {
   test('Promise', () => {
     const { warnings } = analyzeSource('p = Promise.resolve(42)');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -474,9 +474,9 @@ describe('Client DOM APIs — JS built-ins', () => {
 
 // ─── Client Block Compilation — DOM Access ───────────────────
 
-describe('Client block compilation — DOM access', () => {
+describe('Browser block compilation — DOM access', () => {
   test('document.getElementById compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     el = document.getElementById("main")
     <div>Hello</div>
@@ -486,7 +486,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('window.addEventListener compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     window.addEventListener("resize", fn() { print("resized") })
     <div>App</div>
@@ -496,7 +496,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('localStorage access compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     theme = localStorage.getItem("theme")
     <div>{theme}</div>
@@ -506,7 +506,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('fetch call compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     async fn load_data() {
       resp = await fetch("/api/data")
@@ -519,7 +519,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('setTimeout compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     setTimeout(fn() { print("delayed") }, 1000)
     <div>App</div>
@@ -529,7 +529,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('WebSocket usage compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     ws = WebSocket.new("ws://localhost:8080")
     <div>Chat</div>
@@ -539,7 +539,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('IntersectionObserver compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     obs = IntersectionObserver.new(fn(entries) { print(entries) })
     <div>App</div>
@@ -549,7 +549,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('matchMedia compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     mq = matchMedia("(prefers-color-scheme: dark)")
     <div>App</div>
@@ -559,7 +559,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('requestAnimationFrame compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     requestAnimationFrame(fn() { print("frame") })
     <div>App</div>
@@ -569,7 +569,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('navigator.clipboard compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     cb = navigator.clipboard
     <div>App</div>
@@ -579,7 +579,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('history.pushState compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     history.pushState({}, "", "/new")
     <div>App</div>
@@ -589,7 +589,7 @@ describe('Client block compilation — DOM access', () => {
   });
 
   test('CustomEvent constructor compiles to JS', () => {
-    const code = compileClient(`client {
+    const code = compileBrowser(`browser {
   component App() {
     opts = {detail: "hello"}
     evt = CustomEvent.new("notify", opts)
@@ -602,7 +602,7 @@ describe('Client block compilation — DOM access', () => {
 
 // ─── Window Properties ───────────────────────────────────────
 
-describe('Client DOM APIs — Window properties', () => {
+describe('Browser DOM APIs — Window properties', () => {
   test('innerWidth / innerHeight', () => {
     const { warnings } = analyzeSource('w = innerWidth\nh = innerHeight');
     expect(undefinedWarnings(warnings)).toEqual([]);
@@ -636,7 +636,7 @@ describe('Client DOM APIs — Window properties', () => {
 
 // ─── Blob & File APIs ────────────────────────────────────────
 
-describe('Client DOM APIs — Blob & File', () => {
+describe('Browser DOM APIs — Blob & File', () => {
   test('Blob', () => {
     const { warnings } = analyzeSource('opts = {"type": "text/plain"}\nb = Blob.new(["hello"], opts)');
     expect(undefinedWarnings(warnings)).toEqual([]);

@@ -559,12 +559,12 @@ describe('cli block - integration', () => {
     expect(output.cli).toContain('Low');
   });
 
-  test('cli blocks do not produce server/client output', () => {
+  test('cli blocks do not produce server/browser output', () => {
     const output = compile(`cli {
       name: "tool"
       fn run() { print("running") }
     }`);
     expect(output.server).toBe('');
-    expect(output.client).toBe('');
+    expect(output.browser).toBe('');
   });
 });

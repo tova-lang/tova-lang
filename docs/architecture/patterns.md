@@ -11,7 +11,7 @@ Every Tova application uses up to four block types. Each has a clear responsibil
 | `shared {}` | Both | Types, validation, constants, pure utility functions |
 | `data {}` | Server | Sources, pipelines, validation rules, refresh policies |
 | `server {}` | Server | Routes, middleware, database, AI, background jobs, events |
-| `client {}` | Browser | State, computed, effects, stores, components |
+| `browser {}` | Browser | State, computed, effects, stores, components |
 
 ### What Belongs Where
 
@@ -34,7 +34,7 @@ Every Tova application uses up to four block types. Each has a clear responsibil
 - Background jobs, scheduled tasks, event bus
 - Server-side state (`var` declarations)
 
-**client** — Put it here if it's about the UI:
+**browser** — Put it here if it's about the UI:
 - Reactive state (`state` declarations)
 - Computed values and effects
 - Stores for encapsulated state groups
@@ -44,11 +44,11 @@ Every Tova application uses up to four block types. Each has a clear responsibil
 
 | Anti-Pattern | Problem | Fix |
 |-------------|---------|-----|
-| Types in server/client | Duplicated, can drift | Move to `shared {}` |
-| Business logic in client | Bypassable, insecure | Move validation to server; shared for both |
-| AI calls in client | Exposes API keys | Always call AI in `server {}` |
+| Types in server/browser | Duplicated, can drift | Move to `shared {}` |
+| Business logic in browser | Bypassable, insecure | Move validation to server; shared for both |
+| AI calls in browser | Exposes API keys | Always call AI in `server {}` |
 | Data pipelines in server functions | Repeated computation | Define in `data {}`, reference by name |
-| State in shared | shared is stateless | Use server `var` or client `state` |
+| State in shared | shared is stateless | Use server `var` or browser `state` |
 
 ## State Management
 
@@ -56,15 +56,15 @@ Every Tova application uses up to four block types. Each has a clear responsibil
 
 | Mechanism | Scope | Use When |
 |-----------|-------|----------|
-| `state x = value` | Single component or client-global | Simple reactive values, form inputs, UI toggles |
-| `store Name {}` | Client-global, encapsulated | Related state + computed + functions that belong together |
+| `state x = value` | Single component or browser-global | Simple reactive values, form inputs, UI toggles |
+| `store Name {}` | Browser-global, encapsulated | Related state + computed + functions that belong together |
 | `var x = value` (server) | Server-global, mutable | Server-side caches, session data, counters |
 | `data { source/pipeline }` | Server-global, declarative | Data loaded from files/APIs, transformed datasets |
 
 ### Decision Guide
 
 ```
-Is it UI-only? → state or store (client)
+Is it UI-only? → state or store (browser)
 Is it shared data? → data block
 Is it server-side mutable state? → server var
 Do multiple states + computations belong together? → store

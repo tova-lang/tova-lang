@@ -510,7 +510,7 @@ describe('P4: JSX disambiguation', () => {
 
   test('JSX with component still works', () => {
     expect(() => parse(`
-      client {
+      browser {
         component App {
           <div>hello</div>
         }

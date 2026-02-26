@@ -626,8 +626,8 @@ describe('Scope management edge cases', () => {
     expect(scope.lookupLocal('server_var')).toBeNull();
   });
 
-  test('client block scope isolation from module scope', () => {
-    const { scope } = analyze('client { state counter = 0 }');
+  test('browser block scope isolation from module scope', () => {
+    const { scope } = analyze('browser { state counter = 0 }');
     expect(scope.lookupLocal('counter')).toBeNull();
   });
 
@@ -959,7 +959,7 @@ describe('Component and Store analysis', () => {
 
   test('store with multiple state members', () => {
     expect(() => analyze(`
-      client {
+      browser {
         store AppStore {
           state count = 0
           state name = "test"
@@ -971,7 +971,7 @@ describe('Component and Store analysis', () => {
 
   test('store with state, computed, and functions', () => {
     expect(() => analyze(`
-      client {
+      browser {
         store TodoStore {
           state items = []
           computed count = len(items)
@@ -982,25 +982,25 @@ describe('Component and Store analysis', () => {
   });
 
   test('store name registered in scope', () => {
-    const { scope } = analyze('client { store MyStore { state x = 0 } }');
-    // Store is defined in client scope, not module scope
-    // But the client scope is a child of module scope
+    const { scope } = analyze('browser { store MyStore { state x = 0 } }');
+    // Store is defined in browser scope, not module scope
+    // But the browser scope is a child of module scope
     // so lookupLocal on module scope should return null
     expect(scope.lookupLocal('MyStore')).toBeNull();
   });
 
-  test('store outside client block errors via manual AST', () => {
+  test('store outside browser block errors via manual AST', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const node = new AST.StoreDeclaration('MyStore', [], loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/store.*client block/i);
+    expect(() => analyzer.analyze()).toThrow(/store.*browser block/i);
   });
 
   test('component body with JSX and statements', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           x = 1
           <div>"hello"</div>
@@ -1011,7 +1011,7 @@ describe('Component and Store analysis', () => {
 
   test('component with typed props', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component Card(title: String, count: Int) {
           <div>"card"</div>
         }
@@ -1021,7 +1021,7 @@ describe('Component and Store analysis', () => {
 
   test('component with no params', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>"Hello World"</div>
         }
@@ -1030,21 +1030,21 @@ describe('Component and Store analysis', () => {
   });
 
   test('state with type annotation', () => {
-    expect(() => analyze('client { state count: Int = 0 }')).not.toThrow();
+    expect(() => analyze('browser { state count: Int = 0 }')).not.toThrow();
   });
 
   test('duplicate component name throws', () => {
     expect(analyzeThrows(`
-      client {
+      browser {
         component App { <div>"a"</div> }
         component App { <div>"b"</div> }
       }
     `)).toThrow(/already defined/);
   });
 
-  test('computed declaration inside client', () => {
+  test('computed declaration inside browser', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state count = 0
         computed doubled = count * 2
         computed tripled = count * 3
@@ -1052,9 +1052,9 @@ describe('Component and Store analysis', () => {
     `)).not.toThrow();
   });
 
-  test('effect declaration inside client', () => {
+  test('effect declaration inside browser', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state count = 0
         effect { print(count) }
       }
@@ -1078,15 +1078,15 @@ describe('JSX analysis', () => {
     const comp = new AST.ComponentDeclaration('App', [
       new AST.Parameter('props', null, null, loc)
     ], [div], loc);
-    const clientBlock = new AST.ClientBlock([comp], loc);
-    const ast = new AST.Program([clientBlock]);
+    const browserBlock = new AST.BrowserBlock([comp], loc);
+    const ast = new AST.Program([browserBlock]);
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).not.toThrow();
   });
 
   test('JSX with mixed children (text, expression, element)', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>
             "hello "
@@ -1100,7 +1100,7 @@ describe('JSX analysis', () => {
 
   test('JSXIf with elif branches', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>
             if x > 10 {
@@ -1120,7 +1120,7 @@ describe('JSX analysis', () => {
 
   test('JSXIf without else', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>
             if show {
@@ -1135,7 +1135,7 @@ describe('JSX analysis', () => {
   test('JSXFor variable scoping', () => {
     // The for loop variable should be scoped to the JSXFor body
     expect(() => analyze(`
-      client {
+      browser {
         component List {
           <ul>
             for item in items {
@@ -1149,7 +1149,7 @@ describe('JSX analysis', () => {
 
   test('nested JSX elements', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>
             <header><h1>"Title"</h1></header>
@@ -1162,7 +1162,7 @@ describe('JSX analysis', () => {
 
   test('JSX with event handler attribute', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state count = 0
         component App {
           <button on:click={fn() count + 1}>"Click"</button>
@@ -1173,7 +1173,7 @@ describe('JSX analysis', () => {
 
   test('JSX with bind directive', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state name = ""
         component App {
           <input bind:value={name} />
@@ -1184,7 +1184,7 @@ describe('JSX analysis', () => {
 
   test('JSX self-closing element', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div><br /><hr /></div>
         }
@@ -1339,15 +1339,15 @@ describe('Error detection', () => {
   });
 
   test('duplicate component param detected', () => {
-    expect(analyzeThrows('client { component Bad(x, x) { <div>"test"</div> } }')).toThrow(/already defined/);
+    expect(analyzeThrows('browser { component Bad(x, x) { <div>"test"</div> } }')).toThrow(/already defined/);
   });
 
-  test('duplicate state name in client block detected', () => {
-    expect(analyzeThrows('client { state count = 0\nstate count = 1 }')).toThrow(/already defined/);
+  test('duplicate state name in browser block detected', () => {
+    expect(analyzeThrows('browser { state count = 0\nstate count = 1 }')).toThrow(/already defined/);
   });
 
   test('duplicate computed name detected', () => {
-    expect(analyzeThrows('client { computed a = 1\ncomputed a = 2 }')).toThrow(/already defined/);
+    expect(analyzeThrows('browser { computed a = 1\ncomputed a = 2 }')).toThrow(/already defined/);
   });
 });
 
@@ -1437,7 +1437,7 @@ describe('Multiple errors accumulated', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
 
-    // Two state declarations outside client block
+    // Two state declarations outside browser block
     const state1 = new AST.StateDeclaration('a', null, new AST.NumberLiteral(1, loc), loc);
     const state2 = new AST.StateDeclaration('b', null, new AST.NumberLiteral(2, loc), loc);
     const ast = new AST.Program([state1, state2]);
@@ -1450,8 +1450,8 @@ describe('Multiple errors accumulated', () => {
     } catch (e) {
       // The error message should contain references to both state declarations
       expect(e.message).toContain('Analysis errors');
-      // Both state-outside-client errors should be present
-      expect(e.message).toContain("'state' can only be used inside a client block");
+      // Both state-outside-browser errors should be present
+      expect(e.message).toContain("'state' can only be used inside a browser block");
     }
   });
 
@@ -1468,8 +1468,8 @@ describe('Multiple errors accumulated', () => {
       analyzer.analyze();
       expect(true).toBe(false);
     } catch (e) {
-      expect(e.message).toContain("'state' can only be used inside a client block");
-      expect(e.message).toContain("'computed' can only be used inside a client block");
+      expect(e.message).toContain("'state' can only be used inside a browser block");
+      expect(e.message).toContain("'computed' can only be used inside a browser block");
     }
   });
 
@@ -1590,13 +1590,13 @@ describe('Pre-pass function collection from route groups', () => {
 });
 
 // =====================================================================
-// 14. Server/client context enforcement
+// 14. Server/browser context enforcement
 // =====================================================================
 
-describe('Server/client context enforcement', () => {
+describe('Server/browser context enforcement', () => {
 
-  test('state only allowed in client context', () => {
-    expect(() => analyze('client { state count = 0 }')).not.toThrow();
+  test('state only allowed in browser context', () => {
+    expect(() => analyze('browser { state count = 0 }')).not.toThrow();
   });
 
   test('state errors in module context via manual AST', () => {
@@ -1605,11 +1605,11 @@ describe('Server/client context enforcement', () => {
     const node = new AST.StateDeclaration('count', null, new AST.NumberLiteral(0, loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/state.*client block/i);
+    expect(() => analyzer.analyze()).toThrow(/state.*browser block/i);
   });
 
-  test('computed only allowed in client context', () => {
-    expect(() => analyze('client { computed doubled = 2 }')).not.toThrow();
+  test('computed only allowed in browser context', () => {
+    expect(() => analyze('browser { computed doubled = 2 }')).not.toThrow();
   });
 
   test('computed errors in module context via manual AST', () => {
@@ -1618,11 +1618,11 @@ describe('Server/client context enforcement', () => {
     const node = new AST.ComputedDeclaration('d', new AST.NumberLiteral(0, loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/computed.*client block/i);
+    expect(() => analyzer.analyze()).toThrow(/computed.*browser block/i);
   });
 
-  test('effect only allowed in client context', () => {
-    expect(() => analyze('client { effect { print("x") } }')).not.toThrow();
+  test('effect only allowed in browser context', () => {
+    expect(() => analyze('browser { effect { print("x") } }')).not.toThrow();
   });
 
   test('effect errors in module context via manual AST', () => {
@@ -1631,11 +1631,11 @@ describe('Server/client context enforcement', () => {
     const node = new AST.EffectDeclaration(new AST.BlockStatement([], loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/effect.*client block/i);
+    expect(() => analyzer.analyze()).toThrow(/effect.*browser block/i);
   });
 
-  test('component only allowed in client context', () => {
-    expect(() => analyze('client { component App { <div>"hi"</div> } }')).not.toThrow();
+  test('component only allowed in browser context', () => {
+    expect(() => analyze('browser { component App { <div>"hi"</div> } }')).not.toThrow();
   });
 
   test('component errors in module context via manual AST', () => {
@@ -1644,7 +1644,7 @@ describe('Server/client context enforcement', () => {
     const node = new AST.ComponentDeclaration('App', [], [], loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/component.*client block/i);
+    expect(() => analyzer.analyze()).toThrow(/component.*browser block/i);
   });
 
   test('route only allowed in server context', () => {
@@ -1677,7 +1677,7 @@ describe('Server/client context enforcement', () => {
     expect(() => analyzer.analyze()).toThrow(/middleware.*server block/i);
   });
 
-  test('nested client inside function inside server context: client-only nodes still require client', () => {
+  test('nested browser inside function inside server context: browser-only nodes still require browser', () => {
     // A function inside a server block is still in server context
     // So state inside that function should error
     const AST = require('../src/parser/ast.js');
@@ -1690,7 +1690,7 @@ describe('Server/client context enforcement', () => {
     const ast = new AST.Program([serverBlock]);
     const analyzer = new Analyzer(ast, '<test>');
 
-    expect(() => analyzer.analyze()).toThrow(/state.*client block/i);
+    expect(() => analyzer.analyze()).toThrow(/state.*browser block/i);
   });
 });
 
@@ -1723,8 +1723,8 @@ describe('Miscellaneous analysis paths', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const styleNode = new AST.ComponentStyleBlock('.foo { color: red; }', loc);
-    const clientBlock = new AST.ClientBlock([styleNode], loc);
-    const ast = new AST.Program([clientBlock]);
+    const browserBlock = new AST.BrowserBlock([styleNode], loc);
+    const ast = new AST.Program([browserBlock]);
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).not.toThrow();
   });

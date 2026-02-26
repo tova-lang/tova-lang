@@ -25,7 +25,7 @@ export class DocGenerator {
           if (entry) docs.push(entry);
         }
         if (node.body && Array.isArray(node.body)) walk(node.body);
-        if ((node.type === 'ServerBlock' || node.type === 'ClientBlock' || node.type === 'SharedBlock') && node.body) {
+        if ((node.type === 'ServerBlock' || node.type === 'BrowserBlock' || node.type === 'SharedBlock') && node.body) {
           walk(node.body);
         }
       }

@@ -303,14 +303,14 @@ pub fn sub(a, b) { a - b }
     expect(output.isModule).toBe(true);
   });
 
-  test('module output has shared code but empty server/client', () => {
+  test('module output has shared code but empty server/browser', () => {
     const output = compileModule(`
 pub fn add(a, b) { a + b }
 `);
     expect(output.isModule).toBe(true);
     expect(output.shared).toContain('function add(a, b)');
     expect(output.server).toBe('');
-    expect(output.client).toBe('');
+    expect(output.browser).toBe('');
   });
 
   test('file with shared block is NOT a module', () => {
@@ -331,9 +331,9 @@ server {
     expect(output.isModule).toBeUndefined();
   });
 
-  test('file with client block is NOT a module', () => {
+  test('file with browser block is NOT a module', () => {
     const output = compileModule(`
-client {
+browser {
   component App {
     <div>"Hello"</div>
   }

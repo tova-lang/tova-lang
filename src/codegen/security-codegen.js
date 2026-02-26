@@ -1,5 +1,5 @@
 // Security code generator for the Tova language
-// Produces code fragments consumed by server-codegen and client-codegen.
+// Produces code fragments consumed by server-codegen and browser-codegen.
 
 import { BaseCodegen } from './base-codegen.js';
 
@@ -335,9 +335,9 @@ export class SecurityCodegen extends BaseCodegen {
   }
 
   /**
-   * Generate client-side security code fragments.
+   * Generate browser-side security code fragments.
    */
-  generateClientSecurity(securityConfig) {
+  generateBrowserSecurity(securityConfig) {
     const lines = [];
 
     // Auth token injection for RPC proxy
@@ -384,7 +384,7 @@ export class SecurityCodegen extends BaseCodegen {
     if (securityConfig.roles.length > 0) {
       lines.push('// ── Security: Roles ──');
       lines.push('// NOTE: Client-side role checking is for UI purposes only. All authorization is enforced server-side.');
-      lines.push('const __clientRoles = {');
+      lines.push('const __browserRoles = {');
       for (const role of securityConfig.roles) {
         const perms = role.permissions.map(p => JSON.stringify(p)).join(', ');
         lines.push(`  ${JSON.stringify(role.name)}: [${perms}],`);
@@ -395,7 +395,7 @@ export class SecurityCodegen extends BaseCodegen {
       lines.push('function getUserRole() { return __currentUserRoles; }');
       lines.push('function can(permission) {');
       lines.push('  for (const r of __currentUserRoles) {');
-      lines.push('    const perms = __clientRoles[r];');
+      lines.push('    const perms = __browserRoles[r];');
       lines.push('    if (perms && perms.includes(permission)) return true;');
       lines.push('  }');
       lines.push('  return false;');

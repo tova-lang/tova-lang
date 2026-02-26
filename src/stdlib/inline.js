@@ -1,6 +1,6 @@
 // Tova standard library — inline string versions for codegen
 // Single source of truth for all inline stdlib code used in code generation.
-// Used by: base-codegen.js, client-codegen.js, bin/tova.js
+// Used by: base-codegen.js, browser-codegen.js, bin/tova.js
 
 export const RESULT_OPTION = `class _Ok { constructor(value) { this.value = value; } }
 _Ok.prototype.__tag = "Ok";
@@ -1461,7 +1461,7 @@ export function getFullStdlib() {
   return `${NATIVE_INIT_SYNC}\n${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }
 
-// Stdlib for client codegen (includes builtins + result/option + propagate)
-export function getClientStdlib() {
+// Stdlib for browser codegen (includes builtins + result/option + propagate)
+export function getBrowserStdlib() {
   return `${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }

@@ -89,7 +89,7 @@ component ThemedButton(label) {
 ### Full Context Example
 
 ```tova
-client {
+browser {
   // Define contexts
   theme_ctx = createContext("light")
   user_ctx = createContext(nil)
@@ -128,7 +128,7 @@ client {
 `watch` observes a reactive expression and calls a callback whenever the value changes. Unlike effects, which re-run their entire body, `watch` separates the tracked expression from the side-effect callback:
 
 ```tova
-client {
+browser {
   state count = 0
 
   // Watch count and log changes
@@ -195,7 +195,7 @@ unwatch()
 `untrack` runs a function without tracking any signal reads. This lets you read a signal inside a reactive context without creating a dependency on it:
 
 ```tova
-client {
+browser {
   state count = 0
   state label = "Counter"
 
@@ -292,7 +292,7 @@ During SSR, use the `head` parameter in `renderPage()` for static head content. 
 ### Basic Usage
 
 ```tova
-client {
+browser {
   [users, { loading, error, refetch }] = createResource(fn() {
     server.get_users()
   })
@@ -319,7 +319,7 @@ client {
 Pass a signal as the first argument to re-fetch whenever the source changes:
 
 ```tova
-client {
+browser {
   state user_id = 1
 
   [user, { loading, error }] = createResource(
@@ -475,7 +475,7 @@ component App {
 `Dynamic` renders a component dynamically based on a reactive signal. This is useful when the component to render is determined at runtime:
 
 ```tova
-client {
+browser {
   state current_view = HomePage
 
   component App {
@@ -762,7 +762,7 @@ Disposing the top-level root disposes everything: Component B's Effect 3 and Com
 ### Basic Usage
 
 ```tova
-client {
+browser {
   form = createForm({
     fields: {
       email: {

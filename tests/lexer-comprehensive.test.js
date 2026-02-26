@@ -738,7 +738,7 @@ describe('Lexer — Error message format', () => {
 
 describe('Lexer — Complex multi-feature tokenization', () => {
   test('full component with state, JSX, events, and styles', () => {
-    const src = `client {
+    const src = `browser {
   component Counter(initial: Int = 0) {
     state count = initial
     computed doubled = count * 2
@@ -752,7 +752,7 @@ describe('Lexer — Complex multi-feature tokenization', () => {
   }
 }`;
     const tokens = lex(src);
-    expect(tokens.some(t => t.type === TokenType.CLIENT)).toBe(true);
+    expect(tokens.some(t => t.type === TokenType.BROWSER)).toBe(true);
     expect(tokens.some(t => t.type === TokenType.COMPONENT)).toBe(true);
     expect(tokens.some(t => t.type === TokenType.STATE)).toBe(true);
     expect(tokens.some(t => t.type === TokenType.COMPUTED)).toBe(true);
@@ -956,7 +956,7 @@ describe('Lexer — Token type completeness', () => {
       'from': TokenType.FROM, 'export': TokenType.EXPORT, 'as': TokenType.AS,
       'and': TokenType.AND, 'or': TokenType.OR, 'not': TokenType.NOT,
       'in': TokenType.IN, 'true': TokenType.TRUE, 'false': TokenType.FALSE,
-      'nil': TokenType.NIL, 'server': TokenType.SERVER, 'client': TokenType.CLIENT,
+      'nil': TokenType.NIL, 'server': TokenType.SERVER, 'client': TokenType.BROWSER,
       'shared': TokenType.SHARED, 'route': TokenType.ROUTE, 'state': TokenType.STATE,
       'computed': TokenType.COMPUTED, 'effect': TokenType.EFFECT,
       'component': TokenType.COMPONENT, 'store': TokenType.STORE,

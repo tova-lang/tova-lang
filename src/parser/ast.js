@@ -27,14 +27,16 @@ export class ServerBlock {
   }
 }
 
-export class ClientBlock {
+export class BrowserBlock {
   constructor(body, loc, name = null) {
-    this.type = 'ClientBlock';
+    this.type = 'BrowserBlock';
     this.name = name;
     this.body = body;
     this.loc = loc;
   }
 }
+// Deprecated alias for backward compatibility
+export { BrowserBlock as ClientBlock };
 
 export class SharedBlock {
   constructor(body, loc, name = null) {
@@ -674,7 +676,7 @@ export class RangePattern {
 }
 
 // ============================================================
-// Client-specific nodes (lazy-loaded from client-ast.js, re-exported for backward compat)
+// Browser-specific nodes (lazy-loaded from browser-ast.js, re-exported for backward compat)
 // ============================================================
 
 export {
@@ -682,7 +684,7 @@ export {
   ComponentDeclaration, ComponentStyleBlock, StoreDeclaration,
   JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment,
   JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch,
-} from './client-ast.js';
+} from './browser-ast.js';
 
 // ============================================================
 // Server-specific nodes (lazy-loaded from server-ast.js, re-exported for backward compat)

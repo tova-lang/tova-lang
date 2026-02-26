@@ -213,7 +213,7 @@ server {
   route GET "/api/insights" => get_insights
 }
 
-client {
+browser {
   state articles: [EnrichedArticle] = []
   state insights: Option<Insight> = None
   state search = ""

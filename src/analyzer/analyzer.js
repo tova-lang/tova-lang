@@ -97,7 +97,7 @@ function levenshtein(a, b) {
 
 const _TOVA_RUNTIME = new Set([
   'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
-  'db', 'server', 'client', 'shared',
+  'db', 'server', 'browser', 'client', 'shared',
 ]);
 
 // Pre-built static candidate set for Levenshtein suggestions (N1 optimization)
@@ -776,9 +776,9 @@ export class Analyzer {
     return this[methodName](node);
   }
 
-  _visitClientNode(node) {
-    // Ensure client analyzer is installed (may be called from visitExpression for JSX)
-    const plugin = BlockRegistry.get('client');
+  _visitBrowserNode(node) {
+    // Ensure browser analyzer is installed (may be called from visitExpression for JSX)
+    const plugin = BlockRegistry.get('browser');
     return plugin.analyzer.visit(this, node);
   }
 
@@ -917,7 +917,7 @@ export class Analyzer {
         return;
       case 'JSXElement':
       case 'JSXFragment':
-        return this._visitClientNode(node);
+        return this._visitBrowserNode(node);
       // Column expressions (for table operations) — no semantic analysis needed
       case 'ColumnExpression':
         return;
@@ -1287,7 +1287,7 @@ export class Analyzer {
     }
   }
 
-  // visitClientBlock and other client visitors are in client-analyzer.js (lazy-loaded)
+  // visitBrowserBlock and other browser visitors are in browser-analyzer.js (lazy-loaded)
 
   visitSharedBlock(node) {
     const prevScope = this.currentScope;
@@ -1987,7 +1987,7 @@ export class Analyzer {
     this.visitExpression(node.value);
   }
 
-  // Client-specific visitors (visitState, visitComputed, etc.) are in client-analyzer.js (lazy-loaded)
+  // Browser-specific visitors (visitState, visitComputed, etc.) are in browser-analyzer.js (lazy-loaded)
 
   visitTestBlock(node) {
     const prevScope = this.currentScope;
@@ -2352,7 +2352,7 @@ export class Analyzer {
           candidates.push([node.name, typeVariants]);
         }
       }
-      if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
+      if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'BrowserBlock') {
         this._collectTypeCandidates(node.body, coveredVariants, candidates);
       }
     }
@@ -2447,7 +2447,7 @@ export class Analyzer {
     }
   }
 
-  // visitJSXElement, visitJSXFragment, visitJSXFor, visitJSXIf are in client-analyzer.js (lazy-loaded)
+  // visitJSXElement, visitJSXFragment, visitJSXFor, visitJSXIf are in browser-analyzer.js (lazy-loaded)
 
   // ─── New feature visitors ─────────────────────────────────
 

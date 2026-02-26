@@ -5,7 +5,7 @@ import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import * as AST from '../src/parser/ast.js';
 
 function parse(source) {
@@ -85,21 +85,21 @@ describe('Parser — match patterns (all types)', () => {
 describe('Parser — JSX attribute edge cases', () => {
   // Line 282: attribute name from keyword token (in, as, etc.)
   test('JSX attribute name "in"', () => {
-    const ast = parse('client { component C { <input in="test" /> } }');
+    const ast = parse('browser { component C { <input in="test" /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].attributes[0].name).toBe('in');
   });
 
   // Line 291: on:event with IN keyword as suffix  
   test('JSX on:in event', () => {
-    const ast = parse('client { component C { <div on:in={handler}>"x"</div> } }');
+    const ast = parse('browser { component C { <div on:in={handler}>"x"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].attributes[0].name).toBe('on:in');
   });
 
   // Line 312: attribute with string template value
   test('JSX attribute with template string', () => {
-    const ast = parse('client { component C { <div class="hello {x}">"y"</div> } }');
+    const ast = parse('browser { component C { <div class="hello {x}">"y"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].attributes[0].value.type).toBe('TemplateLiteral');
   });
@@ -111,7 +111,7 @@ describe('Parser — JSX children edge cases', () => {
 
   // Lines 387-391: JSX for body with expression in braces
   test('JSX for body with expression in braces', () => {
-    const ast = parse('client { component C { <div> for x in items { {x} } </div> } }');
+    const ast = parse('browser { component C { <div> for x in items { {x} } </div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const forNode = div.children.find(c => c.type === 'JSXFor');
@@ -182,7 +182,7 @@ describe('Parser — docstrings', () => {
 
 describe('Parser — line 237: component body with statements', () => {
   test('component body with non-JSX statement followed by JSX', () => {
-    const ast = parse('client { component C(x) { <div>"hello"</div> } }');
+    const ast = parse('browser { component C(x) { <div>"hello"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.name).toBe('C');
     expect(comp.body.length).toBeGreaterThan(0);
@@ -237,7 +237,7 @@ describe('Analyzer — remaining error catch blocks', () => {
   // Line 619: visitJSXElement child is JSXElement (nested)
   test('JSX nested element analysis', () => {
     expect(() => {
-      const ast = parse('client { component C { <div><span>"nested"</span></div> } }');
+      const ast = parse('browser { component C { <div><span>"nested"</span></div> } }');
       new Analyzer(ast, '<test>').analyze();
     }).not.toThrow();
   });
@@ -344,10 +344,10 @@ describe('BaseCodegen — let destructure empty', () => {
 // CLIENT CODEGEN — remaining lines 38-39, 65, 191, 198
 // ═══════════════════════════════════════════════════════════
 
-describe('ClientCodegen — lambda with block body + state', () => {
-  // Lines 38-39: genLambdaExpression block body in client (with state tracking)
-  test('lambda with block body in client generates correctly', () => {
-    const gen = new ClientCodegen();
+describe('BrowserCodegen — lambda with block body + state', () => {
+  // Lines 38-39: genLambdaExpression block body in browser (with state tracking)
+  test('lambda with block body in browser generates correctly', () => {
+    const gen = new BrowserCodegen();
     gen.stateNames.add('count');
     const result = gen.genLambdaExpression({
       params: [],
@@ -364,7 +364,7 @@ describe('ClientCodegen — lambda with block body + state', () => {
 
   // Line 65: non-state compound assignment in lambda body
   test('lambda with non-state compound assignment body', () => {
-    const gen = new ClientCodegen();
+    const gen = new BrowserCodegen();
     gen.stateNames.add('count');
     const result = gen.genLambdaExpression({
       params: [],
@@ -381,29 +381,29 @@ describe('ClientCodegen — lambda with block body + state', () => {
   // Line 191: component with non-JSX body items (statements classified vs JSX)
   test('component with FunctionDeclaration and JSX', () => {
     const result = compile(`
-      client {
+      browser {
         component App {
           fn helper() { 42 }
           <div>"hello"</div>
         }
       }
     `);
-    expect(result.client).toContain('function helper()');
-    expect(result.client).toContain('tova_el("div"');
+    expect(result.browser).toContain('function helper()');
+    expect(result.browser).toContain('tova_el("div"');
   });
 
   // Line 198: statement generated before JSX in component
   test('component generates statements before return', () => {
     const result = compile(`
-      client {
+      browser {
         component App {
           fn onClick() { print("clicked") }
           <button on:click={onClick}>"click"</button>
         }
       }
     `);
-    expect(result.client).toContain('function onClick()');
-    expect(result.client).toContain('return tova_el');
+    expect(result.browser).toContain('function onClick()');
+    expect(result.browser).toContain('return tova_el');
   });
 });
 

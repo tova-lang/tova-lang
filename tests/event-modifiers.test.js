@@ -15,7 +15,7 @@ function genClient(source) {
   const parser = new Parser(tokens, '<test>');
   const ast = parser.parse();
   const gen = new CodeGenerator(ast, '<test>');
-  return gen.generate().client || '';
+  return gen.generate().browser || '';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -24,7 +24,7 @@ function genClient(source) {
 
 describe('Parser — Event modifier parsing', () => {
   test('on:click.stop produces correct attribute name', () => {
-    const ast = parse('client { component Foo() { <button on:click.stop={fn(e) handleClick(e)}>"Click"</button> } }');
+    const ast = parse('browser { component Foo() { <button on:click.stop={fn(e) handleClick(e)}>"Click"</button> } }');
     const comp = ast.body[0].body[0];
     const btn = comp.body[0];
     const attr = btn.attributes[0];
@@ -32,7 +32,7 @@ describe('Parser — Event modifier parsing', () => {
   });
 
   test('on:click.stop.prevent produces attribute name with multiple modifiers', () => {
-    const ast = parse('client { component Foo() { <button on:click.stop.prevent={fn(e) handleClick(e)}>"Click"</button> } }');
+    const ast = parse('browser { component Foo() { <button on:click.stop.prevent={fn(e) handleClick(e)}>"Click"</button> } }');
     const comp = ast.body[0].body[0];
     const btn = comp.body[0];
     const attr = btn.attributes[0];
@@ -40,7 +40,7 @@ describe('Parser — Event modifier parsing', () => {
   });
 
   test('on:keydown.enter produces attribute name with key modifier', () => {
-    const ast = parse('client { component Foo() { <input on:keydown.enter={fn(e) handleSubmit(e)} /> } }');
+    const ast = parse('browser { component Foo() { <input on:keydown.enter={fn(e) handleSubmit(e)} /> } }');
     const comp = ast.body[0].body[0];
     const input = comp.body[0];
     const attr = input.attributes[0];
@@ -48,7 +48,7 @@ describe('Parser — Event modifier parsing', () => {
   });
 
   test('on:click without modifiers produces plain attribute name', () => {
-    const ast = parse('client { component Foo() { <button on:click={fn(e) handleClick(e)}>"Click"</button> } }');
+    const ast = parse('browser { component Foo() { <button on:click={fn(e) handleClick(e)}>"Click"</button> } }');
     const comp = ast.body[0].body[0];
     const btn = comp.body[0];
     const attr = btn.attributes[0];
@@ -56,7 +56,7 @@ describe('Parser — Event modifier parsing', () => {
   });
 
   test('on:keydown.enter.prevent produces attribute name with key and guard modifiers', () => {
-    const ast = parse('client { component Foo() { <input on:keydown.enter.prevent={fn(e) handleSubmit(e)} /> } }');
+    const ast = parse('browser { component Foo() { <input on:keydown.enter.prevent={fn(e) handleSubmit(e)} /> } }');
     const comp = ast.body[0].body[0];
     const input = comp.body[0];
     const attr = input.attributes[0];
@@ -70,7 +70,7 @@ describe('Parser — Event modifier parsing', () => {
 
 describe('Codegen — Event modifier guards', () => {
   test('on:click.stop wraps handler with e.stopPropagation()', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.stop={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -80,7 +80,7 @@ describe('Codegen — Event modifier guards', () => {
   });
 
   test('on:click.prevent wraps handler with e.preventDefault()', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <form on:submit.prevent={fn(e) handleSubmit(e)}>"Submit"</form>
       }
@@ -90,7 +90,7 @@ describe('Codegen — Event modifier guards', () => {
   });
 
   test('on:click.self wraps handler with target check', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <div on:click.self={fn(e) handleClick(e)}>"Click"</div>
       }
@@ -100,7 +100,7 @@ describe('Codegen — Event modifier guards', () => {
   });
 
   test('on:click.stop.prevent applies both guards', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.stop.prevent={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -111,7 +111,7 @@ describe('Codegen — Event modifier guards', () => {
   });
 
   test('on:click without modifiers does not add guards', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -128,7 +128,7 @@ describe('Codegen — Event modifier guards', () => {
 
 describe('Codegen — Event handler options (once, capture)', () => {
   test('on:click.once produces { handler:, options: { once: true } }', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.once={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -139,7 +139,7 @@ describe('Codegen — Event handler options (once, capture)', () => {
   });
 
   test('on:click.capture produces { handler:, options: { capture: true } }', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.capture={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -150,7 +150,7 @@ describe('Codegen — Event handler options (once, capture)', () => {
   });
 
   test('on:click.once.capture produces both options', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.once.capture={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -162,7 +162,7 @@ describe('Codegen — Event handler options (once, capture)', () => {
   });
 
   test('on:click.stop.once combines guard and options', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.stop.once={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -174,7 +174,7 @@ describe('Codegen — Event handler options (once, capture)', () => {
   });
 
   test('on:click.prevent.capture combines guard and capture option', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.prevent.capture={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -192,7 +192,7 @@ describe('Codegen — Event handler options (once, capture)', () => {
 
 describe('Codegen — Key modifiers', () => {
   test('on:keydown.enter wraps with key check for "Enter"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.enter={fn(e) handleSubmit(e)} />
       }
@@ -202,7 +202,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.escape wraps with key check for "Escape"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.escape={fn(e) handleCancel(e)} />
       }
@@ -212,7 +212,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.space wraps with key check for " "', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.space={fn(e) handleSpace(e)} />
       }
@@ -222,7 +222,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.up wraps with key check for "ArrowUp"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.up={fn(e) handleUp(e)} />
       }
@@ -232,7 +232,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.down wraps with key check for "ArrowDown"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.down={fn(e) handleDown(e)} />
       }
@@ -242,7 +242,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.left wraps with key check for "ArrowLeft"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.left={fn(e) handleLeft(e)} />
       }
@@ -252,7 +252,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.right wraps with key check for "ArrowRight"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.right={fn(e) handleRight(e)} />
       }
@@ -262,7 +262,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.tab wraps with key check for "Tab"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.tab={fn(e) handleTab(e)} />
       }
@@ -272,7 +272,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.delete wraps with key check for "Delete"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.delete={fn(e) handleDelete(e)} />
       }
@@ -282,7 +282,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.backspace wraps with key check for "Backspace"', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.backspace={fn(e) handleBackspace(e)} />
       }
@@ -292,7 +292,7 @@ describe('Codegen — Key modifiers', () => {
   });
 
   test('on:keydown.enter.prevent combines key check and guard', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <input on:keydown.enter.prevent={fn(e) handleSubmit(e)} />
       }
@@ -309,7 +309,7 @@ describe('Codegen — Key modifiers', () => {
 
 describe('Codegen — bind:this generates ref', () => {
   test('bind:this={myRef} generates ref: myRef', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <div bind:this={myRef}>"Content"</div>
       }
@@ -318,7 +318,7 @@ describe('Codegen — bind:this generates ref', () => {
   });
 
   test('bind:this={canvasRef} generates ref: canvasRef', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <canvas bind:this={canvasRef} />
       }
@@ -327,7 +327,7 @@ describe('Codegen — bind:this generates ref', () => {
   });
 
   test('bind:this does not interfere with other attributes', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <div bind:this={myRef} class="wrapper">"Content"</div>
       }
@@ -337,7 +337,7 @@ describe('Codegen — bind:this generates ref', () => {
   });
 
   test('bind:this does not interfere with event handlers', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button bind:this={btnRef} on:click={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -353,7 +353,7 @@ describe('Codegen — bind:this generates ref', () => {
 
 describe('Runtime — Event handler options object pattern', () => {
   test('options object has handler and options keys', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.once={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -365,7 +365,7 @@ describe('Runtime — Event handler options object pattern', () => {
   });
 
   test('options object with capture has correct structure', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.capture={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -376,7 +376,7 @@ describe('Runtime — Event handler options object pattern', () => {
   });
 
   test('options object with once and capture has both keys', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.once.capture={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -388,7 +388,7 @@ describe('Runtime — Event handler options object pattern', () => {
   });
 
   test('guard-only modifiers do not produce options object', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.stop={fn(e) handleClick(e)}>"Click"</button>
       }
@@ -399,7 +399,7 @@ describe('Runtime — Event handler options object pattern', () => {
   });
 
   test('self modifier alone does not produce options object', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <div on:click.self={fn(e) handleClick(e)}>"Click"</div>
       }
@@ -410,7 +410,7 @@ describe('Runtime — Event handler options object pattern', () => {
   });
 
   test('stop.prevent.once produces both guards and options', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Foo() {
         <button on:click.stop.prevent.once={fn(e) handleClick(e)}>"Click"</button>
       }

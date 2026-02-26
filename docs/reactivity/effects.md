@@ -7,7 +7,7 @@ Effects are reactive side effects that automatically re-run when their dependenc
 Declare an effect with the `effect` keyword:
 
 ```tova
-client {
+browser {
   state count = 0
 
   effect {
@@ -23,7 +23,7 @@ The effect body runs immediately when created, and then re-runs every time any s
 Tova automatically tracks which signals an effect reads. You do not need to declare a dependency list -- the runtime figures it out at execution time:
 
 ```tova
-client {
+browser {
   state first = "Alice"
   state last = "Smith"
   state show_full = true
@@ -61,7 +61,7 @@ Component-scoped effects are automatically disposed when the component unmounts,
 Effects that call server functions (RPC) are automatically wrapped in an async context. The compiler detects `server.xxx()` calls and generates the appropriate async pattern:
 
 ```tova
-client {
+browser {
   state users = []
 
   effect {
@@ -114,7 +114,7 @@ component UserList {
 Effects often need to clean up after themselves -- for example, clearing timers, removing event listeners, or cancelling subscriptions. Use `onCleanup` inside an effect to register a cleanup function:
 
 ```tova
-client {
+browser {
   state interval_ms = 1000
   state ticks = 0
 

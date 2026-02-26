@@ -4,7 +4,7 @@ import { Token, TokenType, Keywords } from '../src/lexer/tokens.js';
 import { Lexer } from '../src/lexer/lexer.js';
 import { SharedCodegen } from '../src/codegen/shared-codegen.js';
 import { ServerCodegen } from '../src/codegen/server-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import { print } from '../src/stdlib/core.js';
 import { capitalize } from '../src/stdlib/string.js';
 
@@ -65,10 +65,10 @@ describe('ServerCodegen — constructor', () => {
   });
 });
 
-// ─── ClientCodegen constructor ───────────────────────────
-describe('ClientCodegen — constructor', () => {
-  test('ClientCodegen instantiates with stateNames', () => {
-    const gen = new ClientCodegen();
+// ─── BrowserCodegen constructor ───────────────────────────
+describe('BrowserCodegen — constructor', () => {
+  test('BrowserCodegen instantiates with stateNames', () => {
+    const gen = new BrowserCodegen();
     expect(gen).toBeDefined();
     expect(gen.stateNames).toBeDefined();
     expect(gen.stateNames.size).toBe(0);

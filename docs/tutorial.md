@@ -406,11 +406,11 @@ email = find_user(users, "Alice")
 
 ## Lesson 8: The Full-Stack Model
 
-Tova's defining feature: write server and client in one file.
+Tova's defining feature: write server and browser code in one file.
 
 ```tova
 shared {
-  // Types available to both server and client
+  // Types available to both server and browser
   type Message {
     id: Int
     text: String
@@ -432,8 +432,8 @@ server {
   }
 }
 
-client {
-  // Client-side: reactive UI
+browser {
+  // Browser-side: reactive UI
   state messages: [Message] = []
   state new_text = ""
   state username = "Anonymous"
@@ -469,8 +469,8 @@ client {
 
 1. `shared {}` becomes `chat.shared.js` — imported by both sides
 2. `server {}` becomes `chat.server.js` — runs on Bun with `Bun.serve()`
-3. `client {}` becomes `chat.client.js` — embedded in `index.html` with the reactive runtime
-4. `server.get_messages()` in client code compiles to a `fetch()` call to an auto-generated RPC endpoint
+3. `browser {}` becomes `chat.client.js` — embedded in `index.html` with the reactive runtime
+4. `server.get_messages()` in browser code compiles to a `fetch()` call to an auto-generated RPC endpoint
 
 ### Reactive Primitives
 
@@ -499,8 +499,8 @@ component TodoItem(todo, on_toggle) {
 ::: tip Key Takeaways
 - `shared {}` — types and validation for both sides
 - `server {}` — routes, database, business logic (runs on Bun)
-- `client {}` — reactive UI with JSX (runs in browser)
-- `server.fn_name()` from client becomes an RPC call automatically
+- `browser {}` — reactive UI with JSX (runs in browser)
+- `server.fn_name()` from browser code becomes an RPC call automatically
 - `state`, `computed`, `effect` are the reactive primitives
 - JSX uses Tova control flow (`if`, `for`) not JS expressions
 :::
@@ -514,7 +514,7 @@ component TodoItem(todo, on_toggle) {
 Group related state into a `store`:
 
 ```tova
-client {
+browser {
   store Counter {
     state count = 0
     computed doubled = count * 2
@@ -677,7 +677,7 @@ You now know the fundamentals of Tova. Here is where to go next:
 - **[Pattern Matching](./guide/pattern-matching)** — all pattern forms
 - **[Pipes](./guide/pipes)** — pipe operator and pipeline patterns
 - **[Error Handling](./guide/error-handling)** — Result, Option, and `?` operator
-- **[Full-Stack Architecture](./fullstack/architecture)** — the server/client/shared model
+- **[Full-Stack Architecture](./fullstack/architecture)** — the server/browser/shared model
 - **[Reactivity](./reactivity/signals)** — signals, computed, effects in depth
 - **[Standard Library](./stdlib/)** — all built-in functions and modules
 - **[Examples](./examples/)** — complete example applications

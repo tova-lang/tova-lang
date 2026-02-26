@@ -94,7 +94,7 @@
         },
         {
           "name": "keyword.block.tova",
-          "match": "\\b(server|client|shared|test|model|db|route|sse)\\b"
+          "match": "\\b(server|client|browser|shared|test|model|db|route|sse)\\b"
         },
         {
           "name": "keyword.operator.tova",

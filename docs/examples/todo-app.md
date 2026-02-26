@@ -55,7 +55,7 @@ server {
   route DELETE "/api/todos/:id" => delete_todo
 }
 
-client {
+browser {
   state todos = []
   state new_title = ""
 
@@ -201,7 +201,7 @@ The `server.` prefix generates an RPC call to the corresponding server function.
 ### Client Reactivity
 
 ```tova
-client {
+browser {
   state todos = []
   state new_title = ""
 

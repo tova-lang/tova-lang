@@ -986,7 +986,7 @@ describe('SSR — renderPage', () => {
     expect(html).toContain('<title>Tova App</title>');
     expect(html).toContain('<div id="app">');
     expect(html).toContain('Hello');
-    expect(html).toContain('/client.js');
+    expect(html).toContain('/browser.js');
   });
 
   test('renders with custom title', () => {
@@ -1004,7 +1004,7 @@ describe('SSR — renderPage', () => {
   test('renders with custom script source', () => {
     const html = renderPage(() => tova_el('div', {}, ['Hi']), { scriptSrc: '/app.js' });
     expect(html).toContain('/app.js');
-    expect(html).not.toContain('/client.js');
+    expect(html).not.toContain('/browser.js');
   });
 });
 

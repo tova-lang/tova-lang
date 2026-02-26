@@ -1,6 +1,6 @@
 # Data Block
 
-The `data {}` block is a top-level block alongside `shared`, `server`, and `client`. It provides a declarative home for data source definitions, reusable transform pipelines, validation rules, and refresh policies. Instead of scattering data logic across server functions, the `data {}` block centralizes your data layer in one place.
+The `data {}` block is a top-level block alongside `shared`, `server`, and `browser`. It provides a declarative home for data source definitions, reusable transform pipelines, validation rules, and refresh policies. Instead of scattering data logic across server functions, the `data {}` block centralizes your data layer in one place.
 
 ## Why a Data Block?
 
@@ -150,7 +150,7 @@ This generates a `refresh_orders()` function that clears the cache, letting the 
 
 ## Interaction with Other Blocks
 
-Sources and pipelines declared in `data {}` are available in `server {}` and `client {}` blocks by name:
+Sources and pipelines declared in `data {}` are available in `server {}` and `browser {}` blocks by name:
 
 ```tova
 data {
@@ -170,7 +170,7 @@ server {
   route GET "/api/users" => get_active_users
 }
 
-client {
+browser {
   state users = []
 
   effect {

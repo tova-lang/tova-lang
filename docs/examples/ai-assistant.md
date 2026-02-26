@@ -264,7 +264,7 @@ server {
   route POST "/api/search" => semantic_search
 }
 
-client {
+browser {
   state messages: [Message] = []
   state input = ""
   state loading = false

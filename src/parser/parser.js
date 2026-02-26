@@ -95,7 +95,7 @@ export class Parser {
           tok.type === TokenType.WHILE || tok.type === TokenType.RETURN ||
           tok.type === TokenType.IMPORT || tok.type === TokenType.MATCH ||
           tok.type === TokenType.TRY || tok.type === TokenType.SERVER ||
-          tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
+          tok.type === TokenType.BROWSER || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
           tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
@@ -144,7 +144,7 @@ export class Parser {
           tok.type === TokenType.WHILE || tok.type === TokenType.RETURN ||
           tok.type === TokenType.IMPORT || tok.type === TokenType.MATCH ||
           tok.type === TokenType.TRY || tok.type === TokenType.SERVER ||
-          tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
+          tok.type === TokenType.BROWSER || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
           tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
@@ -378,7 +378,7 @@ export class Parser {
   }
 
   // ─── Full-stack blocks ────────────────────────────────────
-  // parseClientBlock() and client-specific methods are in client-parser.js (lazy-loaded)
+  // parseBrowserBlock() and browser-specific methods are in browser-parser.js (lazy-loaded)
 
   parseSharedBlock() {
     const l = this.loc();
@@ -521,7 +521,7 @@ export class Parser {
     return new AST.RefreshPolicy(sourceName, { value, unit }, l);
   }
 
-  // Client-specific statements and JSX parsing are in client-parser.js (lazy-loaded)
+  // Browser-specific statements and JSX parsing are in browser-parser.js (lazy-loaded)
 
   // ─── Statements ───────────────────────────────────────────
 
@@ -1950,7 +1950,7 @@ export class Parser {
         return this.parseParenOrArrowLambda();
 
       case TokenType.SERVER:
-      case TokenType.CLIENT:
+      case TokenType.BROWSER:
       case TokenType.SHARED:
       case TokenType.DERIVE:
         return new AST.Identifier(this.advance().value, l);

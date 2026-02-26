@@ -1,12 +1,12 @@
 // Tests for Suspense, CSS scoping improvements, and Phase 5 features.
-// Covers: Suspense component, lazy() loading, CSS scoping edge cases in ClientCodegen.
+// Covers: Suspense component, lazy() loading, CSS scoping edge cases in BrowserCodegen.
 
 import { describe, test, expect } from 'bun:test';
 import {
   createSignal, createEffect, createComputed, createRoot,
   Suspense, lazy, tova_el, tova_fragment
 } from '../src/runtime/reactivity.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 
 // ─── DOM Mock ───────────────────────────────────────────────
 
@@ -281,7 +281,7 @@ describe('lazy', () => {
 // ─── CSS Scoping Tests ──────────────────────────────────────
 
 describe('CSS Scoping (_scopeCSS)', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scopeAttr = '[data-tova-test]';
 
   test('handles basic selectors', () => {
@@ -424,7 +424,7 @@ describe('CSS Scoping (_scopeCSS)', () => {
 // ─── _scopeSelector Tests ────────────────────────────────────
 
 describe('CSS _scopeSelector', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scopeAttr = '[data-tova-test]';
 
   test('scopes a simple class selector', () => {

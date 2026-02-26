@@ -38,7 +38,7 @@ The following identifiers are reserved as keywords and may not be used as variab
 
 ```
 and       as        async     await     break     catch
-client    component computed  continue  defer     derive
+browser   component computed  continue  defer     derive
 effect    elif      else      export    extern    false
 finally   fn        for       from      guard     if
 impl      import    in        interface is        let
@@ -243,7 +243,7 @@ Both symbol and keyword forms are accepted. The keyword forms (`and`, `or`, `not
 ```ebnf
 program = { top_level } EOF ;
 
-top_level = server_block | client_block | shared_block
+top_level = server_block | browser_block | shared_block
           | data_block | test_block
           | import_declaration | statement ;
 ```
@@ -254,7 +254,7 @@ A Tova program is a sequence of top-level blocks and statements.
 
 ```ebnf
 server_block = "server" [ STRING ] "{" { server_statement } "}" ;
-client_block = "client" [ STRING ] "{" { client_statement } "}" ;
+browser_block = "browser" [ STRING ] "{" { browser_statement } "}" ;
 shared_block = "shared" [ STRING ] "{" { statement } "}" ;
 data_block   = "data"   [ STRING ] "{" { data_statement } "}" ;
 test_block   = "test"   [ STRING ] "{" { statement } "}" ;
@@ -817,7 +817,7 @@ Evaluates to a new array containing `expr` for each `x` in `collection` where `c
 The compiler processes `.tova` files in three phases:
 
 1. **Parse**: Lex and parse each file into an AST.
-2. **Merge**: Group files by directory. Merge same-type blocks (`shared`, `server`, `client`, `data`) across all files in the directory.
+2. **Merge**: Group files by directory. Merge same-type blocks (`shared`, `server`, `browser`, `data`) across all files in the directory.
 3. **Generate**: Produce separate JavaScript outputs for each block type.
 
 ### 5.2 Output Files
@@ -828,7 +828,7 @@ For a file or directory named `app`:
 |--------|----------|
 | `app.shared.js` | Types, validation, constants from `shared {}` |
 | `app.server.js` | HTTP server, routes, database, RPC endpoints from `server {}` |
-| `app.client.js` | Reactive runtime, components, RPC proxy from `client {}` |
+| `app.client.js` | Reactive runtime, components, RPC proxy from `browser {}` |
 | `index.html` | HTML shell embedding client JS and runtime |
 
 ### 5.3 RPC Bridge

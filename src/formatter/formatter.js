@@ -31,7 +31,7 @@ export class Formatter {
 
   _needsBlankLine(prevType, currType) {
     const declTypes = ['FunctionDeclaration', 'TypeDeclaration', 'InterfaceDeclaration',
-      'ImplDeclaration', 'TraitDeclaration', 'ServerBlock', 'ClientBlock', 'SharedBlock',
+      'ImplDeclaration', 'TraitDeclaration', 'ServerBlock', 'BrowserBlock', 'SharedBlock',
       'ComponentDeclaration', 'TestBlock'];
     return declTypes.includes(prevType) || declTypes.includes(currType);
   }
@@ -63,7 +63,7 @@ export class Formatter {
       case 'TraitDeclaration': return this.formatTraitDeclaration(node);
       case 'DeferStatement': return this.formatDeferStatement(node);
       case 'ServerBlock': return this.formatServerBlock(node);
-      case 'ClientBlock': return this.formatClientBlock(node);
+      case 'BrowserBlock': return this.formatBrowserBlock(node);
       case 'SharedBlock': return this.formatSharedBlock(node);
       case 'CompoundAssignment': return `${this.i()}${this.formatExpr(node.target)} ${node.operator} ${this.formatExpr(node.value)}`;
       case 'BlockStatement': return this.formatBlock(node);
@@ -424,9 +424,9 @@ export class Formatter {
     return code;
   }
 
-  formatClientBlock(node) {
+  formatBrowserBlock(node) {
     const name = node.name ? ` "${node.name}"` : '';
-    let code = `${this.i()}client${name} {\n`;
+    let code = `${this.i()}browser${name} {\n`;
     this.indent++;
     code += node.body.map(s => this.formatNode(s)).join('\n');
     this.indent--;

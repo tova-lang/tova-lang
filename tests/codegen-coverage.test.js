@@ -18,8 +18,8 @@ function compileShared(source) {
   return compile(source).shared.trim();
 }
 
-function compileClient(source) {
-  return compile(source).client;
+function compileBrowser(source) {
+  return compile(source).browser;
 }
 
 function compileServer(source) {
@@ -277,170 +277,170 @@ describe('Codegen Coverage — Range expression inclusive (line 736-737)', () =>
 });
 
 // ============================================================
-// client-codegen.js coverage
+// browser-codegen.js coverage
 // ============================================================
 
 describe('Codegen Coverage — Client compound assignment to state (lines 14-19)', () => {
   test('count += 1 in effect becomes setCount with prev', () => {
-    const result = compile('client { state count = 0\neffect { count += 1 } }');
-    expect(result.client).toContain('setCount(__tova_p => __tova_p + 1);');
+    const result = compile('browser { state count = 0\neffect { count += 1 } }');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p + 1);');
   });
 
   test('count -= 5 in effect becomes setCount with prev', () => {
-    const result = compile('client { state count = 10\neffect { count -= 5 } }');
-    expect(result.client).toContain('setCount(__tova_p => __tova_p - 5);');
+    const result = compile('browser { state count = 10\neffect { count -= 5 } }');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p - 5);');
   });
 });
 
 describe('Codegen Coverage — Client direct assignment to state (lines 22-27)', () => {
   test('count = 5 in effect becomes setCount(5)', () => {
-    const result = compile('client { state count = 0\neffect { count = 5 } }');
-    expect(result.client).toContain('setCount(5);');
+    const result = compile('browser { state count = 0\neffect { count = 5 } }');
+    expect(result.browser).toContain('setCount(5);');
   });
 
   test('name = "Alice" in effect becomes setName("Alice")', () => {
-    const result = compile('client { state name = "world"\neffect { name = "Alice" } }');
-    expect(result.client).toContain('setName("Alice");');
+    const result = compile('browser { state name = "world"\neffect { name = "Alice" } }');
+    expect(result.browser).toContain('setName("Alice");');
   });
 });
 
 describe('Codegen Coverage — Client lambda with block body (lines 37-42)', () => {
-  test('lambda with block body in client component', () => {
-    const result = compile('client { state count = 0\ncomponent App { <button on:click={fn() { count += 1\nprint(count) }}>"Click"</button> } }');
-    expect(result.client).toContain('() => {');
-    expect(result.client).toContain('setCount(__tova_p => __tova_p + 1);');
+  test('lambda with block body in browser component', () => {
+    const result = compile('browser { state count = 0\ncomponent App { <button on:click={fn() { count += 1\nprint(count) }}>"Click"</button> } }');
+    expect(result.browser).toContain('() => {');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p + 1);');
   });
 });
 
 describe('Codegen Coverage — Client lambda compound assignment to state (lines 46-51)', () => {
   test('fn() count += 1 in lambda becomes setter with prev', () => {
-    const result = compile('client { state count = 0\ncomponent App { <button on:click={fn() count += 1}>"+"</button> } }');
-    expect(result.client).toContain('() => { setCount(__tova_p => __tova_p + 1); }');
+    const result = compile('browser { state count = 0\ncomponent App { <button on:click={fn() count += 1}>"+"</button> } }');
+    expect(result.browser).toContain('() => { setCount(__tova_p => __tova_p + 1); }');
   });
 });
 
 describe('Codegen Coverage — Client lambda assignment to state (lines 55-59)', () => {
   test('fn() count = 0 in lambda becomes setter call', () => {
-    const result = compile('client { state count = 0\ncomponent App { <button on:click={fn() count = 0}>"Reset"</button> } }');
-    expect(result.client).toContain('() => { setCount(0); }');
+    const result = compile('browser { state count = 0\ncomponent App { <button on:click={fn() count = 0}>"Reset"</button> } }');
+    expect(result.browser).toContain('() => { setCount(0); }');
   });
 });
 
 describe('Codegen Coverage — Client lambda with non-state body (lines 63-67)', () => {
   test('fn() x = 1 in lambda with non-state var generates inline block', () => {
-    const result = compile('client { component App { <button on:click={fn() x = 1}>"Test"</button> } }');
-    expect(result.client).toContain('() => { const x = 1; }');
+    const result = compile('browser { component App { <button on:click={fn() x = 1}>"Test"</button> } }');
+    expect(result.browser).toContain('() => { const x = 1; }');
   });
 });
 
 describe('Codegen Coverage — Client other statements (line 141-142)', () => {
   test('state assignment outside effect/component becomes setter', () => {
-    const result = compile('client { state x = 0\nx = 5 }');
-    expect(result.client).toContain('setX(5);');
+    const result = compile('browser { state x = 0\nx = 5 }');
+    expect(result.browser).toContain('setX(5);');
   });
 
-  test('non-state other statement in client block', () => {
-    const result = compile('client { y = 42 }');
-    expect(result.client).toContain('const y = 42;');
+  test('non-state other statement in browser block', () => {
+    const result = compile('browser { y = 42 }');
+    expect(result.browser).toContain('const y = 42;');
   });
 });
 
 describe('Codegen Coverage — Client __contains helper (lines 168-171)', () => {
-  test('membership expression in client triggers __contains helper', () => {
-    const result = compile('client { state items = []\neffect { x = 1 in items } }');
-    expect(result.client).toContain('__contains(items(), 1)');
-    expect(result.client).toContain('function __contains');
+  test('membership expression in browser triggers __contains helper', () => {
+    const result = compile('browser { state items = []\neffect { x = 1 in items } }');
+    expect(result.browser).toContain('__contains(items(), 1)');
+    expect(result.browser).toContain('function __contains');
   });
 });
 
 describe('Codegen Coverage — Component with statements and JSX (lines 201-208)', () => {
   test('component with function declaration before JSX', () => {
-    const result = compile('client { component App { fn helper() { 1 }\n<div>"hello"</div> } }');
-    expect(result.client).toContain('function App(');
-    expect(result.client).toContain('function helper()');
-    expect(result.client).toContain('return tova_el("div"');
+    const result = compile('browser { component App { fn helper() { 1 }\n<div>"hello"</div> } }');
+    expect(result.browser).toContain('function App(');
+    expect(result.browser).toContain('function helper()');
+    expect(result.browser).toContain('return tova_el("div"');
   });
 });
 
 describe('Codegen Coverage — Component with multiple JSX roots (lines 214-216)', () => {
   test('multiple root elements wrap in tova_fragment', () => {
-    const result = compile('client { component App { <div>"a"</div>\n<span>"b"</span> } }');
-    expect(result.client).toContain('tova_fragment(');
-    expect(result.client).toContain('tova_el("div"');
-    expect(result.client).toContain('tova_el("span"');
+    const result = compile('browser { component App { <div>"a"</div>\n<span>"b"</span> } }');
+    expect(result.browser).toContain('tova_fragment(');
+    expect(result.browser).toContain('tova_el("div"');
+    expect(result.browser).toContain('tova_el("span"');
   });
 });
 
 describe('Codegen Coverage — JSXExpression and JSXFor (lines 230, 232)', () => {
   test('JSXExpression renders expression directly', () => {
-    const result = compile('client { state count = 0\ncomponent App { <div>{count}</div> } }');
-    expect(result.client).toContain('tova_el("div"');
-    expect(result.client).toContain('count');
+    const result = compile('browser { state count = 0\ncomponent App { <div>{count}</div> } }');
+    expect(result.browser).toContain('tova_el("div"');
+    expect(result.browser).toContain('count');
   });
 
   test('JSXFor generates .map call', () => {
-    const result = compile('client { component App { <ul>for item in items { <li>"item"</li> }</ul> } }');
-    expect(result.client).toContain('.map(');
-    expect(result.client).toContain('(item) =>');
-    expect(result.client).toContain('tova_el("li"');
+    const result = compile('browser { component App { <ul>for item in items { <li>"item"</li> }</ul> } }');
+    expect(result.browser).toContain('.map(');
+    expect(result.browser).toContain('(item) =>');
+    expect(result.browser).toContain('tova_el("li"');
   });
 });
 
 describe('Codegen Coverage — JSX attributes and events (lines 245-260)', () => {
   test('class attribute becomes className', () => {
-    const result = compile('client { component App { <button class="btn">"Click"</button> } }');
-    expect(result.client).toContain('className: "btn"');
+    const result = compile('browser { component App { <button class="btn">"Click"</button> } }');
+    expect(result.browser).toContain('className: "btn"');
   });
 
   test('on:click attribute becomes onClick', () => {
-    const result = compile('client { component App { <button on:click={handler}>"Click"</button> } }');
-    expect(result.client).toContain('onClick: handler');
+    const result = compile('browser { component App { <button on:click={handler}>"Click"</button> } }');
+    expect(result.browser).toContain('onClick: handler');
   });
 
   test('combined attributes and events', () => {
-    const result = compile('client { component App { <button class="btn" on:click={handler}>"Go"</button> } }');
-    expect(result.client).toContain('className: "btn"');
-    expect(result.client).toContain('onClick: handler');
+    const result = compile('browser { component App { <button class="btn" on:click={handler}>"Go"</button> } }');
+    expect(result.browser).toContain('className: "btn"');
+    expect(result.browser).toContain('onClick: handler');
   });
 });
 
 describe('Codegen Coverage — Self-closing JSX (line 265-266)', () => {
   test('self-closing tag generates element without children', () => {
-    const result = compile('client { component App { <input disabled /> } }');
-    expect(result.client).toContain('tova_el("input"');
-    expect(result.client).toContain('disabled: true');
+    const result = compile('browser { component App { <input disabled /> } }');
+    expect(result.browser).toContain('tova_el("input"');
+    expect(result.browser).toContain('disabled: true');
     // Self-closing tag should NOT have children array
-    expect(result.client).not.toContain('[])');
+    expect(result.browser).not.toContain('[])');
   });
 });
 
 describe('Codegen Coverage — JSXText with template literal (lines 276-279)', () => {
   test('template string in JSX generates template literal', () => {
-    const result = compile('client { state name = "world"\ncomponent App { <div>"Hello, {name}!"</div> } }');
-    expect(result.client).toContain('`Hello, ${name()}!`');
+    const result = compile('browser { state name = "world"\ncomponent App { <div>"Hello, {name}!"</div> } }');
+    expect(result.browser).toContain('`Hello, ${name()}!`');
   });
 });
 
 describe('Codegen Coverage — JSXFor with multiple children (lines 283-291)', () => {
   test('for loop with multiple children wraps in tova_fragment', () => {
-    const result = compile('client { component App { <div>for item in items { <span>"a"</span>\n<span>"b"</span> }</div> } }');
-    expect(result.client).toContain('.map(');
-    expect(result.client).toContain('tova_fragment(');
+    const result = compile('browser { component App { <div>for item in items { <span>"a"</span>\n<span>"b"</span> }</div> } }');
+    expect(result.browser).toContain('.map(');
+    expect(result.browser).toContain('tova_fragment(');
   });
 });
 
 describe('Codegen Coverage — JSXIf conditional rendering (lines 294-305)', () => {
   test('if-else in JSX generates ternary', () => {
-    const result = compile('client { state show = true\ncomponent App { <div>if show { <span>"yes"</span> } else { <span>"no"</span> }</div> } }');
-    expect(result.client).toContain('(show()) ?');
-    expect(result.client).toContain(':');
-    expect(result.client).toContain('tova_el("span"');
+    const result = compile('browser { state show = true\ncomponent App { <div>if show { <span>"yes"</span> } else { <span>"no"</span> }</div> } }');
+    expect(result.browser).toContain('(show()) ?');
+    expect(result.browser).toContain(':');
+    expect(result.browser).toContain('tova_el("span"');
   });
 
   test('if without else in JSX generates ternary with null', () => {
-    const result = compile('client { state show = true\ncomponent App { <div>if show { <span>"yes"</span> }</div> } }');
-    expect(result.client).toContain('(show()) ?');
-    expect(result.client).toContain(': null');
+    const result = compile('browser { state show = true\ncomponent App { <div>if show { <span>"yes"</span> }</div> } }');
+    expect(result.browser).toContain('(show()) ?');
+    expect(result.browser).toContain(': null');
   });
 });
 
@@ -509,16 +509,16 @@ describe('Codegen Coverage — Additional edge cases', () => {
     expect(code).toContain('return (x + 1);');
   });
 
-  test('client compound assignment with *= operator', () => {
-    const result = compile('client { state count = 1\neffect { count *= 2 } }');
-    expect(result.client).toContain('setCount(__tova_p => __tova_p * 2);');
+  test('browser compound assignment with *= operator', () => {
+    const result = compile('browser { state count = 1\neffect { count *= 2 } }');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p * 2);');
   });
 
   test('component with params', () => {
-    const result = compile('client { component Button(label) { <button>"click"</button> } }');
-    expect(result.client).toContain('function Button(__props)');
-    expect(result.client).toContain('const label = () => __props.label;');
-    expect(result.client).toContain('tova_el("button"');
+    const result = compile('browser { component Button(label) { <button>"click"</button> } }');
+    expect(result.browser).toContain('function Button(__props)');
+    expect(result.browser).toContain('const label = () => __props.label;');
+    expect(result.browser).toContain('tova_el("button"');
   });
 
   test('empty object literal', () => {
@@ -527,8 +527,8 @@ describe('Codegen Coverage — Additional edge cases', () => {
   });
 
   test('JSXText with plain string literal', () => {
-    const result = compile('client { component App { <div>"Hello"</div> } }');
-    expect(result.client).toContain('"Hello"');
+    const result = compile('browser { component App { <div>"Hello"</div> } }');
+    expect(result.browser).toContain('"Hello"');
   });
 
   test('match variant pattern extracts fields', () => {

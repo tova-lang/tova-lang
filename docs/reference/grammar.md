@@ -31,7 +31,7 @@ keyword = "var" | "let" | "fn" | "return" | "if" | "elif" | "else"
         | "break" | "continue" | "async" | "await" | "guard"
         | "interface" | "derive" | "pub" | "impl" | "trait"
         | "defer" | "yield" | "extern" | "when" | "with"
-        | "server" | "client" | "shared" | "route"
+        | "server" | "browser" | "shared" | "route"
         | "state" | "computed" | "effect" | "component" | "store"
         | "test" | "bench" ;
 
@@ -103,7 +103,7 @@ delimiter = "(" | ")" | "{" | "}" | "[" | "]" | "," | ";" ;
 program = { top_level_statement } EOF ;
 
 top_level_statement = server_block
-                    | client_block
+                    | browser_block
                     | shared_block
                     | data_block
                     | test_block
@@ -112,7 +112,7 @@ top_level_statement = server_block
                     | statement ;
 
 server_block = "server" [ STRING ] "{" { server_statement } "}" ;
-client_block = "client" [ STRING ] "{" { client_statement } "}" ;
+browser_block = "browser" [ STRING ] "{" { browser_statement } "}" ;
 shared_block = "shared" [ STRING ] "{" { statement } "}" ;
 data_block   = "data"   "{" { data_statement } "}" ;
 test_block   = "test"   [ STRING ] "{" { statement } "}" ;
@@ -194,10 +194,10 @@ discover_declaration = "discover" STRING "at" expression [ "with" "{" object_bod
 subscribe_declaration = "subscribe" STRING "fn" "(" param_list ")" block ;
 ```
 
-## Client Statements
+## Browser Statements
 
 ```ebnf
-client_statement = state_declaration
+browser_statement = state_declaration
                  | computed_declaration
                  | effect_declaration
                  | component_declaration

@@ -1,13 +1,13 @@
 # Components
 
-Components are the building blocks of Tova UIs. A component is a reactive function that declares state, computed values, and effects, and returns JSX describing what to render. Components are declared with the `component` keyword inside `client { }` blocks.
+Components are the building blocks of Tova UIs. A component is a reactive function that declares state, computed values, and effects, and returns JSX describing what to render. Components are declared with the `component` keyword inside `browser { }` blocks.
 
 ## Basic Components
 
 The simplest component has no parameters and returns JSX:
 
 ```tova
-client {
+browser {
   component Hello {
     <div>
       <h1>Hello, World!</h1>
@@ -393,7 +393,7 @@ typeof __props.children === 'function'
 If a component named `App` exists, Tova automatically mounts it to the DOM when the page loads:
 
 ```tova
-client {
+browser {
   component App {
     <div>
       <h1>My Application</h1>

@@ -9,7 +9,7 @@ function genClient(source) {
   const parser = new Parser(tokens, '<test>');
   const ast = parser.parse();
   const gen = new CodeGenerator(ast, '<test>');
-  return gen.generate().client || '';
+  return gen.generate().browser || '';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -18,7 +18,7 @@ function genClient(source) {
 
 describe('Directional transitions — in:', () => {
   test('in:fade generates enter-only transition with empty config', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div in:fade />
   }
@@ -28,7 +28,7 @@ describe('Directional transitions — in:', () => {
   });
 
   test('in:slide generates enter-only slide transition', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div in:slide />
   }
@@ -39,7 +39,7 @@ describe('Directional transitions — in:', () => {
 
 describe('Directional transitions — out:', () => {
   test('out:slide generates leave-only transition with empty config', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div out:slide />
   }
@@ -49,7 +49,7 @@ describe('Directional transitions — out:', () => {
   });
 
   test('out:fade generates leave-only fade transition', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div out:fade />
   }
@@ -60,7 +60,7 @@ describe('Directional transitions — out:', () => {
 
 describe('Directional transitions — combined in: and out:', () => {
   test('in:fade and out:slide together generate both directions', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div in:fade out:slide />
   }
@@ -71,7 +71,7 @@ describe('Directional transitions — combined in: and out:', () => {
   });
 
   test('out:scale and in:fly together generate both directions', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div out:scale in:fly />
   }
@@ -83,7 +83,7 @@ describe('Directional transitions — combined in: and out:', () => {
 
 describe('Directional transitions — with config', () => {
   test('in:fade with config passes duration correctly', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div in:fade={{duration: 500}} />
   }
@@ -94,7 +94,7 @@ describe('Directional transitions — with config', () => {
   });
 
   test('out:slide with config passes parameters correctly', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div out:slide={{duration: 300, delay: 100}} />
   }
@@ -111,7 +111,7 @@ describe('Directional transitions — with config', () => {
 
 describe('Custom transitions — variable reference for non-builtin names', () => {
   test('transition:myCustom generates variable reference, not string', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:myCustom />
   }
@@ -124,7 +124,7 @@ describe('Custom transitions — variable reference for non-builtin names', () =
   });
 
   test('transition:customAnim with config generates variable ref with config', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:customAnim={{duration: 300}} />
   }
@@ -137,7 +137,7 @@ describe('Custom transitions — variable reference for non-builtin names', () =
   });
 
   test('transition:wobble generates variable reference', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:wobble />
   }
@@ -154,7 +154,7 @@ describe('Custom transitions — variable reference for non-builtin names', () =
 
 describe('Builtin transitions — string reference for known names', () => {
   test('transition:fade generates string-based call', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:fade />
   }
@@ -165,7 +165,7 @@ describe('Builtin transitions — string reference for known names', () => {
   });
 
   test('transition:slide generates string-based call', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:slide />
   }
@@ -176,7 +176,7 @@ describe('Builtin transitions — string reference for known names', () => {
   });
 
   test('transition:scale generates string-based call', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:scale />
   }
@@ -186,7 +186,7 @@ describe('Builtin transitions — string reference for known names', () => {
   });
 
   test('transition:fly generates string-based call', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:fly />
   }
@@ -198,7 +198,7 @@ describe('Builtin transitions — string reference for known names', () => {
 
 describe('Builtin transitions — with config', () => {
   test('transition:scale with duration config', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:scale={{duration: 200}} />
   }
@@ -209,7 +209,7 @@ describe('Builtin transitions — with config', () => {
   });
 
   test('transition:fade with duration and easing config', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:fade={{duration: 400, easing: "ease-in"}} />
   }
@@ -220,7 +220,7 @@ describe('Builtin transitions — with config', () => {
   });
 
   test('transition:slide with delay config', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div transition:slide={{delay: 50}} />
   }
@@ -237,7 +237,7 @@ describe('Builtin transitions — with config', () => {
 
 describe('Transitions combined with other attributes', () => {
   test('transition:fade on element with class and id', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div class="box" id="main" transition:fade />
   }
@@ -248,7 +248,7 @@ describe('Transitions combined with other attributes', () => {
   });
 
   test('in:fade on element with children', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div in:fade><span>"Hello"</span></div>
   }
@@ -260,7 +260,7 @@ describe('Transitions combined with other attributes', () => {
 
   test('directional and regular transitions are independent', () => {
     // Directional (in:/out:) and regular (transition:) are stored separately
-    const code = genClient(`client {
+    const code = genClient(`browser {
   component App() {
     <div in:fade />
   }

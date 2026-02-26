@@ -120,22 +120,22 @@ describe('Import stripping regex', () => {
   });
 });
 
-describe('ClientCodegen import hoisting', () => {
+describe('BrowserCodegen import hoisting', () => {
   test('hoists import from shared code to module top', () => {
     const source = `
 import { z } from "zod"
 
-client {
+browser {
   state name = "test"
   component App() {
     <div>"hello"</div>
   }
 }`;
     const output = compile(source);
-    const clientCode = output.client;
+    const browserCode = output.browser;
 
     // The import should appear at the top (after runtime imports, before shared code body)
-    const lines = clientCode.split('\n');
+    const lines = browserCode.split('\n');
     const importLineIdx = lines.findIndex(l => l.includes('from "zod"'));
     const sharedCommentIdx = lines.findIndex(l => l.includes('// ── Shared'));
     const stdlibIdx = lines.findIndex(l => l.includes('// ── Stdlib'));
@@ -147,9 +147,9 @@ client {
     }
   });
 
-  test('client block imports are categorized separately from other statements', () => {
+  test('browser block imports are categorized separately from other statements', () => {
     const source = `
-client {
+browser {
   import { z } from "zod"
   state name = "test"
   component App() {
@@ -157,10 +157,10 @@ client {
   }
 }`;
     const output = compile(source);
-    const clientCode = output.client;
+    const browserCode = output.browser;
 
     // The import should appear in its own section, before reactive state
-    const lines = clientCode.split('\n');
+    const lines = browserCode.split('\n');
     const importLineIdx = lines.findIndex(l => l.includes('from "zod"'));
     // Find the state declaration line (not the runtime import that also mentions createSignal)
     const stateIdx = lines.findIndex(l => /^\s*const\s+\[/.test(l) && l.includes('createSignal'));
@@ -172,21 +172,21 @@ client {
     }
   });
 
-  test('client block default import is hoisted', () => {
+  test('browser block default import is hoisted', () => {
     const source = `
-client {
+browser {
   import lodash from "lodash"
   component App() {
     <div>"hello"</div>
   }
 }`;
     const output = compile(source);
-    const clientCode = output.client;
+    const browserCode = output.browser;
 
-    expect(clientCode).toContain('import lodash from "lodash"');
+    expect(browserCode).toContain('import lodash from "lodash"');
 
     // Should be before components section
-    const lines = clientCode.split('\n');
+    const lines = browserCode.split('\n');
     const importLineIdx = lines.findIndex(l => l.includes('import lodash'));
     const componentIdx = lines.findIndex(l => l.includes('// ── Components'));
 
@@ -195,25 +195,25 @@ client {
     }
   });
 
-  test('client block wildcard import is hoisted', () => {
+  test('browser block wildcard import is hoisted', () => {
     const source = `
-client {
+browser {
   import * as R from "ramda"
   component App() {
     <div>"hello"</div>
   }
 }`;
     const output = compile(source);
-    const clientCode = output.client;
+    const browserCode = output.browser;
 
-    expect(clientCode).toContain('import * as R from "ramda"');
+    expect(browserCode).toContain('import * as R from "ramda"');
   });
 
-  test('generated client code has valid import structure for npm imports', () => {
+  test('generated browser code has valid import structure for npm imports', () => {
     const source = `
 import { z } from "zod"
 
-client {
+browser {
   import { observable } from "mobx"
   state name = "test"
   component App() {
@@ -221,14 +221,14 @@ client {
   }
 }`;
     const output = compile(source);
-    const clientCode = output.client;
+    const browserCode = output.browser;
 
     // Both imports should be present
-    expect(clientCode).toContain('from "zod"');
-    expect(clientCode).toContain('from "mobx"');
+    expect(browserCode).toContain('from "zod"');
+    expect(browserCode).toContain('from "mobx"');
 
     // All imports should appear before any non-import, non-comment code
-    const lines = clientCode.split('\n');
+    const lines = browserCode.split('\n');
     let lastImportLine = -1;
 
     for (let i = 0; i < lines.length; i++) {
@@ -243,18 +243,18 @@ client {
 
   test('no npm imports still produces valid inline code', () => {
     const source = `
-client {
+browser {
   state count = 0
   component App() {
     <div>"count: " ++ String(count)</div>
   }
 }`;
     const output = compile(source);
-    const clientCode = output.client;
+    const browserCode = output.browser;
 
     // Should have runtime imports but no npm imports
-    expect(clientCode).toContain("from './runtime/reactivity.js'");
-    expect(clientCode).toContain('createSignal');
-    expect(hasNpmImports(clientCode)).toBe(false);
+    expect(browserCode).toContain("from './runtime/reactivity.js'");
+    expect(browserCode).toContain('createSignal');
+    expect(hasNpmImports(browserCode)).toBe(false);
   });
 });

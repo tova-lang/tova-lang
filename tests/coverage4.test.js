@@ -5,7 +5,7 @@ import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import * as AST from '../src/parser/ast.js';
 
 function parse(source) {
@@ -25,7 +25,7 @@ describe('Parser — JSX error: bad attribute name', () => {
   // Line 282: else { this.error("Expected attribute name"); }
   test('throws on invalid JSX attribute name', () => {
     // 123 is not a valid attribute name
-    expect(() => parse('client { component C { <div 123="x">"y"</div> } }')).toThrow();
+    expect(() => parse('browser { component C { <div 123="x">"y"</div> } }')).toThrow();
   });
 });
 
@@ -33,21 +33,21 @@ describe('Parser — JSX error: bad event suffix', () => {
   // Line 291: on:suffix where suffix isn't identifier or IN
   test('on:event with non-identifier suffix falls through to expect', () => {
     // on: followed by a number should trigger the else branch
-    expect(() => parse('client { component C { <div on:123={f}>"y"</div> } }')).toThrow();
+    expect(() => parse('browser { component C { <div on:123={f}>"y"</div> } }')).toThrow();
   });
 });
 
 describe('Parser — JSX mismatched closing tag', () => {
   // Line 327: closeTag !== parentTag
   test('throws on mismatched closing tag', () => {
-    expect(() => parse('client { component C { <div>"x"</span> } }')).toThrow('Mismatched');
+    expect(() => parse('browser { component C { <div>"x"</span> } }')).toThrow('Mismatched');
   });
 });
 
 describe('Parser — JSX string template attribute', () => {
   // Line 312: attribute value is STRING_TEMPLATE 
   test('JSX attribute with interpolated string', () => {
-    const ast = parse('client { component C { <div class="item-{id}">"y"</div> } }');
+    const ast = parse('browser { component C { <div class="item-{id}">"y"</div> } }');
     const comp = ast.body[0].body[0];
     const attr = comp.body[0].attributes[0];
     expect(attr.name).toBe('class');
@@ -65,7 +65,7 @@ describe('Parser — JSX children for/if ordering', () => {
   // These lines check for TokenType.FOR and TokenType.IF inside parseJSXChildren
   test('JSX children with for then if', () => {
     const ast = parse(`
-      client {
+      browser {
         component C {
           <div>
             for x in items { <span>"a"</span> }
@@ -88,7 +88,7 @@ describe('Parser — JSX children for/if ordering', () => {
 describe('Parser — JSX for body with only elements', () => {
   // Line 391: break in JSX for when body encounters unknown token
   test('JSX for with nested JSX only', () => {
-    const ast = parse('client { component C { <div> for x in items { <span>"text"</span> } </div> } }');
+    const ast = parse('browser { component C { <div> for x in items { <span>"text"</span> } </div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const forNode = div.children.find(c => c.type === 'JSXFor');
@@ -104,7 +104,7 @@ describe('Parser — JSX if with string text content', () => {
   // Lines 412, 428: JSX if/else body with text content
   test('JSX if/else with string text in both branches', () => {
     const ast = parse(`
-      client {
+      browser {
         component C {
           <div>
             if show { "yes" }
@@ -410,10 +410,10 @@ describe('BaseCodegen — binding guard pattern', () => {
 // CLIENT CODEGEN — line 65: non-state lambda body
 // ═══════════════════════════════════════════════════════════
 
-describe('ClientCodegen — non-state assignment in lambda', () => {
+describe('BrowserCodegen — non-state assignment in lambda', () => {
   // Line 65: lambda body is Assignment to non-state variable
   test('non-state assignment lambda body', () => {
-    const gen = new ClientCodegen();
+    const gen = new BrowserCodegen();
     gen.stateNames.add('count');
     const result = gen.genLambdaExpression({
       params: [],

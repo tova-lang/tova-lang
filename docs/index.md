@@ -28,7 +28,7 @@ features:
   - title: "@fast -- TypedArray Optimization"
     details: "Decorate functions with @fast to auto-coerce arrays to Float64Array/Int32Array. Dot product on 1M elements in 97ms. Kahan summation, vector ops, and a typed stdlib included."
   - title: Full-Stack Web
-    details: "shared/server/client blocks with automatic RPC bridge. Call server.get_users() from client code -- the compiler handles networking, serialization, validation. Fine-grained signal reactivity."
+    details: "shared/server/browser blocks with automatic RPC bridge. Call server.get_users() from browser code -- the compiler handles networking, serialization, validation. Fine-grained signal reactivity."
   - title: Batteries Included
     details: "60+ stdlib functions, Tables/DataFrames, AI integration (Anthropic/OpenAI/Ollama), built-in test runner, REPL, LSP server, VS Code extension, production build with minification."
   - title: Scripting & Data
@@ -171,7 +171,7 @@ server {
   }
 }
 
-client {
+browser {
   state todos = []
   state draft = ""
 

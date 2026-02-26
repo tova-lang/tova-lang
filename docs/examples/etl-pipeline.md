@@ -1,6 +1,6 @@
 # ETL Pipeline
 
-This example builds a standalone data pipeline that reads CSV files, cleans and transforms data, joins tables, computes aggregations, and writes results in multiple formats. No server or client blocks — this is Tova as a data engineering tool.
+This example builds a standalone data pipeline that reads CSV files, cleans and transforms data, joins tables, computes aggregations, and writes results in multiple formats. No server or browser blocks — this is Tova as a data engineering tool.
 
 ## The Full Application
 
@@ -263,7 +263,7 @@ write(table, "output.jsonl")    // JSON Lines (one object per line)
 
 ## Key Patterns
 
-**No blocks needed.** Data scripts don't need `shared {}`, `server {}`, or `client {}`. Top-level code runs as a script.
+**No blocks needed.** Data scripts don't need `shared {}`, `server {}`, or `browser {}`. Top-level code runs as a script.
 
 **Column expressions.** `.column_name` compiles to a row-level accessor. Inside `derive()`, `where()`, and `agg()`, column expressions are lambdas that operate on each row.
 

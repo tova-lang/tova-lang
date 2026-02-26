@@ -1,15 +1,15 @@
-// Client-specific analyzer methods for the Tova language
-// Extracted from analyzer.js for lazy loading — only loaded when client { } blocks are encountered.
+// Browser-specific analyzer methods for the Tova language
+// Extracted from analyzer.js for lazy loading — only loaded when browser { } blocks are encountered.
 
 import { Symbol } from './scope.js';
 
-export function installClientAnalyzer(AnalyzerClass) {
-  if (AnalyzerClass.prototype._clientAnalyzerInstalled) return;
-  AnalyzerClass.prototype._clientAnalyzerInstalled = true;
+export function installBrowserAnalyzer(AnalyzerClass) {
+  if (AnalyzerClass.prototype._browserAnalyzerInstalled) return;
+  AnalyzerClass.prototype._browserAnalyzerInstalled = true;
 
-  AnalyzerClass.prototype.visitClientBlock = function(node) {
+  AnalyzerClass.prototype.visitBrowserBlock = function(node) {
     const prevScope = this.currentScope;
-    this.currentScope = this.currentScope.child('client');
+    this.currentScope = this.currentScope.child('browser');
     try {
       for (const stmt of node.body) {
         this.visitNode(stmt);
@@ -21,8 +21,8 @@ export function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitStateDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'state' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'state' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     try {
       this.currentScope.define(node.name,
@@ -35,8 +35,8 @@ export function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitComputedDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'computed' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'computed' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     try {
       this.currentScope.define(node.name,
@@ -49,16 +49,16 @@ export function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitEffectDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'effect' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'effect' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this.visitNode(node.body);
   };
 
   AnalyzerClass.prototype.visitComponentDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'component' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'component' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this._checkNamingConvention(node.name, 'component', node.loc);
     try {
@@ -89,8 +89,8 @@ export function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitStoreDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'store' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'store' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this._checkNamingConvention(node.name, 'store', node.loc);
     try {

@@ -40,7 +40,7 @@ server {
   route GET "/api/todos" => get_todos
 }
 
-client {
+browser {
   state todos: [Todo] = []
   state new_title = ""
 

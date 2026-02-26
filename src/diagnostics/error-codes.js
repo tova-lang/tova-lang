@@ -33,7 +33,7 @@ export const ErrorCode = {
   // === Context Errors (E300–E399) ===
   E300: { code: 'E300', title: 'Invalid context: await',         category: 'context' },
   E301: { code: 'E301', title: 'Invalid context: return',        category: 'context' },
-  E302: { code: 'E302', title: 'Invalid context: client-only',   category: 'context' },
+  E302: { code: 'E302', title: 'Invalid context: browser-only',  category: 'context' },
   E303: { code: 'E303', title: 'Invalid context: server-only',   category: 'context' },
   E304: { code: 'E304', title: 'Invalid context: function-only', category: 'context' },
 

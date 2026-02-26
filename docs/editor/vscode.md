@@ -38,7 +38,7 @@ code --install-extension tova-lang-0.1.0.vsix
 The extension uses a TextMate grammar (`syntaxes/tova.tmLanguage.json`) to provide syntax highlighting for all Tova constructs:
 
 - Keywords (`fn`, `let`, `if`, `elif`, `else`, `match`, `for`, `while`, `return`, etc.)
-- Block keywords (`shared`, `server`, `client`)
+- Block keywords (`shared`, `server`, `browser`)
 - Types and type annotations
 - String literals with interpolation
 - Comments

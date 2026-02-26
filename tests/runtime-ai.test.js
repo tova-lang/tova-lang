@@ -27,23 +27,23 @@ function ollamaResponse(content) {
 // --- Tests ---
 
 describe("createAI factory", () => {
-  test("creates client with default config", () => {
+  test("creates browser with default config", () => {
     const ai = createAI();
     expect(ai).toBeDefined();
     expect(ai._config).toBeDefined();
   });
 
-  test("creates client with anthropic provider", () => {
+  test("creates browser with anthropic provider", () => {
     const ai = createAI({ provider: "anthropic", api_key: "test-key" });
     expect(ai._config.provider).toBe("anthropic");
   });
 
-  test("creates client with openai provider", () => {
+  test("creates browser with openai provider", () => {
     const ai = createAI({ provider: "openai", api_key: "test-key" });
     expect(ai._config.provider).toBe("openai");
   });
 
-  test("creates client with ollama provider", () => {
+  test("creates browser with ollama provider", () => {
     const ai = createAI({ provider: "ollama" });
     expect(ai._config.provider).toBe("ollama");
   });

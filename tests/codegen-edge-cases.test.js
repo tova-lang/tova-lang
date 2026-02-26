@@ -425,56 +425,56 @@ describe('Edge — Server model declaration', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Client Codegen Edge Cases
+// Browser Codegen Edge Cases
 // ═══════════════════════════════════════════════════════════════
 
 describe('Edge — State declaration generates createSignal', () => {
   test('state with initial value', () => {
-    const result = compile('client { state count = 0 }');
-    expect(result.client).toContain('const [count, setCount] = createSignal(0)');
+    const result = compile('browser { state count = 0 }');
+    expect(result.browser).toContain('const [count, setCount] = createSignal(0)');
   });
 
   test('state with string initial value', () => {
-    const result = compile('client { state name = "hello" }');
-    expect(result.client).toContain('const [name, setName] = createSignal("hello")');
+    const result = compile('browser { state name = "hello" }');
+    expect(result.browser).toContain('const [name, setName] = createSignal("hello")');
   });
 });
 
 describe('Edge — Computed declaration generates createComputed', () => {
   test('computed depends on state', () => {
-    const result = compile('client { state count = 0\ncomputed doubled = count * 2 }');
-    expect(result.client).toContain('createComputed(');
-    expect(result.client).toContain('count()');
-    expect(result.client).toContain('* 2');
+    const result = compile('browser { state count = 0\ncomputed doubled = count * 2 }');
+    expect(result.browser).toContain('createComputed(');
+    expect(result.browser).toContain('count()');
+    expect(result.browser).toContain('* 2');
   });
 });
 
 describe('Edge — Effect declaration generates createEffect', () => {
   test('effect block creates createEffect call', () => {
-    const result = compile('client { effect { print("side effect") } }');
-    expect(result.client).toContain('createEffect(');
-    expect(result.client).toContain('print("side effect")');
+    const result = compile('browser { effect { print("side effect") } }');
+    expect(result.browser).toContain('createEffect(');
+    expect(result.browser).toContain('print("side effect")');
   });
 });
 
 describe('Edge — Component with JSX generates render function', () => {
   test('basic component with JSX', () => {
-    const result = compile('client { component App { <div>"Hello"</div> } }');
-    expect(result.client).toContain('function App(');
-    expect(result.client).toContain('tova_el("div"');
-    expect(result.client).toContain('return');
+    const result = compile('browser { component App { <div>"Hello"</div> } }');
+    expect(result.browser).toContain('function App(');
+    expect(result.browser).toContain('tova_el("div"');
+    expect(result.browser).toContain('return');
   });
 
   test('component with params', () => {
-    const result = compile('client { component Greeting(name) { <span>{name}</span> } }');
-    expect(result.client).toContain('function Greeting(__props)');
-    expect(result.client).toContain('const name = () => __props.name');
+    const result = compile('browser { component Greeting(name) { <span>{name}</span> } }');
+    expect(result.browser).toContain('function Greeting(__props)');
+    expect(result.browser).toContain('const name = () => __props.name');
   });
 });
 
 describe('Edge — Component with style block generates scoped CSS', () => {
   test('style block injects scoped CSS', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Card {
         style {
           .card { border: 1px solid #ccc; }
@@ -482,23 +482,23 @@ describe('Edge — Component with style block generates scoped CSS', () => {
         <div class="card">"hello"</div>
       }
     }`);
-    expect(result.client).toContain('tova_inject_css(');
-    expect(result.client).toContain('.card[data-tova-');
-    expect(result.client).toContain('data-tova-');
+    expect(result.browser).toContain('tova_inject_css(');
+    expect(result.browser).toContain('.card[data-tova-');
+    expect(result.browser).toContain('data-tova-');
   });
 });
 
 describe('Edge — JSX with event handler (on:click)', () => {
   test('on:click generates onClick prop', () => {
-    const result = compile('client { component App { <button on:click={fn() print("clicked")}>"Click"</button> } }');
-    expect(result.client).toContain('onClick:');
-    expect(result.client).toContain('print("clicked")');
+    const result = compile('browser { component App { <button on:click={fn() print("clicked")}>"Click"</button> } }');
+    expect(result.browser).toContain('onClick:');
+    expect(result.browser).toContain('print("clicked")');
   });
 });
 
 describe('Edge — JSX with conditional (if/else)', () => {
   test('JSX if/else generates reactive ternary', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state show = true
       component App {
         <div>
@@ -510,16 +510,16 @@ describe('Edge — JSX with conditional (if/else)', () => {
         </div>
       }
     }`);
-    expect(result.client).toContain('() =>');
-    expect(result.client).toContain('show()');
-    expect(result.client).toContain('?');
-    expect(result.client).toContain(':');
+    expect(result.browser).toContain('() =>');
+    expect(result.browser).toContain('show()');
+    expect(result.browser).toContain('?');
+    expect(result.browser).toContain(':');
   });
 });
 
 describe('Edge — JSX with loop (for in)', () => {
   test('JSX for generates reactive .map()', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state items = []
       component App {
         <ul>
@@ -529,24 +529,24 @@ describe('Edge — JSX with loop (for in)', () => {
         </ul>
       }
     }`);
-    expect(result.client).toContain('() => items().map(');
-    expect(result.client).toContain('(item)');
-    expect(result.client).toContain('tova_el("li"');
+    expect(result.browser).toContain('() => items().map(');
+    expect(result.browser).toContain('(item)');
+    expect(result.browser).toContain('tova_el("li"');
   });
 });
 
 describe('Edge — JSX with bind:value', () => {
   test('bind:value on input generates value prop and onInput', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state name = ""
       component App { <input bind:value={name} /> }
     }`);
-    expect(result.client).toContain('value: () => name()');
-    expect(result.client).toContain('onInput: (e) => { setName(e.target.value); }');
+    expect(result.browser).toContain('value: () => name()');
+    expect(result.browser).toContain('onInput: (e) => { setName(e.target.value); }');
   });
 
   test('bind:value on select generates onChange', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state choice = "a"
       component App {
         <select bind:value={choice}>
@@ -554,36 +554,36 @@ describe('Edge — JSX with bind:value', () => {
         </select>
       }
     }`);
-    expect(result.client).toContain('value: () => choice()');
-    expect(result.client).toContain('onChange: (e) => { setChoice(e.target.value); }');
+    expect(result.browser).toContain('value: () => choice()');
+    expect(result.browser).toContain('onChange: (e) => { setChoice(e.target.value); }');
   });
 });
 
 describe('Edge — Store declaration generates reactive store', () => {
   test('store with state generates IIFE with getters/setters', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store AppStore {
         state count = 0
         fn increment() { count += 1 }
       }
     }`);
-    expect(result.client).toContain('const AppStore = (() => {');
-    expect(result.client).toContain('createSignal(0)');
-    expect(result.client).toContain('get count()');
-    expect(result.client).toContain('set count(v)');
-    expect(result.client).toContain('function increment()');
-    expect(result.client).toContain('setCount(');
-    expect(result.client).toContain('})();');
+    expect(result.browser).toContain('const AppStore = (() => {');
+    expect(result.browser).toContain('createSignal(0)');
+    expect(result.browser).toContain('get count()');
+    expect(result.browser).toContain('set count(v)');
+    expect(result.browser).toContain('function increment()');
+    expect(result.browser).toContain('setCount(');
+    expect(result.browser).toContain('})();');
   });
 
   test('store with computed generates read-only getter', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store CalcStore {
         state x = 5
         computed doubled = x * 2
       }
     }`);
-    expect(result.client).toContain('get doubled()');
-    expect(result.client).not.toContain('set doubled');
+    expect(result.browser).toContain('get doubled()');
+    expect(result.browser).not.toContain('set doubled');
   });
 });

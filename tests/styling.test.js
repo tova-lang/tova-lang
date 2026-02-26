@@ -7,7 +7,7 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 
 function compile(source) {
   const lexer = new Lexer(source, '<test>');
@@ -18,20 +18,20 @@ function compile(source) {
   return codegen.generate();
 }
 
-function compileClient(source) {
-  return compile(source).client;
+function compileBrowser(source) {
+  return compile(source).browser;
 }
 
 // ─── Static Class Attribute ─────────────────────────────────
 
 describe('Styling — Static class attribute', () => {
   test('static class compiles to className', () => {
-    const result = compileClient('client { component App { <div class="text-lg font-bold" /> } }');
+    const result = compileBrowser('browser { component App { <div class="text-lg font-bold" /> } }');
     expect(result).toContain('className: "text-lg font-bold"');
   });
 
   test('Tailwind utility classes pass through', () => {
-    const result = compileClient('client { component App { <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-all" /> } }');
+    const result = compileBrowser('browser { component App { <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-all" /> } }');
     expect(result).toContain('bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-all');
   });
 });
@@ -40,14 +40,14 @@ describe('Styling — Static class attribute', () => {
 
 describe('Styling — Dynamic class={expr}', () => {
   test('dynamic class with signal wraps in reactive closure', () => {
-    const result = compileClient('client { state active = true\ncomponent App { <div class={if active { "bg-blue-500" } else { "bg-gray-500" }} /> } }');
+    const result = compileBrowser('browser { state active = true\ncomponent App { <div class={if active { "bg-blue-500" } else { "bg-gray-500" }} /> } }');
     expect(result).toContain('className');
     expect(result).toContain('bg-blue-500');
     expect(result).toContain('bg-gray-500');
   });
 
   test('dynamic class with variable expression', () => {
-    const result = compileClient('client { component App {\ncls = "container"\n<div class={cls} /> } }');
+    const result = compileBrowser('browser { component App {\ncls = "container"\n<div class={cls} /> } }');
     expect(result).toContain('className');
   });
 });
@@ -56,13 +56,13 @@ describe('Styling — Dynamic class={expr}', () => {
 
 describe('Styling — String interpolation in class', () => {
   test('template string in class attribute compiles to template literal', () => {
-    const result = compileClient('client { state size = "lg"\ncomponent App { <div class="text-{size} font-bold" /> } }');
+    const result = compileBrowser('browser { state size = "lg"\ncomponent App { <div class="text-{size} font-bold" /> } }');
     expect(result).toContain('className');
     expect(result).toContain('font-bold');
   });
 
   test('interpolation with variable in class', () => {
-    const result = compileClient('client { state color = "blue"\ncomponent App { <span class="px-2 py-1 text-{color}-500" /> } }');
+    const result = compileBrowser('browser { state color = "blue"\ncomponent App { <span class="px-2 py-1 text-{color}-500" /> } }');
     expect(result).toContain('className');
     expect(result).toContain('px-2 py-1');
   });
@@ -72,7 +72,7 @@ describe('Styling — String interpolation in class', () => {
 
 describe('Styling — class: directive', () => {
   test('class:name generates conditional className', () => {
-    const result = compileClient('client { state active = true\ncomponent App { <div class:active={active} /> } }');
+    const result = compileBrowser('browser { state active = true\ncomponent App { <div class:active={active} /> } }');
     expect(result).toContain('active()');
     expect(result).toContain('"active"');
     expect(result).toContain('filter(Boolean)');
@@ -80,21 +80,21 @@ describe('Styling — class: directive', () => {
   });
 
   test('class:name merges with static class', () => {
-    const result = compileClient('client { state bold = true\ncomponent App { <div class="btn" class:bold={bold} /> } }');
+    const result = compileBrowser('browser { state bold = true\ncomponent App { <div class="btn" class:bold={bold} /> } }');
     expect(result).toContain('"btn"');
     expect(result).toContain('"bold"');
     expect(result).toContain('filter(Boolean)');
   });
 
   test('multiple class: directives merge', () => {
-    const result = compileClient('client { state a = true\nstate b = false\ncomponent App { <div class:active={a} class:error={b} /> } }');
+    const result = compileBrowser('browser { state a = true\nstate b = false\ncomponent App { <div class:active={a} class:error={b} /> } }');
     expect(result).toContain('"active"');
     expect(result).toContain('"error"');
     expect(result).toContain('filter(Boolean)');
   });
 
   test('class: with static class and multiple conditions', () => {
-    const result = compileClient('client { state x = true\nstate y = false\ncomponent App { <div class="base" class:primary={x} class:disabled={y} /> } }');
+    const result = compileBrowser('browser { state x = true\nstate y = false\ncomponent App { <div class="base" class:primary={x} class:disabled={y} /> } }');
     expect(result).toContain('"base"');
     expect(result).toContain('"primary"');
     expect(result).toContain('"disabled"');
@@ -105,18 +105,18 @@ describe('Styling — class: directive', () => {
 
 describe('Styling — show directive', () => {
   test('show={expr} compiles to display toggle', () => {
-    const result = compileClient('client { state visible = true\ncomponent App { <div show={visible}>Hello</div> } }');
+    const result = compileBrowser('browser { state visible = true\ncomponent App { <div show={visible}>Hello</div> } }');
     expect(result).toContain('display');
     expect(result).toContain('none');
   });
 
   test('show with non-reactive expression', () => {
-    const result = compileClient('client { component App { <div show={true}>Always</div> } }');
+    const result = compileBrowser('browser { component App { <div show={true}>Always</div> } }');
     expect(result).toContain('display');
   });
 
   test('show with negated expression', () => {
-    const result = compileClient('client { state hidden = false\ncomponent App { <div show={not hidden}>Has items</div> } }');
+    const result = compileBrowser('browser { state hidden = false\ncomponent App { <div show={not hidden}>Has items</div> } }');
     expect(result).toContain('display');
     expect(result).toContain('none');
   });
@@ -126,20 +126,20 @@ describe('Styling — show directive', () => {
 
 describe('Styling — Inline styles', () => {
   test('static style string passes through', () => {
-    const result = compileClient('client { component App { <div style="color: red; font-size: 14px" /> } }');
+    const result = compileBrowser('browser { component App { <div style="color: red; font-size: 14px" /> } }');
     expect(result).toContain('style');
     expect(result).toContain('color: red');
   });
 
   test('style object expression compiles', () => {
-    const result = compileClient('client { component App { <div style={{ color: "red", fontSize: "14px" }} /> } }');
+    const result = compileBrowser('browser { component App { <div style={{ color: "red", fontSize: "14px" }} /> } }');
     expect(result).toContain('style');
     expect(result).toContain('color');
     expect(result).toContain('red');
   });
 
   test('reactive style object wraps in closure', () => {
-    const result = compileClient('client { state c = "red"\ncomponent App { <div style={{ color: c }} /> } }');
+    const result = compileBrowser('browser { state c = "red"\ncomponent App { <div style={{ color: c }} /> } }');
     expect(result).toContain('style');
     expect(result).toContain('color');
   });
@@ -148,7 +148,7 @@ describe('Styling — Inline styles', () => {
 // ─── Scoped CSS (style blocks) ──────────────────────────────
 
 describe('Styling — Scoped CSS', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('basic selector is scoped', () => {
@@ -261,7 +261,7 @@ describe('Styling — Scoped CSS', () => {
 // ─── :global() Escape Hatch ─────────────────────────────────
 
 describe('Styling — :global() escape hatch', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test(':global() selector is not scoped', () => {
@@ -288,7 +288,7 @@ describe('Styling — :global() escape hatch', () => {
 // ─── @media Rules ───────────────────────────────────────────
 
 describe('Styling — @media rules', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('selectors inside @media are scoped', () => {
@@ -307,7 +307,7 @@ describe('Styling — @media rules', () => {
 // ─── @keyframes Rules ───────────────────────────────────────
 
 describe('Styling — @keyframes rules', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('from/to selectors inside @keyframes are NOT scoped', () => {
@@ -339,7 +339,7 @@ describe('Styling — @keyframes rules', () => {
 // ─── @font-face Rules ───────────────────────────────────────
 
 describe('Styling — @font-face rules', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('@font-face internals are NOT scoped', () => {
@@ -361,7 +361,7 @@ describe('Styling — @font-face rules', () => {
 // ─── @layer Rules ───────────────────────────────────────────
 
 describe('Styling — @layer rules', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('selectors inside @layer are scoped', () => {
@@ -382,7 +382,7 @@ describe('Styling — @layer rules', () => {
 // ─── @supports Rules ────────────────────────────────────────
 
 describe('Styling — @supports rules', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('selectors inside @supports are scoped', () => {
@@ -396,7 +396,7 @@ describe('Styling — @supports rules', () => {
 // ─── CSS Comments ───────────────────────────────────────────
 
 describe('Styling — CSS comments', () => {
-  const codegen = new ClientCodegen();
+  const codegen = new BrowserCodegen();
   const scope = '[data-tova-test]';
 
   test('comments are preserved through scoping', () => {
@@ -410,7 +410,7 @@ describe('Styling — CSS comments', () => {
 
 describe('Styling — Full component with style block (e2e)', () => {
   test('component with style block generates tova_inject_css', () => {
-    const result = compileClient(`client {
+    const result = compileBrowser(`browser {
       component Card {
         <div class="card">Hello</div>
         style {
@@ -426,7 +426,7 @@ describe('Styling — Full component with style block (e2e)', () => {
   });
 
   test('component with Tailwind classes and scoped style block', () => {
-    const result = compileClient(`client {
+    const result = compileBrowser(`browser {
       component AnimatedCard(title) {
         <div class="bg-white rounded-2xl p-6 shadow-sm card">
           <h3 class="text-lg font-semibold">{title}</h3>
@@ -447,7 +447,7 @@ describe('Styling — Full component with style block (e2e)', () => {
   });
 
   test('component with class: directive and style block', () => {
-    const result = compileClient(`client {
+    const result = compileBrowser(`browser {
       state active = false
       component Tab {
         <div class="tab" class:active={active}>Tab</div>
@@ -468,19 +468,19 @@ describe('Styling — Full component with style block (e2e)', () => {
 
 describe('Styling — Combined approaches', () => {
   test('show + static class on same element', () => {
-    const result = compileClient('client { state v = true\ncomponent App { <div class="card" show={v}>Content</div> } }');
+    const result = compileBrowser('browser { state v = true\ncomponent App { <div class="card" show={v}>Content</div> } }');
     expect(result).toContain('display');
     expect(result).toContain('card');
   });
 
   test('class: directive + show on same element', () => {
-    const result = compileClient('client { state a = true\nstate v = true\ncomponent App { <div class:active={a} show={v}>X</div> } }');
+    const result = compileBrowser('browser { state a = true\nstate v = true\ncomponent App { <div class:active={a} show={v}>X</div> } }');
     expect(result).toContain('"active"');
     expect(result).toContain('display');
   });
 
   test('static class + class: directive compile together', () => {
-    const result = compileClient('client { state on = true\ncomponent App { <button class="px-4 py-2 rounded" class:highlighted={on}>Go</button> } }');
+    const result = compileBrowser('browser { state on = true\ncomponent App { <button class="px-4 py-2 rounded" class:highlighted={on}>Go</button> } }');
     expect(result).toContain('"px-4 py-2 rounded"');
     expect(result).toContain('"highlighted"');
     expect(result).toContain('filter(Boolean)');

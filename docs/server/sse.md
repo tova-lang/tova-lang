@@ -64,7 +64,7 @@ source.addEventListener("error", (e) => {
 In Tova client code, you can use the same API:
 
 ```tova
-client {
+browser {
   source = EventSource.new("/events")
 
   source.addEventListener("update", fn(event) {

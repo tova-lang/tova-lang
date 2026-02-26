@@ -5,7 +5,7 @@ import { TokenType, Token } from '../src/lexer/tokens.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import * as AST from '../src/parser/ast.js';
 
 function parse(source) {
@@ -242,7 +242,7 @@ describe('Parser — match statement at top level', () => {
   });
 });
 
-describe('Parser — server/client as expression identifiers', () => {
+describe('Parser — server/browser as expression identifiers', () => {
   // Lines 1118-1119
   test('client as identifier in expression', () => {
     const ast = parse('x = client.get_data()');
@@ -258,7 +258,7 @@ describe('Parser — server/client as expression identifiers', () => {
 describe('Parser — component with statements inside', () => {
   // Line 237: parseComponentDeclaration when body has non-JSX statements
   test('component with local statements and JSX', () => {
-    const ast = parse('client { component C { <div>"hello"</div> } }');
+    const ast = parse('browser { component C { <div>"hello"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body.length).toBeGreaterThanOrEqual(1);
   });
@@ -343,19 +343,19 @@ describe('Analyzer — duplicate definitions', () => {
   });
 
   test('duplicate state declaration errors', () => {
-    const ast = parse('client { state x = 0\nstate x = 1 }');
+    const ast = parse('browser { state x = 0\nstate x = 1 }');
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).toThrow();
   });
 
   test('duplicate computed declaration errors', () => {
-    const ast = parse('client { computed x = 1\ncomputed x = 2 }');
+    const ast = parse('browser { computed x = 1\ncomputed x = 2 }');
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).toThrow();
   });
 
   test('duplicate component declaration errors', () => {
-    const ast = parse('client { component A { <div>"a"</div> }\ncomponent A { <div>"b"</div> } }');
+    const ast = parse('browser { component A { <div>"a"</div> }\ncomponent A { <div>"b"</div> } }');
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).toThrow();
   });
@@ -382,7 +382,7 @@ describe('Analyzer — duplicate definitions', () => {
   });
 
   test('component with duplicate param errors', () => {
-    const ast = parse('client { component C(a, a) { <div>"x"</div> } }');
+    const ast = parse('browser { component C(a, a) { <div>"x"</div> } }');
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).toThrow();
   });
@@ -494,83 +494,83 @@ describe('Codegen — slice with step', () => {
 // CLIENT CODEGEN — remaining uncovered lines
 // ═══════════════════════════════════════════════════════════
 
-describe('Client Codegen — lambda state transforms', () => {
-  // Lines 38-39: lambda with block body in client (state-aware)
-  test('client lambda with block body containing state mutation', () => {
-    const result = compile('client { state count = 0\nfn handler() { count += 1\nprint(count) } }');
-    expect(result.client).toContain('setCount');
+describe('Browser Codegen — lambda state transforms', () => {
+  // Lines 38-39: lambda with block body in browser (state-aware)
+  test('browser lambda with block body containing state mutation', () => {
+    const result = compile('browser { state count = 0\nfn handler() { count += 1\nprint(count) } }');
+    expect(result.browser).toContain('setCount');
   });
 
   // Line 57: lambda assignment to state variable (fn() count = x)
-  test('client lambda assignment to state in fn body', () => {
+  test('browser lambda assignment to state in fn body', () => {
     const result = compile(`
-      client {
+      browser {
         state count = 0
         component App {
           <button on:click={fn() count = 10}>"reset"</button>
         }
       }
     `);
-    expect(result.client).toContain('setCount(10)');
+    expect(result.browser).toContain('setCount(10)');
   });
 
   // Lines 60-65: non-state compound/assignment/var in lambda body
-  test('client lambda with non-state compound assignment', () => {
-    const result = compile('client { state x = 0\nfn inc() { var y = 1\ny += 1 } }');
-    expect(result.client).toContain('y += 1');
+  test('browser lambda with non-state compound assignment', () => {
+    const result = compile('browser { state x = 0\nfn inc() { var y = 1\ny += 1 } }');
+    expect(result.browser).toContain('y += 1');
   });
 
-  test('client lambda with non-state assignment body', () => {
+  test('browser lambda with non-state assignment body', () => {
     const result = compile(`
-      client {
+      browser {
         state x = 0
         component App {
           <button on:click={fn() y = 5}>"go"</button>
         }
       }
     `);
-    expect(result.client).toContain('const y = 5');
+    expect(result.browser).toContain('const y = 5');
   });
 });
 
-describe('Client Codegen — component bodies', () => {
+describe('Browser Codegen — component bodies', () => {
   // Line 191: JSXFor in component body (treated as JSX)
   test('component body with JSXFor', () => {
-    const result = compile('client { component C { <div> for x in items { <span>"text"</span> } </div> } }');
-    expect(result.client).toContain('.map(');
+    const result = compile('browser { component C { <div> for x in items { <span>"text"</span> } </div> } }');
+    expect(result.browser).toContain('.map(');
   });
 
   // Lines 198: component with function and JSX
   test('component with function and JSX', () => {
-    const result = compile('client { component C { <div>"hello"</div> } }');
-    expect(result.client).toContain('tova_el("div"');
+    const result = compile('browser { component C { <div>"hello"</div> } }');
+    expect(result.browser).toContain('tova_el("div"');
   });
 
   // Lines 204-206: multiple JSX root elements → fragment
   test('component with multiple JSX roots → fragment', () => {
-    const result = compile('client { component C { <h1>"title"</h1>\n<p>"body"</p> } }');
-    expect(result.client).toContain('tova_fragment');
+    const result = compile('browser { component C { <h1>"title"</h1>\n<p>"body"</p> } }');
+    expect(result.browser).toContain('tova_fragment');
   });
 
   // Line 269: JSXText with template literal
   test('JSX text with template literal interpolation', () => {
-    const result = compile('client { component C { <p>"hello {name}"</p> } }');
-    expect(result.client).toContain('`hello ${name}`');
+    const result = compile('browser { component C { <p>"hello {name}"</p> } }');
+    expect(result.browser).toContain('`hello ${name}`');
   });
 });
 
-describe('Client Codegen — JSX for with multiple children', () => {
+describe('Browser Codegen — JSX for with multiple children', () => {
   test('JSX for with multiple child elements', () => {
-    const result = compile('client { component C { <div> for x in items { <span>"a"</span>\n<span>"b"</span> } </div> } }');
-    expect(result.client).toContain('tova_fragment');
+    const result = compile('browser { component C { <div> for x in items { <span>"a"</span>\n<span>"b"</span> } </div> } }');
+    expect(result.browser).toContain('tova_fragment');
   });
 });
 
-describe('Client Codegen — JSX if with multiple consequent elements', () => {
+describe('Browser Codegen — JSX if with multiple consequent elements', () => {
   test('JSX if with multiple then elements', () => {
-    const result = compile('client { component C { <div> if show { <span>"a"</span>\n<span>"b"</span> } </div> } }');
+    const result = compile('browser { component C { <div> if show { <span>"a"</span>\n<span>"b"</span> } </div> } }');
     // Multiple elements in consequent should produce tova_fragment
-    expect(result.client).toContain('tova_fragment');
+    expect(result.browser).toContain('tova_fragment');
   });
 });
 

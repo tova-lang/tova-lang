@@ -1,6 +1,6 @@
 # Named Blocks
 
-For applications that outgrow a single server process or need separate client bundles, Tova supports **named blocks**. A named block is a `server` or `client` block with a string label. Each named block compiles to its own JavaScript file, letting you split your application into multiple independent outputs from a single `.tova` file.
+For applications that outgrow a single server process or need separate client bundles, Tova supports **named blocks**. A named block is a `server` or `browser` block with a string label. Each named block compiles to its own JavaScript file, letting you split your application into multiple independent outputs from a single `.tova` file.
 
 ## Syntax
 
@@ -33,10 +33,10 @@ An unnamed `server { }` block is the "default" server. Named blocks are addition
 
 ### Named Client Blocks
 
-Client blocks can also be named, producing separate client bundles:
+Browser blocks can also be named, producing separate client bundles:
 
 ```tova
-client "admin" {
+browser "admin" {
   state adminUsers = []
 
   component AdminPanel {
@@ -49,7 +49,7 @@ client "admin" {
   }
 }
 
-client "public" {
+browser "public" {
   state posts = []
 
   component Blog {
@@ -63,13 +63,13 @@ client "public" {
 }
 ```
 
-Named client blocks are **completely separate** — they do not share state, components, or any runtime scope. Each compiles to its own JavaScript file with its own reactive root.
+Named browser blocks are **completely separate** — they do not share state, components, or any runtime scope. Each compiles to its own JavaScript file with its own reactive root.
 
 ::: tip Unnamed vs Named Client Blocks
-- **Multiple unnamed `client {}` blocks** in the same file or directory are **merged** into one output. They share state, components, and the same reactive scope. Use this to organize code by concern.
-- **Named `client "name" {}` blocks** produce **separate** outputs. They are independent client applications. Use this when you need truly separate bundles (e.g., admin panel vs public site).
+- **Multiple unnamed `browser {}` blocks** in the same file or directory are **merged** into one output. They share state, components, and the same reactive scope. Use this to organize code by concern.
+- **Named `browser "name" {}` blocks** produce **separate** outputs. They are independent client applications. Use this when you need truly separate bundles (e.g., admin panel vs public site).
 
-See [Client Block — Multiple Client Blocks](/fullstack/client-block#multiple-client-blocks) for more details on merging behavior.
+See [Browser Block — Multiple Browser Blocks](/fullstack/browser-block#multiple-browser-blocks) for more details on merging behavior.
 :::
 
 ## Output Structure
@@ -83,9 +83,9 @@ Each named block compiles to its own JavaScript file. For a single file named `a
   app.server.api.js            # server "api" { }
   app.server.events.js         # server "events" { }
   app.server.worker.js         # server "worker" { }
-  app.client.js                # unnamed client { } block (default)
-  app.client.admin.js          # client "admin" { }
-  app.client.public.js         # client "public" { }
+  app.client.js                # unnamed browser { } block (default)
+  app.client.admin.js          # browser "admin" { }
+  app.client.public.js         # browser "public" { }
   runtime/
     reactivity.js
     rpc.js
@@ -94,7 +94,7 @@ Each named block compiles to its own JavaScript file. For a single file named `a
 
 Each named server file is a standalone Bun script. It imports `app.shared.js` for shared types, registers its own routes and RPC endpoints, and starts its own `Bun.serve()` instance.
 
-Each named client file is an independent client bundle with its own reactive runtime, signals, and components. Named client blocks import `app.shared.js` for shared types but are otherwise self-contained.
+Each named client file is an independent client bundle with its own reactive runtime, signals, and components. Named browser blocks import `app.shared.js` for shared types but are otherwise self-contained.
 
 ### Named Blocks Across Files
 
@@ -365,7 +365,7 @@ server "worker" {
   }
 }
 
-client {
+browser {
   state users: [User] = []
 
   effect {

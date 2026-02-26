@@ -550,7 +550,7 @@ server {
 Build a dashboard:
 
 ```tova
-client {
+browser {
   state data = []
   effect { data = server.get_summary() }
 

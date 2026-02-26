@@ -6,7 +6,7 @@ import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { SharedCodegen } from '../src/codegen/shared-codegen.js';
 import { ServerCodegen } from '../src/codegen/server-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
 
 function parse(source) {
@@ -35,7 +35,7 @@ function compileShared(source) {
 
 describe('Parser — JSX elements', () => {
   test('self-closing tag', () => {
-    const ast = parse('client { component C { <br /> } }');
+    const ast = parse('browser { component C { <br /> } }');
     const comp = ast.body[0].body[0];
     const jsx = comp.body[0];
     expect(jsx.type).toBe('JSXElement');
@@ -43,14 +43,14 @@ describe('Parser — JSX elements', () => {
   });
 
   test('nested elements', () => {
-    const ast = parse('client { component C { <div><span>"hello"</span></div> } }');
+    const ast = parse('browser { component C { <div><span>"hello"</span></div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     expect(div.children.length).toBeGreaterThan(0);
   });
 
   test('JSX with expression child in braces', () => {
-    const ast = parse('client { component C { <div>{count}</div> } }');
+    const ast = parse('browser { component C { <div>{count}</div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const exprChild = div.children.find(c => c.type === 'JSXExpression');
@@ -58,7 +58,7 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX boolean attribute', () => {
-    const ast = parse('client { component C { <input disabled /> } }');
+    const ast = parse('browser { component C { <input disabled /> } }');
     const comp = ast.body[0].body[0];
     const input = comp.body[0];
     expect(input.attributes[0].name).toBe('disabled');
@@ -66,28 +66,28 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX string attribute', () => {
-    const ast = parse('client { component C { <div class="test">"hi"</div> } }');
+    const ast = parse('browser { component C { <div class="test">"hi"</div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     expect(div.attributes[0].name).toBe('class');
   });
 
   test('JSX expression attribute', () => {
-    const ast = parse('client { component C { <div id={myId}>"hi"</div> } }');
+    const ast = parse('browser { component C { <div id={myId}>"hi"</div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     expect(div.attributes[0].value.type).toBe('Identifier');
   });
 
   test('JSX event attribute on:click', () => {
-    const ast = parse('client { component C { <button on:click={handler}>"go"</button> } }');
+    const ast = parse('browser { component C { <button on:click={handler}>"go"</button> } }');
     const comp = ast.body[0].body[0];
     const btn = comp.body[0];
     expect(btn.attributes[0].name).toBe('on:click');
   });
 
   test('JSX for loop', () => {
-    const ast = parse('client { component C { <ul> for item in items { <li>"text"</li> } </ul> } }');
+    const ast = parse('browser { component C { <ul> for item in items { <li>"text"</li> } </ul> } }');
     const comp = ast.body[0].body[0];
     const ul = comp.body[0];
     const forNode = ul.children.find(c => c.type === 'JSXFor');
@@ -96,7 +96,7 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX if/else', () => {
-    const ast = parse('client { component C { <div> if show { <span>"yes"</span> } else { <span>"no"</span> } </div> } }');
+    const ast = parse('browser { component C { <div> if show { <span>"yes"</span> } else { <span>"no"</span> } </div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const ifNode = div.children.find(c => c.type === 'JSXIf');
@@ -105,7 +105,7 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX if without else', () => {
-    const ast = parse('client { component C { <div> if show { <span>"yes"</span> } </div> } }');
+    const ast = parse('browser { component C { <div> if show { <span>"yes"</span> } </div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const ifNode = div.children.find(c => c.type === 'JSXIf');
@@ -113,7 +113,7 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX with keyword attribute names', () => {
-    const ast = parse('client { component C { <input type="text" for="name" /> } }');
+    const ast = parse('browser { component C { <input type="text" for="name" /> } }');
     const comp = ast.body[0].body[0];
     const input = comp.body[0];
     expect(input.attributes.find(a => a.name === 'type')).toBeDefined();
@@ -121,7 +121,7 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX for with string text body', () => {
-    const ast = parse('client { component C { <div> for x in items { "text" } </div> } }');
+    const ast = parse('browser { component C { <div> for x in items { "text" } </div> } }');
     const comp = ast.body[0].body[0];
     const div = comp.body[0];
     const forNode = div.children.find(c => c.type === 'JSXFor');
@@ -129,20 +129,20 @@ describe('Parser — JSX elements', () => {
   });
 
   test('JSX for with expression body', () => {
-    const ast = parse('client { component C { <div> for x in items { <span>"a"</span> } </div> } }');
+    const ast = parse('browser { component C { <div> for x in items { <span>"a"</span> } </div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].children.length).toBeGreaterThan(0);
   });
 
   test('JSX if with string text', () => {
-    const ast = parse('client { component C { <div> if show { "text" } </div> } }');
+    const ast = parse('browser { component C { <div> if show { "text" } </div> } }');
     const comp = ast.body[0].body[0];
     const ifNode = comp.body[0].children.find(c => c.type === 'JSXIf');
     expect(ifNode.consequent.length).toBeGreaterThan(0);
   });
 
   test('JSX if else with text', () => {
-    const ast = parse('client { component C { <div> if show { "yes" } else { "no" } </div> } }');
+    const ast = parse('browser { component C { <div> if show { "yes" } else { "no" } </div> } }');
     const comp = ast.body[0].body[0];
     const ifNode = comp.body[0].children.find(c => c.type === 'JSXIf');
     expect(ifNode.alternate.length).toBeGreaterThan(0);
@@ -469,9 +469,9 @@ describe('Codegen — import alias', () => {
 // ═══════════════════════════════════════════════════════════
 
 describe('Codegen — Client full pipeline', () => {
-  test('client with state, computed, effect, component', () => {
+  test('browser with state, computed, effect, component', () => {
     const result = compile(`
-      client {
+      browser {
         state count = 0
         state name: String = ""
         computed doubled = count * 2
@@ -488,64 +488,64 @@ describe('Codegen — Client full pipeline', () => {
         }
       }
     `);
-    expect(result.client).toContain('createSignal(0)');
-    expect(result.client).toContain('setCount');
-    expect(result.client).toContain('createComputed');
-    expect(result.client).toContain('createEffect');
-    expect(result.client).toContain('function App(');
-    expect(result.client).toContain('function helper(');
-    expect(result.client).toContain('setCount(__tova_p => __tova_p + 1)');
-    expect(result.client).toContain('setCount(__tova_p => __tova_p - 1)');
-    expect(result.client).toContain('setCount(0)');
+    expect(result.browser).toContain('createSignal(0)');
+    expect(result.browser).toContain('setCount');
+    expect(result.browser).toContain('createComputed');
+    expect(result.browser).toContain('createEffect');
+    expect(result.browser).toContain('function App(');
+    expect(result.browser).toContain('function helper(');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p + 1)');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p - 1)');
+    expect(result.browser).toContain('setCount(0)');
   });
 
-  test('client component with props', () => {
-    const result = compile('client { component Card(title, body) { <div><h2>"{title}"</h2></div> } }');
-    expect(result.client).toContain('function Card(__props)');
-    expect(result.client).toContain('const title = () => __props.title;');
-    expect(result.client).toContain('const body = () => __props.body;');
+  test('browser component with props', () => {
+    const result = compile('browser { component Card(title, body) { <div><h2>"{title}"</h2></div> } }');
+    expect(result.browser).toContain('function Card(__props)');
+    expect(result.browser).toContain('const title = () => __props.title;');
+    expect(result.browser).toContain('const body = () => __props.body;');
   });
 
-  test('client JSX self-closing', () => {
-    const result = compile('client { component C { <br /> } }');
-    expect(result.client).toContain('tova_el("br"');
+  test('browser JSX self-closing', () => {
+    const result = compile('browser { component C { <br /> } }');
+    expect(result.browser).toContain('tova_el("br"');
   });
 
-  test('client JSX for loop', () => {
-    const result = compile('client { component C { <ul> for item in items { <li>"text"</li> } </ul> } }');
-    expect(result.client).toContain('.map(');
+  test('browser JSX for loop', () => {
+    const result = compile('browser { component C { <ul> for item in items { <li>"text"</li> } </ul> } }');
+    expect(result.browser).toContain('.map(');
   });
 
-  test('client JSX if/else', () => {
-    const result = compile('client { component C { <div> if show { <span>"yes"</span> } else { <span>"no"</span> } </div> } }');
-    expect(result.client).toContain('?');
-    expect(result.client).toContain(':');
+  test('browser JSX if/else', () => {
+    const result = compile('browser { component C { <div> if show { <span>"yes"</span> } else { <span>"no"</span> } </div> } }');
+    expect(result.browser).toContain('?');
+    expect(result.browser).toContain(':');
   });
 
-  test('client JSX if without else', () => {
-    const result = compile('client { component C { <div> if show { <span>"yes"</span> } </div> } }');
-    expect(result.client).toContain(': null');
+  test('browser JSX if without else', () => {
+    const result = compile('browser { component C { <div> if show { <span>"yes"</span> } </div> } }');
+    expect(result.browser).toContain(': null');
   });
 
-  test('client JSX text as template literal', () => {
-    const result = compile('client { component C { <p>"{name}"</p> } }');
-    expect(result.client).toContain('`${name}`');
+  test('browser JSX text as template literal', () => {
+    const result = compile('browser { component C { <p>"{name}"</p> } }');
+    expect(result.browser).toContain('`${name}`');
   });
 
-  test('client state assignment in effect', () => {
-    const result = compile('client { state x = 0 effect { x = 5 } }');
-    expect(result.client).toContain('setX(5)');
+  test('browser state assignment in effect', () => {
+    const result = compile('browser { state x = 0 effect { x = 5 } }');
+    expect(result.browser).toContain('setX(5)');
   });
 
-  test('client state compound in regular statement', () => {
-    const result = compile('client { state x = 0 fn inc() { x += 1 } }');
-    expect(result.client).toContain('setX(__tova_p => __tova_p + 1)');
+  test('browser state compound in regular statement', () => {
+    const result = compile('browser { state x = 0 fn inc() { x += 1 } }');
+    expect(result.browser).toContain('setX(__tova_p => __tova_p + 1)');
   });
 
-  test('client with shared code', () => {
-    const result = compile('shared { type User { name: String } } client { state x = 0 }');
-    expect(result.client).toContain('Shared');
-    expect(result.client).toContain('function User');
+  test('browser with shared code', () => {
+    const result = compile('shared { type User { name: String } } browser { state x = 0 }');
+    expect(result.browser).toContain('Shared');
+    expect(result.browser).toContain('function User');
   });
 });
 
@@ -702,14 +702,14 @@ describe('Analyzer — object literal', () => {
 describe('Analyzer — JSX expression children', () => {
   test('JSX with expression child', () => {
     expect(() => {
-      const ast = parse('client { component C { <div>{count}</div> } }');
+      const ast = parse('browser { component C { <div>{count}</div> } }');
       new Analyzer(ast, '<test>').analyze();
     }).not.toThrow();
   });
 
   test('JSX with text child', () => {
     expect(() => {
-      const ast = parse('client { component C { <p>"hello"</p> } }');
+      const ast = parse('browser { component C { <p>"hello"</p> } }');
       new Analyzer(ast, '<test>').analyze();
     }).not.toThrow();
   });

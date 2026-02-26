@@ -1,6 +1,6 @@
 // Counter App in Tova — demonstrates reactive UI
 
-client {
+browser {
   state count = 0
 
   computed doubled = count * 2

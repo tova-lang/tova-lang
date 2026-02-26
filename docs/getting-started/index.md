@@ -102,7 +102,7 @@ my-app/
 └── README.md
 ```
 
-The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The source file in `src/` is where you write your application. You can write plain Tova scripts here, or use `shared`, `server`, and `client` blocks for full-stack web applications -- the compiler splits them automatically.
+The `tova.toml` file is the project manifest where you configure your project name, build settings, and npm dependencies. The source file in `src/` is where you write your application. You can write plain Tova scripts here, or use `shared`, `server`, and `browser` blocks for full-stack web applications -- the compiler splits them automatically.
 
 ## Install Dependencies
 
@@ -121,7 +121,7 @@ tova add prettier --dev
 
 ## Run the Dev Server (Web Projects)
 
-If your project uses `server` and `client` blocks, start the development server with hot reloading:
+If your project uses `server` and `browser` blocks, start the development server with hot reloading:
 
 ```bash
 tova dev

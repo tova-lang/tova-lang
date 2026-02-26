@@ -292,7 +292,7 @@ function createServer() {
     const keywords = [
       'fn', 'let', 'if', 'elif', 'else', 'for', 'while', 'loop', 'when', 'in',
       'return', 'match', 'type', 'import', 'from', 'true', 'false',
-      'nil', 'server', 'client', 'shared', 'pub', 'mut',
+      'nil', 'server', 'browser', 'client', 'shared', 'pub', 'mut',
       'try', 'catch', 'finally', 'break', 'continue', 'async', 'await',
       'guard', 'interface', 'derive', 'route', 'model', 'db',
     ];

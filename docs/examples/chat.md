@@ -59,7 +59,7 @@ server {
   route GET "/api/events" => sse_connect
 }
 
-client {
+browser {
   state messages = []
   state username = ""
   state text = ""

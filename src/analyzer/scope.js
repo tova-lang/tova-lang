@@ -15,7 +15,7 @@ export class Symbol {
 export class Scope {
   constructor(parent = null, context = 'module') {
     this.parent = parent;
-    this.context = context; // 'module', 'server', 'client', 'shared', 'function', 'block'
+    this.context = context; // 'module', 'server', 'browser', 'shared', 'function', 'block'
     this.symbols = new Map();
     this.children = [];
     this.startLoc = null; // { line, column } for positional scope lookup
@@ -53,7 +53,7 @@ export class Scope {
   }
 
   getContext() {
-    if (this.context === 'server' || this.context === 'client' || this.context === 'shared') {
+    if (this.context === 'server' || this.context === 'browser' || this.context === 'client' || this.context === 'shared') {
       return this.context;
     }
     if (this.parent) {

@@ -5,7 +5,7 @@ import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import * as AST from '../src/parser/ast.js';
 
 function parse(source) {
@@ -44,7 +44,7 @@ describe('Parser — JSX children break path', () => {
   // since the closing tag detection (lines 322-331) handles that case before the break
   // The break is a fallback safety net
   test('JSX with just text children, no expression', () => {
-    const ast = parse('client { component C { <p>"hello"</p> } }');
+    const ast = parse('browser { component C { <p>"hello"</p> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].children.length).toBeGreaterThan(0);
   });
@@ -56,7 +56,7 @@ describe('Parser — JSX children break path', () => {
 
 describe('Parser — JSX for body fallback', () => {
   test('JSX for body ending without extra tokens', () => {
-    const ast = parse('client { component C { <ul> for x in items { <li>"item"</li> } </ul> } }');
+    const ast = parse('browser { component C { <ul> for x in items { <li>"item"</li> } </ul> } }');
     const comp = ast.body[0].body[0];
     const ul = comp.body[0];
     const forNode = ul.children.find(c => c.type === 'JSXFor');
@@ -71,14 +71,14 @@ describe('Parser — JSX for body fallback', () => {
 
 describe('Parser — JSX if text children', () => {
   test('JSX if with only text consequent', () => {
-    const ast = parse('client { component C { <div> if flag { "text only" } </div> } }');
+    const ast = parse('browser { component C { <div> if flag { "text only" } </div> } }');
     const ifNode = ast.body[0].body[0].body[0].children.find(c => c.type === 'JSXIf');
     expect(ifNode.consequent.length).toBe(1);
     expect(ifNode.consequent[0].type).toBe('JSXText');
   });
 
   test('JSX if/else with text in else', () => {
-    const ast = parse('client { component C { <div> if flag { "yes" } else { "no" } </div> } }');
+    const ast = parse('browser { component C { <div> if flag { "yes" } else { "no" } </div> } }');
     const ifNode = ast.body[0].body[0].body[0].children.find(c => c.type === 'JSXIf');
     expect(ifNode.alternate.length).toBe(1);
     expect(ifNode.alternate[0].type).toBe('JSXText');
@@ -189,10 +189,10 @@ describe('BaseCodegen — computed member via compile', () => {
 // CLIENT CODEGEN — line 65 via compile pipeline
 // ═══════════════════════════════════════════════════════════
 
-describe('ClientCodegen — non-state lambda body via compile', () => {
-  test('lambda with non-state assignment in client component', () => {
+describe('BrowserCodegen — non-state lambda body via compile', () => {
+  test('lambda with non-state assignment in browser component', () => {
     const result = compile(`
-      client {
+      browser {
         state count = 0
         component App {
           <button on:click={fn() other = 5}>"go"</button>
@@ -201,7 +201,7 @@ describe('ClientCodegen — non-state lambda body via compile', () => {
     `);
     // fn() other = 5 → other is NOT a state variable, so it goes through
     // the non-state assignment path in genLambdaExpression (line 60-64)
-    expect(result.client).toContain('const other = 5');
+    expect(result.browser).toContain('const other = 5');
   });
 });
 
@@ -211,7 +211,7 @@ describe('ClientCodegen — non-state lambda body via compile', () => {
 
 describe('Parser — JSX for with brace expression child', () => {
   test('JSX for body with {expr} child', () => {
-    const ast = parse('client { component C { <ul> for item in items { {item} } </ul> } }');
+    const ast = parse('browser { component C { <ul> for item in items { {item} } </ul> } }');
     const comp = ast.body[0].body[0];
     const ul = comp.body[0];
     const forNode = ul.children.find(c => c.type === 'JSXFor');
@@ -227,7 +227,7 @@ describe('Parser — JSX for with brace expression child', () => {
 
 describe('Parser — JSX for with text child', () => {
   test('JSX for body with string text', () => {
-    const ast = parse('client { component C { <ul> for item in items { "text" } </ul> } }');
+    const ast = parse('browser { component C { <ul> for item in items { "text" } </ul> } }');
     const comp = ast.body[0].body[0];
     const ul = comp.body[0];
     const forNode = ul.children.find(c => c.type === 'JSXFor');

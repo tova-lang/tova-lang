@@ -14,7 +14,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`bench`](#bench) | Define a benchmark block |
 | [`break`](#break) | Exit a loop early |
 | [`catch`](#catch) | Handle errors from a try block |
-| [`client`](#client) | Define a client-side block |
+| [`browser`](#browser) | Define a browser block |
 | [`component`](#component) | Declare a reactive UI component |
 | [`computed`](#computed) | Declare a derived reactive value |
 | [`continue`](#continue) | Skip to the next loop iteration |
@@ -51,7 +51,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`return`](#return) | Explicit early return from a function |
 | [`route`](#route) | Define an HTTP route in a server block |
 | [`server`](#server) | Define a server-side block |
-| [`shared`](#shared) | Define a block shared between server and client |
+| [`shared`](#shared) | Define a block shared between server and browser |
 | [`source`](#source) | Declare a data source in a data block |
 | [`state`](#state) | Declare a reactive state variable |
 | [`store`](#store) | Declare a reactive store |
@@ -180,12 +180,12 @@ try {
 }
 ```
 
-### `client`
+### `browser`
 
-Opens a client-side block. Code inside is compiled only for the browser.
+Opens a browser block. Code inside is compiled only for the browser.
 
 ```tova
-client {
+browser {
   state count = 0
   component Counter() {
     <button on:click={fn() count += 1}>{count}</button>
@@ -227,7 +227,7 @@ for i in 0..100 {
 
 ### `data`
 
-Opens a data block for declaring sources, pipelines, validation rules, and refresh policies. The `data {}` block is a top-level block alongside `shared`, `server`, and `client`.
+Opens a data block for declaring sources, pipelines, validation rules, and refresh policies. The `data {}` block is a top-level block alongside `shared`, `server`, and `browser`.
 
 ```tova
 data {
@@ -648,7 +648,7 @@ data {
 
 ### `state`
 
-Declares a reactive state variable in a client block or component.
+Declares a reactive state variable in a browser block or component.
 
 ```tova
 state count = 0

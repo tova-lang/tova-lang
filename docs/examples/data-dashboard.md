@@ -83,7 +83,7 @@ server {
   route GET "/api/summary" => get_summary
 }
 
-client {
+browser {
   state customers: Table<Customer> = Table([])
   state summary = []
   state search = ""
@@ -197,4 +197,4 @@ tova run app.tova
 
 **Reactive filtering.** The `computed filtered` value re-evaluates automatically when `search` changes, giving instant client-side search without server round-trips.
 
-**Type safety across blocks.** The `Customer` type in `shared {}` is used in `data {}` for schema validation, in `server {}` for return types, and in `client {}` for state typing.
+**Type safety across blocks.** The `Customer` type in `shared {}` is used in `data {}` for schema validation, in `server {}` for return types, and in `browser {}` for state typing.

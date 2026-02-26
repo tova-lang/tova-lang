@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import { SharedCodegen } from '../src/codegen/shared-codegen.js';
 import { buildSelectiveStdlib, BUILTIN_NAMES } from '../src/stdlib/inline.js';
 
@@ -111,7 +111,7 @@ describe('Tree-Shaking — Builtin tracking in codegen', () => {
 describe('Tree-Shaking — Client codegen selective stdlib', () => {
   test('getStdlibCore only includes used functions', () => {
     const ast = parse('print("hello")');
-    const gen = new ClientCodegen();
+    const gen = new BrowserCodegen();
     // Generate the code to trigger builtin tracking
     ast.body.forEach(stmt => gen.generateStatement(stmt));
     const stdlib = gen.getStdlibCore();
@@ -123,7 +123,7 @@ describe('Tree-Shaking — Client codegen selective stdlib', () => {
 
   test('includes Result/Option when Ok is used', () => {
     const ast = parse('Ok(42)');
-    const gen = new ClientCodegen();
+    const gen = new BrowserCodegen();
     ast.body.forEach(stmt => gen.generateStatement(stmt));
     const stdlib = gen.getStdlibCore();
     expect(stdlib).toContain('function Ok');
@@ -133,7 +133,7 @@ describe('Tree-Shaking — Client codegen selective stdlib', () => {
 
   test('minimal output for no builtins', () => {
     const ast = parse('x = 42');
-    const gen = new ClientCodegen();
+    const gen = new BrowserCodegen();
     ast.body.forEach(stmt => gen.generateStatement(stmt));
     const stdlib = gen.getStdlibCore();
     expect(stdlib).not.toContain('function print');
@@ -142,7 +142,7 @@ describe('Tree-Shaking — Client codegen selective stdlib', () => {
 
   test('includes PROPAGATE when ? operator triggers it', () => {
     const ast = parse('x = value?');
-    const gen = new ClientCodegen();
+    const gen = new BrowserCodegen();
     ast.body.forEach(stmt => gen.generateStatement(stmt));
     const stdlib = gen.getStdlibCore();
     expect(stdlib).toContain('__propagate');

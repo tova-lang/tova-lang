@@ -50,7 +50,7 @@ The formatter parses the source file into an AST and re-prints it with consisten
 - **Spacing** -- Uniform spacing around operators, after commas, and around braces
 - **Line breaks** -- Consistent placement of opening and closing braces
 - **Trailing commas** -- Normalized comma placement in lists and parameters
-- **Block structure** -- Consistent formatting of `shared`, `server`, and `client` blocks
+- **Block structure** -- Consistent formatting of `shared`, `server`, and `browser` blocks
 
 ## Example
 

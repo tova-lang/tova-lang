@@ -191,7 +191,7 @@ Runtime files (`reactivity.js`, `rpc.js`, `router.js`) are copied from the Tova 
 
 ### 3. Generate HTML
 
-For each client block, the dev server generates an `index.html` file with the reactive runtime and client code inlined as a module script.
+For each browser block, the dev server generates an `index.html` file with the reactive runtime and client code inlined as a module script.
 
 ### 4. Start Server Processes
 
@@ -326,11 +326,11 @@ When multiple `.tova` files exist in the same directory, the compiler **merges**
 src/
   types.tova       # shared { type User { ... } }
   server.tova      # server { db, routes, functions }
-  components.tova  # client { component Header, component UserList }
-  app.tova         # client { state, effects, component App }
+  components.tova  # browser { component Header, component UserList }
+  app.tova         # browser { state, effects, component App }
 ```
 
-All `client {}` blocks from `components.tova` and `app.tova` merge into one client output. `App` can reference `Header` and `UserList` without imports. All `shared {}` blocks merge. All `server {}` blocks merge.
+All `browser {}` blocks from `components.tova` and `app.tova` merge into one client output. `App` can reference `Header` and `UserList` without imports. All `shared {}` blocks merge. All `server {}` blocks merge.
 
 The compiler checks for duplicate declarations across files. If two files define the same component name, state variable, server function, route, or type, a clear error is reported showing both file locations.
 
@@ -342,7 +342,7 @@ The output uses the directory name as the base filename:
 .tova-out/
   src.shared.js      # merged shared blocks from all files in src/
   src.server.js      # merged server blocks
-  src.client.js      # merged client blocks
+  src.client.js      # merged browser blocks
   runtime/
     ...
 ```
@@ -429,7 +429,7 @@ The `compileWithImports()` function resolves `.tova` imports across directories,
 
 - [Architecture Overview](./architecture) -- the three-block model
 - [Server Block](./server-block) -- what goes in the server output
-- [Client Block](./client-block) -- what goes in the client output
+- [Browser Block](./browser-block) -- what goes in the client output
 - [Shared Block](./shared-block) -- what goes in the shared output
 - [Named Blocks](./named-blocks) -- multi-server compilation
 - [RPC Bridge](./rpc) -- how RPC endpoints are generated

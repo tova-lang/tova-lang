@@ -444,7 +444,7 @@ describe('Additional lexer coverage', () => {
 
   // Keywords
   test('keywords are recognized', () => {
-    const tokens = lex('var let fn return if elif else for while match type import from export as and or not in true false nil server client shared route state computed effect component');
+    const tokens = lex('var let fn return if elif else for while match type import from export as and or not in true false nil server browser shared route state computed effect component');
     expect(tokens.find(t => t.type === TokenType.VAR)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.LET)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.FN)).toBeDefined();
@@ -468,7 +468,7 @@ describe('Additional lexer coverage', () => {
     expect(tokens.find(t => t.type === TokenType.FALSE)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.NIL)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.SERVER)).toBeDefined();
-    expect(tokens.find(t => t.type === TokenType.CLIENT)).toBeDefined();
+    expect(tokens.find(t => t.type === TokenType.BROWSER)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.SHARED)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.ROUTE)).toBeDefined();
     expect(tokens.find(t => t.type === TokenType.STATE)).toBeDefined();

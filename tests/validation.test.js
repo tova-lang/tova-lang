@@ -1567,7 +1567,7 @@ describe('8. Edge Cases', () => {
       }).toThrow(/already defined/);
     });
 
-    test('Scope.getContext traverses up to server/client/shared', () => {
+    test('Scope.getContext traverses up to server/browser/shared', () => {
       const root = new Scope(null, 'module');
       const server = root.child('server');
       const fn = server.child('function');

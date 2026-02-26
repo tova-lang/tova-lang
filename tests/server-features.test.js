@@ -3809,10 +3809,10 @@ describe('Analyzer — new declarations validation', () => {
     const dbDecl = serverAst.body[0].body.find(s => s.type === 'DbDeclaration');
     expect(dbDecl).toBeDefined();
 
-    // In client context, db is not recognized as a declaration
-    const clientAst = parse(`client { db { path: ":memory:" } }`);
-    const clientDb = clientAst.body[0].body.find(s => s.type === 'DbDeclaration');
-    expect(clientDb).toBeUndefined();
+    // In browser context, db is not recognized as a declaration
+    const browserAst = parse(`browser { db { path: ":memory:" } }`);
+    const browserDb = browserAst.body[0].body.find(s => s.type === 'DbDeclaration');
+    expect(browserDb).toBeUndefined();
   });
 
   test('background job parses as declaration only in server context', () => {
@@ -3820,10 +3820,10 @@ describe('Analyzer — new declarations validation', () => {
     const bgDecl = serverAst.body[0].body.find(s => s.type === 'BackgroundJobDeclaration');
     expect(bgDecl).toBeDefined();
 
-    // In client context, background is not recognized as a declaration
-    const clientAst = parse(`client { background fn send() { "ok" } }`);
-    const clientBg = clientAst.body[0].body.find(s => s.type === 'BackgroundJobDeclaration');
-    expect(clientBg).toBeUndefined();
+    // In browser context, background is not recognized as a declaration
+    const browserAst = parse(`browser { background fn send() { "ok" } }`);
+    const browserBg = browserAst.body[0].body.find(s => s.type === 'BackgroundJobDeclaration');
+    expect(browserBg).toBeUndefined();
   });
 
   test('tls block parses as declaration only in server context', () => {
@@ -3831,10 +3831,10 @@ describe('Analyzer — new declarations validation', () => {
     const tlsDecl = serverAst.body[0].body.find(s => s.type === 'TlsDeclaration');
     expect(tlsDecl).toBeDefined();
 
-    // In client context, tls is not recognized as a declaration
-    const clientAst = parse(`client { tls { cert: "./c.pem", key: "./k.pem" } }`);
-    const clientTls = clientAst.body[0].body.find(s => s.type === 'TlsDeclaration');
-    expect(clientTls).toBeUndefined();
+    // In browser context, tls is not recognized as a declaration
+    const browserAst = parse(`browser { tls { cert: "./c.pem", key: "./k.pem" } }`);
+    const browserTls = browserAst.body[0].body.find(s => s.type === 'TlsDeclaration');
+    expect(browserTls).toBeUndefined();
   });
 });
 

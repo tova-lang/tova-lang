@@ -197,10 +197,10 @@ async fn delete_todo(id) {
 
 ## Async in Client Blocks
 
-In Tova's full-stack architecture, async is commonly used in client blocks with `effect`:
+In Tova's full-stack architecture, async is commonly used in browser blocks with `effect`:
 
 ```tova
-client {
+browser {
   state users = []
   state loading = true
 

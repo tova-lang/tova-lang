@@ -11,24 +11,24 @@ const ROOT = resolve(dirname(import.meta.dir));
 const SOURCE_FILES = [
   'src/lexer/tokens.js',
   'src/lexer/lexer.js',
-  'src/parser/client-ast.js',
+  'src/parser/browser-ast.js',
   'src/parser/server-ast.js',
   'src/parser/ast.js',
   '__AST_SHIM__',
   'src/parser/server-parser.js',
-  'src/parser/client-parser.js',
+  'src/parser/browser-parser.js',
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/types.js',
   'src/analyzer/server-analyzer.js',
-  'src/analyzer/client-analyzer.js',
+  'src/analyzer/browser-analyzer.js',
   'src/analyzer/analyzer.js',
   'src/stdlib/inline.js',
   'src/codegen/wasm-codegen.js',
   'src/codegen/base-codegen.js',
   'src/codegen/shared-codegen.js',
   'src/codegen/server-codegen.js',
-  'src/codegen/client-codegen.js',
+  'src/codegen/browser-codegen.js',
   'src/codegen/codegen.js',
 ];
 
@@ -57,9 +57,9 @@ function buildCompilerBundle() {
 
   for (const entry of SOURCE_FILES) {
     if (entry === '__AST_SHIM__') {
-      // Collect class names from all AST files (core + client + server)
+      // Collect class names from all AST files (core + browser + server)
       const classNames = [];
-      for (const astFile of ['src/parser/ast.js', 'src/parser/client-ast.js', 'src/parser/server-ast.js']) {
+      for (const astFile of ['src/parser/ast.js', 'src/parser/browser-ast.js', 'src/parser/server-ast.js']) {
         const astCode = readFileSync(resolve(ROOT, astFile), 'utf-8');
         for (const m of astCode.matchAll(/^(?:export\s+)?class\s+(\w+)/gm)) {
           classNames.push(m[1]);
@@ -633,7 +633,7 @@ print("type_of([1]): {type_of([1, 2])}")
     { category: 'Reactive UI', name: 'Counter App', code: counter.trim() },
     { category: 'Reactive UI', name: 'Todo App (Full-Stack)', code: todo.trim() },
     { category: 'Reactive UI', name: 'Temperature Converter', code: `// Temperature converter — reactive two-way conversion
-client {
+browser {
   state celsius = 20
   computed fahrenheit = celsius * 9 / 5 + 32
   computed kelvin = celsius + 273.15
@@ -664,7 +664,7 @@ client {
 }
 ` },
     { category: 'Reactive UI', name: 'Stopwatch', code: `// Interactive stopwatch with reactive state
-client {
+browser {
   state elapsed = 0
 
   fn reset_timer() {
@@ -958,7 +958,7 @@ function getReference() {
       { syntax: 'map(arr, fn) filter(arr, fn)', desc: 'Transform/filter' },
       { syntax: 'type_of(value)', desc: 'Runtime type name' },
     ]},
-    { title: 'Reactive (client)', items: [
+    { title: 'Reactive (browser)', items: [
       { syntax: 'state count = 0', desc: 'Reactive variable (signal)' },
       { syntax: 'computed doubled = count * 2', desc: 'Derived value' },
       { syntax: 'effect { ... }', desc: 'Side effect (auto-tracks deps)' },
@@ -968,7 +968,7 @@ function getReference() {
     ]},
     { title: 'Full-Stack Blocks', items: [
       { syntax: 'server { ... }', desc: 'Server-side code (Bun)' },
-      { syntax: 'client { ... }', desc: 'Client-side code (browser)' },
+      { syntax: 'browser { ... }', desc: 'Browser-side code' },
       { syntax: 'shared { ... }', desc: 'Shared code (both)' },
       { syntax: 'route GET "/path" => handler', desc: 'HTTP route' },
     ]},
@@ -1105,7 +1105,7 @@ for age in [25, -5, 200, 42] {
       title: 'Reactive UI',
       description: 'Tova has built-in reactivity for building UIs. State changes automatically update the DOM!',
       code: `// Switch to the "Preview" tab to see this in action!
-client {
+browser {
   state clicks = 0
   computed doubled = clicks * 2
   computed emoji = match clicks {
@@ -1183,11 +1183,11 @@ print("Long names sorted: {sorted_long}")
     },
     {
       title: 'Full-Stack App',
-      description: 'Tova has built-in full-stack blocks: server, client, and shared. In the playground, server features are simulated.',
-      code: `// A full-stack app has server + client blocks.
+      description: 'Tova has built-in full-stack blocks: server, browser, and shared. In the playground, server features are simulated.',
+      code: `// A full-stack app has server + browser blocks.
 // In playground mode, server calls are stubbed.
 
-client {
+browser {
   state name = "World"
   computed greeting = "Hello, {name}!"
 
@@ -1907,7 +1907,7 @@ const tovaLanguage = StreamLanguage.define({
       const w = stream.current();
       if (['fn','let','var','if','elif','else','for','while','in','not','and','or','match',
            'return','type','import','from','export','as','true','false','nil',
-           'server','client','shared','state','computed','effect','component',
+           'server','browser','client','shared','state','computed','effect','component',
            'route','GET','POST','PUT','DELETE','PATCH'].includes(w)) return 'keyword';
       if (/^[A-Z]/.test(w)) return 'typeName';
       return 'variableName';
@@ -1925,7 +1925,7 @@ const tovaLanguage = StreamLanguage.define({
 // ─── Autocompletion ─────────────────────────────────
 const tovaKeywords = [
   'fn', 'let', 'var', 'if', 'elif', 'else', 'for', 'while', 'match',
-  'type', 'state', 'computed', 'effect', 'component', 'server', 'client',
+  'type', 'state', 'computed', 'effect', 'component', 'server', 'browser', 'client',
   'shared', 'route', 'return', 'import', 'from', 'in', 'and', 'or', 'not',
   'true', 'false', 'nil', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'as', 'export'
 ];
@@ -1954,7 +1954,7 @@ const tovaSnippets = [
   { label: 'for', detail: 'for-in loop', apply: 'for item in items {\\n  \\n}', boost: -1 },
   { label: 'match', detail: 'match expression', apply: 'match value {\\n  _ => \\n}', boost: -1 },
   { label: 'type', detail: 'type definition', apply: 'type Name {\\n  \\n}', boost: -1 },
-  { label: 'client', detail: 'client block', apply: 'client {\\n  state count = 0\\n\\n  component App {\\n    <div>\\n      \\n    </div>\\n  }\\n}', boost: -1 },
+  { label: 'browser', detail: 'browser block', apply: 'browser {\\n  state count = 0\\n\\n  component App {\\n    <div>\\n      \\n    </div>\\n  }\\n}', boost: -1 },
   { label: 'component', detail: 'component', apply: 'component App {\\n  <div>\\n    \\n  </div>\\n}', boost: -1 },
   { label: 'server', detail: 'server block', apply: 'server {\\n  \\n}', boost: -1 },
   { label: 'effect', detail: 'side effect', apply: 'effect {\\n  \\n}', boost: -1 },
@@ -2325,8 +2325,8 @@ function compile() {
     let jsText = '';
     if (result.shared) jsText += '// ── Shared ──\\n' + result.shared + '\\n\\n';
     if (result.server) jsText += '// ── Server ──\\n' + result.server + '\\n\\n';
-    if (result.client) jsText += '// ── Client ──\\n' + result.client + '\\n\\n';
-    if (!result.shared && !result.server && !result.client && result.code) {
+    if (result.browser) jsText += '// ── Browser ──\\n' + result.browser + '\\n\\n';
+    if (!result.shared && !result.server && !result.browser && result.code) {
       jsText = result.code;
     }
     lastJsText = jsText || '// No output';
@@ -2506,19 +2506,19 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
       switchTab('console');
     }
 
-    if (logs.length > 0 && !result.client) {
+    if (logs.length > 0 && !result.browser) {
       switchTab('console');
     }
   }
 
-  // For non-worker code paths (client code), render immediately
-  if (!codeToRun.trim() || result.client) {
+  // For non-worker code paths (browser code), render immediately
+  if (!codeToRun.trim() || result.browser) {
     renderLogs();
   }
 
-  // Live Preview for client code
-  if (result.client) {
-    const clientCode = result.client
+  // Live Preview for browser code
+  if (result.browser) {
+    const browserCode = result.browser
       .replace(/import\\s+.*from\\s+['"].*['"];?/g, '')
       .replace(/import\\s+['"].*['"];?/g, '');
 
@@ -2553,7 +2553,7 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
     const sharedCode = (result.shared || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '');
 
     // Build preview HTML using string concatenation — NOT a template literal.
-    // Generated client code may contain backticks (JS template strings from
+    // Generated browser code may contain backticks (JS template strings from
     // string interpolation) which would break a template-literal wrapper.
     const previewHTML = '<!DOCTYPE html>\\n<html><head><meta charset="UTF-8">\\n<style>' + previewCSS + '</style>\\n</head><body>\\n' +
       '<div id="app"></div>\\n<script>\\n' +
@@ -2563,17 +2563,17 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
       ARRAY_PROTO_CODE + '\\n' +
       'function rpc(name, args) { console.warn("[Playground] server." + name + "() is not available in playground mode"); return Promise.resolve(null); }\\n' +
       sharedCode + '\\n' +
-      clientCode + '\\n' +
+      browserCode + '\\n' +
       'if (typeof App === "function") {' +
       '  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", function() { mount(App, document.getElementById("app")); }); }' +
       '  else { mount(App, document.getElementById("app")); }' +
       '}\\n' +
       '<\\/script>\\n</body></html>';
     previewFrame.srcdoc = previewHTML;
-    // Auto-switch to preview when there's a client block
+    // Auto-switch to preview when there's a browser block
     switchTab('preview');
   } else {
-    previewFrame.srcdoc = '<html><body style="font-family:sans-serif;padding:20px;color:#aaa"><p>Write a <code>client { }</code> block with a <code>component App</code> to see a live preview here.</p></body></html>';
+    previewFrame.srcdoc = '<html><body style="font-family:sans-serif;padding:20px;color:#aaa"><p>Write a <code>browser { }</code> block with a <code>component App</code> to see a live preview here.</p></body></html>';
   }
 }
 
@@ -2977,11 +2977,11 @@ function exportAsHTML() {
     return;
   }
   const source = editor.state.doc.toString();
-  const hasClient = source.includes('client {') || source.includes('client{');
+  const hasBrowser = source.includes('browser {') || source.includes('browser{') || source.includes('client {') || source.includes('client{');
 
   let exportHTML;
-  if (hasClient) {
-    // Export client app as standalone HTML
+  if (hasBrowser) {
+    // Export browser app as standalone HTML
     try {
       const lexer = new Lexer(source, 'export.tova');
       const tokens = lexer.tokenize();
@@ -2991,7 +2991,7 @@ function exportAsHTML() {
       analyzer.analyze();
       const codegen = new CodeGenerator(ast, 'export.tova');
       const result = codegen.generate();
-      const clientCode = (result.client || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '');
+      const browserCode = (result.browser || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '');
       exportHTML = '<!DOCTYPE html>\\n<html><head><meta charset="UTF-8"><title>Tova App</title>\\n'
         + '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}'
         + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px;color:#333}'
@@ -3000,7 +3000,7 @@ function exportAsHTML() {
         + '</style></head><body><div id="app"></div>\\n<script>\\n'
         + RUNTIME_CODE + '\\n' + STDLIB_CODE + '\\n' + STRING_PROTO_CODE + '\\n' + ARRAY_PROTO_CODE + '\\n'
         + (result.shared || '').replace(/import\\s+.*from\\s+['"].*['"];?/g, '') + '\\n'
-        + clientCode + '\\n'
+        + browserCode + '\\n'
         + 'if(typeof App==="function"){mount(App,document.getElementById("app"));}\\n'
         + '<\\/script></body></html>';
     } catch(e) {

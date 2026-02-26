@@ -11,7 +11,7 @@ A client-only reactive counter that demonstrates Tova's reactivity system, compu
 Create `counter.tova`:
 
 ```tova
-client {
+browser {
   // Reactive state -- the single source of truth
   state count = 0
 

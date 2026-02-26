@@ -68,7 +68,7 @@ describe('Scope', () => {
     expect(child.context).toBe('server');
   });
 
-  test('getContext returns nearest server/client/shared', () => {
+  test('getContext returns nearest server/browser/shared', () => {
     const mod = new Scope(null, 'module');
     const server = mod.child('server');
     const fn = server.child('function');
@@ -351,16 +351,16 @@ describe('Analyzer — Server/Client boundaries', () => {
     expect(() => analyze('server { fn hello() { "world" } }')).not.toThrow();
   });
 
-  test('client block creates scope', () => {
-    expect(() => analyze('client { state count = 0 }')).not.toThrow();
+  test('browser block creates scope', () => {
+    expect(() => analyze('browser { state count = 0 }')).not.toThrow();
   });
 
   test('shared block creates scope', () => {
     expect(() => analyze('shared { type User { name: String } }')).not.toThrow();
   });
 
-  test('state outside client errors (via manual AST)', () => {
-    // The parser prevents state outside client blocks, so we test the analyzer directly
+  test('state outside browser errors (via manual AST)', () => {
+    // The parser prevents state outside browser blocks, so we test the analyzer directly
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const stateNode = new AST.StateDeclaration('count', null, new AST.NumberLiteral(0, loc), loc);
@@ -369,7 +369,7 @@ describe('Analyzer — Server/Client boundaries', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('computed outside client errors (via manual AST)', () => {
+  test('computed outside browser errors (via manual AST)', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const compNode = new AST.ComputedDeclaration('doubled', new AST.NumberLiteral(0, loc), loc);
@@ -378,7 +378,7 @@ describe('Analyzer — Server/Client boundaries', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('effect outside client errors (via manual AST)', () => {
+  test('effect outside browser errors (via manual AST)', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const effectNode = new AST.EffectDeclaration(new AST.BlockStatement([], loc), loc);
@@ -387,7 +387,7 @@ describe('Analyzer — Server/Client boundaries', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('component outside client errors (via manual AST)', () => {
+  test('component outside browser errors (via manual AST)', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const compNode = new AST.ComponentDeclaration('App', [], [], loc);
@@ -405,20 +405,20 @@ describe('Analyzer — Server/Client boundaries', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('state inside client allowed', () => {
-    expect(() => analyze('client { state count = 0 }')).not.toThrow();
+  test('state inside browser allowed', () => {
+    expect(() => analyze('browser { state count = 0 }')).not.toThrow();
   });
 
-  test('computed inside client allowed', () => {
-    expect(() => analyze('client { computed doubled = count * 2 }')).not.toThrow();
+  test('computed inside browser allowed', () => {
+    expect(() => analyze('browser { computed doubled = count * 2 }')).not.toThrow();
   });
 
-  test('effect inside client allowed', () => {
-    expect(() => analyze('client { effect { print("hi") } }')).not.toThrow();
+  test('effect inside browser allowed', () => {
+    expect(() => analyze('browser { effect { print("hi") } }')).not.toThrow();
   });
 
-  test('component inside client allowed', () => {
-    expect(() => analyze('client { component App { <div>"hello"</div> } }')).not.toThrow();
+  test('component inside browser allowed', () => {
+    expect(() => analyze('browser { component App { <div>"hello"</div> } }')).not.toThrow();
   });
 
   test('route inside server allowed', () => {
@@ -430,19 +430,19 @@ describe('Analyzer — Server/Client boundaries', () => {
 
 describe('Analyzer — JSX', () => {
   test('JSX element in component', () => {
-    expect(() => analyze('client { component App { <div class="test">"hello"</div> } }')).not.toThrow();
+    expect(() => analyze('browser { component App { <div class="test">"hello"</div> } }')).not.toThrow();
   });
 
   test('JSX with for loop', () => {
-    expect(() => analyze('client { component List { <ul> for item in items { <li>"text"</li> } </ul> } }')).not.toThrow();
+    expect(() => analyze('browser { component List { <ul> for item in items { <li>"text"</li> } </ul> } }')).not.toThrow();
   });
 
   test('JSX with if', () => {
-    expect(() => analyze('client { component C { <div> if show { <span>"yes"</span> } </div> } }')).not.toThrow();
+    expect(() => analyze('browser { component C { <div> if show { <span>"yes"</span> } </div> } }')).not.toThrow();
   });
 
   test('JSX with if/else', () => {
-    expect(() => analyze('client { component C { <div> if show { <span>"yes"</span> } else { <span>"no"</span> } </div> } }')).not.toThrow();
+    expect(() => analyze('browser { component C { <div> if show { <span>"yes"</span> } else { <span>"no"</span> } </div> } }')).not.toThrow();
   });
 });
 
@@ -467,8 +467,8 @@ describe('Analyzer — Named Blocks', () => {
     expect(() => analyze('server "api" { fn hello() { 1 } }')).not.toThrow();
   });
 
-  test('named client block', () => {
-    expect(() => analyze('client "dashboard" { state x = 0 }')).not.toThrow();
+  test('named browser block', () => {
+    expect(() => analyze('browser "dashboard" { state x = 0 }')).not.toThrow();
   });
 
   test('multiple named server blocks', () => {

@@ -792,7 +792,7 @@ describe('SSR — renderPage', () => {
     expect(page).toContain('<!DOCTYPE html>');
     expect(page).toContain('<h1>Hello</h1>');
     expect(page).toContain('<title>Tova App</title>');
-    expect(page).toContain('src="/client.js"');
+    expect(page).toContain('src="/browser.js"');
   });
 
   test('renders page with custom title', () => {

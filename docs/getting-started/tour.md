@@ -396,7 +396,7 @@ import dayjs from "dayjs"
 
 ## 10. Full-Stack Web (Optional)
 
-Everything from sections 1-9 works standalone with `tova run my_script.tova` -- no server or client blocks needed. When you want to build a web application, Tova's three-block model lets you write server and client code in a single `.tova` file:
+Everything from sections 1-9 works standalone with `tova run my_script.tova` -- no server or browser blocks needed. When you want to build a web application, Tova's three-block model lets you write server and browser code in a single `.tova` file:
 
 ```tova
 shared {
@@ -421,7 +421,7 @@ server {
   }
 }
 
-client {
+browser {
   state messages = []
   state draft = ""
   state username = "Anonymous"
@@ -457,16 +457,16 @@ client {
 ```
 
 Key concepts:
-- **`shared`** -- types and constants available on both server and client.
+- **`shared`** -- types and constants available on both server and browser.
 - **`server`** -- runs on the server (Bun). Functions here are exposed as RPC endpoints.
-- **`client`** -- runs in the browser. Call server functions with `server.fn_name()`.
+- **`browser`** -- runs in the browser. Call server functions with `server.fn_name()`.
 - **`state`** -- reactive signal. When it changes, dependent UI updates automatically.
 - **`computed`** -- derived value that recalculates when its dependencies change.
 - **`effect`** -- side effect that runs when its dependencies change.
 - **`component`** -- a reactive UI component that renders JSX.
 
 ::: tip Not building for the web?
-Everything from lessons 1-9 works standalone with `tova run my_script.tova`. No server or client blocks needed. See the [I/O guide](/guide/io) and [CLI Tool example](/examples/cli-tool).
+Everything from lessons 1-9 works standalone with `tova run my_script.tova`. No server or browser blocks needed. See the [I/O guide](/guide/io) and [CLI Tool example](/examples/cli-tool).
 :::
 
 ### CLI Tools

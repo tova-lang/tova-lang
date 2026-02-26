@@ -56,7 +56,7 @@ describe('Parser — JSX for body break (line 391)', () => {
     // The while condition !check(RBRACE) catches it before break though
     // So break is only reachable if there's a non-JSX token before }
     // This is essentially a dead-code safety net
-    const ast = parse('client { component C { <div> for x in items { } </div> } }');
+    const ast = parse('browser { component C { <div> for x in items { } </div> } }');
     const comp = ast.body[0].body[0];
     const forNode = comp.body[0].children.find(c => c.type === 'JSXFor');
     expect(forNode.body.length).toBe(0);

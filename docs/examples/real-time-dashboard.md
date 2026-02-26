@@ -180,7 +180,7 @@ server {
   route GET "/api/metrics/recent" => get_recent_metrics
 }
 
-client {
+browser {
   // --- Stores ---
 
   store StatsStore {

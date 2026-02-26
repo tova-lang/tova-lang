@@ -674,7 +674,7 @@ server {
   route POST "/api/todos" => add_todo
 }
 
-client {
+browser {
   // Runs in the browser — reactive UI with JSX
   state todos: [Todo] = []
   state new_title = ""

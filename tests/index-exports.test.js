@@ -43,7 +43,7 @@ describe('Public API exports', () => {
   test('AST node classes are exported', () => {
     expect(TovaMod.Program).toBeDefined();
     expect(TovaMod.ServerBlock).toBeDefined();
-    expect(TovaMod.ClientBlock).toBeDefined();
+    expect(TovaMod.BrowserBlock).toBeDefined();
     expect(TovaMod.SharedBlock).toBeDefined();
     expect(TovaMod.Assignment).toBeDefined();
     expect(TovaMod.FunctionDeclaration).toBeDefined();

@@ -193,7 +193,7 @@ server {
 ### Client: Reactive Chat UI
 
 ```tova
-client {
+browser {
   state messages: [ChatMessage] = []
   state new_text = ""
   state username = "Anonymous"
@@ -307,7 +307,7 @@ server {
 ### Client: Upload Form
 
 ```tova
-client {
+browser {
   state selected_file = nil
   state upload_result = nil
   state uploading = false
@@ -515,7 +515,7 @@ server {
 ### Client: Login and Registration Forms
 
 ```tova
-client {
+browser {
   state current_user: User = nil
   state token: String = nil
   state auth_error = ""
@@ -694,7 +694,7 @@ server {
   }
 }
 
-client {
+browser {
   state connected = false
   state messages = []
 

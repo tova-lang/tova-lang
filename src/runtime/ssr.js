@@ -243,7 +243,7 @@ export function renderHeadTags(tags) {
 // of tag descriptors for safe rendering: [{ tag: 'meta', attrs: { name: 'desc', content: '...' } }]
 // SECURITY: Raw string `head` must contain only developer-authored content — never user input.
 // Use the array form or renderHeadTags() for safe user-controlled head content.
-export function renderPage(component, { title = 'Tova App', head = '', scriptSrc = '/client.js', cspNonce } = {}) {
+export function renderPage(component, { title = 'Tova App', head = '', scriptSrc = '/browser.js', cspNonce } = {}) {
   const appHtml = renderToString(typeof component === 'function' ? component() : component);
   const headHtml = Array.isArray(head) ? renderHeadTags(head) : head;
   const nonceAttr = cspNonce ? ` nonce="${escapeAttr(cspNonce)}"` : '';
@@ -403,7 +403,7 @@ export function renderToReadableStream(vnode, options = {}) {
 
 // Render a full HTML page as a stream
 export function renderPageToStream(component, options = {}) {
-  const { title = 'Tova App', head = '', scriptSrc = '/client.js', onError, bufferSize, cspNonce } = options;
+  const { title = 'Tova App', head = '', scriptSrc = '/browser.js', onError, bufferSize, cspNonce } = options;
   const headHtml = Array.isArray(head) ? renderHeadTags(head) : head;
   const nonceAttr = cspNonce ? ` nonce="${escapeAttr(cspNonce)}"` : '';
 

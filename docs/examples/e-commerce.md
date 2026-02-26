@@ -181,7 +181,7 @@ server {
   route GET "/api/orders/:id" => get_order
 }
 
-client {
+browser {
   // --- Stores ---
 
   store CartStore {

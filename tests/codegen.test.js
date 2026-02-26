@@ -386,33 +386,33 @@ describe('Codegen — Server Bug Fixes', () => {
   });
 });
 
-describe('Codegen — Client', () => {
+describe('Codegen — Browser', () => {
   test('generates reactive state signals', () => {
-    const result = compile('client { state count = 0 }');
-    expect(result.client).toContain('createSignal(0)');
-    expect(result.client).toContain('setCount');
+    const result = compile('browser { state count = 0 }');
+    expect(result.browser).toContain('createSignal(0)');
+    expect(result.browser).toContain('setCount');
   });
 
   test('generates computed', () => {
-    const result = compile('client { computed doubled = count * 2 }');
-    expect(result.client).toContain('createComputed(');
+    const result = compile('browser { computed doubled = count * 2 }');
+    expect(result.browser).toContain('createComputed(');
   });
 
   test('generates effect', () => {
-    const result = compile('client { effect { print("hello") } }');
-    expect(result.client).toContain('createEffect(');
+    const result = compile('browser { effect { print("hello") } }');
+    expect(result.browser).toContain('createEffect(');
   });
 
   test('generates component', () => {
-    const result = compile('client { component App { <div>"Hello"</div> } }');
-    expect(result.client).toContain('function App(');
-    expect(result.client).toContain('tova_el("div"');
+    const result = compile('browser { component App { <div>"Hello"</div> } }');
+    expect(result.browser).toContain('function App(');
+    expect(result.browser).toContain('tova_el("div"');
   });
 
   test('generates server RPC proxy', () => {
-    const result = compile('client { state x = 0 }');
-    expect(result.client).toContain('const server = new Proxy');
-    expect(result.client).toContain('rpc(name, args)');
+    const result = compile('browser { state x = 0 }');
+    expect(result.browser).toContain('const server = new Proxy');
+    expect(result.browser).toContain('rpc(name, args)');
   });
 });
 
@@ -420,48 +420,48 @@ describe('Codegen — Client', () => {
 
 describe('Codegen — Runtime Imports', () => {
   test('imports batch, onMount, onCleanup, createRef', () => {
-    const result = compile('client { state x = 0 }');
-    expect(result.client).toContain('batch');
-    expect(result.client).toContain('onMount');
-    expect(result.client).toContain('onCleanup');
-    expect(result.client).toContain('createRef');
+    const result = compile('browser { state x = 0 }');
+    expect(result.browser).toContain('batch');
+    expect(result.browser).toContain('onMount');
+    expect(result.browser).toContain('onCleanup');
+    expect(result.browser).toContain('createRef');
   });
 
   test('imports context and error boundary utilities', () => {
-    const result = compile('client { state x = 0 }');
-    expect(result.client).toContain('createContext');
-    expect(result.client).toContain('provide');
-    expect(result.client).toContain('inject');
-    expect(result.client).toContain('createErrorBoundary');
-    expect(result.client).toContain('ErrorBoundary');
+    const result = compile('browser { state x = 0 }');
+    expect(result.browser).toContain('createContext');
+    expect(result.browser).toContain('provide');
+    expect(result.browser).toContain('inject');
+    expect(result.browser).toContain('createErrorBoundary');
+    expect(result.browser).toContain('ErrorBoundary');
   });
 });
 
 describe('Codegen — Component-Scoped State (Item 6)', () => {
   test('state inside component generates local createSignal', () => {
-    const result = compile('client { component Counter { state count = 0\n<div>"hello"</div> } }');
-    expect(result.client).toContain('function Counter(');
-    expect(result.client).toContain('const [count, setCount] = createSignal(0)');
+    const result = compile('browser { component Counter { state count = 0\n<div>"hello"</div> } }');
+    expect(result.browser).toContain('function Counter(');
+    expect(result.browser).toContain('const [count, setCount] = createSignal(0)');
   });
 
   test('computed inside component generates local createComputed', () => {
-    const result = compile('client { component Counter { state count = 0\ncomputed doubled = count * 2\n<div>"hello"</div> } }');
-    expect(result.client).toContain('const doubled = createComputed(');
+    const result = compile('browser { component Counter { state count = 0\ncomputed doubled = count * 2\n<div>"hello"</div> } }');
+    expect(result.browser).toContain('const doubled = createComputed(');
   });
 
   test('effect inside component generates local createEffect', () => {
-    const result = compile('client { component Timer { state t = 0\neffect { print(t) }\n<div>"hello"</div> } }');
-    expect(result.client).toContain('function Timer(');
-    expect(result.client).toContain('createEffect(');
+    const result = compile('browser { component Timer { state t = 0\neffect { print(t) }\n<div>"hello"</div> } }');
+    expect(result.browser).toContain('function Timer(');
+    expect(result.browser).toContain('createEffect(');
   });
 
   test('component-scoped state does not leak to module level', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component A { state x = 1\n<div>"a"</div> }
       component B { state y = 2\n<div>"b"</div> }
     }`);
     // Both A and B should have their own createSignal
-    const code = result.client;
+    const code = result.browser;
     const aFn = code.indexOf('function A(');
     const bFn = code.indexOf('function B(');
     const aSignal = code.indexOf('createSignal(1)');
@@ -471,57 +471,57 @@ describe('Codegen — Component-Scoped State (Item 6)', () => {
   });
 
   test('state setter transform works inside component', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Counter {
         state count = 0
         <button on:click={fn() count += 1}>"+"</button>
       }
     }`);
-    expect(result.client).toContain('setCount(__tova_p => __tova_p + 1)');
+    expect(result.browser).toContain('setCount(__tova_p => __tova_p + 1)');
   });
 });
 
 describe('Codegen — Two-Way Binding (Item 10)', () => {
   test('bind:value generates reactive value prop and onInput handler', () => {
-    const result = compile('client { state name = ""\ncomponent App { <input bind:value={name} /> } }');
-    expect(result.client).toContain('value: () => name()');
-    expect(result.client).toContain('onInput: (e) => { setName(e.target.value); }');
+    const result = compile('browser { state name = ""\ncomponent App { <input bind:value={name} /> } }');
+    expect(result.browser).toContain('value: () => name()');
+    expect(result.browser).toContain('onInput: (e) => { setName(e.target.value); }');
   });
 
   test('bind:checked generates reactive checked prop and onChange handler', () => {
-    const result = compile('client { state active = false\ncomponent App { <input bind:checked={active} /> } }');
-    expect(result.client).toContain('checked: () => active()');
-    expect(result.client).toContain('onChange: (e) => { setActive(e.target.checked); }');
+    const result = compile('browser { state active = false\ncomponent App { <input bind:checked={active} /> } }');
+    expect(result.browser).toContain('checked: () => active()');
+    expect(result.browser).toContain('onChange: (e) => { setActive(e.target.checked); }');
   });
 });
 
 describe('Codegen — Conditional Classes (Item 11)', () => {
   test('class:name generates conditional className', () => {
-    const result = compile('client { state active = true\ncomponent App { <div class:active={active} /> } }');
-    expect(result.client).toContain('active()');
-    expect(result.client).toContain('"active"');
-    expect(result.client).toContain('filter(Boolean)');
-    expect(result.client).toContain('join(" ")');
+    const result = compile('browser { state active = true\ncomponent App { <div class:active={active} /> } }');
+    expect(result.browser).toContain('active()');
+    expect(result.browser).toContain('"active"');
+    expect(result.browser).toContain('filter(Boolean)');
+    expect(result.browser).toContain('join(" ")');
   });
 
   test('class:name merges with base class', () => {
-    const result = compile('client { state bold = true\ncomponent App { <div class="base" class:bold={bold} /> } }');
-    expect(result.client).toContain('"base"');
-    expect(result.client).toContain('"bold"');
-    expect(result.client).toContain('filter(Boolean)');
+    const result = compile('browser { state bold = true\ncomponent App { <div class="base" class:bold={bold} /> } }');
+    expect(result.browser).toContain('"base"');
+    expect(result.browser).toContain('"bold"');
+    expect(result.browser).toContain('filter(Boolean)');
   });
 });
 
 describe('Codegen — Children/Slots (Item 12)', () => {
   test('component with children passes them as children prop', () => {
-    const result = compile('client { component Card { <div>"card"</div> }\ncomponent App { <Card><p>"hi"</p></Card> } }');
-    expect(result.client).toContain('children:');
-    expect(result.client).toContain('tova_el("p"');
+    const result = compile('browser { component Card { <div>"card"</div> }\ncomponent App { <Card><p>"hi"</p></Card> } }');
+    expect(result.browser).toContain('children:');
+    expect(result.browser).toContain('tova_el("p"');
   });
 
   test('self-closing component has no children prop', () => {
-    const result = compile('client { component Icon { <span>"icon"</span> }\ncomponent App { <Icon /> } }');
-    expect(result.client).not.toContain('children:');
+    const result = compile('browser { component Icon { <span>"icon"</span> }\ncomponent App { <Icon /> } }');
+    expect(result.browser).not.toContain('children:');
   });
 });
 
@@ -586,7 +586,7 @@ describe('Codegen — Inter-Server RPC', () => {
 
 describe('Codegen — Scoped CSS', () => {
   test('style block in component emits tova_inject_css', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Card {
         style {
           .card { border: 1px solid #ccc; }
@@ -594,12 +594,12 @@ describe('Codegen — Scoped CSS', () => {
         <div class="card">"hello"</div>
       }
     }`);
-    expect(result.client).toContain('tova_inject_css(');
-    expect(result.client).toContain('.card[data-tova-');
+    expect(result.browser).toContain('tova_inject_css(');
+    expect(result.browser).toContain('.card[data-tova-');
   });
 
   test('scoped CSS adds data attribute to JSX elements', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Card {
         style {
           .card { color: red; }
@@ -607,12 +607,12 @@ describe('Codegen — Scoped CSS', () => {
         <div class="card">"hello"</div>
       }
     }`);
-    expect(result.client).toContain('data-tova-');
-    expect(result.client).toContain(': ""');
+    expect(result.browser).toContain('data-tova-');
+    expect(result.browser).toContain(': ""');
   });
 
   test('scoped CSS does not add attribute to child components', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Inner { <span>"inner"</span> }
       component App {
         style {
@@ -622,25 +622,25 @@ describe('Codegen — Scoped CSS', () => {
       }
     }`);
     // Inner() call should NOT have data-tova attribute
-    expect(result.client).toMatch(/Inner\(\{/);
+    expect(result.browser).toMatch(/Inner\(\{/);
     // The div should have the scope attribute
-    expect(result.client).toMatch(/tova_el\("div", \{.*data-tova/);
+    expect(result.browser).toMatch(/tova_el\("div", \{.*data-tova/);
   });
 
   test('component without style block has no scope attributes', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Plain {
         <div>"no style"</div>
       }
     }`);
     // tova_inject_css appears in import but should NOT be called
-    expect(result.client).not.toContain('tova_inject_css(');
-    expect(result.client).not.toContain('data-tova-');
+    expect(result.browser).not.toContain('tova_inject_css(');
+    expect(result.browser).not.toContain('data-tova-');
   });
 
   test('imports tova_inject_css from runtime', () => {
-    const result = compile('client { state x = 0 }');
-    expect(result.client).toContain('tova_inject_css');
+    const result = compile('browser { state x = 0 }');
+    expect(result.browser).toContain('tova_inject_css');
   });
 });
 
@@ -648,34 +648,34 @@ describe('Codegen — Scoped CSS', () => {
 
 describe('Codegen — Store', () => {
   test('store with state generates IIFE with createSignal and getter/setter', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store CounterStore {
         state count = 0
       }
     }`);
-    expect(result.client).toContain('const CounterStore = (() => {');
-    expect(result.client).toContain('createSignal(0)');
-    expect(result.client).toContain('get count()');
-    expect(result.client).toContain('set count(v)');
-    expect(result.client).toContain('setCount(v)');
-    expect(result.client).toContain('})();');
+    expect(result.browser).toContain('const CounterStore = (() => {');
+    expect(result.browser).toContain('createSignal(0)');
+    expect(result.browser).toContain('get count()');
+    expect(result.browser).toContain('set count(v)');
+    expect(result.browser).toContain('setCount(v)');
+    expect(result.browser).toContain('})();');
   });
 
   test('store with computed generates getter (no setter)', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store MathStore {
         state x = 5
         computed doubled = x * 2
       }
     }`);
-    expect(result.client).toContain('createComputed(');
-    expect(result.client).toContain('get doubled()');
+    expect(result.browser).toContain('createComputed(');
+    expect(result.browser).toContain('get doubled()');
     // Computed should NOT have a setter
-    expect(result.client).not.toContain('set doubled');
+    expect(result.browser).not.toContain('set doubled');
   });
 
   test('store with fn generates action function', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store TodoStore {
         state items = []
         fn add(text) {
@@ -683,14 +683,14 @@ describe('Codegen — Store', () => {
         }
       }
     }`);
-    expect(result.client).toContain('function add(text)');
-    expect(result.client).toContain('setItems(');
+    expect(result.browser).toContain('function add(text)');
+    expect(result.browser).toContain('setItems(');
     // Function should be exported in return object
-    expect(result.client).toContain('add,');
+    expect(result.browser).toContain('add,');
   });
 
   test('store state names do not leak to component scope', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store MyStore {
         state x = 0
       }
@@ -699,7 +699,7 @@ describe('Codegen — Store', () => {
         <div>"hello"</div>
       }
     }`);
-    const code = result.client;
+    const code = result.browser;
     // Inside App, 'x' should NOT be treated as a signal getter
     // 'y' should still be a signal inside App
     const appFn = code.indexOf('function App(');
@@ -710,8 +710,8 @@ describe('Codegen — Store', () => {
   });
 
   test('store imports createRoot from runtime', () => {
-    const result = compile(`client { store S { state x = 0 } }`);
-    expect(result.client).toContain('createRoot');
+    const result = compile(`browser { store S { state x = 0 } }`);
+    expect(result.browser).toContain('createRoot');
   });
 });
 
@@ -719,7 +719,7 @@ describe('Codegen — Store', () => {
 
 describe('Bug Fix — JSXIf generates reactive closure', () => {
   test('JSXIf wraps ternary in () =>', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state show = true
       component App {
         <div>
@@ -732,13 +732,13 @@ describe('Bug Fix — JSXIf generates reactive closure', () => {
       }
     }`);
     // Should be a reactive closure, not a bare ternary
-    expect(result.client).toContain('() => (show())');
-    expect(result.client).toContain('? tova_el("span"');
-    expect(result.client).toContain(': tova_el("span"');
+    expect(result.browser).toContain('() => (show())');
+    expect(result.browser).toContain('? tova_el("span"');
+    expect(result.browser).toContain(': tova_el("span"');
   });
 
   test('JSXIf with elif generates reactive closure', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state mode = "a"
       component App {
         <div>
@@ -752,13 +752,13 @@ describe('Bug Fix — JSXIf generates reactive closure', () => {
         </div>
       }
     }`);
-    expect(result.client).toContain('() => ');
+    expect(result.browser).toContain('() => ');
   });
 });
 
 describe('Bug Fix — JSXFor generates reactive closure', () => {
   test('JSXFor wraps in () => without spread', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state items = []
       component App {
         <ul>
@@ -769,12 +769,12 @@ describe('Bug Fix — JSXFor generates reactive closure', () => {
       }
     }`);
     // Should be () => items().map(...), NOT ...items().map(...)
-    expect(result.client).toContain('() => items().map(');
-    expect(result.client).not.toContain('...items().map(');
+    expect(result.browser).toContain('() => items().map(');
+    expect(result.browser).not.toContain('...items().map(');
   });
 
   test('JSXFor with key generates reactive closure', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state items = []
       component App {
         <ul>
@@ -784,50 +784,50 @@ describe('Bug Fix — JSXFor generates reactive closure', () => {
         </ul>
       }
     }`);
-    expect(result.client).toContain('() => items().map(');
-    expect(result.client).toContain('tova_keyed(');
-    expect(result.client).not.toContain('...items()');
+    expect(result.browser).toContain('() => items().map(');
+    expect(result.browser).toContain('tova_keyed(');
+    expect(result.browser).not.toContain('...items()');
   });
 });
 
 describe('Bug Fix — __tova_p variable name', () => {
   test('compound assignment uses __tova_p (no collision with user vars)', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state count = 0
       component App {
         <button on:click={fn() count += 1}>"+"</button>
       }
     }`);
-    expect(result.client).toContain('__tova_p');
-    expect(result.client).not.toContain('__prev');
+    expect(result.browser).toContain('__tova_p');
+    expect(result.browser).not.toContain('__prev');
   });
 
   test('top-level compound assignment uses __tova_p', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state score = 0
       effect { score += 10 }
     }`);
-    expect(result.client).toContain('setScore(__tova_p => __tova_p + 10)');
+    expect(result.browser).toContain('setScore(__tova_p => __tova_p + 10)');
   });
 });
 
 describe('Bug Fix — CSS scope hash includes content', () => {
   test('same component name with different CSS produces different scope IDs', () => {
-    const result1 = compile(`client {
+    const result1 = compile(`browser {
       component Card {
         style { .card { color: red; } }
         <div class="card">"a"</div>
       }
     }`);
-    const result2 = compile(`client {
+    const result2 = compile(`browser {
       component Card {
         style { .card { color: blue; border: 1px solid; } }
         <div class="card">"b"</div>
       }
     }`);
     // Extract scope IDs from tova_inject_css calls
-    const match1 = result1.client.match(/tova_inject_css\("([^"]+)"/);
-    const match2 = result2.client.match(/tova_inject_css\("([^"]+)"/);
+    const match1 = result1.browser.match(/tova_inject_css\("([^"]+)"/);
+    const match2 = result2.browser.match(/tova_inject_css\("([^"]+)"/);
     expect(match1).not.toBeNull();
     expect(match2).not.toBeNull();
     // Different CSS → different scope IDs
@@ -837,7 +837,7 @@ describe('Bug Fix — CSS scope hash includes content', () => {
 
 describe('Bug Fix — select bind uses change event', () => {
   test('bind:value on select generates onChange', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state choice = "a"
       component App {
         <select bind:value={choice}>
@@ -846,22 +846,22 @@ describe('Bug Fix — select bind uses change event', () => {
         </select>
       }
     }`);
-    expect(result.client).toContain('onChange: (e) => { setChoice(e.target.value); }');
-    expect(result.client).not.toContain('onInput: (e) => { setChoice(e.target.value); }');
+    expect(result.browser).toContain('onChange: (e) => { setChoice(e.target.value); }');
+    expect(result.browser).not.toContain('onInput: (e) => { setChoice(e.target.value); }');
   });
 
   test('bind:value on input still generates onInput', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state name = ""
       component App { <input bind:value={name} /> }
     }`);
-    expect(result.client).toContain('onInput: (e) => { setName(e.target.value); }');
+    expect(result.browser).toContain('onInput: (e) => { setName(e.target.value); }');
   });
 });
 
 describe('Bug Fix — store member access detected as reactive', () => {
   test('store.prop in JSX is wrapped in reactive closure', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       store Counter {
         state count = 0
       }
@@ -870,17 +870,17 @@ describe('Bug Fix — store member access detected as reactive', () => {
       }
     }`);
     // Counter.count accesses a store → should be reactive closure
-    expect(result.client).toContain('() => Counter.count');
+    expect(result.browser).toContain('() => Counter.count');
   });
 
   test('non-store member access is not falsely reactive', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component App {
         <div>{Math.PI}</div>
       }
     }`);
     // Math is not a store, so Math.PI should NOT be wrapped
-    expect(result.client).not.toContain('() => Math.PI');
+    expect(result.browser).not.toContain('() => Math.PI');
   });
 });
 
@@ -888,18 +888,18 @@ describe('Bug Fix — store member access detected as reactive', () => {
 
 describe('Feature — Runtime imports include new primitives', () => {
   test('imports watch, untrack, Dynamic, Portal, lazy', () => {
-    const result = compile('client { state x = 0 }');
-    expect(result.client).toContain('watch');
-    expect(result.client).toContain('untrack');
-    expect(result.client).toContain('Dynamic');
-    expect(result.client).toContain('Portal');
-    expect(result.client).toContain('lazy');
+    const result = compile('browser { state x = 0 }');
+    expect(result.browser).toContain('watch');
+    expect(result.browser).toContain('untrack');
+    expect(result.browser).toContain('Dynamic');
+    expect(result.browser).toContain('Portal');
+    expect(result.browser).toContain('lazy');
   });
 });
 
 describe('Feature — bind:group radio', () => {
   test('generates checked and onChange for radio button', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state selected = "a"
       component App {
         <input type="radio" value="a" bind:group={selected} />
@@ -907,25 +907,25 @@ describe('Feature — bind:group radio', () => {
       }
     }`);
     // Radio group should produce checked: () => selected() === "a"
-    expect(result.client).toContain('selected()');
-    expect(result.client).toContain('setSelected');
+    expect(result.browser).toContain('selected()');
+    expect(result.browser).toContain('setSelected');
   });
 
   test('radio bind:group uses single value comparison', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state color = "red"
       component App {
         <input type="radio" value="red" bind:group={color} />
       }
     }`);
-    expect(result.client).toContain('color() === "red"');
-    expect(result.client).toContain('setColor("red")');
+    expect(result.browser).toContain('color() === "red"');
+    expect(result.browser).toContain('setColor("red")');
   });
 });
 
 describe('Feature — bind:group checkbox', () => {
   test('generates array-based checked and toggle for checkbox', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state items = []
       component App {
         <input type="checkbox" value="a" bind:group={items} />
@@ -933,15 +933,15 @@ describe('Feature — bind:group checkbox', () => {
       }
     }`);
     // Checkbox group should include/exclude from array
-    expect(result.client).toContain('items().includes');
-    expect(result.client).toContain('setItems');
-    expect(result.client).toContain('filter');
+    expect(result.browser).toContain('items().includes');
+    expect(result.browser).toContain('setItems');
+    expect(result.browser).toContain('filter');
   });
 });
 
 describe('Feature — Named slots', () => {
   test('children with slot attribute become named props', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component Layout(header, children) {
         <div>{header}</div>
         <div>{children}</div>
@@ -954,14 +954,14 @@ describe('Feature — Named slots', () => {
       }
     }`);
     // The <div slot="header"> should become header: [...] prop
-    expect(result.client).toContain('header:');
-    expect(result.client).toContain('children:');
+    expect(result.browser).toContain('header:');
+    expect(result.browser).toContain('children:');
   });
 });
 
 describe('Feature — JSX for-loop destructuring', () => {
   test('array destructuring in JSX for', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state items = [[1, "a"], [2, "b"]]
       component App {
         <ul>
@@ -971,12 +971,12 @@ describe('Feature — JSX for-loop destructuring', () => {
         </ul>
       }
     }`);
-    expect(result.client).toContain('[i, name]');
-    expect(result.client).toContain('.map(');
+    expect(result.browser).toContain('[i, name]');
+    expect(result.browser).toContain('.map(');
   });
 
   test('object destructuring in JSX for', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state users = [{ "name": "Alice", "age": 30 }]
       component App {
         <ul>
@@ -986,12 +986,12 @@ describe('Feature — JSX for-loop destructuring', () => {
         </ul>
       }
     }`);
-    expect(result.client).toContain('{name, age}');
-    expect(result.client).toContain('.map(');
+    expect(result.browser).toContain('{name, age}');
+    expect(result.browser).toContain('.map(');
   });
 
   test('regular for loop still works', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       state items = [1, 2, 3]
       component App {
         <ul>
@@ -1001,18 +1001,18 @@ describe('Feature — JSX for-loop destructuring', () => {
         </ul>
       }
     }`);
-    expect(result.client).toContain('(item)');
-    expect(result.client).toContain('.map(');
+    expect(result.browser).toContain('(item)');
+    expect(result.browser).toContain('.map(');
   });
 });
 
 describe('Feature — dangerouslySetInnerHTML codegen', () => {
   test('dangerouslySetInnerHTML attribute generates correct code', () => {
-    const result = compile(`client {
+    const result = compile(`browser {
       component App {
         <div dangerouslySetInnerHTML={{__html: "<b>bold</b>"}} />
       }
     }`);
-    expect(result.client).toContain('dangerouslySetInnerHTML');
+    expect(result.browser).toContain('dangerouslySetInnerHTML');
   });
 });

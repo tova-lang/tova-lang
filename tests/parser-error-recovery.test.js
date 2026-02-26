@@ -138,7 +138,7 @@ describe('Tolerant Analyzer', () => {
   });
 });
 
-// ─── Server/client/shared block recovery ─────────────────────
+// ─── Server/browser/shared block recovery ─────────────────────
 
 describe('Parser Error Recovery — Full-stack Blocks', () => {
   test('recovers in server block', () => {
@@ -158,9 +158,9 @@ describe('Parser Error Recovery — Full-stack Blocks', () => {
     expect(server).toBeDefined();
   });
 
-  test('recovers in client block', () => {
+  test('recovers in browser block', () => {
     const { ast, errors } = parseWithErrors(`
-      client {
+      browser {
         fn render() {
           x = 1 +
         }
@@ -171,8 +171,8 @@ describe('Parser Error Recovery — Full-stack Blocks', () => {
     `);
     expect(errors.length).toBeGreaterThan(0);
     expect(ast).toBeDefined();
-    const client = ast.body.find(n => n.type === 'ClientBlock');
-    expect(client).toBeDefined();
+    const browserBlock = ast.body.find(n => n.type === 'BrowserBlock');
+    expect(browserBlock).toBeDefined();
   });
 
   test('recovers in shared block', () => {

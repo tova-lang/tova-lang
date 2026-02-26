@@ -390,9 +390,9 @@ describe('T4-3: Parser error recovery', () => {
     expect(ast).toBeDefined();
   });
 
-  test('recovers in client blocks', () => {
+  test('recovers in browser blocks', () => {
     const { ast, errors } = parseWithErrors(`
-      client {
+      browser {
         fn handler() {
           x = 1 +
         }
@@ -491,14 +491,14 @@ describe('T4-4: Error codes in analyzer output', () => {
     expect(err.code).toBe('E301');
   });
 
-  test('client-only feature outside client has E302 code', () => {
-    // Parser prevents state outside client blocks, so we construct AST manually
+  test('browser-only feature outside browser has E302 code', () => {
+    // Parser prevents state outside browser blocks, so we construct AST manually
     const loc = { line: 1, column: 1, file: '<test>' };
     const stateNode = new AST.StateDeclaration('count', null, new AST.NumberLiteral(0, loc), loc);
     const ast = new AST.Program([stateNode]);
     const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
     const result = analyzer.analyze();
-    const err = result.errors.find(e => e.message.includes('client block'));
+    const err = result.errors.find(e => e.message.includes('browser block'));
     expect(err).toBeDefined();
     expect(err.code).toBe('E302');
   });
@@ -751,15 +751,15 @@ describe('T4-5: Diagnostic hints are actionable', () => {
     expect(err.hint).toContain('async');
   });
 
-  test('client-only error has actionable hint', () => {
+  test('browser-only error has actionable hint', () => {
     const loc = { line: 1, column: 1, file: '<test>' };
     const stateNode = new AST.StateDeclaration('count', null, new AST.NumberLiteral(0, loc), loc);
     const ast = new AST.Program([stateNode]);
     const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
     const result = analyzer.analyze();
-    const err = result.errors.find(e => e.message.includes('client block'));
+    const err = result.errors.find(e => e.message.includes('browser block'));
     expect(err).toBeDefined();
-    expect(err.hint).toContain('client');
+    expect(err.hint).toContain('browser');
   });
 
   test('server-only error has actionable hint', () => {

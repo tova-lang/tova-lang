@@ -1,8 +1,8 @@
-// Client-specific AST Node definitions for the Tova language
-// Extracted from ast.js for lazy loading — only loaded when client { } blocks are used.
+// Browser-specific AST Node definitions for the Tova language
+// Extracted from ast.js for lazy loading — only loaded when browser { } blocks are used.
 
 // ============================================================
-// Client-specific nodes
+// Browser-specific nodes
 // ============================================================
 
 export class StateDeclaration {

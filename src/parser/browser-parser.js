@@ -1,37 +1,46 @@
-// Client-specific parser methods for the Tova language
-// Extracted from parser.js for lazy loading — only loaded when client { } blocks are encountered.
+// Browser-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when browser { } blocks are encountered.
 
 import { TokenType, Keywords } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 
-export function installClientParser(ParserClass) {
-  if (ParserClass.prototype._clientParserInstalled) return;
-  ParserClass.prototype._clientParserInstalled = true;
+export function installBrowserParser(ParserClass) {
+  if (ParserClass.prototype._browserParserInstalled) return;
+  ParserClass.prototype._browserParserInstalled = true;
 
-  ParserClass.prototype.parseClientBlock = function() {
+  ParserClass.prototype.parseBrowserBlock = function() {
     const l = this.loc();
-    this.expect(TokenType.CLIENT);
-    // Optional block name: client "admin" { }
+    // Capture the keyword value before consuming for deprecation warning
+    const keyword = this.current().value;
+    this.expect(TokenType.BROWSER);
+    if (keyword === 'client') {
+      this.warnings = this.warnings || [];
+      this.warnings.push({
+        message: "`client` block is deprecated, use `browser` instead",
+        loc: l,
+      });
+    }
+    // Optional block name: browser "admin" { }
     let name = null;
     if (this.check(TokenType.STRING)) {
       name = this.advance().value;
     }
-    this.expect(TokenType.LBRACE, "Expected '{' after 'client'");
+    this.expect(TokenType.LBRACE, "Expected '{' after 'browser'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       try {
-        const stmt = this.parseClientStatement();
+        const stmt = this.parseBrowserStatement();
         if (stmt) body.push(stmt);
       } catch (e) {
         this.errors.push(e);
         this._synchronizeBlock();
       }
     }
-    this.expect(TokenType.RBRACE, "Expected '}' to close client block");
-    return new AST.ClientBlock(body, l, name);
+    this.expect(TokenType.RBRACE, "Expected '}' to close browser block");
+    return new AST.BrowserBlock(body, l, name);
   };
 
-  ParserClass.prototype.parseClientStatement = function() {
+  ParserClass.prototype.parseBrowserStatement = function() {
     if (this.check(TokenType.STATE)) return this.parseState();
     if (this.check(TokenType.COMPUTED)) return this.parseComputed();
     if (this.check(TokenType.EFFECT)) return this.parseEffect();

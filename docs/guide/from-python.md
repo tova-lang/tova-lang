@@ -781,7 +781,7 @@ server {
   route POST "/api/todos" => add_todo
 }
 
-client {
+browser {
   state todos: [Todo] = []
 
   effect {

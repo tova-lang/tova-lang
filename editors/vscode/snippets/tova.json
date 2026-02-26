@@ -129,6 +129,15 @@
     ],
     "description": "Server block"
   },
+  "Browser Block": {
+    "prefix": "browser",
+    "body": [
+      "browser {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Browser block (client-side code)"
+  },
   "Import": {
     "prefix": "import",
     "body": [

@@ -1,13 +1,13 @@
 # Signals (State)
 
-Signals are the foundational reactive primitive in Tova. A signal holds a value and automatically notifies anything that depends on it when that value changes. In Tova, you create signals with the `state` keyword inside `client { }` blocks or components.
+Signals are the foundational reactive primitive in Tova. A signal holds a value and automatically notifies anything that depends on it when that value changes. In Tova, you create signals with the `state` keyword inside `browser { }` blocks or components.
 
 ## Declaring State
 
 Use `state` to declare a reactive signal:
 
 ```tova
-client {
+browser {
   state count = 0
   state name = "World"
   state logged_in = false
@@ -21,7 +21,7 @@ Each `state` declaration creates a signal with the given initial value. The vari
 Reading a signal is as simple as using the variable name. Tova transparently calls the underlying getter function:
 
 ```tova
-client {
+browser {
   state count = 0
 
   // Reading in an expression
@@ -44,7 +44,7 @@ Any reactive context (effect, computed value, or JSX expression) that reads a si
 Assign to the signal variable to update its value:
 
 ```tova
-client {
+browser {
   state count = 0
 
   // Direct assignment
@@ -72,7 +72,7 @@ Compound assignments (`+=`, `-=`, `*=`, `/=`, `%=`) use functional updates under
 When the new value depends on the previous value, the compiler generates functional update forms automatically:
 
 ```tova
-client {
+browser {
   state items = []
 
   // Append an item — the compiler sees the self-reference and generates
@@ -98,7 +98,7 @@ function setter(newValue) {
 You can annotate the type of a signal for documentation and clarity:
 
 ```tova
-client {
+browser {
   state items: [String] = []
   state count: Int = 0
   state user: User = User("Alice", "alice@example.com")
@@ -130,7 +130,7 @@ component Counter {
 Signals only notify subscribers when the value actually changes. The runtime uses strict equality (`!==`) to compare the old and new values:
 
 ```tova
-client {
+browser {
   state count = 5
   count = 5    // No update — value hasn't changed, subscribers don't re-run
   count = 6    // Subscribers re-run — value changed from 5 to 6
@@ -181,7 +181,7 @@ Each instance of the component gets its own independent signal. The signal is cr
 
 ## Multiple Signals
 
-A component or client block can have any number of signals:
+A component or browser block can have any number of signals:
 
 ```tova
 component RegistrationForm {

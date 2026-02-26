@@ -628,7 +628,7 @@ async function runFile(filePath, options = {}) {
       }
     }
 
-    let code = stdlib + '\n' + depCode + (output.shared || '') + '\n' + (output.server || output.client || '');
+    let code = stdlib + '\n' + depCode + (output.shared || '') + '\n' + (output.server || output.browser || '');
     // Strip 'export ' keywords — not valid inside AsyncFunction (used in tova build only)
     code = code.replace(/^export /gm, '');
     // Strip import lines for local modules (already inlined above)
@@ -833,11 +833,11 @@ async function buildProject(args) {
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}${timing}`);
         }
 
-        // Write default client
-        if (output.client) {
-          const clientPath = join(outDir, `${outBaseName}.client.js`);
-          writeFileSync(clientPath, generateSourceMap(output.client, clientPath));
-          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', clientPath)}${timing}`);
+        // Write default browser
+        if (output.browser) {
+          const browserPath = join(outDir, `${outBaseName}.browser.js`);
+          writeFileSync(browserPath, generateSourceMap(output.browser, browserPath));
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', browserPath)}${timing}`);
         }
 
         // Write named server blocks (multi-block)
@@ -850,13 +850,13 @@ async function buildProject(args) {
           }
         }
 
-        // Write named client blocks (multi-block)
-        if (output.multiBlock && output.clients) {
-          for (const [name, code] of Object.entries(output.clients)) {
+        // Write named browser blocks (multi-block)
+        if (output.multiBlock && output.browsers) {
+          for (const [name, code] of Object.entries(output.browsers)) {
             if (name === 'default') continue;
-            const path = join(outDir, `${outBaseName}.client.${name}.js`);
+            const path = join(outDir, `${outBaseName}.browser.${name}.js`);
             writeFileSync(path, code);
-            if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [client:${name}]${timing}`);
+            if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [browser:${name}]${timing}`);
           }
         }
 
@@ -865,7 +865,7 @@ async function buildProject(args) {
           const outputPaths = {};
           if (output.shared && output.shared.trim()) outputPaths.shared = join(outDir, `${outBaseName}.shared.js`);
           if (output.server) outputPaths.server = join(outDir, `${outBaseName}.server.js`);
-          if (output.client) outputPaths.client = join(outDir, `${outBaseName}.client.js`);
+          if (output.browser) outputPaths.browser = join(outDir, `${outBaseName}.browser.js`);
           if (single) {
             const absFile = files[0];
             const sourceContent = readFileSync(absFile, 'utf-8');
@@ -1116,10 +1116,10 @@ async function devServer(args) {
         writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
       }
 
-      if (output.client) {
-        const p = join(outDir, `${outBaseName}.client.js`);
-        writeFileSync(p, output.client);
-        clientHTML = await generateDevHTML(output.client, srcDir, actualReloadPort);
+      if (output.browser) {
+        const p = join(outDir, `${outBaseName}.browser.js`);
+        writeFileSync(p, output.browser);
+        clientHTML = await generateDevHTML(output.browser, srcDir, actualReloadPort);
         writeFileSync(join(outDir, 'index.html'), clientHTML);
         hasClient = true;
       }
@@ -1150,10 +1150,10 @@ async function devServer(args) {
       }
     }
 
-    if (output.multiBlock && output.clients) {
-      for (const [name, code] of Object.entries(output.clients)) {
+    if (output.multiBlock && output.browsers) {
+      for (const [name, code] of Object.entries(output.browsers)) {
         if (name === 'default') continue;
-        const p = join(outDir, `${outBaseName}.client.${name}.js`);
+        const p = join(outDir, `${outBaseName}.browser.${name}.js`);
         writeFileSync(p, code);
       }
     }
@@ -1264,9 +1264,9 @@ async function devServer(args) {
         if (output.shared && output.shared.trim()) {
           writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
         }
-        if (output.client) {
-          writeFileSync(join(outDir, `${outBaseName}.client.js`), output.client);
-          rebuildClientHTML = await generateDevHTML(output.client, srcDir, actualReloadPort);
+        if (output.browser) {
+          writeFileSync(join(outDir, `${outBaseName}.browser.js`), output.browser);
+          rebuildClientHTML = await generateDevHTML(output.browser, srcDir, actualReloadPort);
           writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
         }
         if (output.server) {
@@ -2540,7 +2540,7 @@ async function startRepl() {
     'in', 'return', 'match', 'type', 'import', 'from', 'and', 'or', 'not',
     'try', 'catch', 'finally', 'break', 'continue', 'async', 'await',
     'guard', 'interface', 'derive', 'pub', 'impl', 'trait', 'defer',
-    'yield', 'extern', 'is', 'with', 'as', 'export', 'server', 'client', 'shared',
+    'yield', 'extern', 'is', 'with', 'as', 'export', 'server', 'client', 'browser', 'shared',
   ]);
 
   const TYPE_NAMES = new Set([
@@ -3040,7 +3040,7 @@ async function binaryBuild(srcDir, outputName, outDir) {
   // Step 1: Compile all .tova files to JS
   const sharedParts = [];
   const serverParts = [];
-  const clientParts = [];
+  const browserParts = [];
 
   for (const file of tovaFiles) {
     try {
@@ -3048,7 +3048,7 @@ async function binaryBuild(srcDir, outputName, outDir) {
       const output = compileTova(source, file);
       if (output.shared) sharedParts.push(output.shared);
       if (output.server) serverParts.push(output.server);
-      if (output.client) clientParts.push(output.client);
+      if (output.browser) browserParts.push(output.browser);
     } catch (err) {
       console.error(`  Error in ${relative(srcDir, file)}: ${err.message}`);
       process.exit(1);
@@ -3118,7 +3118,7 @@ async function productionBuild(srcDir, outDir) {
 
   console.log(`\n  Production build...\n`);
 
-  const clientParts = [];
+  const browserParts = [];
   const serverParts = [];
   const sharedParts = [];
   let cssContent = '';
@@ -3130,14 +3130,14 @@ async function productionBuild(srcDir, outDir) {
 
       if (output.shared) sharedParts.push(output.shared);
       if (output.server) serverParts.push(output.server);
-      if (output.client) clientParts.push(output.client);
+      if (output.browser) browserParts.push(output.browser);
     } catch (err) {
       console.error(`  Error in ${relative(srcDir, file)}: ${err.message}`);
       process.exit(1);
     }
   }
 
-  const allClientCode = clientParts.join('\n');
+  const allClientCode = browserParts.join('\n');
   const allServerCode = serverParts.join('\n');
   const allSharedCode = sharedParts.join('\n');
 
@@ -3598,7 +3598,7 @@ function getCompiledExtension(tovaPath) {
       const lexer = new Lexer(src, tovaPath);
       const tokens = lexer.tokenize();
       // Check if any top-level token is a block keyword (shared/server/client/test/bench/data)
-      const BLOCK_KEYWORDS = new Set(['shared', 'server', 'client', 'test', 'bench', 'data']);
+      const BLOCK_KEYWORDS = new Set(['shared', 'server', 'client', 'browser', 'test', 'bench', 'data']);
       let depth = 0;
       for (const tok of tokens) {
         if (tok.type === 'LBRACE') depth++;
@@ -3725,7 +3725,7 @@ function collectExports(ast, filename) {
 
   for (const node of ast.body) {
     // Also collect exports from inside shared/server/client blocks
-    if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
+    if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'BrowserBlock') {
       if (node.body) {
         for (const inner of node.body) {
           collectFromNode(inner);
@@ -3755,7 +3755,7 @@ function compileWithImports(source, filename, srcDir) {
     const ast = parser.parse();
 
     // Cache module type from AST (avoids regex heuristic on subsequent lookups)
-    const hasBlocks = ast.body.some(n => n.type === 'SharedBlock' || n.type === 'ServerBlock' || n.type === 'ClientBlock' || n.type === 'TestBlock' || n.type === 'BenchBlock' || n.type === 'DataBlock');
+    const hasBlocks = ast.body.some(n => n.type === 'SharedBlock' || n.type === 'ServerBlock' || n.type === 'BrowserBlock' || n.type === 'TestBlock' || n.type === 'BenchBlock' || n.type === 'DataBlock');
     moduleTypeCache.set(filename, hasBlocks ? '.shared.js' : '.js');
 
     // Collect this module's exports for validation
@@ -3853,32 +3853,32 @@ function validateMergedAST(mergedBlocks, sourceFiles) {
     );
   }
 
-  // Check client blocks — top-level declarations only
-  const clientDecls = { component: new Map(), state: new Map(), computed: new Map(), store: new Map(), fn: new Map() };
-  for (const block of mergedBlocks.clientBlocks) {
+  // Check browser blocks — top-level declarations only
+  const browserDecls = { component: new Map(), state: new Map(), computed: new Map(), store: new Map(), fn: new Map() };
+  for (const block of mergedBlocks.browserBlocks) {
     for (const stmt of block.body) {
       const loc = stmt.loc || block.loc;
       if (stmt.type === 'ComponentDeclaration') {
-        if (clientDecls.component.has(stmt.name)) addDup('component', stmt.name, clientDecls.component.get(stmt.name), loc);
-        else clientDecls.component.set(stmt.name, loc);
+        if (browserDecls.component.has(stmt.name)) addDup('component', stmt.name, browserDecls.component.get(stmt.name), loc);
+        else browserDecls.component.set(stmt.name, loc);
       } else if (stmt.type === 'StateDeclaration') {
         const name = stmt.name || (stmt.targets && stmt.targets[0]);
         if (name) {
-          if (clientDecls.state.has(name)) addDup('state', name, clientDecls.state.get(name), loc);
-          else clientDecls.state.set(name, loc);
+          if (browserDecls.state.has(name)) addDup('state', name, browserDecls.state.get(name), loc);
+          else browserDecls.state.set(name, loc);
         }
       } else if (stmt.type === 'ComputedDeclaration') {
         const name = stmt.name;
         if (name) {
-          if (clientDecls.computed.has(name)) addDup('computed', name, clientDecls.computed.get(name), loc);
-          else clientDecls.computed.set(name, loc);
+          if (browserDecls.computed.has(name)) addDup('computed', name, browserDecls.computed.get(name), loc);
+          else browserDecls.computed.set(name, loc);
         }
       } else if (stmt.type === 'StoreDeclaration') {
-        if (clientDecls.store.has(stmt.name)) addDup('store', stmt.name, clientDecls.store.get(stmt.name), loc);
-        else clientDecls.store.set(stmt.name, loc);
+        if (browserDecls.store.has(stmt.name)) addDup('store', stmt.name, browserDecls.store.get(stmt.name), loc);
+        else browserDecls.store.set(stmt.name, loc);
       } else if (stmt.type === 'FunctionDeclaration') {
-        if (clientDecls.fn.has(stmt.name)) addDup('function', stmt.name, clientDecls.fn.get(stmt.name), loc);
-        else clientDecls.fn.set(stmt.name, loc);
+        if (browserDecls.fn.has(stmt.name)) addDup('function', stmt.name, browserDecls.fn.get(stmt.name), loc);
+        else browserDecls.fn.set(stmt.name, loc);
       }
     }
   }
@@ -4022,7 +4022,7 @@ function mergeDirectory(dir, srcDir, options = {}) {
   const mergedBody = [];
   const sharedBlocks = [];
   const serverBlocks = [];
-  const clientBlocks = [];
+  const browserBlocks = [];
 
   for (const { file, ast } of parsedFiles) {
     for (const node of ast.body) {
@@ -4043,14 +4043,14 @@ function mergeDirectory(dir, srcDir, options = {}) {
 
       if (node.type === 'SharedBlock') sharedBlocks.push(node);
       else if (node.type === 'ServerBlock') serverBlocks.push(node);
-      else if (node.type === 'ClientBlock') clientBlocks.push(node);
+      else if (node.type === 'BrowserBlock') browserBlocks.push(node);
 
       mergedBody.push(node);
     }
   }
 
   // Validate for duplicate declarations across files
-  validateMergedAST({ sharedBlocks, serverBlocks, clientBlocks }, tovaFiles);
+  validateMergedAST({ sharedBlocks, serverBlocks, browserBlocks }, tovaFiles);
 
   // Build merged Program AST
   const mergedAST = new Program(mergedBody);

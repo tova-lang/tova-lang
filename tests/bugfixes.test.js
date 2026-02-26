@@ -224,7 +224,7 @@ describe('reactivity: style object cleanup', () => {
 describe('codegen: _containsRPC AST property names', () => {
   test('_containsRPC uses tryBody/catchBody/finallyBody (not tryBlock/catchBlock/finallyBlock)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/client-codegen.js', 'utf-8');
+    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
     // Should use correct AST property names for TryCatchStatement
     expect(src).toContain('node.tryBody');
     expect(src).toContain('node.catchBody');
@@ -237,21 +237,21 @@ describe('codegen: _containsRPC AST property names', () => {
 
   test('_containsRPC uses elseBody for GuardStatement (not elseBlock)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/client-codegen.js', 'utf-8');
+    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
     // GuardStatement line should use elseBody
     expect(src).not.toContain('node.elseBlock');
   });
 
   test('_containsRPC uses p.value for TemplateLiteral parts (not p.expression)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/client-codegen.js', 'utf-8');
+    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
     // TemplateLiteral parts use .value not .expression
     expect(src).toContain("this._containsRPC(p.value)");
   });
 
   test('_containsRPC checks IfExpression alternates', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/client-codegen.js', 'utf-8');
+    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
     // IfExpression should check alternates for RPC
     const ifExprSection = src.slice(src.indexOf("if (node.type === 'IfExpression')"));
     expect(ifExprSection).toContain('node.alternates');
@@ -263,7 +263,7 @@ describe('codegen: _containsRPC AST property names', () => {
 describe('codegen: _exprReadsSignal IfExpression alternates', () => {
   test('_exprReadsSignal checks IfExpression alternates', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/client-codegen.js', 'utf-8');
+    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
     // Find the _exprReadsSignal method's IfExpression handling
     const signalMethod = src.slice(src.indexOf('_exprReadsSignal'));
     const ifExprSection = signalMethod.slice(signalMethod.indexOf("if (node.type === 'IfExpression')"));

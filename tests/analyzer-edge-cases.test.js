@@ -221,15 +221,15 @@ describe('Server/Client Block Analysis', () => {
     `)).not.toThrow();
   });
 
-  test('25. client block with state declarations', () => {
-    const result = analyze('client { state count = 0\nstate name = "hello" }');
+  test('25. browser block with state declarations', () => {
+    const result = analyze('browser { state count = 0\nstate name = "hello" }');
     expect(result).toBeDefined();
     expect(result.warnings).toBeDefined();
   });
 
-  test('26. client block with computed declarations', () => {
+  test('26. browser block with computed declarations', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state count = 0
         computed doubled = count * 2
         computed tripled = count * 3
@@ -237,18 +237,18 @@ describe('Server/Client Block Analysis', () => {
     `)).not.toThrow();
   });
 
-  test('27. client block with effect declarations', () => {
+  test('27. browser block with effect declarations', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state count = 0
         effect { print(count) }
       }
     `)).not.toThrow();
   });
 
-  test('28. client block with component declarations', () => {
+  test('28. browser block with component declarations', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>"Hello World"</div>
         }
@@ -268,8 +268,8 @@ describe('Server/Client Block Analysis', () => {
     expect(() => analyze('server "api" { fn hello() { 1 } }')).not.toThrow();
   });
 
-  test('31. named client blocks', () => {
-    expect(() => analyze('client "dashboard" { state x = 0 }')).not.toThrow();
+  test('31. named browser blocks', () => {
+    expect(() => analyze('browser "dashboard" { state x = 0 }')).not.toThrow();
   });
 
   test('32. multiple server blocks in same file', () => {
@@ -284,14 +284,14 @@ describe('Server/Client Block Analysis', () => {
 
 describe('JSX Analysis', () => {
   test('33. JSX element analysis', () => {
-    const result = analyze('client { component App { <div>"hello"</div> } }');
+    const result = analyze('browser { component App { <div>"hello"</div> } }');
     expect(result).toBeDefined();
     expect(result.warnings).toBeDefined();
   });
 
   test('34. JSX with expression attributes', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div class={myClass} id="main">"content"</div>
         }
@@ -301,7 +301,7 @@ describe('JSX Analysis', () => {
 
   test('35. JSX with event handlers (on:click)', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state count = 0
         component App {
           <button on:click={fn() count + 1}>"Click"</button>
@@ -312,7 +312,7 @@ describe('JSX Analysis', () => {
 
   test('36. JSX with bind directive', () => {
     expect(() => analyze(`
-      client {
+      browser {
         state name = ""
         component App {
           <input bind:value={name} />
@@ -323,7 +323,7 @@ describe('JSX Analysis', () => {
 
   test('37. JSX with conditional (if/else)', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>
             if true { <span>"yes"</span> } else { <span>"no"</span> }
@@ -335,7 +335,7 @@ describe('JSX Analysis', () => {
 
   test('38. JSX with loop (for in)', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <ul>
             for item in items { <li>"item"</li> }
@@ -347,7 +347,7 @@ describe('JSX Analysis', () => {
 
   test('39. nested JSX elements', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component App {
           <div>
             <header><h1>"Title"</h1></header>
@@ -521,7 +521,7 @@ describe('Import Analysis', () => {
 describe('Store Analysis', () => {
   test('59. store with state and computed', () => {
     expect(() => analyze(`
-      client {
+      browser {
         store TodoStore {
           state items = []
           computed count = len(items)
@@ -532,7 +532,7 @@ describe('Store Analysis', () => {
 
   test('60. store with functions', () => {
     expect(() => analyze(`
-      client {
+      browser {
         store CounterStore {
           state count = 0
           fn increment() { count + 1 }
@@ -647,8 +647,8 @@ describe('Additional Edge Cases', () => {
     expect(scope.lookupLocal('inner_val')).toBeNull();
   });
 
-  test('client block creates its own scope context', () => {
-    const { scope } = analyze('client { state counter = 0 }');
+  test('browser block creates its own scope context', () => {
+    const { scope } = analyze('browser { state counter = 0 }');
     expect(scope.lookupLocal('counter')).toBeNull();
   });
 
@@ -686,20 +686,20 @@ describe('Additional Edge Cases', () => {
   });
 
   test('JSX with expression child', () => {
-    expect(() => analyze('client { component App { <div>{name}</div> } }')).not.toThrow();
+    expect(() => analyze('browser { component App { <div>{name}</div> } }')).not.toThrow();
   });
 
   test('JSX self-closing element', () => {
-    expect(() => analyze('client { component App { <div><br />"hello"</div> } }')).not.toThrow();
+    expect(() => analyze('browser { component App { <div><br />"hello"</div> } }')).not.toThrow();
   });
 
   test('JSX with dynamic attribute value', () => {
-    expect(() => analyze('client { component App { <div class={cls}>"hello"</div> } }')).not.toThrow();
+    expect(() => analyze('browser { component App { <div class={cls}>"hello"</div> } }')).not.toThrow();
   });
 
   test('nested for inside component with element body', () => {
     expect(() => analyze(`
-      client {
+      browser {
         component List {
           <ul>
             for item in items {
@@ -757,7 +757,7 @@ describe('Additional Edge Cases', () => {
     expect(child.parent).toBe(parent);
   });
 
-  test('scope getContext traverses up to find server/client/shared', () => {
+  test('scope getContext traverses up to find server/browser/shared', () => {
     const mod = new Scope(null, 'module');
     const server = mod.child('server');
     const fn = server.child('function');
@@ -782,7 +782,7 @@ describe('Additional Edge Cases', () => {
     expect(Array.isArray(result.warnings)).toBe(true);
   });
 
-  test('state outside client throws via manual AST', () => {
+  test('state outside browser throws via manual AST', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const stateNode = new AST.StateDeclaration('count', null, new AST.NumberLiteral(0, loc), loc);
@@ -791,7 +791,7 @@ describe('Additional Edge Cases', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('computed outside client throws via manual AST', () => {
+  test('computed outside browser throws via manual AST', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const compNode = new AST.ComputedDeclaration('doubled', new AST.NumberLiteral(0, loc), loc);
@@ -800,7 +800,7 @@ describe('Additional Edge Cases', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('effect outside client throws via manual AST', () => {
+  test('effect outside browser throws via manual AST', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const effectNode = new AST.EffectDeclaration(new AST.BlockStatement([], loc), loc);
@@ -809,7 +809,7 @@ describe('Additional Edge Cases', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('component outside client throws via manual AST', () => {
+  test('component outside browser throws via manual AST', () => {
     const AST = require('../src/parser/ast.js');
     const loc = { line: 1, column: 1, file: '<test>' };
     const compNode = new AST.ComponentDeclaration('App', [], [], loc);

@@ -17,7 +17,7 @@ function parseExpr(source) {
 }
 
 function parseComponent(source) {
-  const ast = parse(`client { component App { ${source} } }`);
+  const ast = parse(`browser { component App { ${source} } }`);
   const comp = ast.body[0].body[0];
   return comp;
 }
@@ -33,7 +33,7 @@ function parseComponentBody(source) {
 
 describe('Parser Coverage -- JSX parsing in components', () => {
   test('component with basic JSX element', () => {
-    const ast = parse('client { component App { <div>"Hello"</div> } }');
+    const ast = parse('browser { component App { <div>"Hello"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.type).toBe('ComponentDeclaration');
     expect(comp.name).toBe('App');
@@ -117,7 +117,7 @@ describe('Parser Coverage -- JSX parsing in components', () => {
   });
 
   test('component with non-JSX statement before JSX', () => {
-    const ast = parse('client { component App { fn helper() { 1 }\n<div>"Hello"</div> } }');
+    const ast = parse('browser { component App { fn helper() { 1 }\n<div>"Hello"</div> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body.length).toBe(2);
     expect(comp.body[0].type).toBe('FunctionDeclaration');
@@ -619,10 +619,10 @@ describe('Parser Coverage -- Lambda with assignment body', () => {
 });
 
 // ============================================================
-// 24. server/client/shared as identifiers in expression
+// 24. server/browser/shared as identifiers in expression
 // ============================================================
 
-describe('Parser Coverage -- server/client/shared as identifiers in expression', () => {
+describe('Parser Coverage -- server/browser/shared as identifiers in expression', () => {
   test('server.get_users is MemberExpression', () => {
     const ast = parse('x = server.get_users');
     const expr = ast.body[0].values[0];
@@ -800,35 +800,35 @@ function compile(source) {
 
 describe('Unquoted JSX text — Lexer', () => {
   test('emits JSX_TEXT for plain text between tags', () => {
-    const tokens = tokenize('client { component App { <h1>Hello World</h1> } }');
+    const tokens = tokenize('browser { component App { <h1>Hello World</h1> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     expect(jsxTextTokens.length).toBe(1);
     expect(jsxTextTokens[0].value).toContain('Hello World');
   });
 
   test('emits JSX_TEXT for text with special characters', () => {
-    const tokens = tokenize('client { component App { <p>Tom & Jerry</p> } }');
+    const tokens = tokenize('browser { component App { <p>Tom & Jerry</p> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     expect(jsxTextTokens.length).toBe(1);
     expect(jsxTextTokens[0].value).toContain('Tom & Jerry');
   });
 
   test('emits JSX_TEXT before an expression child', () => {
-    const tokens = tokenize('client { component App { <p>Count: {x}</p> } }');
+    const tokens = tokenize('browser { component App { <p>Count: {x}</p> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     expect(jsxTextTokens.length).toBe(1);
     expect(jsxTextTokens[0].value).toContain('Count:');
   });
 
   test('emits JSX_TEXT between nested element and closing tag', () => {
-    const tokens = tokenize('client { component App { <div><span>A</span> tail</div> } }');
+    const tokens = tokenize('browser { component App { <div><span>A</span> tail</div> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     // "A" inside span, "tail" after span
     expect(jsxTextTokens.length).toBe(2);
   });
 
   test('does not emit JSX_TEXT for whitespace-only between tags', () => {
-    const tokens = tokenize('client { component App { <div> <span>Hi</span> </div> } }');
+    const tokens = tokenize('browser { component App { <div> <span>Hi</span> </div> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     // Only "Hi" inside span
     expect(jsxTextTokens.length).toBe(1);
@@ -836,7 +836,7 @@ describe('Unquoted JSX text — Lexer', () => {
   });
 
   test('does not emit JSX_TEXT for quoted strings (backward compat)', () => {
-    const tokens = tokenize('client { component App { <p>"hello"</p> } }');
+    const tokens = tokenize('browser { component App { <p>"hello"</p> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     expect(jsxTextTokens.length).toBe(0);
     const stringTokens = tokens.filter(t => t.type === TokenType.STRING && t.value === 'hello');
@@ -862,14 +862,14 @@ describe('Unquoted JSX text — Lexer', () => {
   });
 
   test('handles text with numbers and punctuation', () => {
-    const tokens = tokenize('client { component App { <p>Price: $9.99!</p> } }');
+    const tokens = tokenize('browser { component App { <p>Price: $9.99!</p> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     expect(jsxTextTokens.length).toBe(1);
     expect(jsxTextTokens[0].value).toContain('$9.99!');
   });
 
   test('handles text on multiple lines', () => {
-    const tokens = tokenize('client { component App { <p>Hello\n  World</p> } }');
+    const tokens = tokenize('browser { component App { <p>Hello\n  World</p> } }');
     const jsxTextTokens = tokens.filter(t => t.type === TokenType.JSX_TEXT);
     expect(jsxTextTokens.length).toBeGreaterThanOrEqual(1);
   });
@@ -1137,7 +1137,7 @@ describe('Unquoted JSX text — edge cases', () => {
   });
 
   test('template string in JSX still works', () => {
-    const ast = parse('client { component App { state name = "World"\n <p>"{name}"</p> } }');
+    const ast = parse('browser { component App { state name = "World"\n <p>"{name}"</p> } }');
     const comp = ast.body[0].body[0];
     const p = comp.body[1];
     expect(p.children[0].type).toBe('JSXText');
@@ -1162,7 +1162,7 @@ describe('Unquoted JSX text — edge cases', () => {
   });
 
   test('non-JSX code after component is unaffected', () => {
-    const ast = parse('client { component App { <p>Hi</p> } }\nfn foo(x: Map<String, Int>) { x }');
+    const ast = parse('browser { component App { <p>Hi</p> } }\nfn foo(x: Map<String, Int>) { x }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].children[0].value.value).toBe('Hi');
     const fn = ast.body[1];
@@ -1175,37 +1175,37 @@ describe('Unquoted JSX text — edge cases', () => {
 
 describe('Unquoted JSX text — Codegen', () => {
   test('unquoted text produces string child in tova_el', () => {
-    const r = compile('client { component App { <h1>Hello World</h1> } }');
-    expect(r.client).toContain('"Hello World"');
+    const r = compile('browser { component App { <h1>Hello World</h1> } }');
+    expect(r.browser).toContain('"Hello World"');
   });
 
   test('quoted text still produces string child', () => {
-    const r = compile('client { component App { <h1>"Hello"</h1> } }');
-    expect(r.client).toContain('"Hello"');
+    const r = compile('browser { component App { <h1>"Hello"</h1> } }');
+    expect(r.browser).toContain('"Hello"');
   });
 
   test('text with expression sibling compiles correctly', () => {
-    const r = compile('client { component App { state n = 0\n <p>Count: {n}</p> } }');
-    expect(r.client).toContain('"Count:"');
+    const r = compile('browser { component App { state n = 0\n <p>Count: {n}</p> } }');
+    expect(r.browser).toContain('"Count:"');
   });
 
   test('text with special chars compiles to string', () => {
-    const r = compile('client { component App { <p>Tom & Jerry</p> } }');
-    expect(r.client).toContain('"Tom & Jerry"');
+    const r = compile('browser { component App { <p>Tom & Jerry</p> } }');
+    expect(r.browser).toContain('"Tom & Jerry"');
   });
 
   test('nested elements with unquoted text', () => {
-    const r = compile('client { component App { <div><span>Inner</span></div> } }');
-    expect(r.client).toContain('"Inner"');
+    const r = compile('browser { component App { <div><span>Inner</span></div> } }');
+    expect(r.browser).toContain('"Inner"');
   });
 
   test('JSX if with unquoted text in children elements', () => {
-    const r = compile('client { component App { state show = true\n <div> if show { <span>Visible</span> } </div> } }');
-    expect(r.client).toContain('"Visible"');
+    const r = compile('browser { component App { state show = true\n <div> if show { <span>Visible</span> } </div> } }');
+    expect(r.browser).toContain('"Visible"');
   });
 
   test('JSX for with unquoted text in body elements', () => {
-    const r = compile('client { component App { <ul> for item in [1, 2] { <li>Item</li> } </ul> } }');
-    expect(r.client).toContain('"Item"');
+    const r = compile('browser { component App { <ul> for item in [1, 2] { <li>Item</li> } </ul> } }');
+    expect(r.browser).toContain('"Item"');
   });
 });

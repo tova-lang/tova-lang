@@ -7,7 +7,7 @@ Tova includes a built-in client-side router that integrates with the reactive si
 Use `defineRoutes` to declare your application's routes. Pass an object mapping URL patterns to components:
 
 ```tova
-client {
+browser {
   defineRoutes({
     "/": HomePage,
     "/about": AboutPage,
@@ -292,7 +292,7 @@ Guards run before or after route changes. Use them for authentication checks, un
 `beforeNavigate(callback)` registers a hook that runs before every route change. Return `false` to cancel navigation, or return a path string to redirect:
 
 ```tova
-client {
+browser {
   // Protect authenticated routes
   unsub = beforeNavigate(fn(from, to_path) {
     if to_path.startsWith("/dashboard") and not is_logged_in() {
@@ -330,7 +330,7 @@ Returns an unsubscribe function to remove the hook.
 `afterNavigate(callback)` registers a hook that runs after every route change:
 
 ```tova
-client {
+browser {
   // Track page views
   unsub = afterNavigate(fn(current_route) {
     analytics.track("page_view", current_route.path)
@@ -348,7 +348,7 @@ Returns an unsubscribe function.
 For applications with shared layouts (dashboards, admin panels, settings pages), use nested route definitions with an `Outlet` component:
 
 ```tova
-client {
+browser {
   defineRoutes({
     "/": HomePage,
     "/dashboard": {
@@ -430,7 +430,7 @@ Only relative paths (starting with `/` or a path segment) are allowed.
 ## Full Router Example
 
 ```tova
-client {
+browser {
   component App {
     defineRoutes({
       "/": HomePage,

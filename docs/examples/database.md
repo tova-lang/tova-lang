@@ -174,7 +174,7 @@ server {
   route POST "/api/authors" => create_author
 }
 
-client {
+browser {
   state posts = []
   state current_post = nil
   state search_query = ""

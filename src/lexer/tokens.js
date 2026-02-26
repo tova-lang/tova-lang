@@ -85,7 +85,8 @@ export const TokenType = {
 
   // Full-stack keywords
   SERVER: 'SERVER',
-  CLIENT: 'CLIENT',
+  BROWSER: 'BROWSER',
+  CLIENT: 'BROWSER',  // deprecated alias — both map to BROWSER
   SHARED: 'SHARED',
   ROUTE: 'ROUTE',
   STATE: 'STATE',
@@ -211,7 +212,8 @@ export const Keywords = {
   'is': TokenType.IS,
   'with': TokenType.WITH,
   'server': TokenType.SERVER,
-  'client': TokenType.CLIENT,
+  'browser': TokenType.BROWSER,
+  'client': TokenType.BROWSER,  // deprecated alias
   'shared': TokenType.SHARED,
   'route': TokenType.ROUTE,
   'state': TokenType.STATE,

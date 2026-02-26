@@ -1,10 +1,10 @@
-# Client Block
+# Browser Block
 
-The `client` block defines everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Tova reactive runtime. The client uses a fine-grained reactive system inspired by SolidJS, where signals, computed values, and effects automatically track dependencies and update the DOM with minimal overhead.
+The `browser` block defines everything that runs in the browser. It compiles to a JavaScript module that is embedded into an HTML page along with the Tova reactive runtime. The browser block uses a fine-grained reactive system inspired by SolidJS, where signals, computed values, and effects automatically track dependencies and update the DOM with minimal overhead.
 
 ## Purpose
 
-The client block is where your application's UI lives:
+The browser block is where your application's UI lives:
 
 - **Reactive state** -- signals that trigger updates when they change
 - **Computed values** -- derived data that recalculates automatically
@@ -20,7 +20,7 @@ The client block is where your application's UI lives:
 A `state` declaration creates a reactive signal. When its value changes, everything that depends on it updates automatically:
 
 ```tova
-client {
+browser {
   state count = 0
   state name = "World"
   state users: [User] = []
@@ -31,7 +31,7 @@ client {
 Reading a signal returns its current value. Assigning to it updates it and triggers reactivity:
 
 ```tova
-client {
+browser {
   state count = 0
 
   fn increment() {
@@ -57,7 +57,7 @@ Reading `count` in generated code calls `count()` (the getter). Writing `count =
 Computed values derive from other reactive values and update automatically when dependencies change:
 
 ```tova
-client {
+browser {
   state price = 10
   state quantity = 2
 
@@ -79,7 +79,7 @@ const total = createComputed(() => price() * quantity());
 Effects are side-effect functions that re-execute whenever their reactive dependencies change:
 
 ```tova
-client {
+browser {
   state users: [User] = []
 
   effect {
@@ -97,7 +97,7 @@ Effects are the primary way to:
 - Synchronize with external systems
 
 ```tova
-client {
+browser {
   state search_query = ""
   state results: [User] = []
 
@@ -116,7 +116,7 @@ When `search_query` changes (and is longer than 2 characters), the effect automa
 Components are reusable UI elements defined with JSX:
 
 ```tova
-client {
+browser {
   component App {
     <div>
       <h1>Hello, Tova!</h1>
@@ -132,7 +132,7 @@ client {
 Components can accept props:
 
 ```tova
-client {
+browser {
   component UserCard(user) {
     <div class="card">
       <h2>{user.name}</h2>
@@ -155,7 +155,7 @@ client {
 Use `on:event` syntax to bind event handlers:
 
 ```tova
-client {
+browser {
   component App {
     <div>
       <button on:click={increment}>+1</button>
@@ -173,7 +173,7 @@ client {
 Use `if`/`else` inside JSX:
 
 ```tova
-client {
+browser {
   component App {
     <div>
       if loading {
@@ -195,7 +195,7 @@ client {
 Use `for` to iterate:
 
 ```tova
-client {
+browser {
   component TodoList {
     <ul>
       for todo in todos {
@@ -210,7 +210,7 @@ client {
 
 ## Calling Server Functions
 
-The client communicates with the server by calling functions through the `server` object. Every function defined in a `server` block is available as `server.function_name()`:
+The browser block communicates with the server by calling functions through the `server` object. Every function defined in a `server` block is available as `server.function_name()`:
 
 ```tova
 server {
@@ -227,7 +227,7 @@ server {
   }
 }
 
-client {
+browser {
   state users: [User] = []
 
   // Load on initialization
@@ -256,7 +256,7 @@ All `server.fn_name()` calls are compiled to async RPC calls. Inside effects and
 For complex nested state, use stores:
 
 ```tova
-client {
+browser {
   store app_state = {
     user: { name: "", email: "" }
     settings: { theme: "light", notifications: true }
@@ -271,7 +271,7 @@ Stores provide fine-grained reactivity for nested objects without requiring immu
 Components have lifecycle hooks:
 
 ```tova
-client {
+browser {
   component Dashboard {
     onMount {
       print("Dashboard mounted")
@@ -294,7 +294,7 @@ client {
 Components can include scoped styles:
 
 ```tova
-client {
+browser {
   component StyledButton(label) {
     css {
       .btn {
@@ -310,15 +310,15 @@ client {
 }
 ```
 
-## Multiple Client Blocks
+## Multiple Browser Blocks
 
 ### Multiple Blocks in One File
 
-A single `.tova` file can contain multiple `client {}` blocks. They are **merged** into one client output, sharing the same runtime scope. This lets you organize code by concern within a file:
+A single `.tova` file can contain multiple `browser {}` blocks. They are **merged** into one client output, sharing the same runtime scope. This lets you organize code by concern within a file:
 
 ```tova
 // State and data loading
-client {
+browser {
   state users: [User] = []
   state loading = false
 
@@ -330,7 +330,7 @@ client {
 }
 
 // Components
-client {
+browser {
   component UserCard(user) {
     <div class="card">
       <h2>{user.name}</h2>
@@ -352,27 +352,27 @@ client {
 }
 ```
 
-Both blocks merge — `App` can reference `users`, `loading`, and `UserCard` because they compile into the same module. State, computed values, effects, components, stores, and functions from all client blocks in a file are combined.
+Both blocks merge — `App` can reference `users`, `loading`, and `UserCard` because they compile into the same module. State, computed values, effects, components, stores, and functions from all browser blocks in a file are combined.
 
-### Cross-File Client Blocks (Same Directory)
+### Cross-File Browser Blocks (Same Directory)
 
-All `.tova` files in the **same directory** are automatically merged by type. Client blocks from different files share the same scope with no imports needed:
+All `.tova` files in the **same directory** are automatically merged by type. Browser blocks from different files share the same scope with no imports needed:
 
 ```
 my-app/src/
   types.tova           # shared { type User { ... } }
   server.tova          # server { fn get_users() -> [User] { ... } }
-  components.tova      # client { component UserCard(user) { ... } }
-  app.tova             # client { state users = []; component App { ... } }
+  components.tova      # browser { component UserCard(user) { ... } }
+  app.tova             # browser { state users = []; component App { ... } }
 ```
 
-`App` in `app.tova` can use `UserCard` from `components.tova` directly — no import needed. The compiler merges all client blocks from the directory into a single `src.client.js` output.
+`App` in `app.tova` can use `UserCard` from `components.tova` directly — no import needed. The compiler merges all browser blocks from the directory into a single `src.client.js` output.
 
 This is the recommended way to scale a Tova application: split by concern across files, and let the compiler handle the wiring.
 
 ### Duplicate Detection
 
-If two client blocks (in the same file or across files in the same directory) declare the **same top-level name**, the compiler reports an error:
+If two browser blocks (in the same file or across files in the same directory) declare the **same top-level name**, the compiler reports an error:
 
 ```
 Error: Duplicate component 'App'
@@ -391,7 +391,7 @@ Declarations **scoped inside** a component or store do not conflict. Two compone
 
 ```tova
 // components.tova — no conflict, count is scoped inside each component
-client {
+browser {
   component Counter {
     state count = 0
     <button on:click={fn() count = count + 1}>{count}</button>
@@ -404,7 +404,7 @@ client {
 }
 ```
 
-### Cross-Directory Client Blocks
+### Cross-Directory Browser Blocks
 
 Files in **different directories** are compiled separately and do not auto-merge. Use explicit imports:
 
@@ -415,19 +415,19 @@ import { SharedWidget } from "./widgets/shared.tova"
 
 Each subdirectory produces its own output files. Cross-directory imports are rewritten to point to the generated `.js` files.
 
-### Named Client Blocks
+### Named Browser Blocks
 
-For applications that need entirely **separate** client outputs (e.g., an admin panel and a public site), use named client blocks:
+For applications that need entirely **separate** client outputs (e.g., an admin panel and a public site), use named browser blocks:
 
 ```tova
-client "admin" {
+browser "admin" {
   state adminUsers = []
   component AdminPanel {
     <div>"Admin Dashboard"</div>
   }
 }
 
-client "public" {
+browser "public" {
   state posts = []
   component Blog {
     <div>"Public Blog"</div>
@@ -438,13 +438,13 @@ client "public" {
 Named blocks compile to separate files (`app.client.admin.js`, `app.client.public.js`) rather than merging. They do **not** share state or components. See [Named Blocks](./named-blocks) for details.
 
 ::: tip When to use what
-- **Multiple unnamed `client {}` blocks** (same file or same directory): Merged into one output. Use for organizing code by concern.
-- **Named `client "name" {}` blocks**: Separate outputs. Use when you need completely independent client applications.
+- **Multiple unnamed `browser {}` blocks** (same file or same directory): Merged into one output. Use for organizing code by concern.
+- **Named `browser "name" {}` blocks**: Separate outputs. Use when you need completely independent client applications.
 :::
 
 ## A Complete Example
 
-Here is a complete client block for a simple todo application:
+Here is a complete browser block for a simple todo application:
 
 ```tova
 shared {
@@ -465,7 +465,7 @@ server {
   fn remove_todo(id: Int) -> Bool { TodoModel.delete(id) }
 }
 
-client {
+browser {
   state todos: [Todo] = []
   state new_text = ""
 
@@ -519,8 +519,8 @@ client {
 
 - [Architecture Overview](./architecture) -- how the four-block model works
 - [RPC Bridge](./rpc) -- how `server.fn_name()` calls work
-- [Shared Block](./shared-block) -- types shared between client and server
-- [Named Blocks](./named-blocks) -- named client and server blocks for separate outputs
+- [Shared Block](./shared-block) -- types shared between browser and server
+- [Named Blocks](./named-blocks) -- named browser and server blocks for separate outputs
 - [Modules](/guide/modules) -- multi-file merging and import system
 - [Compilation](./compilation) -- how the client output is generated
 

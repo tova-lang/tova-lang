@@ -123,7 +123,7 @@ pub default_config = {
 
 ## Multi-File Block Merging
 
-Tova automatically merges all `.tova` files in the **same directory**. All `shared {}` blocks merge into one shared output, all `server {}` blocks merge into one server output, and all `client {}` blocks merge into one client output. No imports are needed between files in the same directory.
+Tova automatically merges all `.tova` files in the **same directory**. All `shared {}` blocks merge into one shared output, all `server {}` blocks merge into one server output, and all `browser {}` blocks merge into one client output. No imports are needed between files in the same directory.
 
 This means you can split a large application across multiple files by concern:
 
@@ -131,14 +131,14 @@ This means you can split a large application across multiple files by concern:
 my-app/src/
   types.tova           # shared { type Task { ... } }
   server.tova          # server { db, model, CRUD fns, routes }
-  components.tova      # client { component StatsBar, component TaskItem }
-  app.tova             # client { state, computed, effects, component App }
+  components.tova      # browser { component StatsBar, component TaskItem }
+  app.tova             # browser { state, computed, effects, component App }
 ```
 
 All four files merge by block type:
 - `shared` blocks → `src.shared.js`
 - `server` blocks → `src.server.js`
-- `client` blocks → `src.client.js`
+- `browser` blocks → `src.client.js`
 
 Components from `components.tova` are available in `app.tova` without imports. Shared types from `types.tova` are available in both server and client output. Server functions from `server.tova` are callable via `server.fn_name()` from client code in `app.tova`.
 
@@ -148,7 +148,7 @@ A single `.tova` file can also contain multiple blocks of the same type. They me
 
 ```tova
 // State and data loading
-client {
+browser {
   state users: [User] = []
 
   effect {
@@ -157,7 +157,7 @@ client {
 }
 
 // Components (same file, separate block)
-client {
+browser {
   component App {
     <ul>
       for user in users {
@@ -168,7 +168,7 @@ client {
 }
 ```
 
-Both client blocks merge into one output — `App` can reference `users` directly.
+Both browser blocks merge into one output — `App` can reference `users` directly.
 
 ### How It Works
 
@@ -184,7 +184,7 @@ Single-file directories compile exactly as before -- no behavior change.
 
 ### What Gets Shared After Merging
 
-When client blocks merge (whether from the same file or different files in the same directory), everything in the merged output shares the same runtime scope:
+When browser blocks merge (whether from the same file or different files in the same directory), everything in the merged output shares the same runtime scope:
 
 | Declaration | Shared across merged blocks? |
 |-------------|------------------------------|
@@ -195,7 +195,7 @@ When client blocks merge (whether from the same file or different files in the s
 | `fn` functions | Yes — callable from any block |
 | `effect` blocks | Yes — all effects run in the same reactive root |
 
-This means a `state` declared in one file's client block is the same signal referenced in another file's component — no wiring required.
+This means a `state` declared in one file's browser block is the same signal referenced in another file's component — no wiring required.
 
 ### Duplicate Detection
 
@@ -243,21 +243,21 @@ import { validate_email } from "./utils/validators.tova"
 
 ### Named Blocks Are Kept Separate
 
-[Named blocks](/fullstack/named-blocks) (`client "admin" {}`, `server "api" {}`) with **different names** are not merged together — each produces its own output file. Named blocks with the **same name** from different files in the same directory are merged:
+[Named blocks](/fullstack/named-blocks) (`browser "admin" {}`, `server "api" {}`) with **different names** are not merged together — each produces its own output file. Named blocks with the **same name** from different files in the same directory are merged:
 
 ```tova
 // admin-state.tova
-client "admin" { state users = [] }
+browser "admin" { state users = [] }
 
 // admin-ui.tova
-client "admin" { component AdminPanel { ... } }
+browser "admin" { component AdminPanel { ... } }
 // → Both merge into one admin client output
 ```
 
 ```tova
 // These are SEPARATE outputs — not merged:
-client "admin" { ... }   // → app.client.admin.js
-client "public" { ... }  // → app.client.public.js
+browser "admin" { ... }   // → app.client.admin.js
+browser "public" { ... }  // → app.client.public.js
 ```
 
 ## Cross-File Imports
@@ -326,7 +326,7 @@ server {
   }
 }
 
-client {
+browser {
   state users: [User] = []
 
   effect {

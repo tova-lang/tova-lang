@@ -7,7 +7,7 @@ Computed values are derived reactive values that automatically recalculate when 
 Use `computed` to declare a value derived from one or more signals:
 
 ```tova
-client {
+browser {
   state count = 0
   computed doubled = count * 2
   computed tripled = count * 3
@@ -22,7 +22,7 @@ A computed value automatically tracks which signals it reads. When any of those 
 Reading a computed value works exactly like reading a signal -- just use the variable name:
 
 ```tova
-client {
+browser {
   state price = 100
   state tax_rate = 0.08
   computed total = price * (1 + tax_rate)
@@ -44,7 +44,7 @@ Computed values are **read-only**. You cannot assign to a computed value -- it i
 Computed values are memoized. The computation only re-runs when a dependency actually changes, not every time the value is read:
 
 ```tova
-client {
+browser {
   state items = [1, 2, 3, 4, 5]
   state filter_text = ""
 
@@ -64,7 +64,7 @@ If `filtered_items` is read by multiple effects or components, the filtering com
 Tova's computed values use a pull-based evaluation model that guarantees glitch-free reads. This means you never observe an inconsistent or stale intermediate state:
 
 ```tova
-client {
+browser {
   state first = "Alice"
   state last = "Smith"
   computed full_name = "{first} {last}"
@@ -85,7 +85,7 @@ When a source signal changes, computed values are marked dirty synchronously (pr
 Computed values can use any Tova expression, including complex logic:
 
 ```tova
-client {
+browser {
   state items = []
   state show_completed = false
 
@@ -105,7 +105,7 @@ client {
 Pattern matching works inside computed declarations, providing a clean way to derive values from state:
 
 ```tova
-client {
+browser {
   state score = 85
 
   computed grade = match score {
@@ -130,7 +130,7 @@ client {
 Computed values can depend on other computed values, forming a dependency chain:
 
 ```tova
-client {
+browser {
   state cart_items = []
 
   computed subtotal = cart_items

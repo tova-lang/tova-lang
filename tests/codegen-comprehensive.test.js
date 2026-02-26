@@ -3,7 +3,7 @@ import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { BaseCodegen } from '../src/codegen/base-codegen.js';
-import { ClientCodegen } from '../src/codegen/client-codegen.js';
+import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
 import * as AST from '../src/parser/ast.js';
 
 function generate(source) {
@@ -24,7 +24,7 @@ function genServer(source) {
 }
 
 function genClient(source) {
-  return generate(source).client || '';
+  return generate(source).browser || '';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -222,18 +222,18 @@ describe('Base — Pattern bindings with multiple fields', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// 2. Client Codegen Gaps
+// 2. Browser Codegen Gaps
 // ═══════════════════════════════════════════════════════════════
 
-describe('Client — RPC in lambda body (_containsRPC in lambda)', () => {
+describe('Browser — RPC in lambda body (_containsRPC in lambda)', () => {
   test('lambda containing server.xxx() triggers async detection', () => {
-    const code = genClient('client { fn fetchData() { server.getData() } }');
+    const code = genClient('browser { fn fetchData() { server.getData() } }');
     expect(code).toContain('async function fetchData');
     expect(code).toContain('await');
   });
 
   test('_containsRPC detects server call in lambda body', () => {
-    const cg = new ClientCodegen();
+    const cg = new BrowserCodegen();
     const lambdaNode = new AST.LambdaExpression(
       [],
       new AST.CallExpression(
@@ -252,9 +252,9 @@ describe('Client — RPC in lambda body (_containsRPC in lambda)', () => {
   });
 });
 
-describe('Client — bind:group on checkbox vs radio', () => {
+describe('Browser — bind:group on checkbox vs radio', () => {
   test('bind:group on radio generates single value comparison', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       state color = "red"
       component App {
         <input type="radio" value="red" bind:group={color} />
@@ -265,7 +265,7 @@ describe('Client — bind:group on checkbox vs radio', () => {
   });
 
   test('bind:group on checkbox generates array includes/toggle', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       state items = []
       component App {
         <input type="checkbox" value="a" bind:group={items} />
@@ -277,9 +277,9 @@ describe('Client — bind:group on checkbox vs radio', () => {
   });
 });
 
-describe('Client — Multiple class: directives merged', () => {
+describe('Browser — Multiple class: directives merged', () => {
   test('two class directives merge into one className expression', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       state active = true
       state bold = false
       component App {
@@ -293,7 +293,7 @@ describe('Client — Multiple class: directives merged', () => {
   });
 
   test('class: directive merges with base class attribute', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       state active = true
       component App {
         <div class="base" class:active={active} />
@@ -305,9 +305,9 @@ describe('Client — Multiple class: directives merged', () => {
   });
 });
 
-describe('Client — Named slots', () => {
+describe('Browser — Named slots', () => {
   test('children with slot attribute become named props', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component Layout(header, children) {
         <div>{header}</div>
         <div>{children}</div>
@@ -324,9 +324,9 @@ describe('Client — Named slots', () => {
   });
 });
 
-describe('Client — Nested components with same state name', () => {
+describe('Browser — Nested components with same state name', () => {
   test('component-scoped state does not leak across components', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component A {
         state count = 1
         <div>"a"</div>
@@ -347,9 +347,9 @@ describe('Client — Nested components with same state name', () => {
   });
 });
 
-describe('Client — Store accessor getter/setter pattern', () => {
+describe('Browser — Store accessor getter/setter pattern', () => {
   test('store generates IIFE with getter and setter for state', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       store CounterStore {
         state count = 0
         fn increment() { count += 1 }
@@ -364,7 +364,7 @@ describe('Client — Store accessor getter/setter pattern', () => {
   });
 
   test('store with computed generates read-only getter', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       store MathStore {
         state x = 5
         computed doubled = x * 2
@@ -375,9 +375,9 @@ describe('Client — Store accessor getter/setter pattern', () => {
   });
 });
 
-describe('Client — _exprReadsSignal for MemberExpression with storeNames', () => {
+describe('Browser — _exprReadsSignal for MemberExpression with storeNames', () => {
   test('store property access in JSX expression is reactive', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       store counter {
         state count = 0
       }
@@ -389,7 +389,7 @@ describe('Client — _exprReadsSignal for MemberExpression with storeNames', () 
   });
 
   test('non-store member access is not reactive', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component App {
         <div>{Math.PI}</div>
       }
@@ -398,9 +398,9 @@ describe('Client — _exprReadsSignal for MemberExpression with storeNames', () 
   });
 });
 
-describe('Client — _exprReadsSignal for UnaryExpression', () => {
+describe('Browser — _exprReadsSignal for UnaryExpression', () => {
   test('negation of signal in JSX is reactive', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component App {
         state flag = true
         <div>{not flag}</div>
@@ -411,9 +411,9 @@ describe('Client — _exprReadsSignal for UnaryExpression', () => {
   });
 });
 
-describe('Client — _exprReadsSignal for MatchExpression', () => {
+describe('Browser — _exprReadsSignal for MatchExpression', () => {
   test('_exprReadsSignal returns true for MatchExpression reading a signal', () => {
-    const cg = new ClientCodegen();
+    const cg = new BrowserCodegen();
     cg.stateNames.add('count');
     const matchNode = {
       type: 'MatchExpression',
@@ -425,14 +425,14 @@ describe('Client — _exprReadsSignal for MatchExpression', () => {
   });
 });
 
-describe('Client — JSXText with StringLiteral vs TemplateLiteral path', () => {
+describe('Browser — JSXText with StringLiteral vs TemplateLiteral path', () => {
   test('JSXText with plain StringLiteral generates quoted string', () => {
-    const code = genClient('client { component App { <div>"Hello"</div> } }');
+    const code = genClient('browser { component App { <div>"Hello"</div> } }');
     expect(code).toContain('"Hello"');
   });
 
   test('JSXText with TemplateLiteral referencing signal is reactive', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       state name = "world"
       component App { <div>"Hello, {name}!"</div> }
     }`);
@@ -441,7 +441,7 @@ describe('Client — JSXText with StringLiteral vs TemplateLiteral path', () => 
   });
 
   test('JSXText with TemplateLiteral without signal is not reactive', () => {
-    const code = genClient(`client {
+    const code = genClient(`browser {
       component App { <div>"Hello, world!"</div> }
     }`);
     // A simple string with no interpolation is a StringLiteral, not reactive
@@ -935,16 +935,16 @@ describe('Orchestrator — Multiple named server blocks merged', () => {
   });
 });
 
-describe('Orchestrator — Multiple named client blocks', () => {
-  test('two named client blocks produce separate outputs in clients map', () => {
+describe('Orchestrator — Multiple named browser blocks', () => {
+  test('two named browser blocks produce separate outputs in browsers map', () => {
     const result = generate(`
-      client "admin" { state x = 1 }
-      client "dashboard" { state y = 2 }
+      browser "admin" { state x = 1 }
+      browser "dashboard" { state y = 2 }
     `);
     expect(result.multiBlock).toBe(true);
-    expect(result.clients).toBeDefined();
-    expect(result.clients['admin']).toContain('createSignal(1)');
-    expect(result.clients['dashboard']).toContain('createSignal(2)');
+    expect(result.browsers).toBeDefined();
+    expect(result.browsers['admin']).toContain('createSignal(1)');
+    expect(result.browsers['dashboard']).toContain('createSignal(2)');
   });
 });
 
@@ -1322,27 +1322,27 @@ describe('Base — Scope tracking', () => {
 // Phase 4: Scoped Slots + Computed Prop Memoization
 // ═══════════════════════════════════════════════════════════════
 
-describe('Client — <slot> generates children access', () => {
+describe('Browser — <slot> generates children access', () => {
   test('default slot generates __props.children', () => {
-    const code = genClient('client {\n  component Card {\n    <div>\n      <slot />\n    </div>\n  }\n}');
+    const code = genClient('browser {\n  component Card {\n    <div>\n      <slot />\n    </div>\n  }\n}');
     expect(code).toContain('__props.children');
   });
 
   test('named slot generates __props.slotName', () => {
-    const code = genClient('client {\n  component Layout {\n    <div>\n      <slot name="header" />\n    </div>\n  }\n}');
+    const code = genClient('browser {\n  component Layout {\n    <div>\n      <slot name="header" />\n    </div>\n  }\n}');
     expect(code).toContain('__props.header');
   });
 });
 
-describe('Client — Computed prop memoization', () => {
+describe('Browser — Computed prop memoization', () => {
   test('simple signal read does not get memoized', () => {
-    const code = genClient('client {\n  component App {\n    state x = 1\n    <Child val={x} />\n  }\n  component Child(val) {\n    <p>{val}</p>\n  }\n}');
+    const code = genClient('browser {\n  component App {\n    state x = 1\n    <Child val={x} />\n  }\n  component Child(val) {\n    <p>{val}</p>\n  }\n}');
     // Simple signal: get val() { return x(); } — no createComputed
     expect(code).not.toContain('__memo_');
   });
 
   test('complex expression gets memoized with createComputed', () => {
-    const code = genClient('client {\n  component App {\n    state x = 1\n    state y = 2\n    <Child val={x + y} />\n  }\n  component Child(val) {\n    <p>{val}</p>\n  }\n}');
+    const code = genClient('browser {\n  component App {\n    state x = 1\n    state y = 2\n    <Child val={x + y} />\n  }\n  component Child(val) {\n    <p>{val}</p>\n  }\n}');
     expect(code).toContain('__memo_val');
     expect(code).toContain('createComputed');
   });

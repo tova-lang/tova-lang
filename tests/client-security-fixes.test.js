@@ -659,15 +659,15 @@ describe('Router — Outlet is signal-based', () => {
 
 describe('CSS scope hash — FNV-1a', () => {
   test('scope hash produces 8-char output', async () => {
-    const { ClientCodegen } = await import('../src/codegen/client-codegen.js');
-    const codegen = new ClientCodegen();
+    const { BrowserCodegen } = await import('../src/codegen/browser-codegen.js');
+    const codegen = new BrowserCodegen();
     const hash = codegen._genScopeId('MyComponent', '.foo { color: red }');
     expect(hash.length).toBe(8);
   });
 
   test('different components produce different hashes', async () => {
-    const { ClientCodegen } = await import('../src/codegen/client-codegen.js');
-    const codegen = new ClientCodegen();
+    const { BrowserCodegen } = await import('../src/codegen/browser-codegen.js');
+    const codegen = new BrowserCodegen();
     const hash1 = codegen._genScopeId('CompA', '.a { color: red }');
     const hash2 = codegen._genScopeId('CompB', '.b { color: blue }');
     expect(hash1).not.toBe(hash2);

@@ -130,7 +130,7 @@ shared {
   }
 }
 
-client {
+browser {
   state tasks: [Task] = []
   state filter_mode = "all"
   state search_query = ""
@@ -424,14 +424,14 @@ tova dev src
 Tova automatically **merges** all `.tova` files in the same directory before compilation. No imports are needed between files in the same directory -- the compiler combines all same-type blocks into a unified output:
 
 - **`server.tova`** -- Contains only a `server` block. The `model Task` declaration repeats the field names so the ORM can generate the database table and CRUD methods independently.
-- **`app.tova`** -- Contains a `shared` block (the `Task` type definition shared between server and client) and a `client` block (all UI components, state, and event handlers).
+- **`app.tova`** -- Contains a `shared` block (the `Task` type definition shared between server and browser) and a `browser` block (all UI components, state, and event handlers).
 
 When `tova dev src` runs, the compiler:
 
 1. Finds both `server.tova` and `app.tova` in the `src/` directory
 2. Merges the `server {}` blocks from both files (only `server.tova` has one here)
 3. Merges the `shared {}` blocks (only `app.tova` has one)
-4. Merges the `client {}` blocks (only `app.tova` has one)
+4. Merges the `browser {}` blocks (only `app.tova` has one)
 5. Validates for duplicate declarations across files
 6. Generates unified output: `src.shared.js`, `src.server.js`, `src.client.js`
 

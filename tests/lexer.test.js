@@ -120,7 +120,7 @@ describe('Lexer — Keywords', () => {
       'var', 'let', 'fn', 'return', 'if', 'elif', 'else',
       'for', 'while', 'match', 'type', 'import', 'from', 'export', 'as',
       'and', 'or', 'not', 'in', 'true', 'false', 'nil',
-      'server', 'client', 'shared', 'route',
+      'server', 'browser', 'client', 'shared', 'route',
       'state', 'computed', 'effect', 'component',
     ];
     for (const kw of keywords) {

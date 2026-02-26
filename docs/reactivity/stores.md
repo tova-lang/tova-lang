@@ -7,7 +7,7 @@ Stores encapsulate related reactive state, computed values, and functions into a
 Use the `store` keyword to declare a store:
 
 ```tova
-client {
+browser {
   store CounterStore {
     state count = 0
 
@@ -53,10 +53,10 @@ Stores use JavaScript getters and setters under the hood, so reading `CounterSto
 
 ## Using Stores in Components
 
-Stores are available to any component in the same client block:
+Stores are available to any component in the same browser block:
 
 ```tova
-client {
+browser {
   store CartStore {
     state items = []
 
@@ -174,7 +174,7 @@ store TodoStore {
 An application can have multiple stores, each managing a different concern:
 
 ```tova
-client {
+browser {
   store AuthStore {
     state user = nil
     state token = nil

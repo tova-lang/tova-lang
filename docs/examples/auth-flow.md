@@ -168,7 +168,7 @@ server {
   route PUT "/api/profile" => update_profile    // protected by auth middleware
 }
 
-client {
+browser {
   state user = nil
   state token = nil
   state email = ""

@@ -523,8 +523,8 @@ describe('Parser — Expression edge cases', () => {
     expect(expr.expression.type).toBe('CallExpression');
   });
 
-  test('server/client/shared as identifier in expression within function', () => {
-    // server/client/shared are keywords at top level but identifiers in expression context
+  test('server/browser/shared as identifier in expression within function', () => {
+    // server/browser/shared are keywords at top level but identifiers in expression context
     const ast = parse('fn test() { server.get_users() }');
     const body = ast.body[0].body.body[0];
     expect(body.expression.type).toBe('CallExpression');
@@ -984,7 +984,7 @@ describe('Parser — Slice syntax edge cases', () => {
 
 describe('Parser — JSX edge cases', () => {
   test('JSX self-closing tag', () => {
-    const ast = parse('client { component App { <br /> } }');
+    const ast = parse('browser { component App { <br /> } }');
     const comp = ast.body[0].body[0];
     const jsx = comp.body[0];
     expect(jsx.type).toBe('JSXElement');
@@ -992,115 +992,115 @@ describe('Parser — JSX edge cases', () => {
   });
 
   test('JSX with boolean attribute', () => {
-    const ast = parse('client { component App { <input disabled /> } }');
+    const ast = parse('browser { component App { <input disabled /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].value.value).toBe(true);
   });
 
   test('JSX with expression attribute', () => {
-    const ast = parse('client { component App { <div id={myId} /> } }');
+    const ast = parse('browser { component App { <div id={myId} /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].value.type).toBe('Identifier');
   });
 
   test('JSX with string attribute', () => {
-    const ast = parse('client { component App { <div class="test" /> } }');
+    const ast = parse('browser { component App { <div class="test" /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].value.value).toBe('test');
   });
 
   test('JSX with namespaced attribute on:click', () => {
-    const ast = parse('client { component App { <button on:click={handler}>Click</button> } }');
+    const ast = parse('browser { component App { <button on:click={handler}>Click</button> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].name).toBe('on:click');
   });
 
   test('JSX with bind attribute', () => {
-    const ast = parse('client { component App { <input bind:value={name} /> } }');
+    const ast = parse('browser { component App { <input bind:value={name} /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].name).toBe('bind:value');
   });
 
   test('JSX with class: attribute', () => {
-    const ast = parse('client { component App { <div class:active={isActive} /> } }');
+    const ast = parse('browser { component App { <div class:active={isActive} /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].name).toBe('class:active');
   });
 
   test('JSX with spread attribute', () => {
     // Use uppercase component name — _looksLikeJSX always returns true for uppercase tags
-    const ast = parse('client { component App { <Wrapper {...props} /> } }');
+    const ast = parse('browser { component App { <Wrapper {...props} /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].type).toBe('JSXSpreadAttribute');
   });
 
   test('JSX spread attribute with regular attribute before', () => {
-    const ast = parse('client { component App { <div class="x" {...props} /> } }');
+    const ast = parse('browser { component App { <div class="x" {...props} /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].name).toBe('class');
     expect(el.attributes[1].type).toBe('JSXSpreadAttribute');
   });
 
   test('JSX with expression child', () => {
-    const ast = parse('client { component App { <div>{value}</div> } }');
+    const ast = parse('browser { component App { <div>{value}</div> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].type).toBe('JSXExpression');
   });
 
   test('JSX with quoted text child', () => {
-    const ast = parse('client { component App { <p>"hello"</p> } }');
+    const ast = parse('browser { component App { <p>"hello"</p> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].type).toBe('JSXText');
   });
 
   test('JSX with unquoted text child', () => {
-    const ast = parse('client { component App { <p>Hello World</p> } }');
+    const ast = parse('browser { component App { <p>Hello World</p> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].type).toBe('JSXText');
   });
 
   test('JSX nested elements', () => {
-    const ast = parse('client { component App { <div><span>"text"</span></div> } }');
+    const ast = parse('browser { component App { <div><span>"text"</span></div> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].type).toBe('JSXElement');
     expect(el.children[0].tag).toBe('span');
   });
 
   test('JSX for loop', () => {
-    const ast = parse('client { component App { <ul>for item in items { <li>"text"</li> }</ul> } }');
+    const ast = parse('browser { component App { <ul>for item in items { <li>"text"</li> }</ul> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].type).toBe('JSXFor');
     expect(el.children[0].variable).toBe('item');
   });
 
   test('JSX for with key', () => {
-    const ast = parse('client { component App { <ul>for item in items key={item.id} { <li>"text"</li> }</ul> } }');
+    const ast = parse('browser { component App { <ul>for item in items key={item.id} { <li>"text"</li> }</ul> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].keyExpr).not.toBeNull();
   });
 
   test('JSX for with array destructuring', () => {
-    const ast = parse('client { component App { <ul>for [i, item] in items { <li>"text"</li> }</ul> } }');
+    const ast = parse('browser { component App { <ul>for [i, item] in items { <li>"text"</li> }</ul> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].variable.type).toBe('ArrayPattern');
     expect(el.children[0].variable.elements).toEqual(['i', 'item']);
   });
 
   test('JSX for with object destructuring', () => {
-    const ast = parse('client { component App { <ul>for {name, age} in users { <li>"text"</li> }</ul> } }');
+    const ast = parse('browser { component App { <ul>for {name, age} in users { <li>"text"</li> }</ul> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].variable.type).toBe('ObjectPattern');
     expect(el.children[0].variable.properties.map(p => p.key)).toEqual(['name', 'age']);
   });
 
   test('JSX if conditional', () => {
-    const ast = parse('client { component App { <div>if show { <span /> }</div> } }');
+    const ast = parse('browser { component App { <div>if show { <span /> }</div> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.children[0].type).toBe('JSXIf');
   });
 
   test('JSX if-elif-else', () => {
-    const ast = parse('client { component App { <div>if a { <span /> } elif b { <span /> } else { <span /> }</div> } }');
+    const ast = parse('browser { component App { <div>if a { <span /> } elif b { <span /> } else { <span /> }</div> } }');
     const el = ast.body[0].body[0].body[0];
     const jsxIf = el.children[0];
     expect(jsxIf.type).toBe('JSXIf');
@@ -1109,11 +1109,11 @@ describe('Parser — JSX edge cases', () => {
   });
 
   test('JSX mismatched tags throws', () => {
-    expect(parseThrows('client { component App { <div></span> } }')).toThrow(/Mismatched closing tag/);
+    expect(parseThrows('browser { component App { <div></span> } }')).toThrow(/Mismatched closing tag/);
   });
 
   test('JSX whitespace collapsing', () => {
-    const ast = parse('client { component App { <p>  Hello   World  </p> } }');
+    const ast = parse('browser { component App { <p>  Hello   World  </p> } }');
     const el = ast.body[0].body[0].body[0];
     const text = el.children[0];
     expect(text.type).toBe('JSXText');
@@ -1154,7 +1154,7 @@ describe('Parser — Import edge cases', () => {
 
 describe('Parser — Store declaration', () => {
   test('store with state and computed', () => {
-    const ast = parse('client { store Counter { state count = 0\n computed doubled = count * 2 } }');
+    const ast = parse('browser { store Counter { state count = 0\n computed doubled = count * 2 } }');
     const store = ast.body[0].body[0];
     expect(store.type).toBe('StoreDeclaration');
     expect(store.name).toBe('Counter');
@@ -1162,7 +1162,7 @@ describe('Parser — Store declaration', () => {
   });
 
   test('store with functions', () => {
-    const ast = parse('client { store Counter { state count = 0\n fn increment() { count += 1 } } }');
+    const ast = parse('browser { store Counter { state count = 0\n fn increment() { count += 1 } } }');
     const store = ast.body[0].body[0];
     expect(store.body[1].type).toBe('FunctionDeclaration');
   });
@@ -1207,52 +1207,52 @@ describe('Parser — Docstrings', () => {
 
 describe('Parser — Component edge cases', () => {
   test('component with style block', () => {
-    const ast = parse('client { component App { style { .foo { color: red } } <div /> } }');
+    const ast = parse('browser { component App { style { .foo { color: red } } <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('ComponentStyleBlock');
   });
 
   test('component with state and computed', () => {
-    const ast = parse('client { component App { state x = 0\n computed y = x * 2\n <div /> } }');
+    const ast = parse('browser { component App { state x = 0\n computed y = x * 2\n <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('StateDeclaration');
     expect(comp.body[1].type).toBe('ComputedDeclaration');
   });
 
   test('component with effect', () => {
-    const ast = parse('client { component App { effect { print("mounted") }\n <div /> } }');
+    const ast = parse('browser { component App { effect { print("mounted") }\n <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('EffectDeclaration');
   });
 
   test('nested component', () => {
-    const ast = parse('client { component App { component Inner { <span /> }\n <Inner /> } }');
+    const ast = parse('browser { component App { component Inner { <span /> }\n <Inner /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('ComponentDeclaration');
     expect(comp.body[0].name).toBe('Inner');
   });
 
   test('component with no params', () => {
-    const ast = parse('client { component App { <div /> } }');
+    const ast = parse('browser { component App { <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.params.length).toBe(0);
   });
 
   test('component with params', () => {
-    const ast = parse('client { component Card(title, body) { <div /> } }');
+    const ast = parse('browser { component Card(title, body) { <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.params.length).toBe(2);
     expect(comp.params[0].name).toBe('title');
   });
 
   test('component with typed params', () => {
-    const ast = parse('client { component Card(title: String, count: Int) { <div /> } }');
+    const ast = parse('browser { component Card(title: String, count: Int) { <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.params[0].typeAnnotation.name).toBe('String');
   });
 
   test('component with default params', () => {
-    const ast = parse('client { component Card(title = "default") { <div /> } }');
+    const ast = parse('browser { component Card(title = "default") { <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.params[0].defaultValue.value).toBe('default');
   });

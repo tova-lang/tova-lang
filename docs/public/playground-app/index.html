@@ -670,7 +670,8 @@ const TokenType = {
 
   // Full-stack keywords
   SERVER: 'SERVER',
-  CLIENT: 'CLIENT',
+  BROWSER: 'BROWSER',
+  CLIENT: 'BROWSER',  // deprecated alias — both map to BROWSER
   SHARED: 'SHARED',
   ROUTE: 'ROUTE',
   STATE: 'STATE',
@@ -796,7 +797,8 @@ const Keywords = {
   'is': TokenType.IS,
   'with': TokenType.WITH,
   'server': TokenType.SERVER,
-  'client': TokenType.CLIENT,
+  'browser': TokenType.BROWSER,
+  'client': TokenType.BROWSER,  // deprecated alias
   'shared': TokenType.SHARED,
   'route': TokenType.ROUTE,
   'state': TokenType.STATE,
@@ -2015,13 +2017,13 @@ Lexer.VALUE_TOKEN_TYPES = new Set([
   TokenType.TRUE, TokenType.FALSE, TokenType.NIL
 ]);
 
-// ─── src/parser/client-ast.js ──────────────────────────
+// ─── src/parser/browser-ast.js ─────────────────────────
 
-// Client-specific AST Node definitions for the Tova language
-// Extracted from ast.js for lazy loading — only loaded when client { } blocks are used.
+// Browser-specific AST Node definitions for the Tova language
+// Extracted from ast.js for lazy loading — only loaded when browser { } blocks are used.
 
 // ============================================================
-// Client-specific nodes
+// Browser-specific nodes
 // ============================================================
 class StateDeclaration {
   constructor(name, typeAnnotation, initialValue, loc) {
@@ -2396,14 +2398,15 @@ class ServerBlock {
     this.loc = loc;
   }
 }
-class ClientBlock {
+class BrowserBlock {
   constructor(body, loc, name = null) {
-    this.type = 'ClientBlock';
+    this.type = 'BrowserBlock';
     this.name = name;
     this.body = body;
     this.loc = loc;
   }
 }
+// Deprecated alias for backward compatibility
 class SharedBlock {
   constructor(body, loc, name = null) {
     this.type = 'SharedBlock';
@@ -2976,7 +2979,7 @@ class RangePattern {
 }
 
 // ============================================================
-// Client-specific nodes (lazy-loaded from client-ast.js, re-exported for backward compat)
+// Browser-specific nodes (lazy-loaded from browser-ast.js, re-exported for backward compat)
 // ============================================================
 
 // ============================================================
@@ -3234,7 +3237,7 @@ class RefinementType {
 
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, ClientBlock, SharedBlock, SecurityBlock, CliBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration };
 
 // ─── src/parser/server-parser.js ───────────────────────
 
@@ -3848,38 +3851,47 @@ function installServerParser(ParserClass) {
   };
 }
 
-// ─── src/parser/client-parser.js ───────────────────────
+// ─── src/parser/browser-parser.js ──────────────────────
 
-// Client-specific parser methods for the Tova language
-// Extracted from parser.js for lazy loading — only loaded when client { } blocks are encountered.
-function installClientParser(ParserClass) {
-  if (ParserClass.prototype._clientParserInstalled) return;
-  ParserClass.prototype._clientParserInstalled = true;
+// Browser-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when browser { } blocks are encountered.
+function installBrowserParser(ParserClass) {
+  if (ParserClass.prototype._browserParserInstalled) return;
+  ParserClass.prototype._browserParserInstalled = true;
 
-  ParserClass.prototype.parseClientBlock = function() {
+  ParserClass.prototype.parseBrowserBlock = function() {
     const l = this.loc();
-    this.expect(TokenType.CLIENT);
-    // Optional block name: client "admin" { }
+    // Capture the keyword value before consuming for deprecation warning
+    const keyword = this.current().value;
+    this.expect(TokenType.BROWSER);
+    if (keyword === 'client') {
+      this.warnings = this.warnings || [];
+      this.warnings.push({
+        message: "`client` block is deprecated, use `browser` instead",
+        loc: l,
+      });
+    }
+    // Optional block name: browser "admin" { }
     let name = null;
     if (this.check(TokenType.STRING)) {
       name = this.advance().value;
     }
-    this.expect(TokenType.LBRACE, "Expected '{' after 'client'");
+    this.expect(TokenType.LBRACE, "Expected '{' after 'browser'");
     const body = [];
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       try {
-        const stmt = this.parseClientStatement();
+        const stmt = this.parseBrowserStatement();
         if (stmt) body.push(stmt);
       } catch (e) {
         this.errors.push(e);
         this._synchronizeBlock();
       }
     }
-    this.expect(TokenType.RBRACE, "Expected '}' to close client block");
-    return new AST.ClientBlock(body, l, name);
+    this.expect(TokenType.RBRACE, "Expected '}' to close browser block");
+    return new AST.BrowserBlock(body, l, name);
   };
 
-  ParserClass.prototype.parseClientStatement = function() {
+  ParserClass.prototype.parseBrowserStatement = function() {
     if (this.check(TokenType.STATE)) return this.parseState();
     if (this.check(TokenType.COMPUTED)) return this.parseComputed();
     if (this.check(TokenType.EFFECT)) return this.parseEffect();
@@ -4526,7 +4538,7 @@ class Parser {
           tok.type === TokenType.WHILE || tok.type === TokenType.RETURN ||
           tok.type === TokenType.IMPORT || tok.type === TokenType.MATCH ||
           tok.type === TokenType.TRY || tok.type === TokenType.SERVER ||
-          tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
+          tok.type === TokenType.BROWSER || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
           tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
@@ -4575,7 +4587,7 @@ class Parser {
           tok.type === TokenType.WHILE || tok.type === TokenType.RETURN ||
           tok.type === TokenType.IMPORT || tok.type === TokenType.MATCH ||
           tok.type === TokenType.TRY || tok.type === TokenType.SERVER ||
-          tok.type === TokenType.CLIENT || tok.type === TokenType.SHARED ||
+          tok.type === TokenType.BROWSER || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
           tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
@@ -4692,10 +4704,11 @@ class Parser {
           const doc = docsByEndLine.get(node.loc.line - 1);
           if (doc) node.docstring = doc;
         }
-        // Walk into blocks
-        if (node.body && Array.isArray(node.body)) walk(node.body);
-        if (node.type === 'ServerBlock' || node.type === 'ClientBlock' || node.type === 'SharedBlock') {
-          if (node.body) walk(node.body);
+        // Walk into block bodies (arrays) and block nodes with body properties
+        if (node.body && Array.isArray(node.body)) {
+          walk(node.body);
+        } else if (BlockRegistry.getByAstType(node.type) && node.body) {
+          walk(node.body);
         }
       }
     };
@@ -4703,53 +4716,30 @@ class Parser {
   }
 
   parseTopLevel() {
-    if (this.check(TokenType.SERVER)) {
-      if (!Parser.prototype._serverParserInstalled) {
-        installServerParser(Parser);
+    // Registry-driven block dispatch
+    for (const plugin of BlockRegistry.all()) {
+      if (this._matchesBlock(plugin)) {
+        const p = plugin.parser;
+        if (p.install && p.installedFlag && !Parser.prototype[p.installedFlag]) {
+          p.install(Parser);
+        }
+        return this[p.method]();
       }
-      return this.parseServerBlock();
     }
-    if (this.check(TokenType.CLIENT)) {
-      if (!Parser.prototype._clientParserInstalled) {
-        installClientParser(Parser);
-      }
-      return this.parseClientBlock();
-    }
-    if (this.check(TokenType.SHARED)) return this.parseSharedBlock();
     if (this.check(TokenType.IMPORT)) return this.parseImport();
-    // data block: data { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'data' && this.peek(1).type === TokenType.LBRACE) {
-      return this.parseDataBlock();
-    }
-    // security block: security { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'security' && this.peek(1).type === TokenType.LBRACE) {
-      if (!Parser.prototype._securityParserInstalled) {
-        installSecurityParser(Parser);
-      }
-      return this.parseSecurityBlock();
-    }
-    // cli block: cli { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'cli' && this.peek(1).type === TokenType.LBRACE) {
-      if (!Parser.prototype._cliParserInstalled) {
-        installCliParser(Parser);
-      }
-      return this.parseCliBlock();
-    }
-    // test block: test "name" { ... } or test { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'test') {
-      const next = this.peek(1);
-      if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
-        return this.parseTestBlock();
-      }
-    }
-    // bench block: bench "name" { ... } or bench { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'bench') {
-      const next = this.peek(1);
-      if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
-        return this.parseBenchBlock();
-      }
-    }
     return this.parseStatement();
+  }
+
+  _matchesBlock(plugin) {
+    const d = plugin.detection;
+    if (d.strategy === 'keyword') {
+      return this.check(TokenType[d.tokenType]);
+    }
+    if (d.strategy === 'identifier') {
+      if (!this.check(TokenType.IDENTIFIER) || this.current().value !== d.identifierValue) return false;
+      return d.lookahead ? d.lookahead(this) : this.peek(1).type === TokenType.LBRACE;
+    }
+    return false;
   }
 
   parseTestBlock() {
@@ -4831,7 +4821,7 @@ class Parser {
   }
 
   // ─── Full-stack blocks ────────────────────────────────────
-  // parseClientBlock() and client-specific methods are in client-parser.js (lazy-loaded)
+  // parseBrowserBlock() and browser-specific methods are in browser-parser.js (lazy-loaded)
 
   parseSharedBlock() {
     const l = this.loc();
@@ -4974,7 +4964,7 @@ class Parser {
     return new AST.RefreshPolicy(sourceName, { value, unit }, l);
   }
 
-  // Client-specific statements and JSX parsing are in client-parser.js (lazy-loaded)
+  // Browser-specific statements and JSX parsing are in browser-parser.js (lazy-loaded)
 
   // ─── Statements ───────────────────────────────────────────
 
@@ -6403,7 +6393,7 @@ class Parser {
         return this.parseParenOrArrowLambda();
 
       case TokenType.SERVER:
-      case TokenType.CLIENT:
+      case TokenType.BROWSER:
       case TokenType.SHARED:
       case TokenType.DERIVE:
         return new AST.Identifier(this.advance().value, l);
@@ -6942,7 +6932,7 @@ class Symbol {
 class Scope {
   constructor(parent = null, context = 'module') {
     this.parent = parent;
-    this.context = context; // 'module', 'server', 'client', 'shared', 'function', 'block'
+    this.context = context; // 'module', 'server', 'browser', 'shared', 'function', 'block'
     this.symbols = new Map();
     this.children = [];
     this.startLoc = null; // { line, column } for positional scope lookup
@@ -6980,7 +6970,7 @@ class Scope {
   }
 
   getContext() {
-    if (this.context === 'server' || this.context === 'client' || this.context === 'shared') {
+    if (this.context === 'server' || this.context === 'browser' || this.context === 'client' || this.context === 'shared') {
       return this.context;
     }
     if (this.parent) {
@@ -8048,17 +8038,17 @@ function installServerAnalyzer(AnalyzerClass) {
   };
 }
 
-// ─── src/analyzer/client-analyzer.js ───────────────────
+// ─── src/analyzer/browser-analyzer.js ──────────────────
 
-// Client-specific analyzer methods for the Tova language
-// Extracted from analyzer.js for lazy loading — only loaded when client { } blocks are encountered.
-function installClientAnalyzer(AnalyzerClass) {
-  if (AnalyzerClass.prototype._clientAnalyzerInstalled) return;
-  AnalyzerClass.prototype._clientAnalyzerInstalled = true;
+// Browser-specific analyzer methods for the Tova language
+// Extracted from analyzer.js for lazy loading — only loaded when browser { } blocks are encountered.
+function installBrowserAnalyzer(AnalyzerClass) {
+  if (AnalyzerClass.prototype._browserAnalyzerInstalled) return;
+  AnalyzerClass.prototype._browserAnalyzerInstalled = true;
 
-  AnalyzerClass.prototype.visitClientBlock = function(node) {
+  AnalyzerClass.prototype.visitBrowserBlock = function(node) {
     const prevScope = this.currentScope;
-    this.currentScope = this.currentScope.child('client');
+    this.currentScope = this.currentScope.child('browser');
     try {
       for (const stmt of node.body) {
         this.visitNode(stmt);
@@ -8070,8 +8060,8 @@ function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitStateDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'state' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'state' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     try {
       this.currentScope.define(node.name,
@@ -8084,8 +8074,8 @@ function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitComputedDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'computed' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'computed' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     try {
       this.currentScope.define(node.name,
@@ -8098,16 +8088,16 @@ function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitEffectDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'effect' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'effect' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this.visitNode(node.body);
   };
 
   AnalyzerClass.prototype.visitComponentDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'component' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'component' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this._checkNamingConvention(node.name, 'component', node.loc);
     try {
@@ -8138,8 +8128,8 @@ function installClientAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitStoreDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'client') {
-      this.error(`'store' can only be used inside a client block`, node.loc, "move this inside a client { } block", { code: 'E302' });
+    if (ctx !== 'browser') {
+      this.error(`'store' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this._checkNamingConvention(node.name, 'store', node.loc);
     try {
@@ -8354,7 +8344,7 @@ function levenshtein(a, b) {
 
 const _TOVA_RUNTIME = new Set([
   'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
-  'db', 'server', 'client', 'shared',
+  'db', 'server', 'browser', 'client', 'shared',
 ]);
 
 // Pre-built static candidate set for Levenshtein suggestions (N1 optimization)
@@ -8582,21 +8572,17 @@ class Analyzer {
   }
 
   analyze() {
-    // Pre-pass: collect named server block functions for inter-server RPC validation
-    const hasServerBlocks = this.ast.body.some(n => n.type === 'ServerBlock');
-    if (hasServerBlocks) {
-      installServerAnalyzer(Analyzer);
-      this.serverBlockFunctions = collectServerBlockFunctions(this.ast);
-    } else {
-      this.serverBlockFunctions = new Map();
+    // Pre-pass hooks (e.g., server block function collection for RPC validation)
+    for (const plugin of BlockRegistry.all()) {
+      if (plugin.analyzer?.prePass) plugin.analyzer.prePass(this);
     }
 
     this.visitProgram(this.ast);
 
-    // Cross-block security validation (after all blocks are visited)
-    this._validateSecurityCrossBlock();
-    // Cross-block cli validation
-    this._validateCliCrossBlock();
+    // Post-visit cross-block validation
+    for (const plugin of BlockRegistry.all()) {
+      if (plugin.analyzer?.crossBlockValidate) plugin.analyzer.crossBlockValidate(this);
+    }
 
     // Check for unused variables/imports (#9)
     this._collectAllScopes(this.globalScope);
@@ -8989,43 +8975,14 @@ class Analyzer {
   visitNode(node) {
     if (!node) return;
 
+    // Single registry lookup: returns plugin, NOOP sentinel, or null
+    const entry = BlockRegistry.getByAstType(node.type);
+    if (entry) {
+      if (entry === BlockRegistry.NOOP) return;
+      if (entry.analyzer?.visit) return entry.analyzer.visit(this, node);
+    }
+
     switch (node.type) {
-      case 'ServerBlock':
-      case 'RouteDeclaration':
-      case 'MiddlewareDeclaration':
-      case 'HealthCheckDeclaration':
-      case 'CorsDeclaration':
-      case 'ErrorHandlerDeclaration':
-      case 'WebSocketDeclaration':
-      case 'StaticDeclaration':
-      case 'DiscoverDeclaration':
-      case 'AuthDeclaration':
-      case 'MaxBodyDeclaration':
-      case 'RouteGroupDeclaration':
-      case 'RateLimitDeclaration':
-      case 'LifecycleHookDeclaration':
-      case 'SubscribeDeclaration':
-      case 'EnvDeclaration':
-      case 'ScheduleDeclaration':
-      case 'UploadDeclaration':
-      case 'SessionDeclaration':
-      case 'DbDeclaration':
-      case 'TlsDeclaration':
-      case 'CompressionDeclaration':
-      case 'BackgroundJobDeclaration':
-      case 'CacheDeclaration':
-      case 'SseDeclaration':
-      case 'ModelDeclaration':
-        return this._visitServerNode(node);
-      case 'AiConfigDeclaration': return; // handled at block level
-      case 'ClientBlock':
-      case 'StateDeclaration':
-      case 'ComputedDeclaration':
-      case 'EffectDeclaration':
-      case 'ComponentDeclaration':
-      case 'StoreDeclaration':
-        return this._visitClientNode(node);
-      case 'SharedBlock': return this.visitSharedBlock(node);
       case 'Assignment': return this.visitAssignment(node);
       case 'VarDeclaration': return this.visitVarDeclaration(node);
       case 'LetDestructure': return this.visitLetDestructure(node);
@@ -9047,28 +9004,7 @@ class Analyzer {
       case 'ContinueStatement': return this.visitContinueStatement(node);
       case 'GuardStatement': return this.visitGuardStatement(node);
       case 'InterfaceDeclaration': return this.visitInterfaceDeclaration(node);
-      case 'DataBlock': return this.visitDataBlock(node);
-      case 'SecurityBlock': return this.visitSecurityBlock(node);
-      case 'CliBlock': return this.visitCliBlock(node);
-      case 'CliConfigField': return;
-      case 'CliCommandDeclaration': return;
-      case 'CliParam': return;
-      case 'SecurityAuthDeclaration': return;
-      case 'SecurityRoleDeclaration': return;
-      case 'SecurityProtectDeclaration': return;
-      case 'SecuritySensitiveDeclaration': return;
-      case 'SecurityCorsDeclaration': return;
-      case 'SecurityCspDeclaration': return;
-      case 'SecurityRateLimitDeclaration': return;
-      case 'SecurityCsrfDeclaration': return;
-      case 'SecurityAuditDeclaration': return;
-      case 'SourceDeclaration': return;
-      case 'PipelineDeclaration': return;
-      case 'ValidateBlock': return;
-      case 'RefreshPolicy': return;
       case 'RefinementType': return;
-      case 'TestBlock': return this.visitTestBlock(node);
-      case 'BenchBlock': return this.visitTestBlock(node);
       case 'ComponentStyleBlock': return; // raw CSS — no analysis needed
       case 'ImplDeclaration': return this.visitImplDeclaration(node);
       case 'TraitDeclaration': return this.visitTraitDeclaration(node);
@@ -9082,19 +9018,14 @@ class Analyzer {
   }
 
   _visitServerNode(node) {
-    if (!Analyzer.prototype._serverAnalyzerInstalled) {
-      installServerAnalyzer(Analyzer);
-    }
     const methodName = 'visit' + node.type;
     return this[methodName](node);
   }
 
-  _visitClientNode(node) {
-    if (!Analyzer.prototype._clientAnalyzerInstalled) {
-      installClientAnalyzer(Analyzer);
-    }
-    const methodName = 'visit' + node.type;
-    return this[methodName](node);
+  _visitBrowserNode(node) {
+    // Ensure browser analyzer is installed (may be called from visitExpression for JSX)
+    const plugin = BlockRegistry.get('browser');
+    return plugin.analyzer.visit(this, node);
   }
 
   visitExpression(node) {
@@ -9232,7 +9163,7 @@ class Analyzer {
         return;
       case 'JSXElement':
       case 'JSXFragment':
-        return this._visitClientNode(node);
+        return this._visitBrowserNode(node);
       // Column expressions (for table operations) — no semantic analysis needed
       case 'ColumnExpression':
         return;
@@ -9602,7 +9533,7 @@ class Analyzer {
     }
   }
 
-  // visitClientBlock and other client visitors are in client-analyzer.js (lazy-loaded)
+  // visitBrowserBlock and other browser visitors are in browser-analyzer.js (lazy-loaded)
 
   visitSharedBlock(node) {
     const prevScope = this.currentScope;
@@ -10302,7 +10233,7 @@ class Analyzer {
     this.visitExpression(node.value);
   }
 
-  // Client-specific visitors (visitState, visitComputed, etc.) are in client-analyzer.js (lazy-loaded)
+  // Browser-specific visitors (visitState, visitComputed, etc.) are in browser-analyzer.js (lazy-loaded)
 
   visitTestBlock(node) {
     const prevScope = this.currentScope;
@@ -10667,7 +10598,7 @@ class Analyzer {
           candidates.push([node.name, typeVariants]);
         }
       }
-      if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'ClientBlock') {
+      if (node.type === 'SharedBlock' || node.type === 'ServerBlock' || node.type === 'BrowserBlock') {
         this._collectTypeCandidates(node.body, coveredVariants, candidates);
       }
     }
@@ -10762,7 +10693,7 @@ class Analyzer {
     }
   }
 
-  // visitJSXElement, visitJSXFragment, visitJSXFor, visitJSXIf are in client-analyzer.js (lazy-loaded)
+  // visitJSXElement, visitJSXFragment, visitJSXFor, visitJSXIf are in browser-analyzer.js (lazy-loaded)
 
   // ─── New feature visitors ─────────────────────────────────
 
@@ -11308,7 +11239,7 @@ class Analyzer {
 
 // Tova standard library — inline string versions for codegen
 // Single source of truth for all inline stdlib code used in code generation.
-// Used by: base-codegen.js, client-codegen.js, bin/tova.js
+// Used by: base-codegen.js, browser-codegen.js, bin/tova.js
 const RESULT_OPTION = `class _Ok { constructor(value) { this.value = value; } }
 _Ok.prototype.__tag = "Ok";
 _Ok.prototype.map = function(fn) { return new _Ok(fn(this.value)); };
@@ -12767,8 +12698,8 @@ function getFullStdlib() {
   return `${NATIVE_INIT_SYNC}\n${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }
 
-// Stdlib for client codegen (includes builtins + result/option + propagate)
-function getClientStdlib() {
+// Stdlib for browser codegen (includes builtins + result/option + propagate)
+function getBrowserStdlib() {
   return `${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }
 
@@ -20280,9 +20211,9 @@ function __createAI(config) {
   }
 }
 
-// ─── src/codegen/client-codegen.js ─────────────────────
+// ─── src/codegen/browser-codegen.js ────────────────────
 
-class ClientCodegen extends BaseCodegen {
+class BrowserCodegen extends BaseCodegen {
   constructor() {
     super();
     this.stateNames = new Set(); // Track state variable names for setter transforms
@@ -20465,7 +20396,7 @@ class ClientCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(clientBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     const lines = [];
 
@@ -20522,7 +20453,7 @@ class ClientCodegen extends BaseCodegen {
     // Security block: auth token injection and role helpers
     if (securityConfig) {
       const secGen = new SecurityCodegen();
-      const clientSecurity = secGen.generateClientSecurity(securityConfig);
+      const clientSecurity = secGen.generateBrowserSecurity(securityConfig);
       if (clientSecurity.trim()) {
         lines.push(clientSecurity);
         lines.push('');
@@ -20537,7 +20468,7 @@ class ClientCodegen extends BaseCodegen {
     const imports = [];
     const other = [];
 
-    for (const block of clientBlocks) {
+    for (const block of browserBlocks) {
       for (const stmt of block.body) {
         switch (stmt.type) {
           case 'StateDeclaration': states.push(stmt); break;
@@ -21585,9 +21516,10 @@ function capitalize(str) {
 
 // ─── src/codegen/codegen.js ────────────────────────────
 
-// Main code generator — orchestrates shared/server/client codegen
+// Main code generator — orchestrates shared/server/browser codegen
 // Supports named multi-blocks: server "api" { }, server "ws" { }
 // Blocks with the same name are merged; different names produce separate output files.
+
 
 
 
@@ -21598,8 +21530,8 @@ function getServerCodegen() {
   return ServerCodegen;
 }
 
-function getClientCodegen() {
-  return ClientCodegen;
+function getBrowserCodegen() {
+  return BrowserCodegen;
 }
 class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
@@ -21620,42 +21552,41 @@ class CodeGenerator {
   }
 
   generate() {
-    const sharedBlocks = [];
-    const serverBlocks = [];
-    const clientBlocks = [];
+    // Registry-driven block sorting
+    const blocksByType = new Map();
     const topLevel = [];
 
-    const testBlocks = [];
-    const benchBlocks = [];
-    const dataBlocks = [];
-    const securityBlocks = [];
-    const cliBlocks = [];
-
     for (const node of this.ast.body) {
-      switch (node.type) {
-        case 'SharedBlock': sharedBlocks.push(node); break;
-        case 'ServerBlock': serverBlocks.push(node); break;
-        case 'ClientBlock': clientBlocks.push(node); break;
-        case 'TestBlock': testBlocks.push(node); break;
-        case 'BenchBlock': benchBlocks.push(node); break;
-        case 'DataBlock': dataBlocks.push(node); break;
-        case 'SecurityBlock': securityBlocks.push(node); break;
-        case 'CliBlock': cliBlocks.push(node); break;
-        default: topLevel.push(node); break;
+      const plugin = BlockRegistry.getByAstType(node.type);
+      if (plugin) {
+        if (!blocksByType.has(plugin.name)) blocksByType.set(plugin.name, []);
+        blocksByType.get(plugin.name).push(node);
+      } else {
+        topLevel.push(node);
       }
     }
 
-    // CLI mode: cli {} blocks produce a standalone executable
-    if (cliBlocks.length > 0) {
-      return this._generateCli(cliBlocks, topLevel);
+    const getBlocks = (name) => blocksByType.get(name) || [];
+
+    // Early-return blocks (e.g., CLI mode)
+    for (const plugin of BlockRegistry.all()) {
+      if (plugin.codegen?.earlyReturn && getBlocks(plugin.name).length > 0) {
+        return this[plugin.codegen.earlyReturnMethod](getBlocks(plugin.name), topLevel);
+      }
     }
 
+    // Convenience aliases
+    const sharedBlocks = getBlocks('shared');
+    const serverBlocks = getBlocks('server');
+    const browserBlocks = getBlocks('browser');
+    const testBlocks = getBlocks('test');
+    const benchBlocks = getBlocks('bench');
+    const dataBlocks = getBlocks('data');
+    const securityBlocks = getBlocks('security');
+
     // Detect module mode: no blocks, only top-level statements
-    const isModule = sharedBlocks.length === 0 && serverBlocks.length === 0
-      && clientBlocks.length === 0 && testBlocks.length === 0
-      && benchBlocks.length === 0 && dataBlocks.length === 0
-      && securityBlocks.length === 0
-      && topLevel.length > 0;
+    const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
+    const isModule = !hasAnyBlocks && topLevel.length > 0;
 
     if (isModule) {
       const moduleGen = new SharedCodegen();
@@ -21669,7 +21600,8 @@ class CodeGenerator {
       return {
         shared: combined,
         server: '',
-        client: '',
+        browser: '',
+        client: '',  // deprecated alias
         isModule: true,
         sourceMappings: moduleGen.getSourceMappings(),
         _sourceFile: this.filename,
@@ -21686,8 +21618,8 @@ class CodeGenerator {
       ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
       : '';
 
-    // Pre-scan server/client blocks for builtin usage so shared stdlib includes them
-    this._scanBlocksForBuiltins([...serverBlocks, ...clientBlocks], sharedGen._usedBuiltins);
+    // Pre-scan server/browser blocks for builtin usage so shared stdlib includes them
+    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks], sharedGen._usedBuiltins);
 
     const helpers = sharedGen.generateHelpers();
 
@@ -21696,9 +21628,9 @@ class CodeGenerator {
 
     const combinedShared = [helpers, sharedCode, topLevelCode, dataCode].filter(s => s.trim()).join('\n').trim();
 
-    // Group server and client blocks by name
+    // Group server and browser blocks by name
     const serverGroups = this._groupByName(serverBlocks);
-    const clientGroups = this._groupByName(clientBlocks);
+    const browserGroups = this._groupByName(browserBlocks);
 
     // Collect function names per named server block for inter-server RPC
     const serverFunctionMap = new Map(); // blockName -> [fnName, ...]
@@ -21747,13 +21679,13 @@ class CodeGenerator {
       servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks, securityConfig);
     }
 
-    // Generate client outputs (one per named group)
-    const clients = {};
-    for (const [name, blocks] of clientGroups) {
-      const gen = new (getClientCodegen())();
+    // Generate browser outputs (one per named group)
+    const browsers = {};
+    for (const [name, blocks] of browserGroups) {
+      const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
     }
 
     // Generate tests if test blocks exist
@@ -21777,16 +21709,18 @@ class CodeGenerator {
     }
 
     // Backward-compatible: if only unnamed blocks, return flat structure
-    const hasNamedBlocks = [...serverGroups.keys(), ...clientGroups.keys()].some(k => k !== null);
+    const hasNamedBlocks = [...serverGroups.keys(), ...browserGroups.keys()].some(k => k !== null);
 
     // Collect source mappings from all codegens
     const sourceMappings = sharedGen.getSourceMappings();
 
     if (!hasNamedBlocks) {
+      const browserCode = browsers['default'] || '';
       const result = {
         shared: combinedShared,
         server: servers['default'] || '',
-        client: clients['default'] || '',
+        browser: browserCode,
+        client: browserCode,  // deprecated alias for backward compat
         sourceMappings,
         _sourceFile: this.filename,
       };
@@ -21796,12 +21730,15 @@ class CodeGenerator {
     }
 
     // Multi-block output: separate files per named block
+    const browserDefault = browsers['default'] || '';
     const result = {
       shared: combinedShared,
       server: servers['default'] || '',
-      client: clients['default'] || '',
+      browser: browserDefault,
+      client: browserDefault,  // deprecated alias for backward compat
       servers,   // { "api": code, "ws": code, ... }
-      clients,   // { "admin": code, "dashboard": code, ... }
+      browsers,  // { "admin": code, "dashboard": code, ... }
+      clients: browsers,   // deprecated alias for backward compat
       multiBlock: true,
       sourceMappings,
       _sourceFile: this.filename,
@@ -21844,7 +21781,8 @@ class CodeGenerator {
       isCli: true,
       shared: '',
       server: '',
-      client: '',
+      browser: '',
+      client: '',  // deprecated alias
       sourceMappings: sharedGen.getSourceMappings(),
       _sourceFile: this.filename,
     };
@@ -22046,7 +21984,7 @@ const tovaLanguage = StreamLanguage.define({
       const w = stream.current();
       if (['fn','let','var','if','elif','else','for','while','in','not','and','or','match',
            'return','type','import','from','export','as','true','false','nil',
-           'server','client','shared','state','computed','effect','component',
+           'server','browser','client','shared','state','computed','effect','component',
            'route','GET','POST','PUT','DELETE','PATCH'].includes(w)) return 'keyword';
       if (/^[A-Z]/.test(w)) return 'typeName';
       return 'variableName';
@@ -22064,7 +22002,7 @@ const tovaLanguage = StreamLanguage.define({
 // ─── Autocompletion ─────────────────────────────────
 const tovaKeywords = [
   'fn', 'let', 'var', 'if', 'elif', 'else', 'for', 'while', 'match',
-  'type', 'state', 'computed', 'effect', 'component', 'server', 'client',
+  'type', 'state', 'computed', 'effect', 'component', 'server', 'browser', 'client',
   'shared', 'route', 'return', 'import', 'from', 'in', 'and', 'or', 'not',
   'true', 'false', 'nil', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'as', 'export'
 ];
@@ -22093,7 +22031,7 @@ const tovaSnippets = [
   { label: 'for', detail: 'for-in loop', apply: 'for item in items {\n  \n}', boost: -1 },
   { label: 'match', detail: 'match expression', apply: 'match value {\n  _ => \n}', boost: -1 },
   { label: 'type', detail: 'type definition', apply: 'type Name {\n  \n}', boost: -1 },
-  { label: 'client', detail: 'client block', apply: 'client {\n  state count = 0\n\n  component App {\n    <div>\n      \n    </div>\n  }\n}', boost: -1 },
+  { label: 'browser', detail: 'browser block', apply: 'browser {\n  state count = 0\n\n  component App {\n    <div>\n      \n    </div>\n  }\n}', boost: -1 },
   { label: 'component', detail: 'component', apply: 'component App {\n  <div>\n    \n  </div>\n}', boost: -1 },
   { label: 'server', detail: 'server block', apply: 'server {\n  \n}', boost: -1 },
   { label: 'effect', detail: 'side effect', apply: 'effect {\n  \n}', boost: -1 },
@@ -22276,22 +22214,22 @@ const EXAMPLES = [
   {
     "category": "Reactive UI",
     "name": "Counter App",
-    "code": "// Counter App in Tova — demonstrates reactive UI\n\nclient {\n  state count = 0\n\n  computed doubled = count * 2\n  computed message = match count {\n    0 => \"Click the button!\"\n    1..5 => \"Keep going...\"\n    n if n >= 10 => \"You're on fire! 🔥\"\n    _ => \"Nice!\"\n  }\n\n  component App {\n    <div class=\"counter-app\">\n      <h1>\"Tova Counter\"</h1>\n      <p class=\"count\">\"{count}\"</p>\n      <p class=\"doubled\">\"Doubled: {doubled}\"</p>\n      <p class=\"message\">\"{message}\"</p>\n      <div class=\"buttons\">\n        <button on:click={fn() count -= 1}>\"-\"</button>\n        <button on:click={fn() count += 1}>\"+\"</button>\n        <button on:click={fn() count = 0}>\"Reset\"</button>\n      </div>\n    </div>\n  }\n}"
+    "code": "// Counter App in Tova — demonstrates reactive UI\n\nbrowser {\n  state count = 0\n\n  computed doubled = count * 2\n  computed message = match count {\n    0 => \"Click the button!\"\n    1..5 => \"Keep going...\"\n    n if n >= 10 => \"You're on fire! 🔥\"\n    _ => \"Nice!\"\n  }\n\n  component App {\n    <div class=\"counter-app\">\n      <h1>\"Tova Counter\"</h1>\n      <p class=\"count\">\"{count}\"</p>\n      <p class=\"doubled\">\"Doubled: {doubled}\"</p>\n      <p class=\"message\">\"{message}\"</p>\n      <div class=\"buttons\">\n        <button on:click={fn() count -= 1}>\"-\"</button>\n        <button on:click={fn() count += 1}>\"+\"</button>\n        <button on:click={fn() count = 0}>\"Reset\"</button>\n      </div>\n    </div>\n  }\n}"
   },
   {
     "category": "Reactive UI",
     "name": "Todo App (Full-Stack)",
-    "code": "// Full-Stack Todo App in Tova — demonstrates server/client/shared blocks\n\nshared {\n  type Todo {\n    id: Int\n    title: String\n    completed: Bool\n  }\n}\n\nserver {\n  // In-memory store for demo (use db.query for real apps)\n  var todos = []\n  var next_id = 1\n\n  fn get_todos() -> [Todo] {\n    todos\n  }\n\n  fn add_todo(title: String) -> Todo {\n    todo = Todo(next_id, title, false)\n    next_id += 1\n    todos = [...todos, todo]\n    todo\n  }\n\n  fn toggle_todo(id: Int) -> Todo {\n    for t in todos {\n      if t.id == id {\n        return Todo(t.id, t.title, not t.completed)\n      }\n    }\n    nil\n  }\n\n  fn delete_todo(id: Int) {\n    todos = [t for t in todos if t.id != id]\n  }\n\n  route GET \"/api/todos\" => get_todos\n}\n\nclient {\n  state todos: [Todo] = []\n  state new_title = \"\"\n\n  computed remaining = len([t for t in todos if not t.completed])\n  computed total = len(todos)\n\n  effect {\n    todos = server.get_todos()\n  }\n\n  fn handle_add() {\n    if new_title != \"\" {\n      server.add_todo(new_title)\n      new_title = \"\"\n      todos = server.get_todos()\n    }\n  }\n\n  fn handle_toggle(id) {\n    server.toggle_todo(id)\n    todos = server.get_todos()\n  }\n\n  fn handle_delete(id) {\n    server.delete_todo(id)\n    todos = server.get_todos()\n  }\n\n  component TodoItem(todo) {\n    <li class=\"todo-item\">\n      <input type=\"checkbox\" checked={todo.completed} on:change={fn() handle_toggle(todo.id)} />\n      <span class=\"todo-text\">\"{todo.title}\"</span>\n      <button on:click={fn() handle_delete(todo.id)}>\"×\"</button>\n    </li>\n  }\n\n  component App {\n    <div class=\"todo-app\">\n      <h1>\"Tova Todo\"</h1>\n      <div class=\"input-row\">\n        <input\n          type=\"text\"\n          placeholder=\"What needs to be done?\"\n          value={new_title}\n          on:input={fn(e) new_title = e.target.value}\n        />\n        <button on:click={handle_add}>\"Add\"</button>\n      </div>\n      <ul class=\"todo-list\">\n        for todo in todos {\n          <TodoItem todo={todo} />\n        }\n      </ul>\n      <p class=\"status\">\"{remaining} of {total} remaining\"</p>\n    </div>\n  }\n}"
+    "code": "// Full-Stack Todo App in Tova — demonstrates server/client/shared blocks\n\nshared {\n  type Todo {\n    id: Int\n    title: String\n    completed: Bool\n  }\n}\n\nserver {\n  // In-memory store for demo (use db.query for real apps)\n  var todos = []\n  var next_id = 1\n\n  fn get_todos() -> [Todo] {\n    todos\n  }\n\n  fn add_todo(title: String) -> Todo {\n    todo = Todo(next_id, title, false)\n    next_id += 1\n    todos = [...todos, todo]\n    todo\n  }\n\n  fn toggle_todo(id: Int) -> Todo {\n    for t in todos {\n      if t.id == id {\n        return Todo(t.id, t.title, not t.completed)\n      }\n    }\n    nil\n  }\n\n  fn delete_todo(id: Int) {\n    todos = [t for t in todos if t.id != id]\n  }\n\n  route GET \"/api/todos\" => get_todos\n}\n\nbrowser {\n  state todos: [Todo] = []\n  state new_title = \"\"\n\n  computed remaining = len([t for t in todos if not t.completed])\n  computed total = len(todos)\n\n  effect {\n    todos = server.get_todos()\n  }\n\n  fn handle_add() {\n    if new_title != \"\" {\n      server.add_todo(new_title)\n      new_title = \"\"\n      todos = server.get_todos()\n    }\n  }\n\n  fn handle_toggle(id) {\n    server.toggle_todo(id)\n    todos = server.get_todos()\n  }\n\n  fn handle_delete(id) {\n    server.delete_todo(id)\n    todos = server.get_todos()\n  }\n\n  component TodoItem(todo) {\n    <li class=\"todo-item\">\n      <input type=\"checkbox\" checked={todo.completed} on:change={fn() handle_toggle(todo.id)} />\n      <span class=\"todo-text\">\"{todo.title}\"</span>\n      <button on:click={fn() handle_delete(todo.id)}>\"×\"</button>\n    </li>\n  }\n\n  component App {\n    <div class=\"todo-app\">\n      <h1>\"Tova Todo\"</h1>\n      <div class=\"input-row\">\n        <input\n          type=\"text\"\n          placeholder=\"What needs to be done?\"\n          value={new_title}\n          on:input={fn(e) new_title = e.target.value}\n        />\n        <button on:click={handle_add}>\"Add\"</button>\n      </div>\n      <ul class=\"todo-list\">\n        for todo in todos {\n          <TodoItem todo={todo} />\n        }\n      </ul>\n      <p class=\"status\">\"{remaining} of {total} remaining\"</p>\n    </div>\n  }\n}"
   },
   {
     "category": "Reactive UI",
     "name": "Temperature Converter",
-    "code": "// Temperature converter — reactive two-way conversion\nclient {\n  state celsius = 20\n  computed fahrenheit = celsius * 9 / 5 + 32\n  computed kelvin = celsius + 273.15\n\n  computed description = match celsius {\n    c if c <= 0 => \"Freezing!\"\n    c if c <= 15 => \"Cold\"\n    c if c <= 25 => \"Comfortable\"\n    c if c <= 35 => \"Warm\"\n    _ => \"Hot!\"\n  }\n\n  component App {\n    <div class=\"converter\">\n      <h1>\"Temperature Converter\"</h1>\n      <div class=\"input-group\">\n        <label>\"Celsius\"</label>\n        <input type=\"range\" min=\"-40\" max=\"60\" value={celsius}\n               on:input={fn(e) celsius = e.target.value * 1} />\n        <span class=\"value\">\"{celsius}C\"</span>\n      </div>\n      <div class=\"results\">\n        <p>\"{celsius}C = {fahrenheit}F = {kelvin}K\"</p>\n        <p class=\"desc\">\"{description}\"</p>\n      </div>\n    </div>\n  }\n}\n"
+    "code": "// Temperature converter — reactive two-way conversion\nbrowser {\n  state celsius = 20\n  computed fahrenheit = celsius * 9 / 5 + 32\n  computed kelvin = celsius + 273.15\n\n  computed description = match celsius {\n    c if c <= 0 => \"Freezing!\"\n    c if c <= 15 => \"Cold\"\n    c if c <= 25 => \"Comfortable\"\n    c if c <= 35 => \"Warm\"\n    _ => \"Hot!\"\n  }\n\n  component App {\n    <div class=\"converter\">\n      <h1>\"Temperature Converter\"</h1>\n      <div class=\"input-group\">\n        <label>\"Celsius\"</label>\n        <input type=\"range\" min=\"-40\" max=\"60\" value={celsius}\n               on:input={fn(e) celsius = e.target.value * 1} />\n        <span class=\"value\">\"{celsius}C\"</span>\n      </div>\n      <div class=\"results\">\n        <p>\"{celsius}C = {fahrenheit}F = {kelvin}K\"</p>\n        <p class=\"desc\">\"{description}\"</p>\n      </div>\n    </div>\n  }\n}\n"
   },
   {
     "category": "Reactive UI",
     "name": "Stopwatch",
-    "code": "// Interactive stopwatch with reactive state\nclient {\n  state elapsed = 0\n\n  fn reset_timer() {\n    elapsed = 0\n  }\n\n  computed minutes = elapsed / 60\n  computed seconds = elapsed % 60\n\n  computed display = match elapsed {\n    0 => \"0s\"\n    t if t < 60 => \"{t}s\"\n    _ => \"{minutes}m {seconds}s\"\n  }\n\n  component App {\n    <div class=\"stopwatch\">\n      <h1>\"Stopwatch\"</h1>\n      <p class=\"time\">\"{display}\"</p>\n      <div class=\"controls\">\n        <button on:click={fn() elapsed += 1}>\"+1s\"</button>\n        <button on:click={fn() elapsed += 10}>\"+10s\"</button>\n        <button on:click={fn() elapsed += 60}>\"+1m\"</button>\n        <button on:click={reset_timer}>\"Reset\"</button>\n      </div>\n      <p class=\"hint\">\"(Click buttons to add time)\"</p>\n    </div>\n  }\n}\n"
+    "code": "// Interactive stopwatch with reactive state\nbrowser {\n  state elapsed = 0\n\n  fn reset_timer() {\n    elapsed = 0\n  }\n\n  computed minutes = elapsed / 60\n  computed seconds = elapsed % 60\n\n  computed display = match elapsed {\n    0 => \"0s\"\n    t if t < 60 => \"{t}s\"\n    _ => \"{minutes}m {seconds}s\"\n  }\n\n  component App {\n    <div class=\"stopwatch\">\n      <h1>\"Stopwatch\"</h1>\n      <p class=\"time\">\"{display}\"</p>\n      <div class=\"controls\">\n        <button on:click={fn() elapsed += 1}>\"+1s\"</button>\n        <button on:click={fn() elapsed += 10}>\"+10s\"</button>\n        <button on:click={fn() elapsed += 60}>\"+1m\"</button>\n        <button on:click={reset_timer}>\"Reset\"</button>\n      </div>\n      <p class=\"hint\">\"(Click buttons to add time)\"</p>\n    </div>\n  }\n}\n"
   },
   {
     "category": "Algorithms",
@@ -22549,7 +22487,7 @@ const REFERENCE = [
     ]
   },
   {
-    "title": "Reactive (client)",
+    "title": "Reactive (browser)",
     "items": [
       {
         "syntax": "state count = 0",
@@ -22585,8 +22523,8 @@ const REFERENCE = [
         "desc": "Server-side code (Bun)"
       },
       {
-        "syntax": "client { ... }",
-        "desc": "Client-side code (browser)"
+        "syntax": "browser { ... }",
+        "desc": "Browser-side code"
       },
       {
         "syntax": "shared { ... }",
@@ -22628,7 +22566,7 @@ const TUTORIAL = [
   {
     "title": "Reactive UI",
     "description": "Tova has built-in reactivity for building UIs. State changes automatically update the DOM!",
-    "code": "// Switch to the \"Preview\" tab to see this in action!\nclient {\n  state clicks = 0\n  computed doubled = clicks * 2\n  computed emoji = match clicks {\n    0 => \"Start clicking!\"\n    c if c < 5 => \"Getting started...\"\n    c if c < 10 => \"Nice!\"\n    _ => \"On fire!\"\n  }\n\n  component App {\n    <div style=\"text-align: center; padding: 20px;\">\n      <h1>\"Tova Reactive Demo\"</h1>\n      <p style=\"font-size: 48px;\">\"{clicks}\"</p>\n      <p>\"Doubled: {doubled}\"</p>\n      <p>\"{emoji}\"</p>\n      <button on:click={fn() clicks += 1}>\"+ Add\"</button>\n      <button on:click={fn() clicks -= 1}>\"- Sub\"</button>\n      <button on:click={fn() clicks = 0}>\"Reset\"</button>\n    </div>\n  }\n}"
+    "code": "// Switch to the \"Preview\" tab to see this in action!\nbrowser {\n  state clicks = 0\n  computed doubled = clicks * 2\n  computed emoji = match clicks {\n    0 => \"Start clicking!\"\n    c if c < 5 => \"Getting started...\"\n    c if c < 10 => \"Nice!\"\n    _ => \"On fire!\"\n  }\n\n  component App {\n    <div style=\"text-align: center; padding: 20px;\">\n      <h1>\"Tova Reactive Demo\"</h1>\n      <p style=\"font-size: 48px;\">\"{clicks}\"</p>\n      <p>\"Doubled: {doubled}\"</p>\n      <p>\"{emoji}\"</p>\n      <button on:click={fn() clicks += 1}>\"+ Add\"</button>\n      <button on:click={fn() clicks -= 1}>\"- Sub\"</button>\n      <button on:click={fn() clicks = 0}>\"Reset\"</button>\n    </div>\n  }\n}"
   },
   {
     "title": "Strings & Interpolation",
@@ -22642,8 +22580,8 @@ const TUTORIAL = [
   },
   {
     "title": "Full-Stack App",
-    "description": "Tova has built-in full-stack blocks: server, client, and shared. In the playground, server features are simulated.",
-    "code": "// A full-stack app has server + client blocks.\n// In playground mode, server calls are stubbed.\n\nclient {\n  state name = \"World\"\n  computed greeting = \"Hello, {name}!\"\n\n  component App {\n    <div style=\"padding: 20px;\">\n      <h1>\"Full-Stack Demo\"</h1>\n      <div class=\"input-group\">\n        <label>\"Your name:\"</label>\n        <input type=\"text\" value={name}\n               on:input={fn(e) name = e.target.value} />\n      </div>\n      <p style=\"font-size: 24px; margin-top: 16px;\">\"{greeting}\"</p>\n      <p class=\"hint\">\"(Type to see reactive updates!)\"</p>\n    </div>\n  }\n}"
+    "description": "Tova has built-in full-stack blocks: server, browser, and shared. In the playground, server features are simulated.",
+    "code": "// A full-stack app has server + browser blocks.\n// In playground mode, server calls are stubbed.\n\nbrowser {\n  state name = \"World\"\n  computed greeting = \"Hello, {name}!\"\n\n  component App {\n    <div style=\"padding: 20px;\">\n      <h1>\"Full-Stack Demo\"</h1>\n      <div class=\"input-group\">\n        <label>\"Your name:\"</label>\n        <input type=\"text\" value={name}\n               on:input={fn(e) name = e.target.value} />\n      </div>\n      <p style=\"font-size: 24px; margin-top: 16px;\">\"{greeting}\"</p>\n      <p class=\"hint\">\"(Type to see reactive updates!)\"</p>\n    </div>\n  }\n}"
   },
   {
     "title": "Advanced Patterns",
@@ -22910,8 +22848,8 @@ function compile() {
     let jsText = '';
     if (result.shared) jsText += '// ── Shared ──\n' + result.shared + '\n\n';
     if (result.server) jsText += '// ── Server ──\n' + result.server + '\n\n';
-    if (result.client) jsText += '// ── Client ──\n' + result.client + '\n\n';
-    if (!result.shared && !result.server && !result.client && result.code) {
+    if (result.browser) jsText += '// ── Browser ──\n' + result.browser + '\n\n';
+    if (!result.shared && !result.server && !result.browser && result.code) {
       jsText = result.code;
     }
     lastJsText = jsText || '// No output';
@@ -23091,19 +23029,19 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
       switchTab('console');
     }
 
-    if (logs.length > 0 && !result.client) {
+    if (logs.length > 0 && !result.browser) {
       switchTab('console');
     }
   }
 
-  // For non-worker code paths (client code), render immediately
-  if (!codeToRun.trim() || result.client) {
+  // For non-worker code paths (browser code), render immediately
+  if (!codeToRun.trim() || result.browser) {
     renderLogs();
   }
 
-  // Live Preview for client code
-  if (result.client) {
-    const clientCode = result.client
+  // Live Preview for browser code
+  if (result.browser) {
+    const browserCode = result.browser
       .replace(/import\s+.*from\s+['"].*['"];?/g, '')
       .replace(/import\s+['"].*['"];?/g, '');
 
@@ -23138,7 +23076,7 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
     const sharedCode = (result.shared || '').replace(/import\s+.*from\s+['"].*['"];?/g, '');
 
     // Build preview HTML using string concatenation — NOT a template literal.
-    // Generated client code may contain backticks (JS template strings from
+    // Generated browser code may contain backticks (JS template strings from
     // string interpolation) which would break a template-literal wrapper.
     const previewHTML = '<!DOCTYPE html>\n<html><head><meta charset="UTF-8">\n<style>' + previewCSS + '</style>\n</head><body>\n' +
       '<div id="app"></div>\n<script>\n' +
@@ -23148,17 +23086,17 @@ function executeCode(result, consoleEl, previewFrame, consoleBadge, consoleTimin
       ARRAY_PROTO_CODE + '\n' +
       'function rpc(name, args) { console.warn("[Playground] server." + name + "() is not available in playground mode"); return Promise.resolve(null); }\n' +
       sharedCode + '\n' +
-      clientCode + '\n' +
+      browserCode + '\n' +
       'if (typeof App === "function") {' +
       '  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", function() { mount(App, document.getElementById("app")); }); }' +
       '  else { mount(App, document.getElementById("app")); }' +
       '}\n' +
       '<\/script>\n</body></html>';
     previewFrame.srcdoc = previewHTML;
-    // Auto-switch to preview when there's a client block
+    // Auto-switch to preview when there's a browser block
     switchTab('preview');
   } else {
-    previewFrame.srcdoc = '<html><body style="font-family:sans-serif;padding:20px;color:#aaa"><p>Write a <code>client { }</code> block with a <code>component App</code> to see a live preview here.</p></body></html>';
+    previewFrame.srcdoc = '<html><body style="font-family:sans-serif;padding:20px;color:#aaa"><p>Write a <code>browser { }</code> block with a <code>component App</code> to see a live preview here.</p></body></html>';
   }
 }
 
@@ -23562,11 +23500,11 @@ function exportAsHTML() {
     return;
   }
   const source = editor.state.doc.toString();
-  const hasClient = source.includes('client {') || source.includes('client{');
+  const hasBrowser = source.includes('browser {') || source.includes('browser{') || source.includes('client {') || source.includes('client{');
 
   let exportHTML;
-  if (hasClient) {
-    // Export client app as standalone HTML
+  if (hasBrowser) {
+    // Export browser app as standalone HTML
     try {
       const lexer = new Lexer(source, 'export.tova');
       const tokens = lexer.tokenize();
@@ -23576,7 +23514,7 @@ function exportAsHTML() {
       analyzer.analyze();
       const codegen = new CodeGenerator(ast, 'export.tova');
       const result = codegen.generate();
-      const clientCode = (result.client || '').replace(/import\s+.*from\s+['"].*['"];?/g, '');
+      const browserCode = (result.browser || '').replace(/import\s+.*from\s+['"].*['"];?/g, '');
       exportHTML = '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"><title>Tova App</title>\n'
         + '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}'
         + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px;color:#333}'
@@ -23585,7 +23523,7 @@ function exportAsHTML() {
         + '</style></head><body><div id="app"></div>\n<script>\n'
         + RUNTIME_CODE + '\n' + STDLIB_CODE + '\n' + STRING_PROTO_CODE + '\n' + ARRAY_PROTO_CODE + '\n'
         + (result.shared || '').replace(/import\s+.*from\s+['"].*['"];?/g, '') + '\n'
-        + clientCode + '\n'
+        + browserCode + '\n'
         + 'if(typeof App==="function"){mount(App,document.getElementById("app"));}\n'
         + '<\/script></body></html>';
     } catch(e) {

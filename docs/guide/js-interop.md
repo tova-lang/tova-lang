@@ -96,7 +96,7 @@ Extern declarations tell the analyzer about functions defined outside Tova, prev
 ## Browser APIs
 
 ```tova
-client {
+browser {
   // DOM manipulation
   element = document.getElementById("app")
   element.classList.add("active")
@@ -189,7 +189,7 @@ emitter.emit("data", { message: "hello" })
 ### WebSocket Client
 
 ```tova
-client {
+browser {
   ws = WebSocket.new("ws://localhost:8080")
 
   ws.onopen = fn() {

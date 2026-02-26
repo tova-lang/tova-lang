@@ -204,7 +204,7 @@ tova build src --binary my-app
 | `<name>.shared.js` | Shared types and functions |
 | `<name>.server.js` | Default server block code |
 | `<name>.server.<block>.js` | Named server blocks (e.g., `app.server.api.js`) |
-| `<name>.client.js` | Default client block code |
+| `<name>.client.js` | Default browser block code |
 | `runtime/` | Copied runtime files (reactivity, RPC, router) |
 
 **Flags:**

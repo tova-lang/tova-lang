@@ -108,7 +108,7 @@ export default defineConfig({
             { text: 'Security Block', link: '/fullstack/security-block' },
             { text: 'CLI Block', link: '/fullstack/cli-block' },
             { text: 'Server Block', link: '/fullstack/server-block' },
-            { text: 'Client Block', link: '/fullstack/client-block' },
+            { text: 'Browser Block', link: '/fullstack/browser-block' },
             { text: 'RPC Bridge', link: '/fullstack/rpc' },
             { text: 'Named Blocks', link: '/fullstack/named-blocks' },
             { text: 'Compilation', link: '/fullstack/compilation' },

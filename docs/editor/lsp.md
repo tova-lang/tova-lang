@@ -91,7 +91,7 @@ match shape {
 
 In all other contexts, completion provides:
 
-- **Keywords** -- `fn`, `let`, `if`, `elif`, `else`, `for`, `while`, `match`, `type`, `import`, `server`, `client`, `shared`, `pub`, `mut`, `async`, `await`, `guard`, `interface`, `derive`, `route`, `model`, `db`, and more
+- **Keywords** -- `fn`, `let`, `if`, `elif`, `else`, `for`, `while`, `match`, `type`, `import`, `server`, `browser`, `shared`, `pub`, `mut`, `async`, `await`, `guard`, `interface`, `derive`, `route`, `model`, `db`, and more
 - **Built-in functions** -- `print`, `len`, `range`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`
 - **Result/Option constructors** -- `Ok`, `Err`, `Some`, `None`
 - **User-defined symbols** -- Functions, types, and variables defined in the current file

@@ -118,41 +118,41 @@ describe('Parser Comprehensive -- Server config error paths', () => {
 
 describe('Parser Comprehensive -- JSX parsing errors', () => {
   test('mismatched closing tags throws', () => {
-    expect(parseThrows('client { component App { <div></span> } }')).toThrow(/Mismatched closing tag/);
+    expect(parseThrows('browser { component App { <div></span> } }')).toThrow(/Mismatched closing tag/);
   });
 
   test('mismatched nested closing tags throws', () => {
-    expect(parseThrows('client { component App { <div><span></div></span> } }')).toThrow(/Mismatched closing tag/);
+    expect(parseThrows('browser { component App { <div><span></div></span> } }')).toThrow(/Mismatched closing tag/);
   });
 
   test('JSX attribute with invalid value (number token) throws', () => {
     // After = in attribute, parser expects { expr } or "string"
-    expect(parseThrows('client { component App { <div class=123 /> } }')).toThrow(/attribute value/);
+    expect(parseThrows('browser { component App { <div class=123 /> } }')).toThrow(/attribute value/);
   });
 
   test('JSX attribute missing name throws', () => {
     // If parser sees something that is not a valid attribute name token
-    expect(parseThrows('client { component App { <div 123="bad" /> } }')).toThrow(/attribute name/);
+    expect(parseThrows('browser { component App { <div 123="bad" /> } }')).toThrow(/attribute name/);
   });
 
   test('JSX for missing in keyword throws', () => {
-    expect(parseThrows('client { component App { <div>for item of items { <span /> }</div> } }')).toThrow(/in/);
+    expect(parseThrows('browser { component App { <div>for item of items { <span /> }</div> } }')).toThrow(/in/);
   });
 
   test('JSX if missing opening brace for body throws', () => {
-    expect(parseThrows('client { component App { <div>if show <span /> </div> } }')).toThrow();
+    expect(parseThrows('browser { component App { <div>if show <span /> </div> } }')).toThrow();
   });
 
   test('JSX for missing opening brace for body throws', () => {
-    expect(parseThrows('client { component App { <div>for item in items <span /> </div> } }')).toThrow();
+    expect(parseThrows('browser { component App { <div>for item in items <span /> </div> } }')).toThrow();
   });
 
   test('JSX expression child missing closing brace throws', () => {
-    expect(parseThrows('client { component App { <div>{count</div> } }')).toThrow();
+    expect(parseThrows('browser { component App { <div>{count</div> } }')).toThrow();
   });
 
   test('JSX attribute expression missing closing brace throws', () => {
-    expect(parseThrows('client { component App { <div id={myId >"text"</div> } }')).toThrow();
+    expect(parseThrows('browser { component App { <div id={myId >"text"</div> } }')).toThrow();
   });
 });
 
@@ -668,11 +668,11 @@ describe('Parser Comprehensive -- Lambda edge cases', () => {
 
 describe('Parser Comprehensive -- Component and store edge cases', () => {
   test('store with invalid body member throws', () => {
-    expect(parseThrows('client { store Counter { var x = 1 } }')).toThrow(/Expected 'state', 'computed', or 'fn' inside store block/);
+    expect(parseThrows('browser { store Counter { var x = 1 } }')).toThrow(/Expected 'state', 'computed', or 'fn' inside store block/);
   });
 
   test('store with state, computed, and fn', () => {
-    const ast = parse(`client { store Counter {
+    const ast = parse(`browser { store Counter {
       state count = 0
       computed doubled = count * 2
       fn increment() { count += 1 }
@@ -686,7 +686,7 @@ describe('Parser Comprehensive -- Component and store edge cases', () => {
   });
 
   test('component with style block', () => {
-    const ast = parse('client { component App { style { .app { color: red } } <div /> } }');
+    const ast = parse('browser { component App { style { .app { color: red } } <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('ComponentStyleBlock');
     expect(comp.body[0].css).toContain('color: red');
@@ -694,11 +694,11 @@ describe('Parser Comprehensive -- Component and store edge cases', () => {
   });
 
   test('state without = throws', () => {
-    expect(parseThrows('client { state count 0 }')).toThrow(/Expected '=' in state declaration/);
+    expect(parseThrows('browser { state count 0 }')).toThrow(/Expected '=' in state declaration/);
   });
 
   test('state with type annotation', () => {
-    const ast = parse('client { state count: Int = 0 }');
+    const ast = parse('browser { state count: Int = 0 }');
     const s = ast.body[0].body[0];
     expect(s.type).toBe('StateDeclaration');
     expect(s.name).toBe('count');
@@ -707,24 +707,24 @@ describe('Parser Comprehensive -- Component and store edge cases', () => {
   });
 
   test('computed without = throws', () => {
-    expect(parseThrows('client { computed doubled count * 2 }')).toThrow(/Expected '=' in computed declaration/);
+    expect(parseThrows('browser { computed doubled count * 2 }')).toThrow(/Expected '=' in computed declaration/);
   });
 
   test('component with effect inside', () => {
-    const ast = parse('client { component App { effect { print("hi") }\n <div /> } }');
+    const ast = parse('browser { component App { effect { print("hi") }\n <div /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('EffectDeclaration');
   });
 
   test('component with nested component', () => {
-    const ast = parse('client { component App { component Inner { <span /> }\n <Inner /> } }');
+    const ast = parse('browser { component App { component Inner { <span /> }\n <Inner /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('ComponentDeclaration');
     expect(comp.body[0].name).toBe('Inner');
   });
 
   test('component with multiple JSX roots', () => {
-    const ast = parse('client { component App { <div>"a"</div>\n<span>"b"</span> } }');
+    const ast = parse('browser { component App { <div>"a"</div>\n<span>"b"</span> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body.length).toBe(2);
     expect(comp.body[0].type).toBe('JSXElement');
@@ -734,7 +734,7 @@ describe('Parser Comprehensive -- Component and store edge cases', () => {
   });
 
   test('store with multiple state declarations', () => {
-    const ast = parse('client { store AppStore { state a = 1\n state b = 2\n state c = 3 } }');
+    const ast = parse('browser { store AppStore { state a = 1\n state b = 2\n state c = 3 } }');
     const store = ast.body[0].body[0];
     expect(store.body.length).toBe(3);
     store.body.forEach(s => expect(s.type).toBe('StateDeclaration'));
@@ -1042,7 +1042,7 @@ describe('Parser Comprehensive -- Test block parsing', () => {
 });
 
 // ============================================================
-// 15. Named server/client/shared blocks
+// 15. Named server/browser/shared blocks
 // ============================================================
 
 describe('Parser Comprehensive -- Named blocks', () => {
@@ -1052,9 +1052,9 @@ describe('Parser Comprehensive -- Named blocks', () => {
     expect(ast.body[0].name).toBe('api');
   });
 
-  test('named client block', () => {
-    const ast = parse('client "dashboard" { state count = 0 }');
-    expect(ast.body[0].type).toBe('ClientBlock');
+  test('named browser block', () => {
+    const ast = parse('browser "dashboard" { state count = 0 }');
+    expect(ast.body[0].type).toBe('BrowserBlock');
     expect(ast.body[0].name).toBe('dashboard');
   });
 
@@ -1069,8 +1069,8 @@ describe('Parser Comprehensive -- Named blocks', () => {
     expect(ast.body[0].name).toBeNull();
   });
 
-  test('unnamed client block has null name', () => {
-    const ast = parse('client { state x = 0 }');
+  test('unnamed browser block has null name', () => {
+    const ast = parse('browser { state x = 0 }');
     expect(ast.body[0].name).toBeNull();
   });
 
@@ -1083,7 +1083,7 @@ describe('Parser Comprehensive -- Named blocks', () => {
     const ast = parse(`
       server "api" { route GET "/test" => handler }
       server "ws" { fn ws_handler() { 1 } }
-      client "main" { state x = 0 }
+      browser "main" { state x = 0 }
       shared "types" { type T { v: Int } }
     `);
     expect(ast.body.length).toBe(4);
@@ -1097,8 +1097,8 @@ describe('Parser Comprehensive -- Named blocks', () => {
     expect(parseThrows('server fn hello() { 1 }')).toThrow(/Expected '\{' after 'server'/);
   });
 
-  test('client block missing opening brace throws', () => {
-    expect(parseThrows('client state x = 0')).toThrow(/Expected '\{' after 'client'/);
+  test('browser block missing opening brace throws', () => {
+    expect(parseThrows('browser state x = 0')).toThrow(/Expected '\{' after 'browser'/);
   });
 
   test('shared block missing opening brace throws', () => {
@@ -1390,7 +1390,7 @@ describe('Parser Comprehensive -- Miscellaneous expression coverage', () => {
 
 describe('Parser Comprehensive -- JSX control flow with text', () => {
   test('JSX for with JSX_TEXT body', () => {
-    const ast = parse('client { component App { <ul>for item in items { <li>Item text</li> }</ul> } }');
+    const ast = parse('browser { component App { <ul>for item in items { <li>Item text</li> }</ul> } }');
     const jsxFor = ast.body[0].body[0].body[0].children[0];
     expect(jsxFor.type).toBe('JSXFor');
     expect(jsxFor.body[0].type).toBe('JSXElement');
@@ -1399,7 +1399,7 @@ describe('Parser Comprehensive -- JSX control flow with text', () => {
   });
 
   test('JSX if body with text only', () => {
-    const ast = parse('client { component App { <div>if show { "displayed" }</div> } }');
+    const ast = parse('browser { component App { <div>if show { "displayed" }</div> } }');
     const jsxIf = ast.body[0].body[0].body[0].children[0];
     expect(jsxIf.type).toBe('JSXIf');
     expect(jsxIf.consequent.length).toBe(1);
@@ -1407,21 +1407,21 @@ describe('Parser Comprehensive -- JSX control flow with text', () => {
   });
 
   test('JSX if with expression body', () => {
-    const ast = parse('client { component App { <div>if show { {count} }</div> } }');
+    const ast = parse('browser { component App { <div>if show { {count} }</div> } }');
     const jsxIf = ast.body[0].body[0].body[0].children[0];
     expect(jsxIf.consequent.length).toBe(1);
     expect(jsxIf.consequent[0].type).toBe('JSXExpression');
   });
 
   test('JSX for with expression body', () => {
-    const ast = parse('client { component App { <ul>for item in items { {item} }</ul> } }');
+    const ast = parse('browser { component App { <ul>for item in items { {item} }</ul> } }');
     const jsxFor = ast.body[0].body[0].body[0].children[0];
     expect(jsxFor.body.length).toBe(1);
     expect(jsxFor.body[0].type).toBe('JSXExpression');
   });
 
   test('JSX if/elif/else with multiple children types', () => {
-    const ast = parse('client { component App { <div>if a { <span>"A"</span> } elif b { "B" } else { {c} }</div> } }');
+    const ast = parse('browser { component App { <div>if a { <span>"A"</span> } elif b { "B" } else { {c} }</div> } }');
     const jsxIf = ast.body[0].body[0].body[0].children[0];
     expect(jsxIf.type).toBe('JSXIf');
     expect(jsxIf.consequent[0].type).toBe('JSXElement');
@@ -1462,21 +1462,21 @@ describe('Parser Comprehensive -- Parser helper coverage', () => {
     expect(expr.operator).toBe('<');
   });
 
-  test('_looksLikeJSX returns true for uppercase component in client', () => {
-    const ast = parse('client { component App { <Component /> } }');
+  test('_looksLikeJSX returns true for uppercase component in browser', () => {
+    const ast = parse('browser { component App { <Component /> } }');
     const comp = ast.body[0].body[0];
     expect(comp.body[0].type).toBe('JSXElement');
     expect(comp.body[0].tag).toBe('Component');
   });
 
   test('_collapseJSXWhitespace trims and collapses whitespace', () => {
-    const ast = parse('client { component App { <p>  Hello     World  </p> } }');
+    const ast = parse('browser { component App { <p>  Hello     World  </p> } }');
     const text = ast.body[0].body[0].body[0].children[0];
     expect(text.value.value).toBe('Hello World');
   });
 
   test('_collapseJSXWhitespace returns empty for whitespace only', () => {
-    const ast = parse('client { component App { <div>   </div> } }');
+    const ast = parse('browser { component App { <div>   </div> } }');
     const div = ast.body[0].body[0].body[0];
     expect(div.children.length).toBe(0);
   });
@@ -1527,18 +1527,18 @@ describe('Parser Comprehensive -- Server block statement fallback', () => {
 });
 
 // ============================================================
-// Additional coverage: client block statement fallback
+// Additional coverage: browser block statement fallback
 // ============================================================
 
-describe('Parser Comprehensive -- Client block statement fallback', () => {
-  test('regular statement inside client block', () => {
-    const ast = parse('client { var x = 10 }');
+describe('Parser Comprehensive -- Browser block statement fallback', () => {
+  test('regular statement inside browser block', () => {
+    const ast = parse('browser { var x = 10 }');
     const stmt = ast.body[0].body[0];
     expect(stmt.type).toBe('VarDeclaration');
   });
 
-  test('function declaration inside client block', () => {
-    const ast = parse('client { fn helper() { 1 } }');
+  test('function declaration inside browser block', () => {
+    const ast = parse('browser { fn helper() { 1 } }');
     const stmt = ast.body[0].body[0];
     expect(stmt.type).toBe('FunctionDeclaration');
   });
@@ -1556,7 +1556,7 @@ describe('Parser Comprehensive -- Client block statement fallback', () => {
 
 describe('Parser Comprehensive -- JSX spread attributes', () => {
   test('spread attribute with expression', () => {
-    const ast = parse('client { component App { <Comp {...props} /> } }');
+    const ast = parse('browser { component App { <Comp {...props} /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes[0].type).toBe('JSXSpreadAttribute');
     expect(el.attributes[0].expression.type).toBe('Identifier');
@@ -1564,7 +1564,7 @@ describe('Parser Comprehensive -- JSX spread attributes', () => {
   });
 
   test('spread with regular attributes', () => {
-    const ast = parse('client { component App { <Comp class="x" {...props} id="y" /> } }');
+    const ast = parse('browser { component App { <Comp class="x" {...props} id="y" /> } }');
     const el = ast.body[0].body[0].body[0];
     expect(el.attributes.length).toBe(3);
     expect(el.attributes[0].type).toBe('JSXAttribute');

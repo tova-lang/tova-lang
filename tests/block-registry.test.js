@@ -6,7 +6,7 @@ describe('BlockRegistry', () => {
     const all = BlockRegistry.all();
     expect(all.length).toBe(8);
     expect(all.map(p => p.name)).toEqual([
-      'server', 'client', 'shared', 'security', 'cli', 'data', 'test', 'bench',
+      'server', 'browser', 'shared', 'security', 'cli', 'data', 'test', 'bench',
     ]);
   });
 
@@ -18,7 +18,7 @@ describe('BlockRegistry', () => {
 
   test('getByAstType() returns plugin for primary AST node type', () => {
     expect(BlockRegistry.getByAstType('ServerBlock').name).toBe('server');
-    expect(BlockRegistry.getByAstType('ClientBlock').name).toBe('client');
+    expect(BlockRegistry.getByAstType('BrowserBlock').name).toBe('browser');
     expect(BlockRegistry.getByAstType('SharedBlock').name).toBe('shared');
     expect(BlockRegistry.getByAstType('SecurityBlock').name).toBe('security');
     expect(BlockRegistry.getByAstType('CliBlock').name).toBe('cli');
@@ -34,10 +34,10 @@ describe('BlockRegistry', () => {
     expect(BlockRegistry.getByAstType('WebSocketDeclaration').name).toBe('server');
     expect(BlockRegistry.getByAstType('ModelDeclaration').name).toBe('server');
 
-    // Client child types
-    expect(BlockRegistry.getByAstType('StateDeclaration').name).toBe('client');
-    expect(BlockRegistry.getByAstType('ComponentDeclaration').name).toBe('client');
-    expect(BlockRegistry.getByAstType('StoreDeclaration').name).toBe('client');
+    // Browser child types
+    expect(BlockRegistry.getByAstType('StateDeclaration').name).toBe('browser');
+    expect(BlockRegistry.getByAstType('ComponentDeclaration').name).toBe('browser');
+    expect(BlockRegistry.getByAstType('StoreDeclaration').name).toBe('browser');
   });
 
   test('getByAstType() returns null for unknown types', () => {
@@ -81,7 +81,7 @@ describe('BlockRegistry', () => {
 
   test('keyword-strategy plugins have tokenType', () => {
     const keywords = BlockRegistry.all().filter(p => p.detection.strategy === 'keyword');
-    expect(keywords.length).toBe(3); // server, client, shared
+    expect(keywords.length).toBe(3); // server, browser, shared
     for (const p of keywords) {
       expect(p.detection.tokenType).toBeString();
     }

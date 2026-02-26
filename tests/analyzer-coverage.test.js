@@ -225,59 +225,59 @@ describe('CompoundAssignment analysis', () => {
 // ─── 15. State declaration (Line 440) ───────────────────────────
 
 describe('StateDeclaration analysis', () => {
-  test('state inside client block succeeds', () => {
-    const result = analyze('client { state count = 0 }');
+  test('state inside browser block succeeds', () => {
+    const result = analyze('browser { state count = 0 }');
     expect(result).toBeDefined();
   });
 
-  test('state outside client block is treated as identifier (contextual keyword)', () => {
-    // state is a contextual keyword - only special inside client blocks,
+  test('state outside browser block is treated as identifier (contextual keyword)', () => {
+    // state is a contextual keyword - only special inside browser blocks,
     // in server blocks it's treated as a regular identifier
     const result = analyze('server { state count = 0 }');
     expect(result).toBeDefined();
   });
 
-  test('duplicate state name in client block throws', () => {
-    expect(analyzeThrows('client { state count = 0\nstate count = 1 }')).toThrow(/already defined/);
+  test('duplicate state name in browser block throws', () => {
+    expect(analyzeThrows('browser { state count = 0\nstate count = 1 }')).toThrow(/already defined/);
   });
 });
 
 // ─── 16. Computed declaration (Line 454) ────────────────────────
 
 describe('ComputedDeclaration analysis', () => {
-  test('computed inside client block succeeds', () => {
-    const result = analyze('client { state count = 0\ncomputed doubled = count * 2 }');
+  test('computed inside browser block succeeds', () => {
+    const result = analyze('browser { state count = 0\ncomputed doubled = count * 2 }');
     expect(result).toBeDefined();
   });
 
-  test('computed outside client block is treated as identifier (contextual keyword)', () => {
-    // computed is a contextual keyword - only special inside client blocks,
+  test('computed outside browser block is treated as identifier (contextual keyword)', () => {
+    // computed is a contextual keyword - only special inside browser blocks,
     // in server blocks it's treated as a regular identifier
     const result = analyze('server { computed x = 1 }');
     expect(result).toBeDefined();
   });
 
   test('duplicate computed name throws', () => {
-    expect(analyzeThrows('client { computed a = 1\ncomputed a = 2 }')).toThrow(/already defined/);
+    expect(analyzeThrows('browser { computed a = 1\ncomputed a = 2 }')).toThrow(/already defined/);
   });
 });
 
-// ─── 17. Component outside client (Line 476) ────────────────────
+// ─── 17. Component outside browser (Line 476) ────────────────────
 
 describe('ComponentDeclaration analysis', () => {
-  test('component inside client block succeeds', () => {
-    const result = analyze('client { component App { <div>"Hello"</div> } }');
+  test('component inside browser block succeeds', () => {
+    const result = analyze('browser { component App { <div>"Hello"</div> } }');
     expect(result).toBeDefined();
   });
 
-  test('component outside client block throws (at parse level for server)', () => {
-    // component is only parsed as a special statement inside client blocks,
+  test('component outside browser block throws (at parse level for server)', () => {
+    // component is only parsed as a special statement inside browser blocks,
     // so putting it in a server block causes a parse error
     expect(() => analyze('server { component App { <div>"Hello"</div> } }')).toThrow();
   });
 
   test('duplicate component name throws', () => {
-    expect(analyzeThrows('client { component App { <div>"a"</div> }\ncomponent App { <div>"b"</div> } }')).toThrow(/already defined/);
+    expect(analyzeThrows('browser { component App { <div>"a"</div> }\ncomponent App { <div>"b"</div> } }')).toThrow(/already defined/);
   });
 });
 
@@ -285,17 +285,17 @@ describe('ComponentDeclaration analysis', () => {
 
 describe('Component params analysis', () => {
   test('component with params succeeds', () => {
-    const result = analyze('client { component Card(title, body) { <div>"test"</div> } }');
+    const result = analyze('browser { component Card(title, body) { <div>"test"</div> } }');
     expect(result).toBeDefined();
   });
 
   test('component with typed params succeeds', () => {
-    const result = analyze('client { component Card(title: String) { <div>"test"</div> } }');
+    const result = analyze('browser { component Card(title: String) { <div>"test"</div> } }');
     expect(result).toBeDefined();
   });
 
   test('duplicate component param throws', () => {
-    expect(analyzeThrows('client { component Bad(x, x) { <div>"test"</div> } }')).toThrow(/already defined/);
+    expect(analyzeThrows('browser { component Bad(x, x) { <div>"test"</div> } }')).toThrow(/already defined/);
   });
 });
 
@@ -386,32 +386,32 @@ describe('Dict comprehension analysis (full)', () => {
 
 describe('JSX element analysis', () => {
   test('JSX with attribute analyzes successfully', () => {
-    const result = analyze('client { component App { <div class="main">"hello"</div> } }');
+    const result = analyze('browser { component App { <div class="main">"hello"</div> } }');
     expect(result).toBeDefined();
   });
 
   test('JSX with if condition analyzes successfully', () => {
-    const result = analyze('client { component App { <div>if true { <span>"yes"</span> }</div> } }');
+    const result = analyze('browser { component App { <div>if true { <span>"yes"</span> }</div> } }');
     expect(result).toBeDefined();
   });
 
   test('JSX with if/else condition analyzes successfully', () => {
-    const result = analyze('client { component App { <div>if true { <span>"yes"</span> } else { <span>"no"</span> }</div> } }');
+    const result = analyze('browser { component App { <div>if true { <span>"yes"</span> } else { <span>"no"</span> }</div> } }');
     expect(result).toBeDefined();
   });
 
   test('JSX with for loop analyzes successfully', () => {
-    const result = analyze('client { component App { <ul>for item in items { <li>"item"</li> }</ul> } }');
+    const result = analyze('browser { component App { <ul>for item in items { <li>"item"</li> }</ul> } }');
     expect(result).toBeDefined();
   });
 
   test('JSX with expression child analyzes successfully', () => {
-    const result = analyze('client { component App { <div>{name}</div> } }');
+    const result = analyze('browser { component App { <div>{name}</div> } }');
     expect(result).toBeDefined();
   });
 
   test('JSX with dynamic attribute analyzes successfully', () => {
-    const result = analyze('client { component App { <div class={cls}>"hello"</div> } }');
+    const result = analyze('browser { component App { <div class={cls}>"hello"</div> } }');
     expect(result).toBeDefined();
   });
 });
@@ -554,13 +554,13 @@ describe('Additional analyzer coverage', () => {
     expect(result).toBeDefined();
   });
 
-  test('effect declaration in client block', () => {
-    const result = analyze('client { effect { x = 1 } }');
+  test('effect declaration in browser block', () => {
+    const result = analyze('browser { effect { x = 1 } }');
     expect(result).toBeDefined();
   });
 
-  test('effect outside client block throws (at parse level for server)', () => {
-    // effect is only parsed as a special statement inside client blocks,
+  test('effect outside browser block throws (at parse level for server)', () => {
+    // effect is only parsed as a special statement inside browser blocks,
     // so putting it in a server block causes a parse error
     expect(() => analyze('server { effect { x = 1 } }')).toThrow();
   });
@@ -572,8 +572,8 @@ describe('Additional analyzer coverage', () => {
 
   test('route outside server block throws (at parse level for client)', () => {
     // route is only parsed as a special statement inside server blocks,
-    // so putting it in a client block causes a parse error
-    expect(() => analyze('client { route get "/test" => handler }')).toThrow();
+    // so putting it in a browser block causes a parse error
+    expect(() => analyze('browser { route get "/test" => handler }')).toThrow();
   });
 
   test('block statement creates child scope', () => {
@@ -612,12 +612,12 @@ describe('Additional analyzer coverage', () => {
   });
 
   test('nested JSX elements', () => {
-    const result = analyze('client { component App { <div><span>"hello"</span></div> } }');
+    const result = analyze('browser { component App { <div><span>"hello"</span></div> } }');
     expect(result).toBeDefined();
   });
 
   test('self-closing JSX element', () => {
-    const result = analyze('client { component App { <div><br />"hello"</div> } }');
+    const result = analyze('browser { component App { <div><br />"hello"</div> } }');
     expect(result).toBeDefined();
   });
 

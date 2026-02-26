@@ -467,8 +467,8 @@ describe('Security block codegen', () => {
 // Client codegen tests
 // ════════════════════════════════════════════════════════════
 
-describe('Security block client codegen', () => {
-  test('auth generates token helpers on client', () => {
+describe('Security block browser codegen', () => {
+  test('auth generates token helpers on browser', () => {
     const result = compile(`
       security {
         auth jwt {
@@ -480,17 +480,17 @@ describe('Security block client codegen', () => {
           "hello"
         }
       }
-      client {
+      browser {
         state greeting = "hello"
       }
     `);
-    expect(result.client).toContain('getAuthToken');
-    expect(result.client).toContain('setAuthToken');
-    expect(result.client).toContain('clearAuthToken');
-    expect(result.client).toContain('addRPCInterceptor');
+    expect(result.browser).toContain('getAuthToken');
+    expect(result.browser).toContain('setAuthToken');
+    expect(result.browser).toContain('clearAuthToken');
+    expect(result.browser).toContain('addRPCInterceptor');
   });
 
-  test('roles generate can() helper on client', () => {
+  test('roles generate can() helper on browser', () => {
     const result = compile(`
       security {
         role Admin {
@@ -505,14 +505,14 @@ describe('Security block client codegen', () => {
           "hello"
         }
       }
-      client {
+      browser {
         state greeting = "hello"
       }
     `);
-    expect(result.client).toContain('can(');
-    expect(result.client).toContain('setUserRole');
-    expect(result.client).toContain('getUserRole');
-    expect(result.client).toContain('__clientRoles');
+    expect(result.browser).toContain('can(');
+    expect(result.browser).toContain('setUserRole');
+    expect(result.browser).toContain('getUserRole');
+    expect(result.browser).toContain('__browserRoles');
   });
 });
 
@@ -1236,11 +1236,11 @@ describe('Security block codegen — additional coverage', () => {
 });
 
 // ════════════════════════════════════════════════════════════
-// Additional client codegen tests
+// Additional browser codegen tests
 // ════════════════════════════════════════════════════════════
 
-describe('Security block client codegen — additional', () => {
-  test('auth + roles together on client', () => {
+describe('Security block browser codegen — additional', () => {
+  test('auth + roles together on browser', () => {
     const result = compile(`
       security {
         auth jwt { secret: "s" }
@@ -1250,22 +1250,22 @@ describe('Security block client codegen — additional', () => {
       server {
         GET "/hello" fn(req) { "hello" }
       }
-      client {
+      browser {
         state x = 1
       }
     `);
-    expect(result.client).toContain('getAuthToken');
-    expect(result.client).toContain('setAuthToken');
-    expect(result.client).toContain('clearAuthToken');
-    expect(result.client).toContain('addRPCInterceptor');
-    expect(result.client).toContain('can(');
-    expect(result.client).toContain('setUserRole');
-    expect(result.client).toContain('__clientRoles');
-    expect(result.client).toContain('"Admin"');
-    expect(result.client).toContain('"User"');
+    expect(result.browser).toContain('getAuthToken');
+    expect(result.browser).toContain('setAuthToken');
+    expect(result.browser).toContain('clearAuthToken');
+    expect(result.browser).toContain('addRPCInterceptor');
+    expect(result.browser).toContain('can(');
+    expect(result.browser).toContain('setUserRole');
+    expect(result.browser).toContain('__browserRoles');
+    expect(result.browser).toContain('"Admin"');
+    expect(result.browser).toContain('"User"');
   });
 
-  test('only roles (no auth) on client — no auth helpers', () => {
+  test('only roles (no auth) on browser — no auth helpers', () => {
     const result = compile(`
       security {
         role Admin { can: [manage] }
@@ -1273,17 +1273,17 @@ describe('Security block client codegen — additional', () => {
       server {
         GET "/hello" fn(req) { "hello" }
       }
-      client {
+      browser {
         state x = 1
       }
     `);
-    expect(result.client).not.toContain('getAuthToken');
-    expect(result.client).not.toContain('setAuthToken');
-    expect(result.client).toContain('can(');
-    expect(result.client).toContain('setUserRole');
+    expect(result.browser).not.toContain('getAuthToken');
+    expect(result.browser).not.toContain('setAuthToken');
+    expect(result.browser).toContain('can(');
+    expect(result.browser).toContain('setUserRole');
   });
 
-  test('only auth (no roles) on client — no can() helper', () => {
+  test('only auth (no roles) on browser — no can() helper', () => {
     const result = compile(`
       security {
         auth jwt { secret: "s" }
@@ -1291,17 +1291,17 @@ describe('Security block client codegen — additional', () => {
       server {
         GET "/hello" fn(req) { "hello" }
       }
-      client {
+      browser {
         state x = 1
       }
     `);
-    expect(result.client).toContain('getAuthToken');
-    expect(result.client).toContain('clearAuthToken');
-    expect(result.client).not.toContain('can(');
-    expect(result.client).not.toContain('setUserRole');
+    expect(result.browser).toContain('getAuthToken');
+    expect(result.browser).toContain('clearAuthToken');
+    expect(result.browser).not.toContain('can(');
+    expect(result.browser).not.toContain('setUserRole');
   });
 
-  test('client role permissions match server definitions', () => {
+  test('browser role permissions match server definitions', () => {
     const result = compile(`
       security {
         role Admin { can: [manage_users, view_reports] }
@@ -1310,27 +1310,27 @@ describe('Security block client codegen — additional', () => {
       server {
         GET "/hello" fn(req) { "hello" }
       }
-      client {
+      browser {
         state x = 1
       }
     `);
-    expect(result.client).toContain('"manage_users"');
-    expect(result.client).toContain('"view_reports"');
-    expect(result.client).toContain('"view_profile"');
+    expect(result.browser).toContain('"manage_users"');
+    expect(result.browser).toContain('"view_reports"');
+    expect(result.browser).toContain('"view_profile"');
   });
 
-  test('no security block — no security code on client', () => {
+  test('no security block — no security code on browser', () => {
     const result = compile(`
       server {
         GET "/hello" fn(req) { "hello" }
       }
-      client {
+      browser {
         state x = 1
       }
     `);
-    expect(result.client).not.toContain('getAuthToken');
-    expect(result.client).not.toContain('can(');
-    expect(result.client).not.toContain('__clientRoles');
+    expect(result.browser).not.toContain('getAuthToken');
+    expect(result.browser).not.toContain('can(');
+    expect(result.browser).not.toContain('__browserRoles');
   });
 });
 
@@ -1397,7 +1397,7 @@ describe('Security block integration — additional', () => {
     expect(result.server).toContain('__rateLimitWindow = 60');
   });
 
-  test('security + server + client all together', () => {
+  test('security + server + browser all together', () => {
     const result = compile(`
       shared {
         type User {
@@ -1415,7 +1415,7 @@ describe('Security block integration — additional', () => {
       server {
         GET "/api/users" fn(req) { "users" }
       }
-      client {
+      browser {
         state greeting = "hello"
       }
     `);
@@ -1424,8 +1424,8 @@ describe('Security block integration — additional', () => {
     expect(result.server).toContain('__securityRoles');
     expect(result.server).toContain('__checkProtection');
     expect(result.server).toContain('__corsOrigins');
-    expect(result.client).toContain('getAuthToken');
-    expect(result.client).toContain('can(');
+    expect(result.browser).toContain('getAuthToken');
+    expect(result.browser).toContain('can(');
   });
 
   test('multiple security blocks are merged', () => {
@@ -1439,18 +1439,18 @@ describe('Security block integration — additional', () => {
       server {
         GET "/hello" fn(req) { "hello" }
       }
-      client {
+      browser {
         state x = 1
       }
     `);
     // Both should be present
     expect(result.server).toContain('__authenticate');
     expect(result.server).toContain('__securityRoles');
-    expect(result.client).toContain('getAuthToken');
-    expect(result.client).toContain('can(');
+    expect(result.browser).toContain('getAuthToken');
+    expect(result.browser).toContain('can(');
   });
 
-  test('security block alone with no server/client does not crash', () => {
+  test('security block alone with no server/browser does not crash', () => {
     const result = compile(`
       security {
         auth jwt { secret: "s" }
@@ -1459,12 +1459,12 @@ describe('Security block integration — additional', () => {
     `);
     // Module mode since no blocks besides security
     // Security block is counted as a block so it prevents module mode,
-    // but no server/client output is generated
+    // but no server/browser output is generated
     expect(result.server).toBe('');
-    expect(result.client).toBe('');
+    expect(result.browser).toBe('');
   });
 
-  test('security block with only server (no client) — no client crash', () => {
+  test('security block with only server (no browser) — no browser crash', () => {
     const result = compile(`
       security {
         auth jwt { secret: "s" }
@@ -1476,7 +1476,7 @@ describe('Security block integration — additional', () => {
     `);
     expect(result.server).toContain('__authenticate');
     expect(result.server).toContain('__securityRoles');
-    expect(result.client).toBe('');
+    expect(result.browser).toBe('');
   });
 
   test('security cors without inline cors uses security config', () => {
@@ -1866,15 +1866,15 @@ describe('Multi-role support', () => {
       server {
         GET "/test" fn(req) { "ok" }
       }
-      client {
+      browser {
         state x = 0
       }
     `);
-    expect(result.client).toContain('Array.isArray(role) ? role : [role]');
-    expect(result.client).toContain('__currentUserRoles');
+    expect(result.browser).toContain('Array.isArray(role) ? role : [role]');
+    expect(result.browser).toContain('__currentUserRoles');
   });
 
-  test('client can() checks permissions across multiple roles', () => {
+  test('browser can() checks permissions across multiple roles', () => {
     const result = compile(`
       security {
         auth jwt { secret: "s" }
@@ -1884,11 +1884,11 @@ describe('Multi-role support', () => {
       server {
         GET "/test" fn(req) { "ok" }
       }
-      client {
+      browser {
         state x = 0
       }
     `);
-    expect(result.client).toContain('for (const r of __currentUserRoles)');
+    expect(result.browser).toContain('for (const r of __currentUserRoles)');
   });
 
   test('audit log captures roles array', () => {
@@ -1908,7 +1908,7 @@ describe('Multi-role support', () => {
 });
 
 describe('HttpOnly cookie auth', () => {
-  test('auth with storage: "cookie" generates cookie-based client auth', () => {
+  test('auth with storage: "cookie" generates cookie-based browser auth', () => {
     const result = compile(`
       security {
         auth jwt {
@@ -1920,19 +1920,19 @@ describe('HttpOnly cookie auth', () => {
       server {
         GET "/test" fn(req) { "ok" }
       }
-      client {
+      browser {
         state x = 0
       }
     `);
     // Client should NOT use localStorage
-    expect(result.client).not.toContain('localStorage');
+    expect(result.browser).not.toContain('localStorage');
     // Client should use credentials: include
-    expect(result.client).toContain('credentials');
-    expect(result.client).toContain('include');
+    expect(result.browser).toContain('credentials');
+    expect(result.browser).toContain('include');
     // Client should have logout via fetch
-    expect(result.client).toContain('/rpc/__logout');
+    expect(result.browser).toContain('/rpc/__logout');
     // getAuthToken returns null (cookie is HttpOnly)
-    expect(result.client).toContain('return null');
+    expect(result.browser).toContain('return null');
   });
 
   test('server with storage: "cookie" reads token from cookie', () => {
@@ -2013,12 +2013,12 @@ describe('HttpOnly cookie auth', () => {
       server {
         GET "/test" fn(req) { "ok" }
       }
-      client {
+      browser {
         state x = 0
       }
     `);
-    expect(result.client).toContain('localStorage');
-    expect(result.client).not.toContain('credentials');
+    expect(result.browser).toContain('localStorage');
+    expect(result.browser).not.toContain('credentials');
   });
 
   test('cookie auth respects expires for Max-Age', () => {
@@ -2288,14 +2288,14 @@ describe('RPC interceptor API correctness', () => {
       server {
         GET "/test" fn(req) { "ok" }
       }
-      client {
+      browser {
         state x = 0
       }
     `);
     // Should use object-style interceptor with request method
-    expect(result.client).toContain('request({');
-    expect(result.client).toContain('options.headers');
-    expect(result.client).toContain('return options');
+    expect(result.browser).toContain('request({');
+    expect(result.browser).toContain('options.headers');
+    expect(result.browser).toContain('return options');
   });
 });
 
@@ -2701,7 +2701,7 @@ describe('Fix 7: W_CORS_WILDCARD warning', () => {
 });
 
 describe('Fix 8: Client-side can() advisory comment', () => {
-  test('client roles section includes advisory comment', () => {
+  test('browser roles section includes advisory comment', () => {
     const result = compile(`
       security {
         role Admin { can: [manage] }
@@ -2709,12 +2709,12 @@ describe('Fix 8: Client-side can() advisory comment', () => {
       server {
         GET "/test" fn(req) { "ok" }
       }
-      client {
+      browser {
         state x = 0
       }
     `);
-    expect(result.client).toContain('Client-side role checking is for UI purposes only');
-    expect(result.client).toContain('authorization is enforced server-side');
+    expect(result.browser).toContain('Client-side role checking is for UI purposes only');
+    expect(result.browser).toContain('authorization is enforced server-side');
   });
 });
 

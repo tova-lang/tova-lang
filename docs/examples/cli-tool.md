@@ -286,7 +286,7 @@ tova run cli.tova parse-env .env
 
 ### No Server or Client Blocks
 
-This is a pure script — no `server {}`, no `client {}`, no `shared {}`. Tova works as a standalone scripting language. The `main(args)` function is the entry point, receiving command-line arguments as an array.
+This is a pure script — no `server {}`, no `browser {}`, no `shared {}`. Tova works as a standalone scripting language. The `main(args)` function is the entry point, receiving command-line arguments as an array.
 
 ### Argument Dispatch with If/Elif
 

@@ -3,7 +3,7 @@
 
 import { BlockRegistry } from './block-registry.js';
 import { serverPlugin } from './plugins/server-plugin.js';
-import { clientPlugin } from './plugins/client-plugin.js';
+import { browserPlugin } from './plugins/browser-plugin.js';
 import { sharedPlugin } from './plugins/shared-plugin.js';
 import { securityPlugin } from './plugins/security-plugin.js';
 import { cliPlugin } from './plugins/cli-plugin.js';
@@ -12,7 +12,7 @@ import { testPlugin } from './plugins/test-plugin.js';
 import { benchPlugin } from './plugins/bench-plugin.js';
 
 BlockRegistry.register(serverPlugin);
-BlockRegistry.register(clientPlugin);
+BlockRegistry.register(browserPlugin);
 BlockRegistry.register(sharedPlugin);
 BlockRegistry.register(securityPlugin);
 BlockRegistry.register(cliPlugin);
