@@ -1,10 +1,13 @@
 // Tests for bug fixes — regression tests to prevent reintroduction
 
 import { describe, test, expect, beforeAll } from 'bun:test';
+import path from 'path';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
+
+const ROOT = path.resolve(import.meta.dir, '..');
 
 function parse(src) {
   const lexer = new Lexer(src, '<test>');
@@ -163,7 +166,7 @@ describe('LSP: signature help', () => {
 describe('CLI: async function calls', () => {
   test('buildProject and devServer are awaited in main', async () => {
     const fs = await import('fs');
-    const cliSource = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/bin/tova.js', 'utf-8');
+    const cliSource = fs.readFileSync(path.join(ROOT, 'bin', 'tova.js'), 'utf-8');
     // Verify the awaits are present
     expect(cliSource).toContain('await buildProject(');
     expect(cliSource).toContain('await devServer(');
@@ -175,7 +178,7 @@ describe('CLI: async function calls', () => {
 describe('CLI: migration INSERT', () => {
   test('migration uses db.query for parameterized INSERT', async () => {
     const fs = await import('fs');
-    const cliSource = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/bin/tova.js', 'utf-8');
+    const cliSource = fs.readFileSync(path.join(ROOT, 'bin', 'tova.js'), 'utf-8');
     // Should use db.query for INSERT INTO __migrations (supports parameters)
     expect(cliSource).toContain('await db.query(`INSERT INTO __migrations');
     // Should NOT use db.exec for parameterized INSERT
@@ -188,7 +191,7 @@ describe('CLI: migration INSERT', () => {
 describe('LSP: diagnostic positions', () => {
   test('error diagnostic end character uses 0-based columns', async () => {
     const fs = await import('fs');
-    const lspSource = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/lsp/server.js', 'utf-8');
+    const lspSource = fs.readFileSync(path.join(ROOT, 'src', 'lsp', 'server.js'), 'utf-8');
     // Both start and end character should subtract 1 for 0-based LSP positions
     // The fix changes (e.column || 1) + 10 to (e.column || 1) - 1 + 10
     expect(lspSource).toContain('character: (e.column || 1) - 1 + 10');
@@ -201,7 +204,7 @@ describe('LSP: diagnostic positions', () => {
 describe('reactivity: watch untrack', () => {
   test('watch callback is wrapped in untrack', async () => {
     const fs = await import('fs');
-    const reactivitySource = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/runtime/reactivity.js', 'utf-8');
+    const reactivitySource = fs.readFileSync(path.join(ROOT, 'src', 'runtime', 'reactivity.js'), 'utf-8');
     // The callback invocations should be wrapped in untrack()
     expect(reactivitySource).toContain('untrack(() => callback(newValue, oldValue))');
     expect(reactivitySource).toContain('untrack(() => callback(newValue, undefined))');
@@ -213,7 +216,7 @@ describe('reactivity: watch untrack', () => {
 describe('reactivity: style object cleanup', () => {
   test('style handling removes old properties', async () => {
     const fs = await import('fs');
-    const reactivitySource = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/runtime/reactivity.js', 'utf-8');
+    const reactivitySource = fs.readFileSync(path.join(ROOT, 'src', 'runtime', 'reactivity.js'), 'utf-8');
     // Should contain removeProperty logic for old style props
     expect(reactivitySource).toContain('el.style.removeProperty(prop)');
   });
@@ -224,7 +227,7 @@ describe('reactivity: style object cleanup', () => {
 describe('codegen: _containsRPC AST property names', () => {
   test('_containsRPC uses tryBody/catchBody/finallyBody (not tryBlock/catchBlock/finallyBlock)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'codegen', 'browser-codegen.js'), 'utf-8');
     // Should use correct AST property names for TryCatchStatement
     expect(src).toContain('node.tryBody');
     expect(src).toContain('node.catchBody');
@@ -237,21 +240,21 @@ describe('codegen: _containsRPC AST property names', () => {
 
   test('_containsRPC uses elseBody for GuardStatement (not elseBlock)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'codegen', 'browser-codegen.js'), 'utf-8');
     // GuardStatement line should use elseBody
     expect(src).not.toContain('node.elseBlock');
   });
 
   test('_containsRPC uses p.value for TemplateLiteral parts (not p.expression)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'codegen', 'browser-codegen.js'), 'utf-8');
     // TemplateLiteral parts use .value not .expression
     expect(src).toContain("this._containsRPC(p.value)");
   });
 
   test('_containsRPC checks IfExpression alternates', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'codegen', 'browser-codegen.js'), 'utf-8');
     // IfExpression should check alternates for RPC
     const ifExprSection = src.slice(src.indexOf("if (node.type === 'IfExpression')"));
     expect(ifExprSection).toContain('node.alternates');
@@ -263,7 +266,7 @@ describe('codegen: _containsRPC AST property names', () => {
 describe('codegen: _exprReadsSignal IfExpression alternates', () => {
   test('_exprReadsSignal checks IfExpression alternates', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/codegen/browser-codegen.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'codegen', 'browser-codegen.js'), 'utf-8');
     // Find the _exprReadsSignal method's IfExpression handling
     const signalMethod = src.slice(src.indexOf('_exprReadsSignal'));
     const ifExprSection = signalMethod.slice(signalMethod.indexOf("if (node.type === 'IfExpression')"));
@@ -343,7 +346,7 @@ describe('analyzer: await in non-async lambdas', () => {
 describe('reactivity: ErrorBoundary _errorHandler', () => {
   test('ErrorBoundary stores _errorHandler on the vnode for __dynamic handler', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/runtime/reactivity.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'runtime', 'reactivity.js'), 'utf-8');
     // Should set _errorHandler on the vnode so __dynamic can use it
     expect(src).toContain('_errorHandler: handleError');
     // Should NOT push/pop error handler around childContent creation (old buggy pattern)
@@ -357,7 +360,7 @@ describe('reactivity: ErrorBoundary _errorHandler', () => {
 
   test('__dynamic handler pushes _errorHandler during render cycle', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/runtime/reactivity.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'runtime', 'reactivity.js'), 'utf-8');
     // The __dynamic handler should push error handler if present
     expect(src).toContain('if (errHandler) pushErrorHandler(errHandler)');
     expect(src).toContain('if (errHandler) popErrorHandler()');
@@ -369,7 +372,7 @@ describe('reactivity: ErrorBoundary _errorHandler', () => {
 describe('reactivity: lazy component', () => {
   test('lazy compute checks resolved variable directly', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/runtime/reactivity.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'runtime', 'reactivity.js'), 'utf-8');
     // The compute function should check `resolved` directly rather than relying on a signal
     const lazyStart = src.indexOf('function lazy(');
     const lazyEnd = src.indexOf('\n}', src.indexOf('return function LazyWrapper', lazyStart) + 100);
@@ -477,7 +480,7 @@ describe('analyzer: ObjectLiteral property keys', () => {
 describe('LSP: Buffer-based transport', () => {
   test('LSP server uses Buffer for _buffer (not string)', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/lsp/server.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'lsp', 'server.js'), 'utf-8');
     // Should use Buffer.alloc(0) for initial buffer, not empty string
     expect(src).toContain('this._buffer = Buffer.alloc(0)');
     // Should NOT set string encoding on stdin (causes byte/char mismatch)
@@ -495,7 +498,7 @@ describe('LSP: Buffer-based transport', () => {
 describe('LSP: nested call signature help', () => {
   test('signature help uses paren-depth walk for function identification', async () => {
     const fs = await import('fs');
-    const src = fs.readFileSync('/Users/macm1/new-y-combinator/lux-lang/src/lsp/server.js', 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'lsp', 'server.js'), 'utf-8');
     // Should walk backwards counting parens, not use a flat regex
     expect(src).not.toContain("/(\\'\\w+)\\s*\\([^)]*$/");
     // Should count commas at depth 0 (not all commas)
