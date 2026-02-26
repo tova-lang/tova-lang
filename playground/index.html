@@ -3235,9 +3235,440 @@ class RefinementType {
   }
 }
 
+// ─── src/parser/security-ast.js ────────────────────────
+
+// Security-specific AST Node definitions for the Tova language
+// Extracted for lazy loading — only loaded when security { } blocks are used.
+class SecurityAuthDeclaration {
+  constructor(authType, config, loc) {
+    this.type = 'SecurityAuthDeclaration';
+    this.authType = authType; // "jwt" or "api_key"
+    this.config = config;     // { secret, expires, ... }
+    this.loc = loc;
+  }
+}
+class SecurityRoleDeclaration {
+  constructor(name, permissions, loc) {
+    this.type = 'SecurityRoleDeclaration';
+    this.name = name;           // string — role name, e.g. "Admin"
+    this.permissions = permissions; // Array of strings — permission names
+    this.loc = loc;
+  }
+}
+class SecurityProtectDeclaration {
+  constructor(pattern, config, loc) {
+    this.type = 'SecurityProtectDeclaration';
+    this.pattern = pattern;     // string — route pattern, e.g. "/api/admin/*"
+    this.config = config;       // { require, rate_limit: { max, window } }
+    this.loc = loc;
+  }
+}
+class SecuritySensitiveDeclaration {
+  constructor(typeName, fieldName, config, loc) {
+    this.type = 'SecuritySensitiveDeclaration';
+    this.typeName = typeName;   // string — type name, e.g. "User"
+    this.fieldName = fieldName; // string — field name, e.g. "password"
+    this.config = config;       // { hash, never_expose, visible_to }
+    this.loc = loc;
+  }
+}
+class SecurityCorsDeclaration {
+  constructor(config, loc) {
+    this.type = 'SecurityCorsDeclaration';
+    this.config = config;       // { origins, methods, credentials }
+    this.loc = loc;
+  }
+}
+class SecurityCspDeclaration {
+  constructor(config, loc) {
+    this.type = 'SecurityCspDeclaration';
+    this.config = config;       // { default_src, script_src, style_src, ... }
+    this.loc = loc;
+  }
+}
+class SecurityRateLimitDeclaration {
+  constructor(config, loc) {
+    this.type = 'SecurityRateLimitDeclaration';
+    this.config = config;       // { max, window }
+    this.loc = loc;
+  }
+}
+class SecurityCsrfDeclaration {
+  constructor(config, loc) {
+    this.type = 'SecurityCsrfDeclaration';
+    this.config = config;       // { enabled, exempt }
+    this.loc = loc;
+  }
+}
+class SecurityAuditDeclaration {
+  constructor(config, loc) {
+    this.type = 'SecurityAuditDeclaration';
+    this.config = config;       // { events, store, retain }
+    this.loc = loc;
+  }
+}
+class SecurityTrustProxyDeclaration {
+  constructor(value, loc) {
+    this.type = 'SecurityTrustProxyDeclaration';
+    this.value = value;         // true | false | "loopback"
+    this.loc = loc;
+  }
+}
+class SecurityHstsDeclaration {
+  constructor(config, loc) {
+    this.type = 'SecurityHstsDeclaration';
+    this.config = config;       // { enabled, max_age, include_subdomains, preload }
+    this.loc = loc;
+  }
+}
+
+// ─── src/parser/cli-ast.js ─────────────────────────────
+
+// CLI-specific AST Node definitions for the Tova language
+// Extracted for lazy loading — only loaded when cli { } blocks are used.
+class CliConfigField {
+  constructor(key, value, loc) {
+    this.type = 'CliConfigField';
+    this.key = key;       // string — "name", "version", "description"
+    this.value = value;   // Expression (StringLiteral, etc.)
+    this.loc = loc;
+  }
+}
+class CliCommandDeclaration {
+  constructor(name, params, body, isAsync, loc) {
+    this.type = 'CliCommandDeclaration';
+    this.name = name;       // string — command name
+    this.params = params;   // Array of CliParam
+    this.body = body;       // BlockStatement
+    this.isAsync = isAsync; // boolean
+    this.loc = loc;
+  }
+}
+class CliParam {
+  constructor(name, typeAnnotation, defaultValue, isFlag, isOptional, isRepeated, loc) {
+    this.type = 'CliParam';
+    this.name = name;               // string — parameter name
+    this.typeAnnotation = typeAnnotation; // string or null — "String", "Int", "Float", "Bool"
+    this.defaultValue = defaultValue;     // Expression or null
+    this.isFlag = isFlag;           // boolean — prefixed with --
+    this.isOptional = isOptional;   // boolean — Type? suffix
+    this.isRepeated = isRepeated;   // boolean — [Type] array flag
+    this.loc = loc;
+  }
+}
+
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam };
+
+// ─── src/diagnostics/error-codes.js ────────────────────
+
+// Tova Diagnostic Error Codes Registry
+// Every diagnostic has a unique code: E### for errors, W### for warnings
+
+// ─── Error Codes ─────────────────────────────────────────────
+const ErrorCode = {
+  // === Syntax / Parse Errors (E001–E099) ===
+  E001: { code: 'E001', title: 'Unexpected token',           category: 'syntax' },
+  E002: { code: 'E002', title: 'Unterminated string',        category: 'syntax' },
+  E003: { code: 'E003', title: 'Expected closing delimiter', category: 'syntax' },
+  E004: { code: 'E004', title: 'Invalid number literal',     category: 'syntax' },
+  E005: { code: 'E005', title: 'Unexpected character',       category: 'syntax' },
+  E006: { code: 'E006', title: 'Unterminated comment',       category: 'syntax' },
+  E007: { code: 'E007', title: 'Expected expression',        category: 'syntax' },
+  E008: { code: 'E008', title: 'Mismatched JSX tag',         category: 'syntax' },
+  E009: { code: 'E009', title: 'Invalid operator',           category: 'syntax' },
+  E010: { code: 'E010', title: 'Max nesting depth exceeded', category: 'syntax' },
+
+  // === Type Errors (E100–E199) ===
+  E100: { code: 'E100', title: 'Type mismatch',                  category: 'type' },
+  E101: { code: 'E101', title: 'Return type mismatch',           category: 'type' },
+  E102: { code: 'E102', title: 'Cannot assign to type',          category: 'type' },
+  E103: { code: 'E103', title: 'Invalid argument type',          category: 'type' },
+  E104: { code: 'E104', title: 'Incompatible operand types',     category: 'type' },
+  E105: { code: 'E105', title: 'Cannot apply operator to type',  category: 'type' },
+
+  // === Scope / Definition Errors (E200–E299) ===
+  E200: { code: 'E200', title: 'Undefined variable',             category: 'scope' },
+  E201: { code: 'E201', title: 'Duplicate definition',           category: 'scope' },
+  E202: { code: 'E202', title: 'Cannot reassign immutable',      category: 'scope' },
+  E203: { code: 'E203', title: 'Invalid redeclaration',          category: 'scope' },
+
+  // === Context Errors (E300–E399) ===
+  E300: { code: 'E300', title: 'Invalid context: await',         category: 'context' },
+  E301: { code: 'E301', title: 'Invalid context: return',        category: 'context' },
+  E302: { code: 'E302', title: 'Invalid context: browser-only',  category: 'context' },
+  E303: { code: 'E303', title: 'Invalid context: server-only',   category: 'context' },
+  E304: { code: 'E304', title: 'Invalid context: function-only', category: 'context' },
+
+  // === Import Errors (E400–E499) ===
+  E400: { code: 'E400', title: 'Invalid import',                 category: 'import' },
+  E401: { code: 'E401', title: 'Circular import',                category: 'import' },
+
+  // === Pattern Match Errors (E500–E599) ===
+  E500: { code: 'E500', title: 'Invalid pattern',                category: 'match' },
+
+  // === Trait / Impl Errors (E600–E699) ===
+  E600: { code: 'E600', title: 'Missing trait method',           category: 'trait' },
+  E601: { code: 'E601', title: 'Trait method signature mismatch', category: 'trait' },
+  E602: { code: 'E602', title: 'Unknown trait',                  category: 'trait' },
+};
+
+// ─── Warning Codes ───────────────────────────────────────────
+const WarningCode = {
+  // === Unused (W001–W099) ===
+  W001: { code: 'W001', title: 'Unused variable',            category: 'unused' },
+  W002: { code: 'W002', title: 'Unused function',            category: 'unused' },
+  W003: { code: 'W003', title: 'Unused import',              category: 'unused' },
+
+  // === Style (W100–W199) ===
+  W100: { code: 'W100', title: 'Naming convention violation', category: 'style' },
+  W101: { code: 'W101', title: 'Variable shadows outer',      category: 'style' },
+
+  // === Potential Bugs (W200–W299) ===
+  W200: { code: 'W200', title: 'Non-exhaustive match',        category: 'match' },
+  W201: { code: 'W201', title: 'Unreachable code',            category: 'logic' },
+  W202: { code: 'W202', title: 'Condition always true',       category: 'logic' },
+  W203: { code: 'W203', title: 'Condition always false',      category: 'logic' },
+  W204: { code: 'W204', title: 'Potential data loss',         category: 'type' },
+  W205: { code: 'W205', title: 'Missing return on some paths', category: 'logic' },
+  W206: { code: 'W206', title: 'Non-Tova keyword used',       category: 'style' },
+  W207: { code: 'W207', title: 'Unreachable match arm',       category: 'match' },
+  W208: { code: 'W208', title: 'Defer outside function',      category: 'context' },
+
+  // === Trait Conformance (W300–W399) ===
+  W300: { code: 'W300', title: 'Missing trait method',        category: 'trait' },
+  W301: { code: 'W301', title: 'Trait parameter mismatch',    category: 'trait' },
+  W302: { code: 'W302', title: 'Trait return type mismatch',  category: 'trait' },
+  W303: { code: 'W303', title: 'Unknown derive trait',        category: 'trait' },
+};
+
+// ─── Lookup maps ─────────────────────────────────────────────
+
+const _allCodes = new Map();
+for (const entry of Object.values(ErrorCode)) _allCodes.set(entry.code, entry);
+for (const entry of Object.values(WarningCode)) _allCodes.set(entry.code, entry);
+function lookupCode(code) {
+  return _allCodes.get(code) || null;
+}
+function isErrorCode(code) {
+  return code.startsWith('E');
+}
+function isWarningCode(code) {
+  return code.startsWith('W');
+}
+
+// ─── tova-ignore comment parsing ─────────────────────────────
+
+const IGNORE_PATTERN = /\/\/\s*tova-ignore\s+((?:[EW]\d{3}(?:\s*,\s*)?)+)/;
+function parseIgnoreComment(line) {
+  const match = line.match(IGNORE_PATTERN);
+  if (!match) return null;
+  return match[1].split(',').map(c => c.trim()).filter(c => c);
+}
+
+// ─── Explanation text for --explain flag ─────────────────────
+
+const EXPLANATIONS = {
+  E001: `
+Unexpected token in source code.
+
+This error occurs when the parser encounters a token it doesn't expect
+in the current context.
+
+Example:
+    fn foo() {
+        x = 1 +
+    }            // error: unexpected '}', expected expression after '+'
+
+Fix: complete the expression or remove the trailing operator.
+`,
+  E100: `
+Type mismatch between expected and actual types.
+
+This error occurs when a value of one type is used where a different
+type is expected.
+
+Example:
+    fn add(a: Int, b: Int) -> Int {
+        return a + b
+    }
+    add("hello", 5)  // error: expected Int, got String
+
+Fix: ensure the value matches the expected type, or use a conversion
+function like to_int(), to_string(), etc.
+`,
+  E200: `
+Reference to an undefined variable or function.
+
+This error occurs when you use a name that hasn't been defined in the
+current scope or any parent scope.
+
+Example:
+    print(foo)  // error: 'foo' is not defined
+
+Fix: define the variable before using it, or check for typos.
+`,
+  E202: `
+Attempt to reassign an immutable variable.
+
+In Tova, variables bound with '=' are immutable by default. Use 'var'
+to create a mutable variable.
+
+Example:
+    x = 5
+    x = 10     // error: cannot reassign immutable variable 'x'
+
+    var y = 5
+    y = 10     // ok: 'var' makes it mutable
+
+Fix: change the declaration to 'var x = 5' if you need mutability.
+`,
+  E300: `
+'await' used outside an async function.
+
+The 'await' keyword can only be used inside functions declared with
+the 'async' keyword.
+
+Example:
+    fn fetch_data() {
+        data = await fetch("/api")  // error: await outside async
+
+    }
+
+    async fn fetch_data() {
+        data = await fetch("/api")  // ok
+    }
+
+Fix: add 'async' to the enclosing function declaration.
+`,
+  E302: `
+Client-only feature used outside a client block.
+
+Features like 'state', 'computed', 'effect', 'component', and 'store'
+can only be used inside a client { } block.
+
+Example:
+    state count = 0  // error: 'state' outside client block
+
+    client {
+        state count = 0  // ok
+    }
+
+Fix: move the code inside a client { } block.
+`,
+  E303: `
+Server-only feature used outside a server block.
+
+Features like 'route', 'middleware', 'ws', 'db', 'auth', etc.
+can only be used inside a server { } block.
+
+Example:
+    route GET "/api/users" => get_users  // error: outside server block
+
+    server {
+        route GET "/api/users" => get_users  // ok
+    }
+
+Fix: move the code inside a server { } block.
+`,
+  W001: `
+A variable is declared but never used.
+
+This warning helps catch typos and dead code.
+
+Example:
+    fn foo() {
+        x = 5       // warning: 'x' declared but never used
+        return 10
+    }
+
+Fix: remove the variable, or prefix with _ to suppress: _x = 5
+`,
+  W200: `
+A match expression doesn't cover all possible variants.
+
+This can lead to runtime errors if an unmatched variant is encountered.
+
+Example:
+    type Color = Red | Green | Blue
+    match color {
+        Red => "red"
+        Green => "green"
+    }  // warning: missing 'Blue' variant
+
+Fix: add the missing variants, or add a wildcard: _ => "other"
+`,
+  W204: `
+Implicit narrowing conversion that may lose data.
+
+Example:
+    x: Int = 3.14  // warning: assigning Float to Int loses decimal
+
+Fix: use an explicit conversion like floor(), round(), or to_int().
+`,
+};
+function getExplanation(code) {
+  return EXPLANATIONS[code] || null;
+}
+
+// ─── src/registry/block-registry.js ────────────────────
+
+// Block Registry — central registry for block-type plugins.
+// Each plugin describes how to detect, parse, analyze, and codegen a block type.
+
+const _plugins = new Map();       // name → plugin
+const _astTypeMap = new Map();    // astNodeType → plugin | _NOOP_SENTINEL
+const _order = [];                // registration order
+
+// Sentinel value for noop AST types (returned by getByAstType to avoid a second lookup)
+const _NOOP_SENTINEL = Object.freeze({ __noop: true });
+const BlockRegistry = {
+  NOOP: _NOOP_SENTINEL,
+
+  register(plugin) {
+    if (_plugins.has(plugin.name)) {
+      throw new Error(`Block plugin "${plugin.name}" already registered`);
+    }
+    _plugins.set(plugin.name, plugin);
+    _order.push(plugin);
+
+    // Map primary AST node type
+    if (plugin.astNodeType) {
+      _astTypeMap.set(plugin.astNodeType, plugin);
+    }
+
+    // Map child AST node types (for analyzer dispatch)
+    if (plugin.analyzer?.childNodeTypes) {
+      for (const t of plugin.analyzer.childNodeTypes) {
+        _astTypeMap.set(t, plugin);
+      }
+    }
+
+    // Register no-op leaf types as sentinel in the same map
+    if (plugin.analyzer?.noopNodeTypes) {
+      for (const t of plugin.analyzer.noopNodeTypes) {
+        _astTypeMap.set(t, _NOOP_SENTINEL);
+      }
+    }
+  },
+
+  get(name) {
+    return _plugins.get(name) || null;
+  },
+
+  getByAstType(type) {
+    return _astTypeMap.get(type) || null;
+  },
+
+  isNoopType(type) {
+    return _astTypeMap.get(type) === _NOOP_SENTINEL;
+  },
+
+  all() {
+    return _order; // callers must not mutate; treated as read-only
+  },
+};
 
 // ─── src/parser/server-parser.js ───────────────────────
 
@@ -4440,6 +4871,445 @@ function installBrowserParser(ParserClass) {
 
     this.expect(TokenType.RBRACE, "Expected '}' to close JSX match body");
     return new AST.JSXMatch(subject, arms, l);
+  };
+}
+
+// ─── src/parser/security-parser.js ─────────────────────
+
+// Security-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when security { } blocks are encountered.
+
+
+// Keywords that may appear as config keys inside security blocks
+const CONFIG_KEY_TOKENS = new Set([
+  TokenType.IDENTIFIER, TokenType.TYPE, TokenType.STORE,
+  TokenType.FN, TokenType.MATCH, TokenType.IF,
+]);
+function installSecurityParser(ParserClass) {
+  if (ParserClass.prototype._securityParserInstalled) return;
+  ParserClass.prototype._securityParserInstalled = true;
+
+  // Helper: read a config key (identifier or keyword that acts as identifier)
+  ParserClass.prototype._expectSecurityConfigKey = function(context) {
+    if (CONFIG_KEY_TOKENS.has(this.current().type)) {
+      return this.advance().value;
+    }
+    this.error(`Expected ${context} config key`);
+  };
+
+  ParserClass.prototype.parseSecurityBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'security'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'security'");
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseSecurityStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close security block");
+    return new AST.SecurityBlock(body, l);
+  };
+
+  ParserClass.prototype.parseSecurityStatement = function() {
+    if (this.check(TokenType.IDENTIFIER)) {
+      const val = this.current().value;
+
+      if (val === 'auth' && (this.peek(1).type === TokenType.IDENTIFIER || this.peek(1).type === TokenType.LBRACE)) {
+        return this.parseSecurityAuth();
+      }
+      if (val === 'role' && this.peek(1).type === TokenType.IDENTIFIER) {
+        return this.parseSecurityRole();
+      }
+      if (val === 'protect' && this.peek(1).type === TokenType.STRING) {
+        return this.parseSecurityProtect();
+      }
+      if (val === 'sensitive' && this.peek(1).type === TokenType.IDENTIFIER) {
+        return this.parseSecuritySensitive();
+      }
+      if (val === 'cors' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSecurityCors();
+      }
+      if (val === 'csp' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSecurityCsp();
+      }
+      if (val === 'rate_limit' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSecurityRateLimit();
+      }
+      if (val === 'csrf' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSecurityCsrf();
+      }
+      if (val === 'audit' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSecurityAudit();
+      }
+      if (val === 'trust_proxy') {
+        return this.parseSecurityTrustProxy();
+      }
+      if (val === 'hsts' && this.peek(1).type === TokenType.LBRACE) {
+        return this.parseSecurityHsts();
+      }
+    }
+
+    this.error("Expected security declaration (auth, role, protect, sensitive, cors, csp, rate_limit, csrf, audit, trust_proxy, hsts)");
+  };
+
+  // auth jwt { secret: ..., expires: ... }
+  ParserClass.prototype.parseSecurityAuth = function() {
+    const l = this.loc();
+    this.advance(); // consume 'auth'
+    let authType = 'jwt';
+    if (this.check(TokenType.IDENTIFIER)) {
+      authType = this.advance().value;
+    }
+    this.expect(TokenType.LBRACE, "Expected '{' after auth type");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("auth");
+      this.expect(TokenType.COLON, "Expected ':' after auth key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close auth config");
+    return new AST.SecurityAuthDeclaration(authType, config, l);
+  };
+
+  // role Admin { can: [manage_users, view_analytics] }
+  ParserClass.prototype.parseSecurityRole = function() {
+    const l = this.loc();
+    this.advance(); // consume 'role'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected role name").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after role name");
+    const permissions = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("role");
+      this.expect(TokenType.COLON, "Expected ':' after role key");
+      if (key === 'can') {
+        // Parse array of identifiers: [manage_users, view_analytics]
+        this.expect(TokenType.LBRACKET, "Expected '[' for permissions list");
+        while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+          const perm = this.expect(TokenType.IDENTIFIER, "Expected permission name").value;
+          permissions.push(perm);
+          this.match(TokenType.COMMA);
+        }
+        this.expect(TokenType.RBRACKET, "Expected ']' to close permissions list");
+      } else {
+        // Skip unknown keys
+        this.parseExpression();
+      }
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close role definition");
+    return new AST.SecurityRoleDeclaration(name, permissions, l);
+  };
+
+  // protect "/api/admin/*" { require: Admin, rate_limit: { max: 100, window: 60 } }
+  ParserClass.prototype.parseSecurityProtect = function() {
+    const l = this.loc();
+    this.advance(); // consume 'protect'
+    const pattern = this.expect(TokenType.STRING, "Expected route pattern string").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after protect pattern");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("protect");
+      this.expect(TokenType.COLON, "Expected ':' after protect key");
+      if (key === 'rate_limit') {
+        // Nested config: { max: 100, window: 60 }
+        this.expect(TokenType.LBRACE, "Expected '{' for rate_limit config");
+        const rlConfig = {};
+        while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+          const rlKey = this._expectSecurityConfigKey("rate_limit");
+          this.expect(TokenType.COLON, "Expected ':' after rate_limit key");
+          rlConfig[rlKey] = this.parseExpression();
+          this.match(TokenType.COMMA);
+        }
+        this.expect(TokenType.RBRACE, "Expected '}' to close rate_limit config");
+        config[key] = rlConfig;
+      } else {
+        config[key] = this.parseExpression();
+      }
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close protect config");
+    return new AST.SecurityProtectDeclaration(pattern, config, l);
+  };
+
+  // sensitive User.password { hash: "bcrypt", never_expose: true }
+  ParserClass.prototype.parseSecuritySensitive = function() {
+    const l = this.loc();
+    this.advance(); // consume 'sensitive'
+    const typeName = this.expect(TokenType.IDENTIFIER, "Expected type name").value;
+    this.expect(TokenType.DOT, "Expected '.' after type name in sensitive declaration");
+    const fieldName = this.expect(TokenType.IDENTIFIER, "Expected field name").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after sensitive field");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("sensitive");
+      this.expect(TokenType.COLON, "Expected ':' after sensitive key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close sensitive config");
+    return new AST.SecuritySensitiveDeclaration(typeName, fieldName, config, l);
+  };
+
+  // cors { origins: ["..."], methods: [GET, POST], credentials: true }
+  ParserClass.prototype.parseSecurityCors = function() {
+    const l = this.loc();
+    this.advance(); // consume 'cors'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'cors'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("cors");
+      this.expect(TokenType.COLON, "Expected ':' after cors key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close cors config");
+    return new AST.SecurityCorsDeclaration(config, l);
+  };
+
+  // csp { default_src: ["self"], script_src: ["self"] }
+  ParserClass.prototype.parseSecurityCsp = function() {
+    const l = this.loc();
+    this.advance(); // consume 'csp'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'csp'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("csp");
+      this.expect(TokenType.COLON, "Expected ':' after csp key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close csp config");
+    return new AST.SecurityCspDeclaration(config, l);
+  };
+
+  // rate_limit { max: 1000, window: 3600 }
+  ParserClass.prototype.parseSecurityRateLimit = function() {
+    const l = this.loc();
+    this.advance(); // consume 'rate_limit'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'rate_limit'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("rate_limit");
+      this.expect(TokenType.COLON, "Expected ':' after rate_limit key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close rate_limit config");
+    return new AST.SecurityRateLimitDeclaration(config, l);
+  };
+
+  // csrf { enabled: true, exempt: ["/api/webhooks/*"] }
+  ParserClass.prototype.parseSecurityCsrf = function() {
+    const l = this.loc();
+    this.advance(); // consume 'csrf'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'csrf'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("csrf");
+      this.expect(TokenType.COLON, "Expected ':' after csrf key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close csrf config");
+    return new AST.SecurityCsrfDeclaration(config, l);
+  };
+
+  // trust_proxy true | trust_proxy false | trust_proxy "loopback"
+  ParserClass.prototype.parseSecurityTrustProxy = function() {
+    const l = this.loc();
+    this.advance(); // consume 'trust_proxy'
+    // Expect a value: true, false, or "loopback"
+    const valueToken = this.advance();
+    let value = false;
+    if (valueToken.type === TokenType.STRING) {
+      value = valueToken.value;
+    } else if (valueToken.value === 'true') {
+      value = true;
+    } else if (valueToken.value === 'false') {
+      value = false;
+    } else {
+      this.error('Expected true, false, or string for trust_proxy');
+    }
+    return new AST.SecurityTrustProxyDeclaration(value, l);
+  };
+
+  // hsts { max_age: 31536000, include_subdomains: true, preload: false }
+  ParserClass.prototype.parseSecurityHsts = function() {
+    const l = this.loc();
+    this.advance(); // consume 'hsts'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'hsts'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("hsts");
+      this.expect(TokenType.COLON, "Expected ':' after hsts key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close hsts config");
+    return new AST.SecurityHstsDeclaration(config, l);
+  };
+
+  // audit { events: [login, logout], store: "audit_log", retain: 90 }
+  ParserClass.prototype.parseSecurityAudit = function() {
+    const l = this.loc();
+    this.advance(); // consume 'audit'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'audit'");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this._expectSecurityConfigKey("audit");
+      this.expect(TokenType.COLON, "Expected ':' after audit key");
+      config[key] = this.parseExpression();
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close audit config");
+    return new AST.SecurityAuditDeclaration(config, l);
+  };
+}
+
+// ─── src/parser/cli-parser.js ──────────────────────────
+
+// CLI-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when cli { } blocks are encountered.
+
+
+
+// Valid config keys inside cli blocks
+const CLI_CONFIG_KEYS = new Set(['name', 'version', 'description']);
+function installCliParser(ParserClass) {
+  if (ParserClass.prototype._cliParserInstalled) return;
+  ParserClass.prototype._cliParserInstalled = true;
+
+  ParserClass.prototype.parseCliBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'cli'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'cli'");
+    const config = [];
+    const commands = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        // fn or async fn → command
+        if (this.check(TokenType.FN) ||
+            (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN)) {
+          commands.push(this.parseCliCommand());
+        }
+        // identifier followed by colon → config field
+        else if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.COLON) {
+          config.push(this.parseCliConfigField());
+        }
+        else {
+          this.error("Expected config field (name: ...) or command (fn ...) inside cli block");
+        }
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close cli block");
+    return new AST.CliBlock(config, commands, l);
+  };
+
+  ParserClass.prototype.parseCliConfigField = function() {
+    const l = this.loc();
+    const key = this.advance().value; // consume identifier
+    this.expect(TokenType.COLON, "Expected ':' after config key");
+    const value = this.parseExpression();
+    return new CliConfigField(key, value, l);
+  };
+
+  ParserClass.prototype.parseCliCommand = function() {
+    const l = this.loc();
+    let isAsync = false;
+    if (this.check(TokenType.ASYNC)) {
+      isAsync = true;
+      this.advance(); // consume 'async'
+    }
+    this.expect(TokenType.FN, "Expected 'fn' for cli command");
+    const name = this.expect(TokenType.IDENTIFIER, "Expected command name").value;
+    this.expect(TokenType.LPAREN, "Expected '(' after command name");
+    const params = this.parseCliParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after parameters");
+
+    // Parse body
+    const body = this.parseBlock();
+
+    return new CliCommandDeclaration(name, params, body, isAsync, l);
+  };
+
+  ParserClass.prototype.parseCliParameterList = function() {
+    const params = [];
+    while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
+      if (params.length > 0) {
+        this.expect(TokenType.COMMA, "Expected ',' between parameters");
+      }
+      params.push(this.parseCliParam());
+    }
+    return params;
+  };
+
+  ParserClass.prototype.parseCliParam = function() {
+    const l = this.loc();
+    let isFlag = false;
+
+    // Check for -- prefix (two MINUS tokens)
+    if (this.check(TokenType.MINUS) && this.peek(1).type === TokenType.MINUS) {
+      isFlag = true;
+      this.advance(); // consume first -
+      this.advance(); // consume second -
+    }
+
+    const name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
+
+    // Parse optional type annotation: param: Type, param: Type?, param: [Type]
+    let typeAnnotation = null;
+    let isOptional = false;
+    let isRepeated = false;
+
+    if (this.match(TokenType.COLON)) {
+      // [Type] → repeated
+      if (this.check(TokenType.LBRACKET)) {
+        isRepeated = true;
+        this.advance(); // consume [
+        typeAnnotation = this._parseCliTypeName();
+        this.expect(TokenType.RBRACKET, "Expected ']' after array type");
+      } else {
+        typeAnnotation = this._parseCliTypeName();
+        // Type? → optional
+        if (this.check(TokenType.QUESTION)) {
+          isOptional = true;
+          this.advance(); // consume ?
+        }
+      }
+    }
+
+    // Bool flags are implicitly optional (default false)
+    if (isFlag && typeAnnotation === 'Bool' && !isOptional) {
+      isOptional = true;
+    }
+
+    // Parse default value: = expr
+    let defaultValue = null;
+    if (this.match(TokenType.ASSIGN)) {
+      defaultValue = this.parseExpression();
+    }
+
+    return new CliParam(name, typeAnnotation, defaultValue, isFlag, isOptional, isRepeated, l);
+  };
+
+  // Helper to parse a simple type name (String, Int, Float, Bool, or IDENTIFIER)
+  ParserClass.prototype._parseCliTypeName = function() {
+    if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.TYPE)) {
+      return this.advance().value;
+    }
+    this.error("Expected type name");
   };
 }
 
@@ -12702,6 +13572,249 @@ function getFullStdlib() {
 function getBrowserStdlib() {
   return `${buildSelectiveStdlib(BUILTIN_NAMES)}\n${RESULT_OPTION}\n${PROPAGATE}`;
 }
+
+// ─── src/registry/plugins/shared-plugin.js ─────────────
+
+const sharedPlugin = {
+  name: 'shared',
+  astNodeType: 'SharedBlock',
+  detection: {
+    strategy: 'keyword',
+    tokenType: 'SHARED',
+  },
+  parser: {
+    install: null,
+    installedFlag: null,
+    method: 'parseSharedBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitSharedBlock(node),
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/server-plugin.js ─────────────
+
+const serverPlugin = {
+  name: 'server',
+  astNodeType: 'ServerBlock',
+  detection: {
+    strategy: 'keyword',
+    tokenType: 'SERVER',
+  },
+  parser: {
+    install: installServerParser,
+    installedFlag: '_serverParserInstalled',
+    method: 'parseServerBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._serverAnalyzerInstalled) {
+        installServerAnalyzer(analyzer.constructor);
+      }
+      return analyzer._visitServerNode(node);
+    },
+    childNodeTypes: [
+      'RouteDeclaration', 'MiddlewareDeclaration', 'HealthCheckDeclaration',
+      'CorsDeclaration', 'ErrorHandlerDeclaration', 'WebSocketDeclaration',
+      'StaticDeclaration', 'DiscoverDeclaration', 'AuthDeclaration',
+      'MaxBodyDeclaration', 'RouteGroupDeclaration', 'RateLimitDeclaration',
+      'LifecycleHookDeclaration', 'SubscribeDeclaration', 'EnvDeclaration',
+      'ScheduleDeclaration', 'UploadDeclaration', 'SessionDeclaration',
+      'DbDeclaration', 'TlsDeclaration', 'CompressionDeclaration',
+      'BackgroundJobDeclaration', 'CacheDeclaration', 'SseDeclaration',
+      'ModelDeclaration',
+    ],
+    noopNodeTypes: ['AiConfigDeclaration'],
+    prePass: (analyzer) => {
+      const has = analyzer.ast.body.some(n => n.type === 'ServerBlock');
+      if (has) {
+        installServerAnalyzer(analyzer.constructor);
+        analyzer.serverBlockFunctions = collectServerBlockFunctions(analyzer.ast);
+      } else {
+        analyzer.serverBlockFunctions = new Map();
+      }
+    },
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/browser-plugin.js ────────────
+
+const browserPlugin = {
+  name: 'browser',
+  astNodeType: 'BrowserBlock',
+  detection: {
+    strategy: 'keyword',
+    tokenType: 'BROWSER',
+  },
+  parser: {
+    install: installBrowserParser,
+    installedFlag: '_browserParserInstalled',
+    method: 'parseBrowserBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._browserAnalyzerInstalled) {
+        installBrowserAnalyzer(analyzer.constructor);
+      }
+      const methodName = 'visit' + node.type;
+      return analyzer[methodName](node);
+    },
+    childNodeTypes: [
+      'StateDeclaration', 'ComputedDeclaration', 'EffectDeclaration',
+      'ComponentDeclaration', 'StoreDeclaration',
+    ],
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/security-plugin.js ───────────
+
+const securityPlugin = {
+  name: 'security',
+  astNodeType: 'SecurityBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'security',
+  },
+  parser: {
+    install: installSecurityParser,
+    installedFlag: '_securityParserInstalled',
+    method: 'parseSecurityBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitSecurityBlock(node),
+    noopNodeTypes: [
+      'SecurityAuthDeclaration', 'SecurityRoleDeclaration',
+      'SecurityProtectDeclaration', 'SecuritySensitiveDeclaration',
+      'SecurityCorsDeclaration', 'SecurityCspDeclaration',
+      'SecurityRateLimitDeclaration', 'SecurityCsrfDeclaration',
+      'SecurityAuditDeclaration',
+    ],
+    crossBlockValidate: (analyzer) => analyzer._validateSecurityCrossBlock(),
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/cli-plugin.js ────────────────
+
+const cliPlugin = {
+  name: 'cli',
+  astNodeType: 'CliBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'cli',
+  },
+  parser: {
+    install: installCliParser,
+    installedFlag: '_cliParserInstalled',
+    method: 'parseCliBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitCliBlock(node),
+    noopNodeTypes: ['CliConfigField', 'CliCommandDeclaration', 'CliParam'],
+    crossBlockValidate: (analyzer) => analyzer._validateCliCrossBlock(),
+  },
+  codegen: {
+    earlyReturn: true,
+    earlyReturnMethod: '_generateCli',
+  },
+};
+
+// ─── src/registry/plugins/data-plugin.js ───────────────
+
+const dataPlugin = {
+  name: 'data',
+  astNodeType: 'DataBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'data',
+  },
+  parser: {
+    install: null,
+    installedFlag: null,
+    method: 'parseDataBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitDataBlock(node),
+    noopNodeTypes: [
+      'SourceDeclaration', 'PipelineDeclaration',
+      'ValidateBlock', 'RefreshPolicy',
+    ],
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/test-plugin.js ───────────────
+
+const testPlugin = {
+  name: 'test',
+  astNodeType: 'TestBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'test',
+    lookahead: (parser) => {
+      const next = parser.peek(1);
+      return next.type === TokenType.LBRACE || next.type === TokenType.STRING;
+    },
+  },
+  parser: {
+    install: null,
+    installedFlag: null,
+    method: 'parseTestBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitTestBlock(node),
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/bench-plugin.js ──────────────
+
+const benchPlugin = {
+  name: 'bench',
+  astNodeType: 'BenchBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'bench',
+    lookahead: (parser) => {
+      const next = parser.peek(1);
+      return next.type === TokenType.LBRACE || next.type === TokenType.STRING;
+    },
+  },
+  parser: {
+    install: null,
+    installedFlag: null,
+    method: 'parseBenchBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitTestBlock(node), // reuses test visitor
+  },
+  codegen: {},
+};
+
+// ─── src/registry/register-all.js ──────────────────────
+
+// Registers all built-in block plugins and re-exports BlockRegistry.
+// Import this module (instead of block-registry.js directly) to ensure all plugins are loaded.
+
+
+
+
+
+
+
+
+
+BlockRegistry.register(serverPlugin);
+BlockRegistry.register(browserPlugin);
+BlockRegistry.register(sharedPlugin);
+BlockRegistry.register(securityPlugin);
+BlockRegistry.register(cliPlugin);
+BlockRegistry.register(dataPlugin);
+BlockRegistry.register(testPlugin);
+BlockRegistry.register(benchPlugin);
 
 // ─── src/codegen/wasm-codegen.js ───────────────────────
 
@@ -21514,6 +22627,800 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// ─── src/codegen/security-codegen.js ───────────────────
+
+// Security code generator for the Tova language
+// Produces code fragments consumed by server-codegen and browser-codegen.
+class SecurityCodegen extends BaseCodegen {
+
+  /**
+   * Merge all SecurityBlock nodes into a single config object.
+   * Multiple security blocks are merged (last wins on conflicts).
+   */
+  static mergeSecurityBlocks(securityBlocks) {
+    const config = {
+      auth: null,        // SecurityAuthDeclaration
+      roles: [],         // Array of SecurityRoleDeclaration
+      protects: [],      // Array of SecurityProtectDeclaration
+      sensitives: [],    // Array of SecuritySensitiveDeclaration
+      cors: null,        // SecurityCorsDeclaration
+      csp: null,         // SecurityCspDeclaration
+      rateLimit: null,   // SecurityRateLimitDeclaration
+      csrf: null,        // SecurityCsrfDeclaration
+      audit: null,       // SecurityAuditDeclaration
+      trustProxy: null,  // SecurityTrustProxyDeclaration
+      hsts: null,        // SecurityHstsDeclaration
+    };
+
+    for (const block of securityBlocks) {
+      for (const node of block.body) {
+        switch (node.type) {
+          case 'SecurityAuthDeclaration':
+            config.auth = node;
+            break;
+          case 'SecurityRoleDeclaration':
+            config.roles.push(node);
+            break;
+          case 'SecurityProtectDeclaration':
+            config.protects.push(node);
+            break;
+          case 'SecuritySensitiveDeclaration':
+            config.sensitives.push(node);
+            break;
+          case 'SecurityCorsDeclaration':
+            config.cors = node;
+            break;
+          case 'SecurityCspDeclaration':
+            config.csp = node;
+            break;
+          case 'SecurityRateLimitDeclaration':
+            config.rateLimit = node;
+            break;
+          case 'SecurityCsrfDeclaration':
+            config.csrf = node;
+            break;
+          case 'SecurityAuditDeclaration':
+            config.audit = node;
+            break;
+          case 'SecurityTrustProxyDeclaration':
+            config.trustProxy = node;
+            break;
+          case 'SecurityHstsDeclaration':
+            config.hsts = node;
+            break;
+        }
+      }
+    }
+
+    return config;
+  }
+
+  /**
+   * Generate server-side security code fragments.
+   * Returns an object with code strings for each security feature.
+   */
+  generateServerSecurity(securityConfig) {
+    const result = {
+      roleDefinitions: '',
+      authCode: '',
+      corsConfig: null,    // config object for server-codegen to use
+      cspCode: '',
+      rateLimitConfig: null, // config object
+      csrfConfig: null,     // config object
+      protectCode: '',
+      sensitiveCode: '',
+      auditCode: '',
+      trustProxyConfig: null, // trust_proxy value
+      hstsConfig: null,       // hsts config object
+      hasAutoSanitize: false, // whether __autoSanitize was generated
+    };
+
+    // Role definitions
+    if (securityConfig.roles.length > 0) {
+      const lines = [];
+      lines.push('// ── Security Roles ──');
+      lines.push('const __securityRoles = {');
+      for (const role of securityConfig.roles) {
+        const perms = role.permissions.map(p => JSON.stringify(p)).join(', ');
+        lines.push(`  ${JSON.stringify(role.name)}: [${perms}],`);
+      }
+      lines.push('};');
+      lines.push('function __getUserRoles(user) {');
+      lines.push('  if (!user) return [];');
+      lines.push('  if (Array.isArray(user.roles)) return user.roles;');
+      lines.push('  if (user.role) return [user.role];');
+      lines.push('  return [];');
+      lines.push('}');
+      lines.push('function __hasRole(user, roleName) {');
+      lines.push('  return __getUserRoles(user).includes(roleName);');
+      lines.push('}');
+      lines.push('function __hasPermission(user, permission) {');
+      lines.push('  const userRoles = __getUserRoles(user);');
+      lines.push('  for (const r of userRoles) {');
+      lines.push('    const perms = __securityRoles[r];');
+      lines.push('    if (perms && perms.includes(permission)) return true;');
+      lines.push('  }');
+      lines.push('  return false;');
+      lines.push('}');
+      result.roleDefinitions = lines.join('\n');
+    }
+
+    // Auth config — pass through to server codegen
+    if (securityConfig.auth) {
+      const authNode = securityConfig.auth;
+      // Convert security auth config to the format server-codegen expects
+      const config = { ...authNode.config };
+      // Set the auth type as a value property (server-codegen checks .type.value)
+      config.type = { value: authNode.authType, type: 'StringLiteral' };
+      result.authConfig = config;
+    }
+
+    // CORS config — pass through to server codegen
+    if (securityConfig.cors) {
+      result.corsConfig = securityConfig.cors.config;
+    }
+
+    // CSP header generation
+    if (securityConfig.csp) {
+      const lines = [];
+      lines.push('// ── Content Security Policy ──');
+      const directives = [];
+      for (const [key, valueNode] of Object.entries(securityConfig.csp.config)) {
+        const directive = key.replace(/_/g, '-');
+        directives.push({ directive, valueNode });
+      }
+      lines.push('function __getCspHeader() {');
+      lines.push('  const parts = [];');
+      for (const { directive, valueNode } of directives) {
+        lines.push(`  parts.push("${directive} " + ${this.genExpression(valueNode)}.map(v => v === "self" ? "'self'" : v === "unsafe-inline" ? "'unsafe-inline'" : v === "unsafe-eval" ? "'unsafe-eval'" : v).join(" "));`);
+      }
+      lines.push('  return parts.join("; ");');
+      lines.push('}');
+      result.cspCode = lines.join('\n');
+    }
+
+    // Rate limit config — pass through to server codegen
+    if (securityConfig.rateLimit) {
+      result.rateLimitConfig = securityConfig.rateLimit.config;
+    }
+
+    // CSRF config
+    if (securityConfig.csrf) {
+      result.csrfConfig = securityConfig.csrf.config;
+    }
+
+    // Trust proxy config
+    if (securityConfig.trustProxy) {
+      result.trustProxyConfig = securityConfig.trustProxy.value;
+    }
+
+    // HSTS config
+    if (securityConfig.hsts) {
+      result.hstsConfig = securityConfig.hsts.config;
+    } else if (securityConfig.auth) {
+      // Auto-enable HSTS when auth is configured (default policy)
+      result.hstsConfig = { __autoEnabled: true };
+    }
+
+    // Route protection middleware
+    if (securityConfig.protects.length > 0) {
+      const lines = [];
+      lines.push('// ── Route Protection ──');
+      lines.push('const __protectRules = [');
+      for (const protect of securityConfig.protects) {
+        const pattern = protect.pattern;
+        const requireExpr = protect.config.require;
+        let requireStr = '"authenticated"';
+        if (requireExpr) {
+          if (requireExpr.type === 'Identifier') {
+            requireStr = JSON.stringify(requireExpr.name);
+          } else {
+            requireStr = this.genExpression(requireExpr);
+          }
+        }
+        // Convert glob-style pattern to regex
+        // 1. Replace ** with placeholder, 2. Replace * with placeholder
+        // 3. Escape all regex-special chars (including /), 4. Restore glob placeholders
+        const regexPattern = pattern
+          .replace(/\*\*/g, '\x00GLOBSTAR\x00')
+          .replace(/\*/g, '\x00STAR\x00')
+          .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')   // escape all regex specials including /
+          .replace(/\x00STAR\x00/g, '[^/]*')         // * matches within one path segment
+          .replace(/\x00GLOBSTAR\x00/g, '.*');        // ** matches across segments
+
+        let rlMax = 'null';
+        let rlWindow = 'null';
+        if (protect.config.rate_limit) {
+          if (protect.config.rate_limit.max) {
+            rlMax = this.genExpression(protect.config.rate_limit.max);
+          }
+          if (protect.config.rate_limit.window) {
+            rlWindow = this.genExpression(protect.config.rate_limit.window);
+          }
+        }
+
+        lines.push(`  { pattern: /^${regexPattern}$/, require: ${requireStr}, rateLimit: { max: ${rlMax}, window: ${rlWindow} } },`);
+      }
+      lines.push('];');
+      lines.push('function __checkProtection(path, user) {');
+      lines.push('  for (const rule of __protectRules) {');
+      lines.push('    if (rule.pattern.test(path)) {');
+      lines.push('      if (rule.require === "authenticated") {');
+      lines.push('        if (!user) return { allowed: false, reason: "Authentication required" };');
+      lines.push('      } else {');
+      lines.push('        if (!user) return { allowed: false, reason: "Authentication required" };');
+      lines.push('        if (!__hasRole(user, rule.require)) return { allowed: false, reason: "Insufficient permissions" };');
+      lines.push('      }');
+      lines.push('      return { allowed: true, rateLimit: rule.rateLimit };');
+      lines.push('    }');
+      lines.push('  }');
+      lines.push('  return { allowed: true, rateLimit: null };');
+      lines.push('}');
+      result.protectCode = lines.join('\n');
+    }
+
+    // Sensitive field sanitization
+    if (securityConfig.sensitives.length > 0) {
+      const lines = [];
+      lines.push('// ── Sensitive Field Sanitization ──');
+
+      // Identity comparison helper for visible_to: ["self"]
+      // Checks multiple common identity fields instead of hardcoded user.id === obj.id
+      const hasVisibleTo = securityConfig.sensitives.some(s => s.config.visible_to);
+      if (hasVisibleTo) {
+        lines.push('function __isSameIdentity(user, obj) {');
+        lines.push('  const __idFields = ["id", "_id", "userId", "user_id", "uuid"];');
+        lines.push('  for (const f of __idFields) {');
+        lines.push('    if (user[f] != null && obj[f] != null && user[f] === obj[f]) return true;');
+        lines.push('  }');
+        lines.push('  return false;');
+        lines.push('}');
+      }
+
+      // Group by type
+      const byType = {};
+      for (const s of securityConfig.sensitives) {
+        if (!byType[s.typeName]) byType[s.typeName] = [];
+        byType[s.typeName].push(s);
+      }
+
+      for (const [typeName, fields] of Object.entries(byType)) {
+        const fnName = `__sanitize${typeName}`;
+        lines.push(`function ${fnName}(obj, user) {`);
+        lines.push('  if (!obj) return obj;');
+        lines.push('  const result = { ...obj };');
+        for (const field of fields) {
+          if (field.config.never_expose) {
+            lines.push(`  delete result.${field.fieldName};`);
+          } else if (field.config.visible_to) {
+            const visibleExpr = this.genExpression(field.config.visible_to);
+            lines.push(`  const __visibleTo = ${visibleExpr};`);
+            lines.push(`  const __canSee = __visibleTo.some(v => v === "self" ? (user && __isSameIdentity(user, obj)) : __hasRole(user, v));`);
+            lines.push(`  if (!__canSee) delete result.${field.fieldName};`);
+          }
+        }
+        lines.push('  return result;');
+        lines.push('}');
+      }
+
+      // Fix 6a: Auto-sanitize dispatcher
+      const typeNames = Object.keys(byType);
+      lines.push('function __autoSanitize(data, user) {');
+      lines.push('  if (data == null) return data;');
+      lines.push('  if (Array.isArray(data)) return data.map(item => __autoSanitize(item, user));');
+      lines.push('  if (typeof data !== "object") return data;');
+      lines.push('  const __typeName = data.__type || data.__tag || (data.constructor && data.constructor.name !== "Object" ? data.constructor.name : null);');
+      for (const typeName of typeNames) {
+        lines.push(`  if (__typeName === ${JSON.stringify(typeName)}) return __sanitize${typeName}(data, user);`);
+      }
+      // Recurse into nested objects
+      lines.push('  const __out = {};');
+      lines.push('  for (const [k, v] of Object.entries(data)) {');
+      lines.push('    __out[k] = __autoSanitize(v, user);');
+      lines.push('  }');
+      lines.push('  return __out;');
+      lines.push('}');
+
+      result.sensitiveCode = lines.join('\n');
+      result.hasAutoSanitize = true;
+    }
+
+    // Audit logging
+    if (securityConfig.audit) {
+      const lines = [];
+      lines.push('// ── Audit Logging ──');
+      const storeExpr = securityConfig.audit.config.store
+        ? this.genExpression(securityConfig.audit.config.store)
+        : '"audit_log"';
+      const retainExpr = securityConfig.audit.config.retain
+        ? this.genExpression(securityConfig.audit.config.retain)
+        : '90';
+      lines.push(`const __auditStore = ${storeExpr};`);
+      lines.push('if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(__auditStore)) throw new Error("Invalid audit store table name: " + __auditStore);');
+      lines.push(`const __auditRetainDays = ${retainExpr};`);
+
+      if (securityConfig.audit.config.events) {
+        lines.push(`const __auditEvents = ${this.genExpression(securityConfig.audit.config.events)};`);
+      } else {
+        lines.push('const __auditEvents = [];');
+      }
+
+      lines.push('async function __auditLog(event, details, user) {');
+      lines.push('  const entry = {');
+      lines.push('    event,');
+      lines.push('    timestamp: new Date().toISOString(),');
+      lines.push('    user: user ? { id: user.id, roles: __getUserRoles ? __getUserRoles(user) : (user.roles || [user.role].filter(Boolean)) } : null,');
+      lines.push('    details,');
+      lines.push('  };');
+      lines.push('  if (typeof db !== "undefined" && db.run) {');
+      lines.push(`    try { await db.run("INSERT INTO " + __auditStore + " (event, timestamp, user_id, details) VALUES (?, ?, ?, ?)", entry.event, entry.timestamp, entry.user ? entry.user.id : null, JSON.stringify(entry.details)); } catch (__auditErr) { console.error("[tova:audit] Failed to write audit log:", __auditErr.message || __auditErr); }`);
+      lines.push('  }');
+      lines.push('}');
+      result.auditCode = lines.join('\n');
+    }
+
+    return result;
+  }
+
+  /**
+   * Generate browser-side security code fragments.
+   */
+  generateBrowserSecurity(securityConfig) {
+    const lines = [];
+
+    // Auth token injection for RPC proxy
+    if (securityConfig.auth) {
+      // Check if auth storage is "cookie" (HttpOnly cookie mode)
+      const storageNode = securityConfig.auth.config.storage;
+      const isCookieAuth = storageNode && storageNode.type === 'StringLiteral' && storageNode.value === 'cookie';
+
+      if (isCookieAuth) {
+        // HttpOnly cookie mode: server manages tokens via Set-Cookie
+        // Client just ensures credentials are included in fetch
+        lines.push('// ── Security: Auth Token (HttpOnly Cookie) ──');
+        lines.push('function getAuthToken() { return null; /* managed by HttpOnly cookie */ }');
+        lines.push('function setAuthToken(_token) { /* no-op: server sets HttpOnly cookie */ }');
+        lines.push('function clearAuthToken() {');
+        lines.push('  fetch("/rpc/__logout", { method: "POST", credentials: "include" }).catch(() => {});');
+        lines.push('}');
+        lines.push('configureRPC({ credentials: "include" });');
+        lines.push('');
+      } else {
+        // localStorage mode (default)
+        lines.push('// ── Security: Auth Token ──');
+        lines.push('function getAuthToken() {');
+        lines.push('  return localStorage.getItem("__tova_auth_token");');
+        lines.push('}');
+        lines.push('function setAuthToken(token) {');
+        lines.push('  localStorage.setItem("__tova_auth_token", token);');
+        lines.push('}');
+        lines.push('function clearAuthToken() {');
+        lines.push('  localStorage.removeItem("__tova_auth_token");');
+        lines.push('}');
+        lines.push('addRPCInterceptor({');
+        lines.push('  request({ options }) {');
+        lines.push('    const token = getAuthToken();');
+        lines.push('    if (token) options.headers["Authorization"] = "Bearer " + token;');
+        lines.push('    return options;');
+        lines.push('  }');
+        lines.push('});');
+        lines.push('');
+      }
+    }
+
+    // Role definitions and can() helper (Fix 8: advisory comment)
+    if (securityConfig.roles.length > 0) {
+      lines.push('// ── Security: Roles ──');
+      lines.push('// NOTE: Client-side role checking is for UI purposes only. All authorization is enforced server-side.');
+      lines.push('const __browserRoles = {');
+      for (const role of securityConfig.roles) {
+        const perms = role.permissions.map(p => JSON.stringify(p)).join(', ');
+        lines.push(`  ${JSON.stringify(role.name)}: [${perms}],`);
+      }
+      lines.push('};');
+      lines.push('let __currentUserRoles = [];');
+      lines.push('function setUserRole(role) { __currentUserRoles = Array.isArray(role) ? role : [role]; }');
+      lines.push('function getUserRole() { return __currentUserRoles; }');
+      lines.push('function can(permission) {');
+      lines.push('  for (const r of __currentUserRoles) {');
+      lines.push('    const perms = __browserRoles[r];');
+      lines.push('    if (perms && perms.includes(permission)) return true;');
+      lines.push('  }');
+      lines.push('  return false;');
+      lines.push('}');
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+}
+
+// ─── src/codegen/cli-codegen.js ────────────────────────
+
+// CLI code generator for the Tova language
+// Produces a complete zero-dependency CLI executable from cli { } blocks.
+class CliCodegen extends BaseCodegen {
+
+  /**
+   * Merge all CliBlock nodes into a single config.
+   * Multiple cli blocks are merged (last wins on config, commands accumulate).
+   */
+  static mergeCliBlocks(cliBlocks) {
+    const config = {
+      name: null,
+      version: null,
+      description: null,
+    };
+    const commands = [];
+
+    for (const block of cliBlocks) {
+      for (const field of block.config) {
+        if (field.key === 'name' && field.value.type === 'StringLiteral') {
+          config.name = field.value.value;
+        } else if (field.key === 'version' && field.value.type === 'StringLiteral') {
+          config.version = field.value.value;
+        } else if (field.key === 'description' && field.value.type === 'StringLiteral') {
+          config.description = field.value.value;
+        }
+      }
+      commands.push(...block.commands);
+    }
+
+    return { config, commands };
+  }
+
+  /**
+   * Generate a complete CLI executable.
+   * @param {Object} cliConfig — merged config from mergeCliBlocks
+   * @param {string} sharedCode — shared/top-level compiled code
+   * @returns {string} — complete executable JS
+   */
+  generate(cliConfig, sharedCode) {
+    const { config, commands } = cliConfig;
+    const lines = [];
+
+    // Emit shared code (stdlib + top-level)
+    if (sharedCode && sharedCode.trim()) {
+      lines.push(sharedCode);
+      lines.push('');
+    }
+
+    const singleCommand = commands.length === 1;
+
+    // Emit each command as a function
+    for (const cmd of commands) {
+      lines.push(this._genCommandFunction(cmd));
+      lines.push('');
+    }
+
+    // Generate help functions
+    lines.push(this._genMainHelp(config, commands));
+    lines.push('');
+
+    for (const cmd of commands) {
+      lines.push(this._genCommandHelp(cmd, config, singleCommand));
+      lines.push('');
+    }
+
+    // Generate dispatchers for each command
+    for (const cmd of commands) {
+      lines.push(this._genCommandDispatcher(cmd));
+      lines.push('');
+    }
+
+    // Generate main entry point
+    lines.push(this._genMain(config, commands, singleCommand));
+    lines.push('');
+
+    // Auto-invoke
+    lines.push('__cli_main(process.argv.slice(2));');
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate a command function: __cmd_<name>(params...)
+   */
+  _genCommandFunction(cmd) {
+    const paramNames = cmd.params.map(p => p.name);
+    const asyncPrefix = cmd.isAsync ? 'async ' : '';
+    const body = this.genBlockStatements(cmd.body);
+    return `${asyncPrefix}function __cmd_${cmd.name}(${paramNames.join(', ')}) {\n${body}\n}`;
+  }
+
+  /**
+   * Generate overall --help output
+   */
+  _genMainHelp(config, commands) {
+    const lines = [];
+    lines.push('function __cli_help() {');
+    lines.push('  const lines = [];');
+
+    if (config.name) {
+      if (config.description) {
+        lines.push(`  lines.push("${config.name} — ${this._escStr(config.description)}");`);
+      } else {
+        lines.push(`  lines.push("${this._escStr(config.name)}");`);
+      }
+    }
+    if (config.version) {
+      lines.push(`  lines.push("Version: ${this._escStr(config.version)}");`);
+    }
+
+    lines.push('  lines.push("");');
+    lines.push('  lines.push("USAGE:");');
+
+    if (commands.length === 1) {
+      const cmd = commands[0];
+      const usage = this._buildUsageLine(cmd, config);
+      lines.push(`  lines.push("  ${usage}");`);
+    } else {
+      lines.push(`  lines.push("  ${config.name || 'cli'} <command> [options]");`);
+      lines.push('  lines.push("");');
+      lines.push('  lines.push("COMMANDS:");');
+
+      for (const cmd of commands) {
+        const desc = this._getCommandDescription(cmd);
+        lines.push(`  lines.push("  ${cmd.name.padEnd(16)}${this._escStr(desc)}");`);
+      }
+    }
+
+    lines.push('  lines.push("");');
+    lines.push('  lines.push("OPTIONS:");');
+    lines.push('  lines.push("  --help, -h     Show help");');
+    if (config.version) {
+      lines.push('  lines.push("  --version, -v  Show version");');
+    }
+
+    lines.push('  console.log(lines.join("\\n"));');
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate per-command help: __cli_command_help_<name>()
+   */
+  _genCommandHelp(cmd, config, singleCommand) {
+    const lines = [];
+    lines.push(`function __cli_command_help_${cmd.name}() {`);
+    lines.push('  const lines = [];');
+
+    const usage = this._buildUsageLine(cmd, config);
+    lines.push(`  lines.push("USAGE:");`);
+    lines.push(`  lines.push("  ${usage}");`);
+
+    const positionals = cmd.params.filter(p => !p.isFlag);
+    const flags = cmd.params.filter(p => p.isFlag);
+
+    if (positionals.length > 0) {
+      lines.push('  lines.push("");');
+      lines.push('  lines.push("ARGUMENTS:");');
+      for (const p of positionals) {
+        const typeSuffix = p.typeAnnotation ? ` <${p.typeAnnotation}>` : '';
+        const optSuffix = p.isOptional ? ' (optional)' : '';
+        const defSuffix = p.defaultValue ? ` (default: ${this._getDefaultStr(p)})` : '';
+        lines.push(`  lines.push("  ${p.name.padEnd(16)}${this._escStr(typeSuffix + optSuffix + defSuffix)}");`);
+      }
+    }
+
+    if (flags.length > 0) {
+      lines.push('  lines.push("");');
+      lines.push('  lines.push("OPTIONS:");');
+      for (const f of flags) {
+        const typePart = f.typeAnnotation === 'Bool' ? '' : (f.typeAnnotation ? ` <${f.typeAnnotation}>` : '');
+        const defPart = f.defaultValue ? ` (default: ${this._getDefaultStr(f)})` : '';
+        lines.push(`  lines.push("  --${f.name.padEnd(14)}${this._escStr(typePart + defPart)}");`);
+      }
+    }
+
+    lines.push('  lines.push("  --help, -h".padEnd(18) + "Show help");');
+    lines.push('  console.log(lines.join("\\n"));');
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate argv dispatcher for a command: __cli_dispatch_<name>(argv)
+   */
+  _genCommandDispatcher(cmd) {
+    const lines = [];
+    const asyncPrefix = cmd.isAsync ? 'async ' : '';
+    lines.push(`${asyncPrefix}function __cli_dispatch_${cmd.name}(argv) {`);
+
+    const positionals = cmd.params.filter(p => !p.isFlag);
+    const flags = cmd.params.filter(p => p.isFlag);
+
+    // Initialize flag variables with defaults
+    for (const f of flags) {
+      if (f.typeAnnotation === 'Bool') {
+        lines.push(`  let __flag_${f.name} = false;`);
+      } else if (f.isRepeated) {
+        lines.push(`  let __flag_${f.name} = [];`);
+      } else if (f.defaultValue) {
+        lines.push(`  let __flag_${f.name} = ${this.genExpression(f.defaultValue)};`);
+      } else {
+        lines.push(`  let __flag_${f.name} = undefined;`);
+      }
+    }
+
+    // Positional collector
+    lines.push('  const __positionals = [];');
+
+    // Parse argv
+    lines.push('  for (let __i = 0; __i < argv.length; __i++) {');
+    lines.push('    const __arg = argv[__i];');
+
+    // Check --help
+    lines.push(`    if (__arg === "--help" || __arg === "-h") { __cli_command_help_${cmd.name}(); return; }`);
+
+    // Check each flag
+    for (const f of flags) {
+      if (f.typeAnnotation === 'Bool') {
+        lines.push(`    if (__arg === "--${f.name}") { __flag_${f.name} = true; continue; }`);
+        lines.push(`    if (__arg === "--no-${f.name}") { __flag_${f.name} = false; continue; }`);
+      } else if (f.isRepeated) {
+        lines.push(`    if (__arg === "--${f.name}") {`);
+        lines.push(`      if (__i + 1 >= argv.length) { console.error("Error: --${f.name} requires a value"); process.exit(1); }`);
+        lines.push(`      __flag_${f.name}.push(${this._genCoercion(`argv[++__i]`, f.typeAnnotation, f.name)});`);
+        lines.push('      continue;');
+        lines.push('    }');
+      } else {
+        lines.push(`    if (__arg === "--${f.name}") {`);
+        lines.push(`      if (__i + 1 >= argv.length) { console.error("Error: --${f.name} requires a value"); process.exit(1); }`);
+        lines.push(`      __flag_${f.name} = ${this._genCoercion(`argv[++__i]`, f.typeAnnotation, f.name)};`);
+        lines.push('      continue;');
+        lines.push('    }');
+        // Support --flag=value syntax
+        lines.push(`    if (__arg.startsWith("--${f.name}=")) {`);
+        lines.push(`      __flag_${f.name} = ${this._genCoercion(`__arg.slice(${f.name.length + 3})`, f.typeAnnotation, f.name)};`);
+        lines.push('      continue;');
+        lines.push('    }');
+      }
+    }
+
+    // Unknown flags
+    lines.push('    if (__arg.startsWith("--")) { console.error("Error: Unknown flag " + __arg); process.exit(1); }');
+
+    // Collect positionals
+    lines.push('    __positionals.push(__arg);');
+    lines.push('  }');
+
+    // Validate and assign positionals
+    for (let i = 0; i < positionals.length; i++) {
+      const p = positionals[i];
+      if (!p.isOptional && !p.defaultValue) {
+        lines.push(`  if (__positionals.length <= ${i}) {`);
+        lines.push(`    console.error("Error: Missing required argument <${p.name}>");`);
+        lines.push(`    __cli_command_help_${cmd.name}();`);
+        lines.push('    process.exit(1);');
+        lines.push('  }');
+      }
+    }
+
+    // Build call arguments
+    const callArgs = [];
+    for (const p of cmd.params) {
+      if (p.isFlag) {
+        callArgs.push(`__flag_${p.name}`);
+      } else {
+        const idx = positionals.indexOf(p);
+        if (p.isOptional || p.defaultValue) {
+          const def = p.defaultValue ? this.genExpression(p.defaultValue) : 'undefined';
+          callArgs.push(`__positionals.length > ${idx} ? ${this._genCoercion(`__positionals[${idx}]`, p.typeAnnotation, p.name)} : ${def}`);
+        } else {
+          callArgs.push(this._genCoercion(`__positionals[${idx}]`, p.typeAnnotation, p.name));
+        }
+      }
+    }
+
+    const awaitPrefix = cmd.isAsync ? 'await ' : '';
+    lines.push(`  ${awaitPrefix}__cmd_${cmd.name}(${callArgs.join(', ')});`);
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate main entry point
+   */
+  _genMain(config, commands, singleCommand) {
+    const lines = [];
+    lines.push('async function __cli_main(argv) {');
+
+    if (singleCommand) {
+      const cmd = commands[0];
+      // Single-command mode: no subcommand routing
+      lines.push('  if (argv.includes("--help") || argv.includes("-h")) { __cli_help(); return; }');
+      if (config.version) {
+        lines.push(`  if (argv.includes("--version") || argv.includes("-v")) { console.log("${this._escStr(config.version)}"); return; }`);
+      }
+      lines.push(`  await __cli_dispatch_${cmd.name}(argv);`);
+    } else {
+      // Multi-command: subcommand routing
+      lines.push('  if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") { __cli_help(); return; }');
+      if (config.version) {
+        lines.push(`  if (argv[0] === "--version" || argv[0] === "-v") { console.log("${this._escStr(config.version)}"); return; }`);
+      }
+      lines.push('  const __subcmd = argv[0];');
+      lines.push('  const __subargv = argv.slice(1);');
+      lines.push('  switch (__subcmd) {');
+      for (const cmd of commands) {
+        lines.push(`    case "${cmd.name}": await __cli_dispatch_${cmd.name}(__subargv); break;`);
+      }
+      lines.push('    default:');
+      lines.push('      console.error("Error: Unknown command \\"" + __subcmd + "\\"");');
+      lines.push('      __cli_help();');
+      lines.push('      process.exit(1);');
+      lines.push('  }');
+    }
+
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate type coercion code for argv string → target type
+   */
+  _genCoercion(expr, type, name) {
+    switch (type) {
+      case 'Int':
+        return `(function(v) { const n = parseInt(v, 10); if (isNaN(n)) { console.error("Error: --${name} must be an integer, got \\"" + v + "\\""); process.exit(1); } return n; })(${expr})`;
+      case 'Float':
+        return `(function(v) { const n = parseFloat(v); if (isNaN(n)) { console.error("Error: --${name} must be a number, got \\"" + v + "\\""); process.exit(1); } return n; })(${expr})`;
+      case 'Bool':
+        return `(${expr} === "true" || ${expr} === "1" || ${expr} === "yes")`;
+      case 'String':
+      default:
+        return expr;
+    }
+  }
+
+  /**
+   * Build a usage line for a command
+   */
+  _buildUsageLine(cmd, config) {
+    const prefix = config.name || 'cli';
+    const parts = [prefix];
+    // Only show command name if multi-command
+    // (Caller should decide; we always include for per-command help)
+    parts.push(cmd.name);
+
+    for (const p of cmd.params) {
+      if (p.isFlag) {
+        if (p.typeAnnotation === 'Bool') {
+          parts.push(`[--${p.name}]`);
+        } else {
+          parts.push(`[--${p.name} <${p.typeAnnotation || 'value'}>]`);
+        }
+      } else {
+        if (p.isOptional || p.defaultValue) {
+          parts.push(`[${p.name}]`);
+        } else {
+          parts.push(`<${p.name}>`);
+        }
+      }
+    }
+    return parts.join(' ');
+  }
+
+  _getCommandDescription(cmd) {
+    // Could be extended to parse docstrings — for now, just the command name
+    return '';
+  }
+
+  _getDefaultStr(param) {
+    if (!param.defaultValue) return '';
+    if (param.defaultValue.type === 'StringLiteral') return `"${param.defaultValue.value}"`;
+    if (param.defaultValue.type === 'NumberLiteral') return String(param.defaultValue.value);
+    if (param.defaultValue.type === 'BooleanLiteral') return String(param.defaultValue.value);
+    return '...';
+  }
+
+  _escStr(s) {
+    if (!s) return '';
+    return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+}
+
 // ─── src/codegen/codegen.js ────────────────────────────
 
 // Main code generator — orchestrates shared/server/browser codegen
@@ -21524,28 +23431,16 @@ function capitalize(str) {
 
 
 // Lazy-load domain-specific codegens so pure scripts don't pay for them
-const _require = createRequire(import.meta.url);
-let _ServerCodegen, _BrowserCodegen, _SecurityCodegen, _CliCodegen;
 
-function getServerCodegen() {
-  if (!_ServerCodegen) _ServerCodegen = _require('./server-codegen.js').ServerCodegen;
-  return _ServerCodegen;
-}
 
-function getBrowserCodegen() {
-  if (!_BrowserCodegen) _BrowserCodegen = _require('./browser-codegen.js').BrowserCodegen;
-  return _BrowserCodegen;
-}
 
-function getSecurityCodegen() {
-  if (!_SecurityCodegen) _SecurityCodegen = _require('./security-codegen.js').SecurityCodegen;
-  return _SecurityCodegen;
-}
+function getServerCodegen() { return ServerCodegen; }
 
-function getCliCodegen() {
-  if (!_CliCodegen) _CliCodegen = _require('./cli-codegen.js').CliCodegen;
-  return _CliCodegen;
-}
+function getBrowserCodegen() { return BrowserCodegen; }
+
+function getSecurityCodegen() { return SecurityCodegen; }
+
+function getCliCodegen() { return CliCodegen; }
 class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
