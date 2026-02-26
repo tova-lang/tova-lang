@@ -1054,7 +1054,26 @@ export class Analyzer {
     const validConfigKeys = new Set(['target']);
     const bindingNames = new Set();
 
+    // Binding support matrix per target
+    const BINDING_SUPPORT = {
+      cloudflare: { kv: true, sql: true, storage: true, queue: true },
+      deno:       { kv: true, sql: false, storage: false, queue: false },
+      vercel:     { kv: false, sql: false, storage: false, queue: false },
+      lambda:     { kv: false, sql: false, storage: false, queue: false },
+      bun:        { kv: false, sql: true, storage: false, queue: false },
+    };
+
+    // Determine target from config fields
+    let target = 'cloudflare';
+    for (const stmt of node.body) {
+      if (stmt.type === 'EdgeConfigField' && stmt.key === 'target' && stmt.value.type === 'StringLiteral') {
+        target = stmt.value.value;
+      }
+    }
+
     this.pushScope('edge');
+
+    let kvCount = 0;
 
     for (const stmt of node.body) {
       // Validate config fields
@@ -1101,6 +1120,49 @@ export class Analyzer {
           });
         }
         bindingNames.add(stmt.name);
+      }
+
+      // Unsupported binding warnings (per target)
+      const support = BINDING_SUPPORT[target] || BINDING_SUPPORT.cloudflare;
+      if (stmt.type === 'EdgeKVDeclaration' && !support.kv) {
+        this.warnings.push({
+          message: `KV binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_KV',
+        });
+      }
+      if (stmt.type === 'EdgeSQLDeclaration' && !support.sql) {
+        this.warnings.push({
+          message: `SQL binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_SQL',
+        });
+      }
+      if (stmt.type === 'EdgeStorageDeclaration' && !support.storage) {
+        this.warnings.push({
+          message: `Storage binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_STORAGE',
+        });
+      }
+      if (stmt.type === 'EdgeQueueDeclaration' && !support.queue) {
+        this.warnings.push({
+          message: `Queue binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_QUEUE',
+        });
+      }
+
+      // Deno multi-KV warning
+      if (stmt.type === 'EdgeKVDeclaration') {
+        kvCount++;
+        if (kvCount > 1 && target === 'deno') {
+          this.warnings.push({
+            message: `Deno Deploy supports only one KV store — '${stmt.name}' will share the same store as the first KV binding`,
+            loc: stmt.loc,
+            code: 'W_DENO_MULTI_KV',
+          });
+        }
       }
 
       // Validate schedule cron expressions (basic format check)

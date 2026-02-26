@@ -92,6 +92,191 @@ export class EdgeCodegen extends BaseCodegen {
   }
 
   // ════════════════════════════════════════════════════════════
+  // Binding helpers
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * Generate the ` ?? defaultExpr` suffix for an env declaration.
+   */
+  _genDefaultSuffix(envDecl) {
+    if (envDecl.defaultValue) {
+      return ' ?? ' + this.genExpression(envDecl.defaultValue);
+    }
+    return '';
+  }
+
+  /**
+   * Cloudflare bindings: module-level `let` declarations + init lines for fetch/scheduled/queue.
+   * Returns { moduleLines: string[], fetchInitLines: string[] }
+   */
+  _emitCloudflareBindings(config) {
+    const moduleLines = [];
+    const fetchInitLines = [];
+    const allBindings = [
+      ...config.bindings.kv,
+      ...config.bindings.sql,
+      ...config.bindings.storage,
+      ...config.bindings.queue,
+    ];
+    const allEnvSecrets = [...config.envVars, ...config.secrets];
+
+    if (allBindings.length === 0 && allEnvSecrets.length === 0) {
+      return { moduleLines, fetchInitLines };
+    }
+
+    // Module-level let declarations
+    const names = [
+      ...allBindings.map(b => b.name),
+      ...allEnvSecrets.map(b => b.name),
+    ];
+    moduleLines.push('// ── Bindings ──');
+    moduleLines.push('let ' + names.join(', ') + ';');
+    moduleLines.push('');
+
+    // Fetch init lines (inside fetch/scheduled/queue handlers)
+    for (const b of allBindings) {
+      fetchInitLines.push(`    ${b.name} = env.${b.name};`);
+    }
+    for (const e of config.envVars) {
+      fetchInitLines.push(`    ${e.name} = env.${e.name}${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      fetchInitLines.push(`    ${s.name} = env.${s.name};`);
+    }
+
+    return { moduleLines, fetchInitLines };
+  }
+
+  /**
+   * Deno bindings: top-level const declarations.
+   */
+  _emitDenoBindings(lines, config) {
+    const hasKv = config.bindings.kv.length > 0;
+    const hasAnything = hasKv || config.bindings.sql.length > 0 ||
+      config.bindings.storage.length > 0 || config.bindings.queue.length > 0 ||
+      config.envVars.length > 0 || config.secrets.length > 0;
+
+    if (!hasAnything) return;
+
+    lines.push('// ── Bindings ──');
+
+    // KV — first one opens the store, rest share
+    if (hasKv) {
+      lines.push(`const ${config.bindings.kv[0].name} = await Deno.openKv();`);
+      for (let i = 1; i < config.bindings.kv.length; i++) {
+        lines.push(`const ${config.bindings.kv[i].name} = ${config.bindings.kv[0].name}; // shared Deno KV store`);
+      }
+    }
+
+    // Unsupported stubs
+    for (const b of config.bindings.sql) {
+      lines.push(`const ${b.name} = null; // SQL not natively supported on Deno Deploy — use a third-party driver`);
+    }
+    for (const b of config.bindings.storage) {
+      lines.push(`const ${b.name} = null; // Object storage not natively supported on Deno Deploy`);
+    }
+    for (const b of config.bindings.queue) {
+      lines.push(`const ${b.name} = null; // Queues not natively supported on Deno Deploy`);
+    }
+
+    // Env/Secret
+    for (const e of config.envVars) {
+      lines.push(`const ${e.name} = Deno.env.get(${JSON.stringify(e.name)})${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      lines.push(`const ${s.name} = Deno.env.get(${JSON.stringify(s.name)});`);
+    }
+
+    lines.push('');
+  }
+
+  /**
+   * Process.env-based bindings (Vercel, Lambda).
+   * Only env/secret are supported; others become stubs.
+   */
+  _emitProcessEnvBindings(lines, config, targetName) {
+    const hasAnything = config.bindings.kv.length > 0 || config.bindings.sql.length > 0 ||
+      config.bindings.storage.length > 0 || config.bindings.queue.length > 0 ||
+      config.envVars.length > 0 || config.secrets.length > 0;
+
+    if (!hasAnything) return;
+
+    lines.push('// ── Bindings ──');
+
+    // Unsupported stubs
+    for (const b of config.bindings.kv) {
+      lines.push(`const ${b.name} = null; // KV not supported on ${targetName}`);
+    }
+    for (const b of config.bindings.sql) {
+      lines.push(`const ${b.name} = null; // SQL not supported on ${targetName}`);
+    }
+    for (const b of config.bindings.storage) {
+      lines.push(`const ${b.name} = null; // Object storage not supported on ${targetName}`);
+    }
+    for (const b of config.bindings.queue) {
+      lines.push(`const ${b.name} = null; // Queues not supported on ${targetName}`);
+    }
+
+    // Env/Secret via process.env
+    for (const e of config.envVars) {
+      lines.push(`const ${e.name} = process.env.${e.name}${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      lines.push(`const ${s.name} = process.env.${s.name};`);
+    }
+
+    lines.push('');
+  }
+
+  /**
+   * Bun bindings: SQL via bun:sqlite, env via process.env, others stub.
+   * Returns { imports: string[], bindings: string[] }
+   */
+  _emitBunBindings(config) {
+    const imports = [];
+    const bindings = [];
+    const hasAnything = config.bindings.kv.length > 0 || config.bindings.sql.length > 0 ||
+      config.bindings.storage.length > 0 || config.bindings.queue.length > 0 ||
+      config.envVars.length > 0 || config.secrets.length > 0;
+
+    if (!hasAnything) return { imports, bindings };
+
+    bindings.push('// ── Bindings ──');
+
+    // KV stub
+    for (const b of config.bindings.kv) {
+      bindings.push(`const ${b.name} = null; // KV not natively supported on Bun — use a third-party store`);
+    }
+
+    // SQL via bun:sqlite
+    if (config.bindings.sql.length > 0) {
+      imports.push('import { Database } from "bun:sqlite";');
+      for (const b of config.bindings.sql) {
+        bindings.push(`const ${b.name} = new Database("${b.name}.sqlite");`);
+      }
+    }
+
+    // Storage/Queue stubs
+    for (const b of config.bindings.storage) {
+      bindings.push(`const ${b.name} = null; // Object storage not natively supported on Bun`);
+    }
+    for (const b of config.bindings.queue) {
+      bindings.push(`const ${b.name} = null; // Queues not natively supported on Bun`);
+    }
+
+    // Env/Secret via process.env
+    for (const e of config.envVars) {
+      bindings.push(`const ${e.name} = process.env.${e.name}${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      bindings.push(`const ${s.name} = process.env.${s.name};`);
+    }
+
+    bindings.push('');
+    return { imports, bindings };
+  }
+
+  // ════════════════════════════════════════════════════════════
   // Cloudflare Workers target
   // ════════════════════════════════════════════════════════════
 
@@ -105,6 +290,10 @@ export class EdgeCodegen extends BaseCodegen {
       lines.push(sharedCode);
       lines.push('');
     }
+
+    // Binding declarations (module-level let + fetch init lines)
+    const { moduleLines, fetchInitLines } = this._emitCloudflareBindings(config);
+    for (const l of moduleLines) lines.push(l);
 
     // User functions
     this._emitFunctions(lines, config.functions);
@@ -127,6 +316,10 @@ export class EdgeCodegen extends BaseCodegen {
     // Fetch handler
     lines.push('export default {');
     lines.push('  async fetch(request, env, ctx) {');
+
+    // Init bindings from env
+    for (const l of fetchInitLines) lines.push(l);
+
     lines.push('    const url = new URL(request.url);');
     lines.push('    const method = request.method;');
     lines.push('    const pathname = url.pathname;');
@@ -167,6 +360,8 @@ export class EdgeCodegen extends BaseCodegen {
     if (config.schedules.length > 0) {
       lines.push('');
       lines.push('  async scheduled(event, env, ctx) {');
+      // Init bindings in scheduled handler too
+      for (const l of fetchInitLines) lines.push(l);
       for (const sched of config.schedules) {
         lines.push(`    if (event.cron === ${JSON.stringify(sched.cron)}) {`);
         lines.push(`      // ${sched.name}`);
@@ -183,6 +378,8 @@ export class EdgeCodegen extends BaseCodegen {
     if (config.consumers.length > 0) {
       lines.push('');
       lines.push('  async queue(batch, env, ctx) {');
+      // Init bindings in queue handler too
+      for (const l of fetchInitLines) lines.push(l);
       for (const consumer of config.consumers) {
         lines.push(`    // consume ${consumer.queue}`);
         const handlerCode = this.genExpression(consumer.handler);
@@ -211,11 +408,8 @@ export class EdgeCodegen extends BaseCodegen {
       lines.push('');
     }
 
-    // KV bindings
-    if (config.bindings.kv.length > 0) {
-      lines.push('const __kv = await Deno.openKv();');
-      lines.push('');
-    }
+    // Bindings
+    this._emitDenoBindings(lines, config);
 
     // User functions
     this._emitFunctions(lines, config.functions);
@@ -301,6 +495,9 @@ export class EdgeCodegen extends BaseCodegen {
       lines.push('');
     }
 
+    // Bindings
+    this._emitProcessEnvBindings(lines, config, 'Vercel Edge');
+
     this._emitFunctions(lines, config.functions);
     this._emitMiscStatements(lines, config.miscStatements);
     this._emitMiddlewareFunctions(lines, config.middlewares);
@@ -340,6 +537,9 @@ export class EdgeCodegen extends BaseCodegen {
       lines.push(sharedCode);
       lines.push('');
     }
+
+    // Bindings
+    this._emitProcessEnvBindings(lines, config, 'AWS Lambda');
 
     this._emitFunctions(lines, config.functions);
     this._emitMiscStatements(lines, config.miscStatements);
@@ -382,10 +582,18 @@ export class EdgeCodegen extends BaseCodegen {
     lines.push('// Generated by Tova — Bun edge target');
     lines.push('');
 
+    // Bun bindings (imports go first)
+    const { imports: bunImports, bindings: bunBindings } = this._emitBunBindings(config);
+    for (const imp of bunImports) lines.push(imp);
+    if (bunImports.length > 0) lines.push('');
+
     if (sharedCode && sharedCode.trim()) {
       lines.push(sharedCode);
       lines.push('');
     }
+
+    // Binding declarations
+    for (const l of bunBindings) lines.push(l);
 
     this._emitFunctions(lines, config.functions);
     this._emitMiscStatements(lines, config.miscStatements);

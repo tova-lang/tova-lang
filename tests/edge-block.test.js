@@ -325,6 +325,7 @@ describe('edge block - deno codegen', () => {
       route GET "/" => fn(req) { "ok" }
     }`);
     expect(result.edge).toContain('Deno.openKv()');
+    expect(result.edge).toContain('const CACHE = await Deno.openKv()');
   });
 
   test('schedule generates Deno.cron', () => {
@@ -654,5 +655,329 @@ describe('edge block - output structure', () => {
       route GET "/" => fn(req) { "ok" }
     }`);
     expect(result.edge).toContain('Cloudflare Workers target');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Cloudflare Binding Codegen
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - cloudflare bindings', () => {
+  test('kv binding generates let + env init', () => {
+    const result = compile(`edge {
+      kv CACHE
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let CACHE;');
+    expect(result.edge).toContain('CACHE = env.CACHE;');
+  });
+
+  test('sql binding generates let + env init', () => {
+    const result = compile(`edge {
+      sql DB
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let DB;');
+    expect(result.edge).toContain('DB = env.DB;');
+  });
+
+  test('storage binding generates let + env init', () => {
+    const result = compile(`edge {
+      storage UPLOADS
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let UPLOADS;');
+    expect(result.edge).toContain('UPLOADS = env.UPLOADS;');
+  });
+
+  test('queue binding generates let + env init', () => {
+    const result = compile(`edge {
+      queue EMAILS
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let EMAILS;');
+    expect(result.edge).toContain('EMAILS = env.EMAILS;');
+  });
+
+  test('env with default generates let + env init with ??', () => {
+    const result = compile(`edge {
+      env API_URL = "https://api.example.com"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let API_URL;');
+    expect(result.edge).toContain('API_URL = env.API_URL ?? "https://api.example.com";');
+  });
+
+  test('env without default generates let + env init without ??', () => {
+    const result = compile(`edge {
+      env API_URL
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let API_URL;');
+    expect(result.edge).toContain('API_URL = env.API_URL;');
+    expect(result.edge).not.toContain('??');
+  });
+
+  test('secret generates let + env init', () => {
+    const result = compile(`edge {
+      secret JWT
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let JWT;');
+    expect(result.edge).toContain('JWT = env.JWT;');
+  });
+
+  test('multiple bindings in single let declaration', () => {
+    const result = compile(`edge {
+      kv CACHE
+      sql DB
+      secret API_KEY
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('let CACHE, DB, API_KEY;');
+  });
+
+  test('bindings init in scheduled handler too', () => {
+    const result = compile(`edge {
+      kv CACHE
+      schedule "cleanup" cron("0 0 * * *") {
+        print("cleaning")
+      }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    const code = result.edge;
+    // Should appear in both fetch and scheduled
+    const fetchIdx = code.indexOf('async fetch(');
+    const scheduledIdx = code.indexOf('async scheduled(');
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(scheduledIdx).toBeGreaterThan(-1);
+    // Both handlers init CACHE
+    const afterFetch = code.slice(fetchIdx, scheduledIdx);
+    const afterScheduled = code.slice(scheduledIdx);
+    expect(afterFetch).toContain('CACHE = env.CACHE;');
+    expect(afterScheduled).toContain('CACHE = env.CACHE;');
+  });
+
+  test('bindings init in queue handler too', () => {
+    const result = compile(`edge {
+      kv CACHE
+      consume EMAILS fn(messages) { print("processing") }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    const code = result.edge;
+    const queueIdx = code.indexOf('async queue(');
+    expect(queueIdx).toBeGreaterThan(-1);
+    const afterQueue = code.slice(queueIdx);
+    expect(afterQueue).toContain('CACHE = env.CACHE;');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Deno Binding Codegen
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - deno bindings', () => {
+  test('multiple kv bindings share same store', () => {
+    const result = compile(`edge {
+      target: "deno"
+      kv CACHE
+      kv SESSIONS
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const CACHE = await Deno.openKv()');
+    expect(result.edge).toContain('const SESSIONS = CACHE;');
+  });
+
+  test('env generates Deno.env.get', () => {
+    const result = compile(`edge {
+      target: "deno"
+      env API_URL = "https://api.example.com"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const API_URL = Deno.env.get("API_URL") ?? "https://api.example.com";');
+  });
+
+  test('secret generates Deno.env.get', () => {
+    const result = compile(`edge {
+      target: "deno"
+      secret JWT
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const JWT = Deno.env.get("JWT");');
+  });
+
+  test('sql binding stubs to null on Deno', () => {
+    const result = compile(`edge {
+      target: "deno"
+      sql DB
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const DB = null;');
+    expect(result.edge).toContain('SQL not natively supported');
+  });
+
+  test('storage binding stubs to null on Deno', () => {
+    const result = compile(`edge {
+      target: "deno"
+      storage UPLOADS
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const UPLOADS = null;');
+  });
+
+  test('queue binding stubs to null on Deno', () => {
+    const result = compile(`edge {
+      target: "deno"
+      queue EMAILS
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const EMAILS = null;');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Vercel / Lambda Binding Codegen
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - vercel/lambda bindings', () => {
+  test('vercel env generates process.env', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      env API_URL = "https://api.example.com"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const API_URL = process.env.API_URL ?? "https://api.example.com";');
+  });
+
+  test('vercel secret generates process.env', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      secret JWT
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const JWT = process.env.JWT;');
+  });
+
+  test('vercel kv stubs to null', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      kv CACHE
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const CACHE = null;');
+    expect(result.edge).toContain('KV not supported on Vercel Edge');
+  });
+
+  test('lambda env generates process.env', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      env NODE_ENV = "production"
+      secret DB_URL
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const NODE_ENV = process.env.NODE_ENV ?? "production";');
+    expect(result.edge).toContain('const DB_URL = process.env.DB_URL;');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Bun Binding Codegen
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - bun bindings', () => {
+  test('bun sql generates bun:sqlite import', () => {
+    const result = compile(`edge {
+      target: "bun"
+      sql DB
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('import { Database } from "bun:sqlite";');
+    expect(result.edge).toContain('const DB = new Database("DB.sqlite");');
+  });
+
+  test('bun env generates process.env', () => {
+    const result = compile(`edge {
+      target: "bun"
+      env API_URL = "http://localhost:3000"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const API_URL = process.env.API_URL ?? "http://localhost:3000";');
+  });
+
+  test('bun kv stubs to null', () => {
+    const result = compile(`edge {
+      target: "bun"
+      kv CACHE
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const CACHE = null;');
+  });
+
+  test('bun storage stubs to null', () => {
+    const result = compile(`edge {
+      target: "bun"
+      storage UPLOADS
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('const UPLOADS = null;');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Analyzer: Unsupported Binding Warnings
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - unsupported binding warnings', () => {
+  test('warns on KV for vercel target', () => {
+    const { warnings } = analyze(`edge { target: "vercel" kv CACHE }`);
+    const w = warnings.find(w => w.code === 'W_UNSUPPORTED_KV');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('vercel');
+  });
+
+  test('warns on SQL for deno target', () => {
+    const { warnings } = analyze(`edge { target: "deno" sql DB }`);
+    const w = warnings.find(w => w.code === 'W_UNSUPPORTED_SQL');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('deno');
+  });
+
+  test('warns on storage for lambda target', () => {
+    const { warnings } = analyze(`edge { target: "lambda" storage UPLOADS }`);
+    const w = warnings.find(w => w.code === 'W_UNSUPPORTED_STORAGE');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('lambda');
+  });
+
+  test('warns on queue for bun target', () => {
+    const { warnings } = analyze(`edge { target: "bun" queue EMAILS }`);
+    const w = warnings.find(w => w.code === 'W_UNSUPPORTED_QUEUE');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('bun');
+  });
+
+  test('no warning for KV on cloudflare', () => {
+    const { warnings } = analyze(`edge { target: "cloudflare" kv CACHE }`);
+    const w = warnings.find(w => w.code === 'W_UNSUPPORTED_KV');
+    expect(w).toBeUndefined();
+  });
+
+  test('no warning for SQL on bun', () => {
+    const { warnings } = analyze(`edge { target: "bun" sql DB }`);
+    const w = warnings.find(w => w.code === 'W_UNSUPPORTED_SQL');
+    expect(w).toBeUndefined();
+  });
+
+  test('warns on multi-KV for deno target', () => {
+    const { warnings } = analyze(`edge { target: "deno" kv CACHE kv SESSIONS }`);
+    const w = warnings.find(w => w.code === 'W_DENO_MULTI_KV');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('SESSIONS');
+  });
+
+  test('no multi-KV warning on cloudflare', () => {
+    const { warnings } = analyze(`edge { target: "cloudflare" kv CACHE kv SESSIONS }`);
+    const w = warnings.find(w => w.code === 'W_DENO_MULTI_KV');
+    expect(w).toBeUndefined();
   });
 });
