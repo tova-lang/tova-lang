@@ -56,6 +56,18 @@ Learn Tova through practical, annotated examples. Whether you are writing script
 
 - **[Real-Time Dashboard](./real-time-dashboard.md)** -- Live streaming dashboard with WebSocket metrics, SSE alerts, rolling-window aggregation, and reactive stores.
 
+## Edge & Serverless
+
+- **[URL Shortener](./edge-url-shortener.md)** -- A URL shortener on Cloudflare Workers. Covers KV storage, redirect responses, scheduled cleanup, and open CORS.
+
+- **[API Proxy with Caching](./edge-api-proxy.md)** -- A caching API proxy on Deno Deploy. Covers the Deno target, middleware chains, KV caching, and error handling.
+
+- **[Feature Flag Service](./edge-feature-flags.md)** -- A feature flag evaluator on Vercel Edge Functions. Covers security block integration, JWT authentication, role-based access, and restricted CORS.
+
+- **[Image Pipeline](./edge-image-pipeline.md)** -- A queue-driven image processor on Cloudflare Workers. Covers named edge blocks, all five binding types (KV, SQL, Storage, Queue, Env/Secret), and scheduled reports.
+
+- **[Webhook Handler](./edge-webhook-handler.md)** -- A webhook receiver on AWS Lambda. Covers HMAC signature verification, event dispatching, security block on Lambda, and auto-sanitization.
+
 ## Cookbook
 
 - **[Recipes](./cookbook.md)** -- Short, focused examples for common tasks: string manipulation, file operations, HTTP requests, and more.

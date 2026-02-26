@@ -285,6 +285,16 @@ export default defineConfig({
           ],
         },
         {
+          text: 'Edge & Serverless',
+          items: [
+            { text: 'URL Shortener', link: '/examples/edge-url-shortener' },
+            { text: 'API Proxy', link: '/examples/edge-api-proxy' },
+            { text: 'Feature Flags', link: '/examples/edge-feature-flags' },
+            { text: 'Image Pipeline', link: '/examples/edge-image-pipeline' },
+            { text: 'Webhook Handler', link: '/examples/edge-webhook-handler' },
+          ],
+        },
+        {
           text: 'Cookbook',
           items: [
             { text: 'Recipes', link: '/examples/cookbook' },
