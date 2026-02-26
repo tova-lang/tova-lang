@@ -9,7 +9,7 @@ import { BlockRegistry } from '../registry/register-all.js';
 
 // Lazy-load domain-specific codegens so pure scripts don't pay for them
 const _require = createRequire(import.meta.url);
-let _ServerCodegen, _BrowserCodegen, _SecurityCodegen, _CliCodegen;
+let _ServerCodegen, _BrowserCodegen, _SecurityCodegen, _CliCodegen, _EdgeCodegen;
 
 function getServerCodegen() {
   if (!_ServerCodegen) _ServerCodegen = _require('./server-codegen.js').ServerCodegen;
@@ -29,6 +29,11 @@ function getSecurityCodegen() {
 function getCliCodegen() {
   if (!_CliCodegen) _CliCodegen = _require('./cli-codegen.js').CliCodegen;
   return _CliCodegen;
+}
+
+function getEdgeCodegen() {
+  if (!_EdgeCodegen) _EdgeCodegen = _require('./edge-codegen.js').EdgeCodegen;
+  return _EdgeCodegen;
 }
 
 export class CodeGenerator {
@@ -81,6 +86,7 @@ export class CodeGenerator {
     const benchBlocks = getBlocks('bench');
     const dataBlocks = getBlocks('data');
     const securityBlocks = getBlocks('security');
+    const edgeBlocks = getBlocks('edge');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -186,6 +192,20 @@ export class CodeGenerator {
       browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
     }
 
+    // Generate edge outputs (one per named group)
+    const edges = {};
+    if (edgeBlocks.length > 0) {
+      const edgeGroups = this._groupByName(edgeBlocks);
+      for (const [name, blocks] of edgeGroups) {
+        const Edge = getEdgeCodegen();
+        const gen = new Edge();
+        gen._sourceMapsEnabled = this._sourceMaps;
+        const key = name || 'default';
+        const edgeConfig = Edge.mergeEdgeBlocks(blocks);
+        edges[key] = gen.generate(edgeConfig, combinedShared);
+      }
+    }
+
     // Generate tests if test blocks exist
     let testCode = '';
     if (testBlocks.length > 0) {
@@ -207,7 +227,8 @@ export class CodeGenerator {
     }
 
     // Backward-compatible: if only unnamed blocks, return flat structure
-    const hasNamedBlocks = [...serverGroups.keys(), ...browserGroups.keys()].some(k => k !== null);
+    const edgeGroupKeys = edgeBlocks.length > 0 ? [...this._groupByName(edgeBlocks).keys()] : [];
+    const hasNamedBlocks = [...serverGroups.keys(), ...browserGroups.keys(), ...edgeGroupKeys].some(k => k !== null);
 
     // Collect source mappings from all codegens
     const sourceMappings = sharedGen.getSourceMappings();
@@ -219,6 +240,7 @@ export class CodeGenerator {
         server: servers['default'] || '',
         browser: browserCode,
         client: browserCode,  // deprecated alias for backward compat
+        edge: edges['default'] || '',
         sourceMappings,
         _sourceFile: this.filename,
       };
@@ -234,9 +256,11 @@ export class CodeGenerator {
       server: servers['default'] || '',
       browser: browserDefault,
       client: browserDefault,  // deprecated alias for backward compat
+      edge: edges['default'] || '',
       servers,   // { "api": code, "ws": code, ... }
       browsers,  // { "admin": code, "dashboard": code, ... }
       clients: browsers,   // deprecated alias for backward compat
+      edges,     // { "api": code, "assets": code, ... }
       multiBlock: true,
       sourceMappings,
       _sourceFile: this.filename,

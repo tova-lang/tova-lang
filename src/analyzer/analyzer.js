@@ -1049,6 +1049,104 @@ export class Analyzer {
     }
   }
 
+  visitEdgeBlock(node) {
+    const validTargets = new Set(['cloudflare', 'deno', 'vercel', 'lambda', 'bun']);
+    const validConfigKeys = new Set(['target']);
+    const bindingNames = new Set();
+
+    this.pushScope('edge');
+
+    for (const stmt of node.body) {
+      // Validate config fields
+      if (stmt.type === 'EdgeConfigField') {
+        if (!validConfigKeys.has(stmt.key)) {
+          this.warnings.push({
+            message: `Unknown edge config key '${stmt.key}' — valid keys are: ${[...validConfigKeys].join(', ')}`,
+            loc: stmt.loc,
+            code: 'W_UNKNOWN_EDGE_CONFIG',
+          });
+        }
+        if (stmt.key === 'target' && stmt.value.type === 'StringLiteral') {
+          if (!validTargets.has(stmt.value.value)) {
+            this.warnings.push({
+              message: `Unknown edge target '${stmt.value.value}' — valid targets are: ${[...validTargets].join(', ')}`,
+              loc: stmt.loc,
+              code: 'W_UNKNOWN_EDGE_TARGET',
+            });
+          }
+        }
+        continue;
+      }
+
+      // Check for duplicate binding names
+      if (stmt.type === 'EdgeKVDeclaration' || stmt.type === 'EdgeSQLDeclaration' ||
+          stmt.type === 'EdgeStorageDeclaration' || stmt.type === 'EdgeQueueDeclaration') {
+        if (bindingNames.has(stmt.name)) {
+          this.warnings.push({
+            message: `Duplicate edge binding '${stmt.name}'`,
+            loc: stmt.loc,
+            code: 'W_DUPLICATE_EDGE_BINDING',
+          });
+        }
+        bindingNames.add(stmt.name);
+      }
+
+      // Check for duplicate env/secret names
+      if (stmt.type === 'EdgeEnvDeclaration' || stmt.type === 'EdgeSecretDeclaration') {
+        if (bindingNames.has(stmt.name)) {
+          this.warnings.push({
+            message: `Duplicate edge binding '${stmt.name}'`,
+            loc: stmt.loc,
+            code: 'W_DUPLICATE_EDGE_BINDING',
+          });
+        }
+        bindingNames.add(stmt.name);
+      }
+
+      // Validate schedule cron expressions (basic format check)
+      if (stmt.type === 'EdgeScheduleDeclaration') {
+        const parts = stmt.cron.split(/\s+/);
+        if (parts.length < 5 || parts.length > 6) {
+          this.warnings.push({
+            message: `Invalid cron expression '${stmt.cron}' — expected 5 or 6 space-separated fields`,
+            loc: stmt.loc,
+            code: 'W_INVALID_CRON',
+          });
+        }
+      }
+
+      // Validate consume references a declared queue
+      if (stmt.type === 'EdgeConsumeDeclaration') {
+        // We'll check this after all statements are processed
+      }
+
+      // Visit child nodes — edge-specific types are noop in the registry,
+      // so explicitly visit bodies that contain statements
+      if (stmt.type === 'EdgeScheduleDeclaration' && stmt.body) {
+        for (const s of stmt.body.body || []) this.visitNode(s);
+      } else if (stmt.type === 'FunctionDeclaration' || stmt.type === 'RouteDeclaration') {
+        this.visitNode(stmt);
+      }
+    }
+
+    this.popScope();
+  }
+
+  _validateEdgeCrossBlock() {
+    const edgeBlocks = this.ast.body.filter(n => n.type === 'EdgeBlock');
+    if (edgeBlocks.length === 0) return;
+
+    // Warn if edge + cli coexist (cli takes over with earlyReturn)
+    const hasCli = this.ast.body.some(n => n.type === 'CliBlock');
+    if (hasCli) {
+      this.warnings.push({
+        message: 'edge {} and cli {} blocks in the same file — cli produces a standalone executable, edge block will be ignored',
+        loc: edgeBlocks[0].loc,
+        code: 'W_EDGE_WITH_CLI',
+      });
+    }
+  }
+
   _validateSecurityCrossBlock() {
     // Collect ALL security declarations across ALL security blocks in the AST
     const allRoles = new Set();
