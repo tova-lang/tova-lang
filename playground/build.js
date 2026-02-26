@@ -14,9 +14,15 @@ const SOURCE_FILES = [
   'src/parser/browser-ast.js',
   'src/parser/server-ast.js',
   'src/parser/ast.js',
+  'src/parser/security-ast.js',
+  'src/parser/cli-ast.js',
   '__AST_SHIM__',
+  'src/diagnostics/error-codes.js',
+  'src/registry/block-registry.js',
   'src/parser/server-parser.js',
   'src/parser/browser-parser.js',
+  'src/parser/security-parser.js',
+  'src/parser/cli-parser.js',
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/types.js',
@@ -24,11 +30,22 @@ const SOURCE_FILES = [
   'src/analyzer/browser-analyzer.js',
   'src/analyzer/analyzer.js',
   'src/stdlib/inline.js',
+  'src/registry/plugins/shared-plugin.js',
+  'src/registry/plugins/server-plugin.js',
+  'src/registry/plugins/browser-plugin.js',
+  'src/registry/plugins/security-plugin.js',
+  'src/registry/plugins/cli-plugin.js',
+  'src/registry/plugins/data-plugin.js',
+  'src/registry/plugins/test-plugin.js',
+  'src/registry/plugins/bench-plugin.js',
+  'src/registry/register-all.js',
   'src/codegen/wasm-codegen.js',
   'src/codegen/base-codegen.js',
   'src/codegen/shared-codegen.js',
   'src/codegen/server-codegen.js',
   'src/codegen/browser-codegen.js',
+  'src/codegen/security-codegen.js',
+  'src/codegen/cli-codegen.js',
   'src/codegen/codegen.js',
 ];
 
@@ -41,6 +58,8 @@ function stripModuleSyntax(code) {
     .replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*['"];?\s*$/gm, '')
     // Side-effect imports: import '...'
     .replace(/^\s*import\s+['"].*['"];?\s*$/gm, '')
+    // createRequire(import.meta.url) — Node.js only, not valid in browser <script>
+    .replace(/^\s*const\s+\w+\s*=\s*createRequire\(import\.meta\.url\);?\s*$/gm, '')
     // Multi-line export { ... } from '...' and export { ... }
     .replace(/^\s*export\s*\{[\s\S]*?\}(?:\s*from\s*['"][^'"]*['"])?\s*;?\s*$/gm, '')
     .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '')
@@ -57,9 +76,12 @@ function buildCompilerBundle() {
 
   for (const entry of SOURCE_FILES) {
     if (entry === '__AST_SHIM__') {
-      // Collect class names from all AST files (core + browser + server)
+      // Collect class names from all AST files (core + browser + server + security + cli)
       const classNames = [];
-      for (const astFile of ['src/parser/ast.js', 'src/parser/browser-ast.js', 'src/parser/server-ast.js']) {
+      for (const astFile of [
+        'src/parser/ast.js', 'src/parser/browser-ast.js', 'src/parser/server-ast.js',
+        'src/parser/security-ast.js', 'src/parser/cli-ast.js',
+      ]) {
         const astCode = readFileSync(resolve(ROOT, astFile), 'utf-8');
         for (const m of astCode.matchAll(/^(?:export\s+)?class\s+(\w+)/gm)) {
           classNames.push(m[1]);
@@ -72,8 +94,24 @@ function buildCompilerBundle() {
 
     const filePath = resolve(ROOT, entry);
     const raw = readFileSync(filePath, 'utf-8');
+    let stripped = stripModuleSyntax(raw);
+
+    // Patch codegen.js: replace Node.js lazy-loading with direct references
+    if (entry === 'src/codegen/codegen.js') {
+      stripped = stripped
+        .replace(/^let\s+_ServerCodegen.*$/m, '')
+        .replace(/function getServerCodegen\(\)\s*\{[^}]*\}/,
+          'function getServerCodegen() { return ServerCodegen; }')
+        .replace(/function getBrowserCodegen\(\)\s*\{[^}]*\}/,
+          'function getBrowserCodegen() { return BrowserCodegen; }')
+        .replace(/function getSecurityCodegen\(\)\s*\{[^}]*\}/,
+          'function getSecurityCodegen() { return SecurityCodegen; }')
+        .replace(/function getCliCodegen\(\)\s*\{[^}]*\}/,
+          'function getCliCodegen() { return CliCodegen; }');
+    }
+
     parts.push(`// ─── ${entry} ${'─'.repeat(Math.max(0, 50 - entry.length))}`);
-    parts.push(stripModuleSyntax(raw));
+    parts.push(stripped);
   }
 
   parts.push(`window.Lexer = Lexer;`);
