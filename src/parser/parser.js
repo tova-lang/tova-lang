@@ -1,8 +1,6 @@
 import { TokenType } from '../lexer/tokens.js';
 import * as AST from './ast.js';
-import { installServerParser } from './server-parser.js';
-import { installClientParser } from './client-parser.js';
-import { installSecurityParser } from './security-parser.js';
+import { BlockRegistry } from '../registry/register-all.js';
 
 export class Parser {
   static MAX_EXPRESSION_DEPTH = 200;
@@ -263,10 +261,11 @@ export class Parser {
           const doc = docsByEndLine.get(node.loc.line - 1);
           if (doc) node.docstring = doc;
         }
-        // Walk into blocks
-        if (node.body && Array.isArray(node.body)) walk(node.body);
-        if (node.type === 'ServerBlock' || node.type === 'ClientBlock' || node.type === 'SharedBlock') {
-          if (node.body) walk(node.body);
+        // Walk into block bodies (arrays) and block nodes with body properties
+        if (node.body && Array.isArray(node.body)) {
+          walk(node.body);
+        } else if (BlockRegistry.getByAstType(node.type) && node.body) {
+          walk(node.body);
         }
       }
     };
@@ -274,46 +273,30 @@ export class Parser {
   }
 
   parseTopLevel() {
-    if (this.check(TokenType.SERVER)) {
-      if (!Parser.prototype._serverParserInstalled) {
-        installServerParser(Parser);
+    // Registry-driven block dispatch
+    for (const plugin of BlockRegistry.all()) {
+      if (this._matchesBlock(plugin)) {
+        const p = plugin.parser;
+        if (p.install && p.installedFlag && !Parser.prototype[p.installedFlag]) {
+          p.install(Parser);
+        }
+        return this[p.method]();
       }
-      return this.parseServerBlock();
     }
-    if (this.check(TokenType.CLIENT)) {
-      if (!Parser.prototype._clientParserInstalled) {
-        installClientParser(Parser);
-      }
-      return this.parseClientBlock();
-    }
-    if (this.check(TokenType.SHARED)) return this.parseSharedBlock();
     if (this.check(TokenType.IMPORT)) return this.parseImport();
-    // data block: data { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'data' && this.peek(1).type === TokenType.LBRACE) {
-      return this.parseDataBlock();
-    }
-    // security block: security { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'security' && this.peek(1).type === TokenType.LBRACE) {
-      if (!Parser.prototype._securityParserInstalled) {
-        installSecurityParser(Parser);
-      }
-      return this.parseSecurityBlock();
-    }
-    // test block: test "name" { ... } or test { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'test') {
-      const next = this.peek(1);
-      if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
-        return this.parseTestBlock();
-      }
-    }
-    // bench block: bench "name" { ... } or bench { ... }
-    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'bench') {
-      const next = this.peek(1);
-      if (next.type === TokenType.LBRACE || next.type === TokenType.STRING) {
-        return this.parseBenchBlock();
-      }
-    }
     return this.parseStatement();
+  }
+
+  _matchesBlock(plugin) {
+    const d = plugin.detection;
+    if (d.strategy === 'keyword') {
+      return this.check(TokenType[d.tokenType]);
+    }
+    if (d.strategy === 'identifier') {
+      if (!this.check(TokenType.IDENTIFIER) || this.current().value !== d.identifierValue) return false;
+      return d.lookahead ? d.lookahead(this) : this.peek(1).type === TokenType.LBRACE;
+    }
+    return false;
   }
 
   parseTestBlock() {

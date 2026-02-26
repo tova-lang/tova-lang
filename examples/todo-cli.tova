@@ -1,0 +1,24 @@
+// A simple CLI todo app built with Tova's cli {} block
+
+cli {
+  name: "todo"
+  version: "0.1.0"
+  description: "A simple todo list manager"
+
+  fn add(task: String, --priority: Int = 3) {
+    print(green("Added: ") + bold(task) + dim(" (priority: {priority})"))
+  }
+
+  fn list(--all: Bool) {
+    print(bold("Your tasks:"))
+    print("  1. Buy groceries (priority: 2)")
+    print("  2. Write docs (priority: 1)")
+    if all {
+      print(dim("  3. [done] Setup project"))
+    }
+  }
+
+  fn remove(id: Int) {
+    print(yellow("Removed task #{id}"))
+  }
+}

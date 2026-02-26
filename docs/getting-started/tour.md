@@ -469,6 +469,27 @@ Key concepts:
 Everything from lessons 1-9 works standalone with `tova run my_script.tova`. No server or client blocks needed. See the [I/O guide](/guide/io) and [CLI Tool example](/examples/cli-tool).
 :::
 
+### CLI Tools
+
+For command-line tools, the `cli {}` block turns function signatures into a complete CLI interface with argument parsing, validation, and help text:
+
+```tova
+cli {
+  name: "todo"
+  version: "1.0.0"
+
+  fn add(task: String, --priority: Int = 3) {
+    print(green("Added: ") + bold(task))
+  }
+
+  fn list(--all: Bool) {
+    print("Listing tasks...")
+  }
+}
+```
+
+This auto-generates `--help`, type validation, subcommand routing, and error messages. See the [CLI Block guide](/fullstack/cli-block) for the full reference.
+
 ## 11. Async
 
 Tova supports `async` and `await` as first-class keywords:

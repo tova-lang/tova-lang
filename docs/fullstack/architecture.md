@@ -4,9 +4,9 @@ Tova is a general-purpose language that transpiles to JavaScript. You can use it
 
 When you need a web application, Tova's full-stack architecture lets you write server and client code in a single `.tova` file. The compiler reads the file, splits it into separate outputs, and wires them together automatically -- including a transparent RPC bridge that lets client code call server functions as if they were local.
 
-## The Five-Block Model
+## The Block Model
 
-Every Tova application is organized into five kinds of blocks:
+Every Tova application is organized into blocks. For web applications, there are five block types. For CLI tools, there is a dedicated `cli {}` block:
 
 ```tova
 shared {
@@ -27,6 +27,10 @@ server {
 
 client {
   // Reactive state, components, UI -- runs in the browser
+}
+
+cli {
+  // CLI tool: commands, arguments, flags -- compiles to standalone executable
 }
 ```
 
@@ -72,6 +76,21 @@ Typical contents:
 - CORS, CSP, rate limiting, CSRF, audit logging
 
 See [Security Block](./security-block) for full documentation.
+
+### CLI Block
+
+The `cli` block defines command-line tools where function signatures become the CLI interface. The compiler generates argument parsing, type validation, help text, and subcommand routing from your function parameters alone.
+
+**Runtime environment:** Node.js / Bun (standalone executable).
+
+Typical contents:
+- Config fields (`name: "mytool"`, `version: "1.0.0"`)
+- Command functions (`fn deploy(target: String, --env: String = "staging") { ... }`)
+- Async commands (`async fn download(url: String) { ... }`)
+
+The `cli {}` block produces a standalone executable, not a web server. It cannot be combined with `server {}` or `client {}` blocks (the analyzer warns if you try).
+
+See [CLI Block](./cli-block) for full documentation.
 
 ### Server Block
 
@@ -310,6 +329,8 @@ client {
 
 - [Shared Block](./shared-block) -- deep dive into shared types and validation
 - [Data Block](./data-block) -- sources, pipelines, validation, and refresh policies
+- [Security Block](./security-block) -- authentication, authorization, and security policy
+- [CLI Block](./cli-block) -- build CLI tools with zero-dependency argument parsing
 - [Server Block](./server-block) -- routes, database, and server functions
 - [Client Block](./client-block) -- reactive UI and components
 - [RPC Bridge](./rpc) -- how the automatic RPC system works

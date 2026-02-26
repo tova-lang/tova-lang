@@ -41,6 +41,7 @@ Tova's standard library follows a few guiding principles:
 | **Lazy Iterators** | `iter`, `Seq.filter`, `Seq.map`, `Seq.take`, `Seq.drop`, `Seq.zip`, `Seq.flat_map`, `Seq.enumerate`, `Seq.collect`, `Seq.reduce`, `Seq.first`, `Seq.count`, `Seq.forEach`, `Seq.any`, `Seq.all`, `Seq.find` | [Lazy Iterators](./iterators) |
 | **Advanced Collections** | `OrderedDict`, `DefaultDict`, `Counter`, `Deque` | [Advanced Collections](./advanced-collections) |
 | **Channels** | `Channel.new`, `ch.send`, `ch.receive`, `ch.close` | [Channels](./channels) |
+| **Terminal & CLI** | `color`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gray`, `bold`, `dim`, `underline`, `strikethrough`, `table`, `panel`, `progress`, `spin`, `ask`, `confirm`, `choose`, `choose_many`, `secret` | [Terminal & CLI](./terminal) |
 | **Scripting I/O** | `fs.exists`, `fs.read_text`, `fs.write_text`, `fs.ls`, `fs.mkdir`, `fs.rm`, `fs.glob_files`, `sh`, `exec`, `spawn`, `env`, `args`, `parse_args`, `exit`, `path_join`, `path_basename`, `path_dirname` | [Scripting I/O](./io) |
 | **Tables** | `Table`, `where`, `select`, `derive`, `sort_by`, `group_by`, `agg`, `join`, `pivot`, `unpivot`, `explode`, `peek`, `describe` | [Tables](./tables) |
 | **Testing** | `Gen.int`, `Gen.float`, `Gen.bool`, `Gen.string`, `Gen.array`, `Gen.oneOf`, `forAll`, `create_spy`, `create_mock` | [Testing](./testing) |
@@ -157,6 +158,15 @@ result.unwrap()                  // 42
 option = Some("hello")
 option.unwrapOr("default")      // "hello"
 None.unwrapOr("default")        // "default"
+```
+
+### Terminal & CLI
+
+```tova
+print(green("Success: ") + bold("All tests passed"))
+print(table(data, { headers: ["Name", "Score"] }))
+name = await ask("What is your name?")
+ok = await confirm("Deploy to production?")
 ```
 
 ### Assertions

@@ -169,6 +169,15 @@ tova run script.tova -- arg1 arg2 arg3
 
 If the file defines a `main()` function, it is called automatically after compilation.
 
+If the file contains a `cli {}` block, the generated CLI receives the script arguments as `process.argv`:
+
+```bash
+tova run mycli.tova -- add "Buy milk" --priority 1
+tova run mycli.tova -- --help
+```
+
+See the [CLI Block guide](/fullstack/cli-block) for details.
+
 **Flags:**
 
 | Flag | Description |

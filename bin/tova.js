@@ -36,9 +36,9 @@ const color = {
 };
 
 const HELP = `
-  ╦  ╦ ╦═╗ ╦
-  ║  ║ ║ ║ ╠╣
-  ╩═╝╚═╝╩═╝╩  v${VERSION}
+  ╔╦╗╔═╗╦  ╦╔═╗
+   ║ ║ ║╚╗╔╝╠═╣
+   ╩ ╚═╝ ╚╝ ╩ ╩  v${VERSION}
 
   Created by Enoch Kujem Abassey
   A modern full-stack language that transpiles to JavaScript
@@ -601,6 +601,18 @@ async function runFile(filePath, options = {}) {
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     const stdlib = getRunStdlib();
 
+    // CLI mode: execute the cli code directly
+    if (output.isCli) {
+      let code = stdlib + '\n' + output.cli;
+      code = code.replace(/^export /gm, '');
+      // Override process.argv for cli dispatch
+      const scriptArgs = options.scriptArgs || [];
+      code = `process.argv = ["node", ${JSON.stringify(resolved)}, ...${JSON.stringify(scriptArgs)}];\n` + code;
+      const fn = new AsyncFunction('__tova_args', '__tova_filename', '__tova_dirname', code);
+      await fn(scriptArgs, resolved, dirname(resolved));
+      return;
+    }
+
     // Compile .tova dependencies and inline them
     let depCode = '';
     if (hasTovaImports) {
@@ -766,8 +778,29 @@ async function buildProject(args) {
       const outSubDir = dirname(join(outDir, outBaseName));
       if (outSubDir !== outDir) mkdirSync(outSubDir, { recursive: true });
 
+      // CLI files: write single executable <name>.js with shebang
+      if (output.isCli) {
+        if (output.cli && output.cli.trim()) {
+          const cliPath = join(outDir, `${outBaseName}.js`);
+          const shebang = '#!/usr/bin/env node\n';
+          writeFileSync(cliPath, shebang + output.cli);
+          try { chmodSync(cliPath, 0o755); } catch (e) { /* ignore on Windows */ }
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', cliPath)} [cli]${timing}`);
+        }
+        if (!noCache) {
+          const outputPaths = {};
+          if (output.cli && output.cli.trim()) outputPaths.cli = join(outDir, `${outBaseName}.js`);
+          if (single) {
+            const absFile = files[0];
+            const sourceContent = readFileSync(absFile, 'utf-8');
+            buildCache.set(absFile, sourceContent, outputPaths);
+          } else {
+            buildCache.setGroup(`dir:${dir}`, files, outputPaths);
+          }
+        }
+      }
       // Module files: write single <name>.js (not .shared.js)
-      if (output.isModule) {
+      else if (output.isModule) {
         if (output.shared && output.shared.trim()) {
           const modulePath = join(outDir, `${outBaseName}.js`);
           writeFileSync(modulePath, generateSourceMap(output.shared, modulePath));
@@ -4655,9 +4688,9 @@ async function infoCommand() {
   const config = resolveConfig(process.cwd());
   const hasTOML = config._source === 'tova.toml';
 
-  console.log(`\n  ╦  ╦ ╦═╗ ╦`);
-  console.log(`  ║  ║ ║ ║ ╠╣`);
-  console.log(`  ╩═╝╚═╝╩═╝╩  v${VERSION}\n`);
+  console.log(`\n  ╔╦╗╔═╗╦  ╦╔═╗`);
+  console.log(`   ║ ║ ║╚╗╔╝╠═╣`);
+  console.log(`   ╩ ╚═╝ ╚╝ ╩ ╩  v${VERSION}\n`);
 
   // Bun version
   let bunVersion = 'not found';

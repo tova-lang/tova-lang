@@ -1,8 +1,7 @@
 import { Scope, Symbol } from './scope.js';
 import { PIPE_TARGET } from '../parser/ast.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
-import { collectServerBlockFunctions, installServerAnalyzer } from './server-analyzer.js';
-import { installClientAnalyzer } from './client-analyzer.js';
+import { BlockRegistry } from '../registry/register-all.js';
 import {
   Type, PrimitiveType, NilType, AnyType, UnknownType,
   ArrayType, TupleType, FunctionType, RecordType, ADTType,
@@ -327,19 +326,17 @@ export class Analyzer {
   }
 
   analyze() {
-    // Pre-pass: collect named server block functions for inter-server RPC validation
-    const hasServerBlocks = this.ast.body.some(n => n.type === 'ServerBlock');
-    if (hasServerBlocks) {
-      installServerAnalyzer(Analyzer);
-      this.serverBlockFunctions = collectServerBlockFunctions(this.ast);
-    } else {
-      this.serverBlockFunctions = new Map();
+    // Pre-pass hooks (e.g., server block function collection for RPC validation)
+    for (const plugin of BlockRegistry.all()) {
+      if (plugin.analyzer?.prePass) plugin.analyzer.prePass(this);
     }
 
     this.visitProgram(this.ast);
 
-    // Cross-block security validation (after all blocks are visited)
-    this._validateSecurityCrossBlock();
+    // Post-visit cross-block validation
+    for (const plugin of BlockRegistry.all()) {
+      if (plugin.analyzer?.crossBlockValidate) plugin.analyzer.crossBlockValidate(this);
+    }
 
     // Check for unused variables/imports (#9)
     this._collectAllScopes(this.globalScope);
@@ -732,43 +729,14 @@ export class Analyzer {
   visitNode(node) {
     if (!node) return;
 
+    // Single registry lookup: returns plugin, NOOP sentinel, or null
+    const entry = BlockRegistry.getByAstType(node.type);
+    if (entry) {
+      if (entry === BlockRegistry.NOOP) return;
+      if (entry.analyzer?.visit) return entry.analyzer.visit(this, node);
+    }
+
     switch (node.type) {
-      case 'ServerBlock':
-      case 'RouteDeclaration':
-      case 'MiddlewareDeclaration':
-      case 'HealthCheckDeclaration':
-      case 'CorsDeclaration':
-      case 'ErrorHandlerDeclaration':
-      case 'WebSocketDeclaration':
-      case 'StaticDeclaration':
-      case 'DiscoverDeclaration':
-      case 'AuthDeclaration':
-      case 'MaxBodyDeclaration':
-      case 'RouteGroupDeclaration':
-      case 'RateLimitDeclaration':
-      case 'LifecycleHookDeclaration':
-      case 'SubscribeDeclaration':
-      case 'EnvDeclaration':
-      case 'ScheduleDeclaration':
-      case 'UploadDeclaration':
-      case 'SessionDeclaration':
-      case 'DbDeclaration':
-      case 'TlsDeclaration':
-      case 'CompressionDeclaration':
-      case 'BackgroundJobDeclaration':
-      case 'CacheDeclaration':
-      case 'SseDeclaration':
-      case 'ModelDeclaration':
-        return this._visitServerNode(node);
-      case 'AiConfigDeclaration': return; // handled at block level
-      case 'ClientBlock':
-      case 'StateDeclaration':
-      case 'ComputedDeclaration':
-      case 'EffectDeclaration':
-      case 'ComponentDeclaration':
-      case 'StoreDeclaration':
-        return this._visitClientNode(node);
-      case 'SharedBlock': return this.visitSharedBlock(node);
       case 'Assignment': return this.visitAssignment(node);
       case 'VarDeclaration': return this.visitVarDeclaration(node);
       case 'LetDestructure': return this.visitLetDestructure(node);
@@ -790,24 +758,7 @@ export class Analyzer {
       case 'ContinueStatement': return this.visitContinueStatement(node);
       case 'GuardStatement': return this.visitGuardStatement(node);
       case 'InterfaceDeclaration': return this.visitInterfaceDeclaration(node);
-      case 'DataBlock': return this.visitDataBlock(node);
-      case 'SecurityBlock': return this.visitSecurityBlock(node);
-      case 'SecurityAuthDeclaration': return;
-      case 'SecurityRoleDeclaration': return;
-      case 'SecurityProtectDeclaration': return;
-      case 'SecuritySensitiveDeclaration': return;
-      case 'SecurityCorsDeclaration': return;
-      case 'SecurityCspDeclaration': return;
-      case 'SecurityRateLimitDeclaration': return;
-      case 'SecurityCsrfDeclaration': return;
-      case 'SecurityAuditDeclaration': return;
-      case 'SourceDeclaration': return;
-      case 'PipelineDeclaration': return;
-      case 'ValidateBlock': return;
-      case 'RefreshPolicy': return;
       case 'RefinementType': return;
-      case 'TestBlock': return this.visitTestBlock(node);
-      case 'BenchBlock': return this.visitTestBlock(node);
       case 'ComponentStyleBlock': return; // raw CSS — no analysis needed
       case 'ImplDeclaration': return this.visitImplDeclaration(node);
       case 'TraitDeclaration': return this.visitTraitDeclaration(node);
@@ -821,19 +772,14 @@ export class Analyzer {
   }
 
   _visitServerNode(node) {
-    if (!Analyzer.prototype._serverAnalyzerInstalled) {
-      installServerAnalyzer(Analyzer);
-    }
     const methodName = 'visit' + node.type;
     return this[methodName](node);
   }
 
   _visitClientNode(node) {
-    if (!Analyzer.prototype._clientAnalyzerInstalled) {
-      installClientAnalyzer(Analyzer);
-    }
-    const methodName = 'visit' + node.type;
-    return this[methodName](node);
+    // Ensure client analyzer is installed (may be called from visitExpression for JSX)
+    const plugin = BlockRegistry.get('client');
+    return plugin.analyzer.visit(this, node);
   }
 
   visitExpression(node) {
@@ -1018,6 +964,88 @@ export class Analyzer {
         }
         localRoles.add(stmt.name);
       }
+    }
+  }
+
+  visitCliBlock(node) {
+    const validKeys = new Set(['name', 'version', 'description']);
+
+    // Validate config keys
+    for (const field of node.config) {
+      if (!validKeys.has(field.key)) {
+        this.warnings.push({
+          message: `Unknown cli config key '${field.key}' — valid keys are: ${[...validKeys].join(', ')}`,
+          loc: field.loc,
+          code: 'W_UNKNOWN_CLI_CONFIG',
+        });
+      }
+    }
+
+    // Validate commands
+    const commandNames = new Set();
+    for (const cmd of node.commands) {
+      // Duplicate command names
+      if (commandNames.has(cmd.name)) {
+        this.warnings.push({
+          message: `Duplicate cli command '${cmd.name}'`,
+          loc: cmd.loc,
+          code: 'W_DUPLICATE_CLI_COMMAND',
+        });
+      }
+      commandNames.add(cmd.name);
+
+      // Check for positional args after flags
+      let seenFlag = false;
+      for (const param of cmd.params) {
+        if (param.isFlag) {
+          seenFlag = true;
+        } else if (seenFlag) {
+          this.warnings.push({
+            message: `Positional argument '${param.name}' after flag in command '${cmd.name}' — positionals should come before flags`,
+            loc: param.loc,
+            code: 'W_POSITIONAL_AFTER_FLAG',
+          });
+        }
+      }
+
+      // Visit command body with params in scope
+      this.pushScope('function');
+      for (const param of cmd.params) {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', null, false, param.loc));
+      }
+      this.visitNode(cmd.body);
+      this.popScope();
+    }
+  }
+
+  _validateCliCrossBlock() {
+    const cliBlocks = this.ast.body.filter(n => n.type === 'CliBlock');
+    if (cliBlocks.length === 0) return;
+
+    // Warn if cli + server coexist
+    const hasServer = this.ast.body.some(n => n.type === 'ServerBlock');
+    if (hasServer) {
+      this.warnings.push({
+        message: 'cli {} and server {} blocks in the same file — cli produces a standalone executable, not a web server',
+        loc: cliBlocks[0].loc,
+        code: 'W_CLI_WITH_SERVER',
+      });
+    }
+
+    // Check for missing name across all cli blocks
+    let hasName = false;
+    for (const block of cliBlocks) {
+      for (const field of block.config) {
+        if (field.key === 'name') hasName = true;
+      }
+    }
+    if (!hasName) {
+      this.warnings.push({
+        message: 'cli block has no name: field — consider adding name: "your-tool"',
+        loc: cliBlocks[0].loc,
+        code: 'W_CLI_MISSING_NAME',
+      });
     }
   }
 

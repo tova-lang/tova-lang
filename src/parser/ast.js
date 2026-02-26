@@ -53,6 +53,15 @@ export class SecurityBlock {
   }
 }
 
+export class CliBlock {
+  constructor(config, commands, loc) {
+    this.type = 'CliBlock';
+    this.config = config;     // Array of CliConfigField
+    this.commands = commands;  // Array of CliCommandDeclaration
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Declarations
 // ============================================================

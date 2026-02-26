@@ -2412,6 +2412,21 @@ class SharedBlock {
     this.loc = loc;
   }
 }
+class SecurityBlock {
+  constructor(body, loc) {
+    this.type = 'SecurityBlock';
+    this.body = body;
+    this.loc = loc;
+  }
+}
+class CliBlock {
+  constructor(config, commands, loc) {
+    this.type = 'CliBlock';
+    this.config = config;     // Array of CliConfigField
+    this.commands = commands;  // Array of CliCommandDeclaration
+    this.loc = loc;
+  }
+}
 
 // ============================================================
 // Declarations
@@ -2967,6 +2982,10 @@ class RangePattern {
 // ============================================================
 // Server-specific nodes (lazy-loaded from server-ast.js, re-exported for backward compat)
 // ============================================================
+
+// ============================================================
+// Security-specific nodes (lazy-loaded from security-ast.js, re-exported for backward compat)
+// ============================================================
 class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';
@@ -3215,7 +3234,7 @@ class RefinementType {
 
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, ClientBlock, SharedBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration };
+const AST = { Program, ServerBlock, ClientBlock, SharedBlock, SecurityBlock, CliBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration };
 
 // ─── src/parser/server-parser.js ───────────────────────
 
@@ -4701,6 +4720,20 @@ class Parser {
     // data block: data { ... }
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'data' && this.peek(1).type === TokenType.LBRACE) {
       return this.parseDataBlock();
+    }
+    // security block: security { ... }
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'security' && this.peek(1).type === TokenType.LBRACE) {
+      if (!Parser.prototype._securityParserInstalled) {
+        installSecurityParser(Parser);
+      }
+      return this.parseSecurityBlock();
+    }
+    // cli block: cli { ... }
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'cli' && this.peek(1).type === TokenType.LBRACE) {
+      if (!Parser.prototype._cliParserInstalled) {
+        installCliParser(Parser);
+      }
+      return this.parseCliBlock();
     }
     // test block: test "name" { ... } or test { ... }
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'test') {
@@ -8560,6 +8593,11 @@ class Analyzer {
 
     this.visitProgram(this.ast);
 
+    // Cross-block security validation (after all blocks are visited)
+    this._validateSecurityCrossBlock();
+    // Cross-block cli validation
+    this._validateCliCrossBlock();
+
     // Check for unused variables/imports (#9)
     this._collectAllScopes(this.globalScope);
     this._checkUnusedSymbols();
@@ -9010,6 +9048,20 @@ class Analyzer {
       case 'GuardStatement': return this.visitGuardStatement(node);
       case 'InterfaceDeclaration': return this.visitInterfaceDeclaration(node);
       case 'DataBlock': return this.visitDataBlock(node);
+      case 'SecurityBlock': return this.visitSecurityBlock(node);
+      case 'CliBlock': return this.visitCliBlock(node);
+      case 'CliConfigField': return;
+      case 'CliCommandDeclaration': return;
+      case 'CliParam': return;
+      case 'SecurityAuthDeclaration': return;
+      case 'SecurityRoleDeclaration': return;
+      case 'SecurityProtectDeclaration': return;
+      case 'SecuritySensitiveDeclaration': return;
+      case 'SecurityCorsDeclaration': return;
+      case 'SecurityCspDeclaration': return;
+      case 'SecurityRateLimitDeclaration': return;
+      case 'SecurityCsrfDeclaration': return;
+      case 'SecurityAuditDeclaration': return;
       case 'SourceDeclaration': return;
       case 'PipelineDeclaration': return;
       case 'ValidateBlock': return;
@@ -9209,6 +9261,343 @@ class Analyzer {
             new Symbol(stmt.name, 'variable', null, false, stmt.loc));
         } catch (e) { /* already defined */ }
         if (stmt.expression) this.visitExpression(stmt.expression);
+      }
+    }
+  }
+
+  visitSecurityBlock(node) {
+    // Per-block: only check for duplicate role names within this block
+    const localRoles = new Set();
+    for (const stmt of node.body) {
+      if (stmt.type === 'SecurityRoleDeclaration') {
+        if (localRoles.has(stmt.name)) {
+          this.warnings.push({
+            message: `Duplicate role definition: '${stmt.name}'`,
+            loc: stmt.loc,
+            code: 'W_DUPLICATE_ROLE',
+          });
+        }
+        localRoles.add(stmt.name);
+      }
+    }
+  }
+
+  visitCliBlock(node) {
+    const validKeys = new Set(['name', 'version', 'description']);
+
+    // Validate config keys
+    for (const field of node.config) {
+      if (!validKeys.has(field.key)) {
+        this.warnings.push({
+          message: `Unknown cli config key '${field.key}' — valid keys are: ${[...validKeys].join(', ')}`,
+          loc: field.loc,
+          code: 'W_UNKNOWN_CLI_CONFIG',
+        });
+      }
+    }
+
+    // Validate commands
+    const commandNames = new Set();
+    for (const cmd of node.commands) {
+      // Duplicate command names
+      if (commandNames.has(cmd.name)) {
+        this.warnings.push({
+          message: `Duplicate cli command '${cmd.name}'`,
+          loc: cmd.loc,
+          code: 'W_DUPLICATE_CLI_COMMAND',
+        });
+      }
+      commandNames.add(cmd.name);
+
+      // Check for positional args after flags
+      let seenFlag = false;
+      for (const param of cmd.params) {
+        if (param.isFlag) {
+          seenFlag = true;
+        } else if (seenFlag) {
+          this.warnings.push({
+            message: `Positional argument '${param.name}' after flag in command '${cmd.name}' — positionals should come before flags`,
+            loc: param.loc,
+            code: 'W_POSITIONAL_AFTER_FLAG',
+          });
+        }
+      }
+
+      // Visit command body with params in scope
+      this.pushScope('function');
+      for (const param of cmd.params) {
+        this.currentScope.define(param.name,
+          new Symbol(param.name, 'parameter', null, false, param.loc));
+      }
+      this.visitNode(cmd.body);
+      this.popScope();
+    }
+  }
+
+  _validateCliCrossBlock() {
+    const cliBlocks = this.ast.body.filter(n => n.type === 'CliBlock');
+    if (cliBlocks.length === 0) return;
+
+    // Warn if cli + server coexist
+    const hasServer = this.ast.body.some(n => n.type === 'ServerBlock');
+    if (hasServer) {
+      this.warnings.push({
+        message: 'cli {} and server {} blocks in the same file — cli produces a standalone executable, not a web server',
+        loc: cliBlocks[0].loc,
+        code: 'W_CLI_WITH_SERVER',
+      });
+    }
+
+    // Check for missing name across all cli blocks
+    let hasName = false;
+    for (const block of cliBlocks) {
+      for (const field of block.config) {
+        if (field.key === 'name') hasName = true;
+      }
+    }
+    if (!hasName) {
+      this.warnings.push({
+        message: 'cli block has no name: field — consider adding name: "your-tool"',
+        loc: cliBlocks[0].loc,
+        code: 'W_CLI_MISSING_NAME',
+      });
+    }
+  }
+
+  _validateSecurityCrossBlock() {
+    // Collect ALL security declarations across ALL security blocks in the AST
+    const allRoles = new Set();
+    const allProtects = [];
+    const allSensitives = [];
+    let hasAuth = false;
+    let hasProtect = false;
+    let authDecl = null;
+    let corsDecl = null;
+    let rateLimitDecl = null;
+    let csrfDecl = null;
+
+    const roleDecls = []; // track all role declarations for cross-block duplicate detection
+    for (const node of this.ast.body) {
+      if (node.type !== 'SecurityBlock') continue;
+      for (const stmt of node.body) {
+        if (stmt.type === 'SecurityRoleDeclaration') {
+          roleDecls.push(stmt);
+          allRoles.add(stmt.name);
+        } else if (stmt.type === 'SecurityProtectDeclaration') {
+          allProtects.push(stmt);
+          hasProtect = true;
+        } else if (stmt.type === 'SecuritySensitiveDeclaration') {
+          allSensitives.push(stmt);
+        } else if (stmt.type === 'SecurityAuthDeclaration') {
+          hasAuth = true;
+          authDecl = stmt;
+        } else if (stmt.type === 'SecurityCorsDeclaration') {
+          corsDecl = stmt;
+        } else if (stmt.type === 'SecurityRateLimitDeclaration') {
+          rateLimitDecl = stmt;
+        } else if (stmt.type === 'SecurityCsrfDeclaration') {
+          csrfDecl = stmt;
+        }
+      }
+    }
+
+    // W_DUPLICATE_ROLE across blocks: detect roles with same name in different security blocks
+    const seenRoleNames = new Map(); // name -> first declaration
+    for (const decl of roleDecls) {
+      const prev = seenRoleNames.get(decl.name);
+      if (prev && prev.loc !== decl.loc) {
+        // Only warn if this is from a different block (same-block dupes handled by visitSecurityBlock)
+        const prevInSameBlock = this.ast.body.some(b =>
+          b.type === 'SecurityBlock' && b.body.includes(prev) && b.body.includes(decl)
+        );
+        if (!prevInSameBlock) {
+          this.warnings.push({
+            message: `Role '${decl.name}' is defined in multiple security blocks — later definition overwrites earlier one`,
+            loc: decl.loc,
+            code: 'W_DUPLICATE_ROLE',
+          });
+        }
+      }
+      seenRoleNames.set(decl.name, decl);
+    }
+
+    // W_UNKNOWN_AUTH_TYPE — validate auth type is a known value
+    if (authDecl && authDecl.authType) {
+      const validAuthTypes = ['jwt', 'api_key'];
+      if (!validAuthTypes.includes(authDecl.authType)) {
+        this.warnings.push({
+          message: `Unknown auth type '${authDecl.authType}' — supported types are: ${validAuthTypes.join(', ')}`,
+          loc: authDecl.loc,
+          code: 'W_UNKNOWN_AUTH_TYPE',
+        });
+      }
+    }
+
+    // Fix 2: W_HARDCODED_SECRET — warn if auth secret is a string literal
+    if (authDecl && authDecl.config.secret) {
+      const secretNode = authDecl.config.secret;
+      if (secretNode.type === 'StringLiteral') {
+        this.warnings.push({
+          message: 'Auth secret is hardcoded as a string literal — use env("SECRET_NAME") instead',
+          loc: authDecl.loc,
+          code: 'W_HARDCODED_SECRET',
+        });
+      }
+    }
+
+    // Fix 7: W_CORS_WILDCARD — warn if cors origins contains "*"
+    if (corsDecl && corsDecl.config.origins) {
+      const originsNode = corsDecl.config.origins;
+      if (originsNode.elements) {
+        for (const elem of originsNode.elements) {
+          if (elem.type === 'StringLiteral' && elem.value === '*') {
+            this.warnings.push({
+              message: 'CORS origins contains wildcard "*" — consider restricting to specific origins',
+              loc: corsDecl.loc,
+              code: 'W_CORS_WILDCARD',
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    // W_INVALID_RATE_LIMIT — validate rate limit max/window are positive numbers
+    const _rlNumericValue = (node) => {
+      if (!node) return null;
+      if (node.type === 'NumberLiteral') return node.value;
+      if (node.type === 'UnaryExpression' && node.operator === '-' && node.operand && node.operand.type === 'NumberLiteral') return -node.operand.value;
+      return null;
+    };
+    if (rateLimitDecl && rateLimitDecl.config) {
+      const rlMaxVal = _rlNumericValue(rateLimitDecl.config.max);
+      const rlWindowVal = _rlNumericValue(rateLimitDecl.config.window);
+      if (rlMaxVal !== null && rlMaxVal <= 0) {
+        this.warnings.push({
+          message: `Rate limit max must be a positive number, got ${rlMaxVal}`,
+          loc: rateLimitDecl.loc,
+          code: 'W_INVALID_RATE_LIMIT',
+        });
+      }
+      if (rlWindowVal !== null && rlWindowVal <= 0) {
+        this.warnings.push({
+          message: `Rate limit window must be a positive number, got ${rlWindowVal}`,
+          loc: rateLimitDecl.loc,
+          code: 'W_INVALID_RATE_LIMIT',
+        });
+      }
+    }
+
+    // W_CSRF_DISABLED — warn when CSRF is explicitly disabled
+    if (csrfDecl && csrfDecl.config && csrfDecl.config.enabled) {
+      const enabledNode = csrfDecl.config.enabled;
+      if ((enabledNode.type === 'BooleanLiteral' && enabledNode.value === false) ||
+          (enabledNode.type === 'Identifier' && enabledNode.name === 'false')) {
+        this.warnings.push({
+          message: 'CSRF protection is explicitly disabled — this increases vulnerability to cross-site request forgery attacks',
+          loc: csrfDecl.loc,
+          code: 'W_CSRF_DISABLED',
+        });
+      }
+    }
+
+    // W_LOCALSTORAGE_TOKEN — warn when auth uses default localStorage storage (XSS-vulnerable)
+    if (authDecl && authDecl.authType === 'jwt') {
+      const storageNode = authDecl.config.storage;
+      const isCookieAuth = storageNode && storageNode.type === 'StringLiteral' && storageNode.value === 'cookie';
+      if (!isCookieAuth) {
+        this.warnings.push({
+          message: 'Auth tokens stored in localStorage are vulnerable to XSS attacks — consider using storage: "cookie" for HttpOnly cookie storage',
+          loc: authDecl.loc,
+          code: 'W_LOCALSTORAGE_TOKEN',
+        });
+      }
+    }
+
+    // Fix 5: W_INMEMORY_RATELIMIT — warn that rate limiting is in-memory only
+    if (rateLimitDecl) {
+      this.warnings.push({
+        message: 'Rate limiting uses in-memory storage — not shared across server instances. Consider an external store for production multi-instance deployments',
+        loc: rateLimitDecl.loc,
+        code: 'W_INMEMORY_RATELIMIT',
+      });
+    }
+
+    // Fix 6: W_NO_AUTH_RATELIMIT — warn when auth exists but no rate limiting protects against brute-force
+    if (hasAuth && !rateLimitDecl) {
+      const hasAuthRateLimit = allProtects.some(p => p.config && p.config.rate_limit);
+      if (!hasAuthRateLimit) {
+        this.warnings.push({
+          message: 'Auth is configured without rate limiting — consider adding rate_limit to protect against brute-force attacks',
+          loc: authDecl.loc,
+          code: 'W_NO_AUTH_RATELIMIT',
+        });
+      }
+    }
+
+    // Fix 7: W_HASH_NOT_ENFORCED — warn when sensitive declares hash but it's not auto-enforced
+    for (const s of allSensitives) {
+      if (s.config && s.config.hash) {
+        const hashVal = s.config.hash.value || s.config.hash;
+        this.warnings.push({
+          message: `sensitive ${s.typeName}.${s.fieldName} declares hash: "${hashVal}" but hashing is not automatically enforced — use hash_password() in your write handlers`,
+          loc: s.loc,
+          code: 'W_HASH_NOT_ENFORCED',
+        });
+      }
+    }
+
+    // No security blocks → nothing to validate (but allow auth/cors checks above)
+    if (!hasProtect && allSensitives.length === 0) return;
+
+    // W_PROTECT_WITHOUT_AUTH: protect rules exist but no auth configured
+    if (hasProtect && !hasAuth) {
+      // Find first protect for location
+      this.warnings.push({
+        message: 'Route protection rules exist but no auth is configured — all protected routes will be inaccessible',
+        loc: allProtects[0].loc,
+        code: 'W_PROTECT_WITHOUT_AUTH',
+      });
+    }
+
+    // W_UNDEFINED_ROLE: protect rules reference roles not defined anywhere
+    for (const protect of allProtects) {
+      const requireExpr = protect.config.require;
+      if (!requireExpr) {
+        // W_PROTECT_NO_REQUIRE: protect rule has no require key
+        this.warnings.push({
+          message: `Protect rule for "${protect.pattern}" has no 'require' — route is unprotected`,
+          loc: protect.loc,
+          code: 'W_PROTECT_NO_REQUIRE',
+        });
+        continue;
+      }
+      if (requireExpr.type === 'Identifier' && requireExpr.name !== 'authenticated') {
+        if (!allRoles.has(requireExpr.name)) {
+          this.warnings.push({
+            message: `Protect rule references undefined role '${requireExpr.name}'`,
+            loc: protect.loc,
+            code: 'W_UNDEFINED_ROLE',
+          });
+        }
+      }
+    }
+
+    // W_UNDEFINED_ROLE: sensitive visible_to references roles not defined anywhere
+    for (const sensitive of allSensitives) {
+      const visibleTo = sensitive.config.visible_to;
+      if (visibleTo && (visibleTo.type === 'ArrayExpression' || visibleTo.type === 'ArrayLiteral')) {
+        for (const elem of visibleTo.elements) {
+          if (elem.type === 'Identifier' && elem.name !== 'self') {
+            if (!allRoles.has(elem.name)) {
+              this.warnings.push({
+                message: `Sensitive field '${sensitive.typeName}.${sensitive.fieldName}' visible_to references undefined role '${elem.name}'`,
+                loc: sensitive.loc,
+                code: 'W_UNDEFINED_ROLE',
+              });
+            }
+          }
+        }
       }
     }
   }
@@ -11568,6 +11957,173 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   bold: `function bold(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[1m' + text + '\\x1b[0m'; }`,
   dim: `function dim(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[2m' + text + '\\x1b[0m'; }`,
 
+  // ── Scripting: Color shortcuts ────────────────────────
+  green: `function green(text) { return color(text, 'green'); }`,
+  red: `function red(text) { return color(text, 'red'); }`,
+  yellow: `function yellow(text) { return color(text, 'yellow'); }`,
+  blue: `function blue(text) { return color(text, 'blue'); }`,
+  cyan: `function cyan(text) { return color(text, 'cyan'); }`,
+  magenta: `function magenta(text) { return color(text, 'magenta'); }`,
+  gray: `function gray(text) { return color(text, 'gray'); }`,
+  underline: `function underline(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[4m' + text + '\\x1b[0m'; }`,
+  strikethrough: `function strikethrough(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[9m' + text + '\\x1b[0m'; }`,
+
+  // ── Scripting: Rich output ────────────────────────────
+  table: `function table(data, opts) {
+  if (!data || data.length === 0) { console.log("(empty)"); return; }
+  const o = opts || {};
+  const headers = o.headers || Object.keys(data[0]);
+  const rows = data.map(function(row) { return headers.map(function(h) { return String(row[h] != null ? row[h] : ''); }); });
+  const widths = headers.map(function(h, i) {
+    return Math.max(h.length, ...rows.map(function(r) { return r[i].length; }));
+  });
+  const noColor = typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY));
+  const b = function(t) { return noColor ? t : '\\x1b[1m' + t + '\\x1b[0m'; };
+  const line = widths.map(function(w) { return '-'.repeat(w + 2); }).join('+');
+  console.log(b(headers.map(function(h, i) { return ' ' + h.padEnd(widths[i]) + ' '; }).join('|')));
+  console.log(line);
+  rows.forEach(function(r) { console.log(r.map(function(c, i) { return ' ' + c.padEnd(widths[i]) + ' '; }).join('|')); });
+}`,
+
+  panel: `function panel(title, content) {
+  var lines = String(content).split('\\n');
+  var maxLen = Math.max(title ? title.length + 2 : 0, ...lines.map(function(l) { return l.length; }));
+  var noColor = typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY));
+  var b = function(t) { return noColor ? t : '\\x1b[1m' + t + '\\x1b[0m'; };
+  var top = '\\u250c' + (title ? '\\u2500 ' + b(title) + ' ' + '\\u2500'.repeat(Math.max(0, maxLen - title.length - 2)) : '\\u2500'.repeat(maxLen + 2)) + '\\u2510';
+  var bot = '\\u2514' + '\\u2500'.repeat(maxLen + 2) + '\\u2518';
+  var body = lines.map(function(l) { return '\\u2502 ' + l.padEnd(maxLen) + ' \\u2502'; }).join('\\n');
+  console.log(top + '\\n' + body + '\\n' + bot);
+}`,
+
+  progress: `function progress(items, opts) {
+  var o = opts || {};
+  var total = items.length || o.total || 0;
+  var label = o.label || '';
+  var width = o.width || 30;
+  var isTTY = typeof process !== 'undefined' && process.stderr && process.stderr.isTTY;
+  var idx = 0;
+  return { [Symbol.iterator]() {
+    var it = items[Symbol.iterator]();
+    return { next() {
+      var r = it.next();
+      if (!r.done) {
+        idx++;
+        if (isTTY) {
+          var pct = Math.round(idx / total * 100);
+          var filled = Math.round(idx / total * width);
+          var bar = '\\u2588'.repeat(filled) + '\\u2591'.repeat(width - filled);
+          process.stderr.write('\\r' + label + ' [' + bar + '] ' + pct + '% ' + idx + '/' + total);
+        }
+      } else if (isTTY) {
+        process.stderr.write('\\r' + ' '.repeat(width + label.length + 20) + '\\r');
+      }
+      return r;
+    }};
+  }};
+}`,
+
+  spin: `async function spin(label, fn) {
+  var frames = ['\\u2838','\\u2834','\\u2826','\\u2823','\\u2831','\\u2839'];
+  var isTTY = typeof process !== 'undefined' && process.stderr && process.stderr.isTTY;
+  var i = 0;
+  var iv = isTTY ? setInterval(function() { process.stderr.write('\\r' + frames[i++ % frames.length] + ' ' + label); }, 80) : null;
+  try {
+    var result = await fn();
+    if (iv) clearInterval(iv);
+    if (isTTY) process.stderr.write('\\r\\u2714 ' + label + '\\n');
+    return result;
+  } catch (e) {
+    if (iv) clearInterval(iv);
+    if (isTTY) process.stderr.write('\\r\\u2718 ' + label + '\\n');
+    throw e;
+  }
+}`,
+
+  // ── Scripting: Interactive prompts ─────────────────────
+  ask: `async function ask(prompt, opts) {
+  var o = opts || {};
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  var suffix = o.default ? ' (' + o.default + ')' : '';
+  return new Promise(function(resolve) {
+    rl.question(prompt + suffix + ' ', function(answer) {
+      rl.close();
+      resolve(answer || o.default || '');
+    });
+  });
+}`,
+
+  confirm: `async function confirm(prompt, opts) {
+  var o = opts || {};
+  var def = o.default !== undefined ? o.default : true;
+  var hint = def ? '[Y/n]' : '[y/N]';
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    rl.question(prompt + ' ' + hint + ' ', function(answer) {
+      rl.close();
+      if (!answer) { resolve(def); return; }
+      resolve(answer.toLowerCase().startsWith('y'));
+    });
+  });
+}`,
+
+  choose: `async function choose(prompt, options) {
+  console.log(prompt);
+  for (var i = 0; i < options.length; i++) console.log('  ' + (i + 1) + '. ' + options[i]);
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    rl.question('Select [1-' + options.length + ']: ', function(answer) {
+      rl.close();
+      var idx = parseInt(answer, 10) - 1;
+      resolve(idx >= 0 && idx < options.length ? options[idx] : options[0]);
+    });
+  });
+}`,
+
+  choose_many: `async function choose_many(prompt, options) {
+  console.log(prompt);
+  for (var i = 0; i < options.length; i++) console.log('  ' + (i + 1) + '. ' + options[i]);
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    rl.question('Select (comma-separated): ', function(answer) {
+      rl.close();
+      var indices = answer.split(',').map(function(s) { return parseInt(s.trim(), 10) - 1; });
+      resolve(indices.filter(function(i) { return i >= 0 && i < options.length; }).map(function(i) { return options[i]; }));
+    });
+  });
+}`,
+
+  secret: `async function secret(prompt) {
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    if (process.stdin.isTTY) {
+      process.stdout.write(prompt + ' ');
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      var buf = '';
+      var onData = function(ch) {
+        ch = ch.toString();
+        if (ch === '\\n' || ch === '\\r' || ch === '\\u0004') {
+          process.stdin.setRawMode(false);
+          process.stdin.pause();
+          process.stdin.removeListener('data', onData);
+          process.stdout.write('\\n');
+          rl.close();
+          resolve(buf);
+        } else if (ch === '\\u007f' || ch === '\\b') {
+          if (buf.length > 0) { buf = buf.slice(0, -1); process.stdout.write('\\b \\b'); }
+        } else {
+          buf += ch;
+          process.stdout.write('*');
+        }
+      };
+      process.stdin.on('data', onData);
+    } else {
+      rl.question(prompt + ' ', function(answer) { rl.close(); resolve(answer); });
+    }
+  });
+}`,
+
   // ── Scripting: Signal handling ────────────────────────
   on_signal: `function on_signal(name, callback) { process.on(name, callback); }`,
 
@@ -12086,6 +12642,14 @@ const STDLIB_DEPS = {
   compare_by: ['Less', 'Equal', 'Greater'],
   // mock/spy
   create_mock: ['create_spy'],
+  // color shortcuts depend on color()
+  green: ['color'],
+  red: ['color'],
+  yellow: ['color'],
+  blue: ['color'],
+  cyan: ['color'],
+  magenta: ['color'],
+  gray: ['color'],
 };
 
 // Resolve all transitive dependencies for a set of used names
@@ -16042,8 +16606,15 @@ class ServerCodegen extends BaseCodegen {
     }
   }
 
-  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = []) {
+  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = [], securityConfig = null) {
     const lines = [];
+
+    // Generate security code fragments if security block is present
+    let securityFragments = null;
+    if (securityConfig) {
+      const secGen = new SecurityCodegen();
+      securityFragments = secGen.generateServerSecurity(securityConfig);
+    }
 
     // Shared code
     if (sharedCode.trim()) {
@@ -16171,6 +16742,19 @@ class ServerCodegen extends BaseCodegen {
       collectFromBody(block.body);
     }
 
+    // Security block overrides: security block takes precedence over inline declarations
+    if (securityFragments) {
+      if (securityFragments.authConfig && !authConfig) {
+        authConfig = securityFragments.authConfig;
+      }
+      if (securityFragments.corsConfig && !corsConfig) {
+        corsConfig = securityFragments.corsConfig;
+      }
+      if (securityFragments.rateLimitConfig && !rateLimitConfig) {
+        rateLimitConfig = securityFragments.rateLimitConfig;
+      }
+    }
+
     // Collect type declarations from shared blocks for model/ORM generation
     const sharedTypes = new Map(); // typeName -> { fields: [{ name, type }] }
     const _collectTypes = (stmts) => {
@@ -16222,13 +16806,14 @@ class ServerCodegen extends BaseCodegen {
     const usesDb = this._astUsesIdentifier(serverBlocks, 'db');
 
     // Check if rate limiting is needed
-    const needsRateLimitStore = !!rateLimitConfig || routes.some(r => (r.decorators || []).some(d => d.name === 'rate_limit'));
+    const hasSecurityProtectRateLimit = securityConfig && securityConfig.protects && securityConfig.protects.some(p => p.config.rate_limit);
+    const needsRateLimitStore = !!rateLimitConfig || routes.some(r => (r.decorators || []).some(d => d.name === 'rate_limit')) || hasSecurityProtectRateLimit;
 
     // Fast mode: emit a minimal request handler when no complex features are used
     const allRoutesStatic = routes.every(r => !r.path.includes(':') && !r.path.includes('*'));
     const hasDynamicRoutes = !allRoutesStatic;
     const isFastMode = !corsConfig && !authConfig && !sessionConfig && !rateLimitConfig &&
-      !errorHandler && !wsDecl && !staticDecl && !compressionConfig &&
+      !errorHandler && !wsDecl && !staticDecl && !compressionConfig && !securityFragments &&
       middlewares.length === 0 && !dbConfig && subscriptions.length === 0 &&
       backgroundJobs.length === 0 && sseDecls.length === 0 && !cacheConfig &&
       routes.every(r => !(r.decorators || []).length && !r._groupMiddlewares?.length && !r._version);
@@ -16728,6 +17313,13 @@ class ServerCodegen extends BaseCodegen {
     lines.push('  const claims = { ...payload, iat: now };');
     lines.push('  if (options.expires_in) claims.exp = now + options.expires_in;');
     lines.push('  if (options.exp) claims.exp = options.exp;');
+    // Fix 2: Auto-include iss/aud from auth config when not explicitly set
+    if (authConfig && authConfig.issuer) {
+      lines.push(`  if (!claims.iss) claims.iss = ${this.genExpression(authConfig.issuer)};`);
+    }
+    if (authConfig && authConfig.audience) {
+      lines.push(`  if (!claims.aud) claims.aud = ${this.genExpression(authConfig.audience)};`);
+    }
     lines.push('  const __b64url = (obj) => btoa(JSON.stringify(obj)).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");');
     lines.push('  const __headerB64 = __b64url(header);');
     lines.push('  const __payloadB64 = __b64url(claims);');
@@ -16809,6 +17401,7 @@ class ServerCodegen extends BaseCodegen {
       lines.push('    "Access-Control-Max-Age": __corsMaxAge,');
       lines.push('  };');
       lines.push('  if (__corsCredentials) h["Access-Control-Allow-Credentials"] = "true";');
+      lines.push('  if (!__corsOrigins.includes("*")) h["Vary"] = "Origin";');
       lines.push('  return h;');
       lines.push('}');
     } else if (authConfig || sessionConfig) {
@@ -16824,7 +17417,7 @@ class ServerCodegen extends BaseCodegen {
       lines.push('  if (!origin) return __corsHeadersConst;');
       lines.push('  const reqUrl = req.url ? new URL(req.url) : null;');
       lines.push('  if (reqUrl && origin === reqUrl.origin) {');
-      lines.push('    return { ...__corsHeadersConst, "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" };');
+      lines.push('    return { ...__corsHeadersConst, "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin" };');
       lines.push('  }');
       lines.push('  return __corsHeadersConst;');
       lines.push('}');
@@ -16852,13 +17445,31 @@ class ServerCodegen extends BaseCodegen {
       lines.push('  "Referrer-Policy": "strict-origin-when-cross-origin",');
       lines.push('  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",');
       lines.push('});');
-      if (tlsConfig) {
-        lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
+      // HSTS: explicit security block config, auto-enable with auth, or TLS config
+      const hstsConf = securityFragments && securityFragments.hstsConfig;
+      const hstsExplicitlyDisabled = hstsConf && hstsConf.enabled && hstsConf.enabled.type === 'BooleanLiteral' && hstsConf.enabled.value === false;
+      const needsHsts = !hstsExplicitlyDisabled && (tlsConfig || hstsConf);
+      if (needsHsts) {
+        if (hstsConf && !hstsConf.__autoEnabled && hstsConf.max_age) {
+          // Custom HSTS from security block
+          const maxAge = hstsConf.max_age.value || 31536000;
+          const inclSub = hstsConf.include_subdomains ? (hstsConf.include_subdomains.value !== false) : true;
+          const preload = hstsConf.preload ? hstsConf.preload.value === true : false;
+          let hstsVal = `max-age=${maxAge}`;
+          if (inclSub) hstsVal += '; includeSubDomains';
+          if (preload) hstsVal += '; preload';
+          lines.push(`const __hstsHeader = { "Strict-Transport-Security": ${JSON.stringify(hstsVal)} };`);
+        } else {
+          lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
+        }
       }
       lines.push('function __applySecurityHeaders(headers) {');
       lines.push('  for (const [k, v] of Object.entries(__securityHeaders)) headers.set(k, v);');
-      if (tlsConfig) {
+      if (needsHsts) {
         lines.push('  headers.set("Strict-Transport-Security", __hstsHeader["Strict-Transport-Security"]);');
+      }
+      if (securityFragments && securityFragments.cspCode) {
+        lines.push('  if (typeof __getCspHeader === "function") headers.set("Content-Security-Policy", __getCspHeader());');
       }
       lines.push('}');
       lines.push('');
@@ -16884,18 +17495,48 @@ class ServerCodegen extends BaseCodegen {
       } else {
         // JWT auth (default)
         const secretExpr = authConfig.secret ? this.genExpression(authConfig.secret) : 'process.env.AUTH_SECRET || process.env.JWT_SECRET';
+        const isCookieAuth = authConfig.storage && authConfig.storage.type === 'StringLiteral' && authConfig.storage.value === 'cookie';
         lines.push(`const __authSecret = ${secretExpr};`);
         if (!authConfig.secret) {
           lines.push('if (!process.env.AUTH_SECRET && !process.env.JWT_SECRET) console.warn("[tova] WARNING: No auth secret configured. Set AUTH_SECRET or JWT_SECRET env var, or use auth { secret: \\"...\\" }");');
         }
+        if (isCookieAuth) {
+          const expiresExpr = authConfig.expires ? this.genExpression(authConfig.expires) : '86400';
+          lines.push(`const __authCookieMaxAge = ${expiresExpr};`);
+          lines.push('function __setAuthCookie(res, token) {');
+          lines.push('  const h = new Headers(res.headers);');
+          lines.push('  h.set("Set-Cookie", `__tova_auth=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${__authCookieMaxAge}`);');
+          lines.push('  return new Response(res.body, { status: res.status, headers: h });');
+          lines.push('}');
+          lines.push('function __clearAuthCookie(res) {');
+          lines.push('  const h = new Headers(res.headers);');
+          lines.push('  h.set("Set-Cookie", "__tova_auth=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");');
+          lines.push('  return new Response(res.body, { status: res.status, headers: h });');
+          lines.push('}');
+        }
         lines.push('let __authKey = null;');
         lines.push('async function __authenticate(req) {');
-        lines.push('  const authHeader = req.headers.get("Authorization");');
-        lines.push('  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;');
-        lines.push('  const token = authHeader.slice(7);');
+        if (isCookieAuth) {
+          // Read token from cookie first, fall back to Authorization header
+          lines.push('  let token = null;');
+          lines.push('  const __cookieStr = req.headers.get("Cookie") || "";');
+          lines.push('  const __authCookie = __cookieStr.split(";").map(s => s.trim()).find(s => s.startsWith("__tova_auth="));');
+          lines.push('  if (__authCookie) token = __authCookie.slice("__tova_auth=".length);');
+          lines.push('  if (!token) {');
+          lines.push('    const authHeader = req.headers.get("Authorization");');
+          lines.push('    if (authHeader && authHeader.startsWith("Bearer ")) token = authHeader.slice(7);');
+          lines.push('  }');
+          lines.push('  if (!token) return null;');
+        } else {
+          lines.push('  const authHeader = req.headers.get("Authorization");');
+          lines.push('  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;');
+          lines.push('  const token = authHeader.slice(7);');
+        }
         lines.push('  try {');
         lines.push('    const parts = token.split(".");');
         lines.push('    if (parts.length !== 3) return null;');
+        lines.push('    const __header = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));');
+        lines.push('    if (__header.alg !== "HS256") return null;');
         lines.push('    if (!__authKey) {');
         lines.push('      __authKey = await crypto.subtle.importKey(');
         lines.push('        "raw", new TextEncoder().encode(__authSecret),');
@@ -16911,8 +17552,72 @@ class ServerCodegen extends BaseCodegen {
         lines.push('    if (__sigBuf.length !== __tokBuf.length || !require("crypto").timingSafeEqual(__sigBuf, __tokBuf)) return null;');
         lines.push('    const __payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));');
         lines.push('    if (__payload.exp && __payload.exp < Math.floor(Date.now() / 1000)) return null;');
+        lines.push('    if (__payload.nbf && __payload.nbf > Math.floor(Date.now() / 1000)) return null;');
+        // Fix 2: JWT iss/aud claim validation
+        if (authConfig.issuer) {
+          lines.push(`    if (__payload.iss !== ${this.genExpression(authConfig.issuer)}) return null;`);
+        }
+        if (authConfig.audience) {
+          lines.push(`    if (__payload.aud !== ${this.genExpression(authConfig.audience)}) return null;`);
+        }
         lines.push('    return __payload;');
         lines.push('  } catch { return null; }');
+        lines.push('}');
+      }
+      lines.push('');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 9b. Security Block — roles, protection, CSP, sensitive, audit
+    // ════════════════════════════════════════════════════════════
+    if (securityFragments) {
+      if (securityFragments.roleDefinitions) {
+        lines.push(securityFragments.roleDefinitions);
+        lines.push('');
+      }
+      if (securityFragments.protectCode) {
+        lines.push(securityFragments.protectCode);
+        lines.push('');
+      }
+      if (securityFragments.cspCode) {
+        lines.push(securityFragments.cspCode);
+        lines.push('');
+      }
+      if (securityFragments.sensitiveCode) {
+        lines.push(securityFragments.sensitiveCode);
+        lines.push('');
+      }
+      if (securityFragments.auditCode) {
+        lines.push(securityFragments.auditCode);
+        lines.push('');
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 9c. Client IP Helper — trust_proxy aware
+    // ════════════════════════════════════════════════════════════
+    if (!isFastMode) {
+      lines.push('// ── Client IP ──');
+      const trustProxy = securityFragments && securityFragments.trustProxyConfig;
+      if (trustProxy === true) {
+        lines.push('function __getClientIp(req) {');
+        lines.push('  const xff = req.headers.get("x-forwarded-for");');
+        lines.push('  if (xff) return xff.split(",")[0].trim();');
+        lines.push('  return req.headers.get("x-real-ip") || __server.requestIP(req)?.address || "unknown";');
+        lines.push('}');
+      } else if (trustProxy === 'loopback') {
+        lines.push('function __getClientIp(req) {');
+        lines.push('  const direct = req.headers.get("x-real-ip") || __server.requestIP(req)?.address || "unknown";');
+        lines.push('  if (direct === "127.0.0.1" || direct === "::1" || direct === "::ffff:127.0.0.1") {');
+        lines.push('    const xff = req.headers.get("x-forwarded-for");');
+        lines.push('    if (xff) return xff.split(",")[0].trim();');
+        lines.push('  }');
+        lines.push('  return direct;');
+        lines.push('}');
+      } else {
+        // Default: do not trust x-forwarded-for
+        lines.push('function __getClientIp(req) {');
+        lines.push('  return req.headers.get("x-real-ip") || __server.requestIP(req)?.address || "unknown";');
         lines.push('}');
       }
       lines.push('');
@@ -17121,13 +17826,29 @@ class ServerCodegen extends BaseCodegen {
         lines.push('  }');
         lines.push('}, 60000);');
       }
+      // Fix 8: Session regeneration helper
+      lines.push('function __regenerateSession(req) {');
+      lines.push('  const oldData = req.__session ? { ...req.__session.data } : {};');
+      lines.push('  const newId = crypto.randomUUID();');
+      lines.push('  if (req.__session && req.__session.destroy) req.__session.destroy();');
+      lines.push('  req.__session = __createSession(newId);');
+      lines.push('  for (const [k, v] of Object.entries(oldData)) req.__session.set(k, v);');
+      lines.push('  req.__sessionRegenerated = true;');
+      lines.push('  req.__newSessionId = newId;');
+      lines.push('  return newId;');
+      lines.push('}');
       lines.push('');
     }
 
     // ════════════════════════════════════════════════════════════
     // 11d. CSRF Protection — server-side token generation + validation
     // ════════════════════════════════════════════════════════════
-    const needsCsrf = !isFastMode && (sessionConfig || authConfig);
+    // Check if CSRF is explicitly disabled via security block: csrf { enabled: false }
+    const csrfExplicitlyDisabled = securityFragments && securityFragments.csrfConfig &&
+      securityFragments.csrfConfig.enabled &&
+      ((securityFragments.csrfConfig.enabled.type === 'BooleanLiteral' && securityFragments.csrfConfig.enabled.value === false) ||
+       (securityFragments.csrfConfig.enabled === false));
+    const needsCsrf = !isFastMode && !csrfExplicitlyDisabled && (sessionConfig || authConfig);
     if (needsCsrf) {
       lines.push('// ── CSRF Protection ──');
       lines.push('let __csrfKey = null;');
@@ -17141,32 +17862,57 @@ class ServerCodegen extends BaseCodegen {
       lines.push('  }');
       lines.push('  return __csrfKey;');
       lines.push('}');
-      lines.push('async function __generateCSRFToken() {');
+      lines.push('async function __generateCSRFToken(bindingId) {');
       lines.push('  const key = await __getCSRFKey();');
       lines.push('  const timestamp = Date.now().toString(36);');
       lines.push('  const nonce = crypto.getRandomValues(new Uint8Array(8));');
       lines.push('  const nonceHex = [...nonce].map(b => b.toString(16).padStart(2, "0")).join("");');
-      lines.push('  const data = timestamp + ":" + nonceHex;');
+      lines.push('  const data = timestamp + ":" + nonceHex + ":" + (bindingId || "anon");');
       lines.push('  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));');
       lines.push('  const sigHex = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");');
       lines.push('  return data + ":" + sigHex;');
       lines.push('}');
-      lines.push('async function __validateCSRFToken(token) {');
+      lines.push('async function __validateCSRFToken(token, bindingId) {');
       lines.push('  if (!token || typeof token !== "string") return false;');
       lines.push('  const parts = token.split(":");');
-      lines.push('  if (parts.length !== 3) return false;');
-      lines.push('  const [timestamp, nonce, sig] = parts;');
+      lines.push('  if (parts.length !== 4) return false;');
+      lines.push('  const [timestamp, nonce, binding, sig] = parts;');
+      lines.push('  if (binding !== (bindingId || "anon")) return false;');
       lines.push('  const age = Date.now() - parseInt(timestamp, 36);');
       lines.push('  if (isNaN(age) || age < 0 || age > 86400000) return false;');
       lines.push('  const key = await __getCSRFKey();');
-      lines.push('  const data = timestamp + ":" + nonce;');
+      lines.push('  const data = timestamp + ":" + nonce + ":" + binding;');
       lines.push('  const expectedSig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));');
-      lines.push('  const expectedHex = [...new Uint8Array(expectedSig)].map(b => b.toString(16).padStart(2, "0")).join("");');
-      lines.push('  if (sig.length !== expectedHex.length) return false;');
-      lines.push('  const __a = Buffer.from(sig);');
-      lines.push('  const __b = Buffer.from(expectedHex);');
-      lines.push('  return require("crypto").timingSafeEqual(__a, __b);');
+      lines.push('  const expectedBytes = new Uint8Array(expectedSig);');
+      lines.push('  let sigBytes; try { sigBytes = new Uint8Array(Buffer.from(sig, "hex")); } catch { return false; }');
+      lines.push('  if (sigBytes.length !== expectedBytes.length) return false;');
+      lines.push('  return require("crypto").timingSafeEqual(sigBytes, expectedBytes);');
       lines.push('}');
+      // Fix 9: CSRF exempt patterns
+      const csrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
+      if (csrfExempt) {
+        lines.push('const __csrfExemptPatterns = [');
+        // csrfExempt is an AST node (ArrayLiteral/ArrayExpression)
+        if (csrfExempt.elements) {
+          for (const elem of csrfExempt.elements) {
+            if (elem.type === 'StringLiteral' || elem.value) {
+              const pattern = elem.value;
+              const regexPattern = pattern
+                .replace(/\*\*/g, '\x00GLOBSTAR\x00')
+                .replace(/\*/g, '\x00STAR\x00')
+                .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')
+                .replace(/\x00STAR\x00/g, '[^/]*')
+                .replace(/\x00GLOBSTAR\x00/g, '.*');
+              lines.push(`  /^${regexPattern}$/,`);
+            }
+          }
+        }
+        lines.push('];');
+        lines.push('function __isCsrfExempt(path) {');
+        lines.push('  for (const p of __csrfExemptPatterns) { if (p.test(path)) return true; }');
+        lines.push('  return false;');
+        lines.push('}');
+      }
       lines.push('');
     }
 
@@ -17846,8 +18592,14 @@ class ServerCodegen extends BaseCodegen {
     // CSRF Token Endpoint
     if (needsCsrf) {
       lines.push('// ── CSRF Token Endpoint ──');
-      lines.push('__addRoute("GET", "/csrf-token", async () => {');
-      lines.push('  const token = await __generateCSRFToken();');
+      if (sessionConfig) {
+        lines.push('__addRoute("GET", "/csrf-token", async (req) => {');
+        lines.push('  const __bindingId = req.__session ? req.__session.get("__sid") || "anon" : "anon";');
+        lines.push('  const token = await __generateCSRFToken(__bindingId);');
+      } else {
+        lines.push('__addRoute("GET", "/csrf-token", async () => {');
+        lines.push('  const token = await __generateCSRFToken();');
+      }
       lines.push('  return Response.json({ token });');
       lines.push('});');
       lines.push('');
@@ -17877,8 +18629,25 @@ class ServerCodegen extends BaseCodegen {
         } else {
           lines.push(`  const result = await ${name}();`);
         }
-        lines.push(`  return Response.json({ result });`);
+        if (securityFragments && securityFragments.hasAutoSanitize) {
+          const userRef = authConfig ? 'await __authenticate(req)' : 'null';
+          lines.push(`  return Response.json({ result: __autoSanitize(result, ${userRef}) });`);
+        } else {
+          lines.push(`  return Response.json({ result });`);
+        }
         lines.push(`});`);
+        lines.push('');
+      }
+    }
+
+    // Cookie auth logout endpoint
+    if (authConfig) {
+      const isCookieAuth = authConfig.storage && authConfig.storage.type === 'StringLiteral' && authConfig.storage.value === 'cookie';
+      if (isCookieAuth) {
+        lines.push('// ── Cookie Auth Logout ──');
+        lines.push('__addRoute("POST", "/rpc/__logout", async (req) => {');
+        lines.push('  return __clearAuthCookie(Response.json({ ok: true }));');
+        lines.push('});');
         lines.push('');
       }
     }
@@ -17968,7 +18737,7 @@ class ServerCodegen extends BaseCodegen {
         if (rateLimitDec && needsRateLimitStore) {
           const rlMax = rateLimitDec.args[0] ? this.genExpression(rateLimitDec.args[0]) : '100';
           const rlWindow = rateLimitDec.args[1] ? this.genExpression(rateLimitDec.args[1]) : '60';
-          lines.push(`  const __rlIp = req.headers.get("x-forwarded-for") || "unknown";`);
+          lines.push(`  const __rlIp = __getClientIp(req);`);
           lines.push(`  const __rlRoute = __checkRateLimit(\`route:${path}:\${__rlIp}\`, ${rlMax}, ${rlWindow});`);
           lines.push(`  if (__rlRoute.limited) return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { "Retry-After": String(__rlRoute.retryAfter) });`);
         }
@@ -18211,10 +18980,20 @@ class ServerCodegen extends BaseCodegen {
           lines.push(`    return new Response(res.body, { status: res.status, headers: h });`);
           lines.push(`  };`);
           lines.push(`  if (__result instanceof Response) return __addVersionHeaders(__result);`);
-          lines.push(`  return __addVersionHeaders(Response.json(__result));`);
+          if (securityFragments && securityFragments.hasAutoSanitize) {
+            const userRef = (hasAuth && authConfig) ? '__user' : (authConfig ? 'await __authenticate(req)' : 'null');
+            lines.push(`  return __addVersionHeaders(Response.json(__autoSanitize(__result, ${userRef})));`);
+          } else {
+            lines.push(`  return __addVersionHeaders(Response.json(__result));`);
+          }
         } else {
           lines.push(`  if (__result instanceof Response) return __result;`);
-          lines.push(`  return Response.json(__result);`);
+          if (securityFragments && securityFragments.hasAutoSanitize) {
+            const userRef = (hasAuth && authConfig) ? '__user' : (authConfig ? 'await __authenticate(req)' : 'null');
+            lines.push(`  return Response.json(__autoSanitize(__result, ${userRef}));`);
+          } else {
+            lines.push(`  return Response.json(__result);`);
+          }
         }
         lines.push(`}${versionArg});`);
         lines.push('');
@@ -18685,7 +19464,10 @@ class ServerCodegen extends BaseCodegen {
       lines.push('  const __rawUrl = req.url;');
       lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');
       lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
-      lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+      lines.push('  let __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+      lines.push('  try { __pathname = decodeURIComponent(__pathname); } catch {}');
+      lines.push('  __pathname = __pathname.replace(/\\/\\/+/g, "/");');
+      lines.push('  if (__pathname.length > 1 && __pathname.endsWith("/")) __pathname = __pathname.slice(0, -1);');
       lines.push('  const __method = req.method;');
 
       // OPTIONS fast path
@@ -18742,7 +19524,20 @@ class ServerCodegen extends BaseCodegen {
     lines.push('  const __rawUrl = req.url;');
     lines.push('  const __pStart = __rawUrl.indexOf("/", 12);');  // skip "http://x:p" or "https://x:p"
     lines.push('  const __qIdx = __rawUrl.indexOf("?", __pStart);');
-    lines.push('  const __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+    lines.push('  let __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
+    lines.push('  try { __pathname = decodeURIComponent(__pathname); } catch {}');
+    lines.push('  __pathname = __pathname.replace(/\\/\\/+/g, "/");');
+    // Resolve ../ sequences to prevent path traversal
+    lines.push('  if (__pathname.includes("..")) {');
+    lines.push('    const __parts = __pathname.split("/");');
+    lines.push('    const __resolved = [];');
+    lines.push('    for (const __seg of __parts) {');
+    lines.push('      if (__seg === "..") { __resolved.pop(); }');
+    lines.push('      else if (__seg !== ".") { __resolved.push(__seg); }');
+    lines.push('    }');
+    lines.push('    __pathname = __resolved.join("/") || "/";');
+    lines.push('  }');
+    lines.push('  if (__pathname.length > 1 && __pathname.endsWith("/")) __pathname = __pathname.slice(0, -1);');
     lines.push('  const __rid = __sanitizeRequestId(req.headers.get("X-Request-Id"));');
     lines.push('  const __startTime = Date.now();');
     lines.push('  const __cors = __getCorsHeaders(req);');
@@ -18790,7 +19585,7 @@ class ServerCodegen extends BaseCodegen {
 
     // Global rate limit check (F2)
     if (rateLimitConfig) {
-      lines.push('  const __clientIp = req.headers.get("x-forwarded-for") || "unknown";');
+      lines.push('  const __clientIp = __getClientIp(req);');
       lines.push('  const __rl = __checkRateLimit(__clientIp, __rateLimitMax, __rateLimitWindow);');
       lines.push('  if (__rl.limited) {');
       lines.push('    return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__rl.retryAfter) });');
@@ -18815,12 +19610,47 @@ class ServerCodegen extends BaseCodegen {
 
     // CSRF validation on state-mutating requests
     if (needsCsrf) {
+      const hasCsrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
       lines.push('  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
+      if (hasCsrfExempt) {
+        lines.push('   if (!__isCsrfExempt(__pathname)) {');
+      }
       lines.push('    const __csrfToken = req.headers.get("X-Tova-CSRF") || req.headers.get("x-tova-csrf");');
-      lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken);');
+      if (sessionConfig) {
+        lines.push('    const __csrfBindingId = req.__session ? req.__session.get("__sid") || "anon" : "anon";');
+        lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken, __csrfBindingId);');
+      } else {
+        lines.push('    const __csrfValid = await __validateCSRFToken(__csrfToken);');
+      }
       lines.push('    if (!__csrfValid) {');
       lines.push('      __log("warn", "CSRF validation failed", { rid: __rid, method: req.method, path: __pathname });');
       lines.push('      return __errorResponse(403, "CSRF_INVALID", "CSRF token invalid or missing", null, __cors);');
+      lines.push('    }');
+      if (hasCsrfExempt) {
+        lines.push('   }');
+      }
+      lines.push('  }');
+    }
+
+    // Security block: route protection check
+    if (securityFragments && securityFragments.protectCode) {
+      lines.push('  // Security block: route protection');
+      if (authConfig) {
+        lines.push('  const __secUser = await __authenticate(req);');
+      } else {
+        lines.push('  const __secUser = null;');
+      }
+      lines.push('  const __protection = __checkProtection(__pathname, __secUser);');
+      lines.push('  if (!__protection.allowed) {');
+      lines.push('    const __statusCode = __secUser ? 403 : 401;');
+      lines.push('    const __errorCode = __secUser ? "FORBIDDEN" : "AUTH_REQUIRED";');
+      lines.push('    return __errorResponse(__statusCode, __errorCode, __protection.reason, null, __cors);');
+      lines.push('  }');
+      lines.push('  if (__protection.rateLimit && __protection.rateLimit.max) {');
+      lines.push('    const __protectIp = __getClientIp(req);');
+      lines.push('    const __protectRl = __checkRateLimit("protect:" + __pathname + ":" + __protectIp, __protection.rateLimit.max, __protection.rateLimit.window || 60);');
+      lines.push('    if (__protectRl.limited) {');
+      lines.push('      return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__protectRl.retryAfter) });');
       lines.push('    }');
       lines.push('  }');
     }
@@ -18975,8 +19805,9 @@ class ServerCodegen extends BaseCodegen {
       lines.push('  } catch (__e) { throw __e; }');
       lines.push('  }).then(async (__res) => {');
       lines.push('    if (req.__session && req.__session.__flush) await req.__session.__flush();');
-      lines.push('    if (__res && __sessionIsNew) {');
-      lines.push('      const __signed = await __signSessionId(__sessionId);');
+      lines.push('    if (__res && (__sessionIsNew || req.__sessionRegenerated)) {');
+      lines.push('      const __sid = req.__newSessionId || __sessionId;');
+      lines.push('      const __signed = await __signSessionId(__sid);');
       lines.push('      const __h = new Headers(__res.headers);');
       lines.push('      __h.set("Set-Cookie", `${__sessionCookieName}=${__signed}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${__sessionMaxAge}`);');
       lines.push('      return new Response(__res.body, { status: __res.status, headers: __h });');
@@ -19634,7 +20465,7 @@ class ClientCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(clientBlocks, sharedCode, sharedBuiltins = null) {
+  generate(clientBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     const lines = [];
 
@@ -19687,6 +20518,16 @@ class ClientCodegen extends BaseCodegen {
     lines.push('  }');
     lines.push('});');
     lines.push('');
+
+    // Security block: auth token injection and role helpers
+    if (securityConfig) {
+      const secGen = new SecurityCodegen();
+      const clientSecurity = secGen.generateClientSecurity(securityConfig);
+      if (clientSecurity.trim()) {
+        lines.push(clientSecurity);
+        lines.push('');
+      }
+    }
 
     const states = [];
     const computeds = [];
@@ -20751,6 +21592,8 @@ function capitalize(str) {
 
 
 
+
+
 function getServerCodegen() {
   return ServerCodegen;
 }
@@ -20785,6 +21628,8 @@ class CodeGenerator {
     const testBlocks = [];
     const benchBlocks = [];
     const dataBlocks = [];
+    const securityBlocks = [];
+    const cliBlocks = [];
 
     for (const node of this.ast.body) {
       switch (node.type) {
@@ -20794,14 +21639,22 @@ class CodeGenerator {
         case 'TestBlock': testBlocks.push(node); break;
         case 'BenchBlock': benchBlocks.push(node); break;
         case 'DataBlock': dataBlocks.push(node); break;
+        case 'SecurityBlock': securityBlocks.push(node); break;
+        case 'CliBlock': cliBlocks.push(node); break;
         default: topLevel.push(node); break;
       }
+    }
+
+    // CLI mode: cli {} blocks produce a standalone executable
+    if (cliBlocks.length > 0) {
+      return this._generateCli(cliBlocks, topLevel);
     }
 
     // Detect module mode: no blocks, only top-level statements
     const isModule = sharedBlocks.length === 0 && serverBlocks.length === 0
       && clientBlocks.length === 0 && testBlocks.length === 0
       && benchBlocks.length === 0 && dataBlocks.length === 0
+      && securityBlocks.length === 0
       && topLevel.length > 0;
 
     if (isModule) {
@@ -20870,6 +21723,11 @@ class CodeGenerator {
       }
     }
 
+    // Merge security blocks into a single config
+    const securityConfig = securityBlocks.length > 0
+      ? SecurityCodegen.mergeSecurityBlocks(securityBlocks)
+      : null;
+
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
@@ -20886,7 +21744,7 @@ class CodeGenerator {
           }
         }
       }
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks);
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks, securityConfig);
     }
 
     // Generate client outputs (one per named group)
@@ -20895,7 +21753,7 @@ class CodeGenerator {
       const gen = new (getClientCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins);
+      clients[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
     }
 
     // Generate tests if test blocks exist
@@ -20951,6 +21809,45 @@ class CodeGenerator {
     if (testCode) result.test = testCode;
     if (benchCode) result.bench = benchCode;
     return result;
+  }
+
+  // Generate CLI executable from cli {} blocks
+  _generateCli(cliBlocks, topLevel) {
+    const sharedGen = new SharedCodegen();
+    sharedGen._sourceMapsEnabled = this._sourceMaps;
+    sharedGen.setSourceFile(this.filename);
+
+    // Generate top-level code (shared helpers, type declarations, etc.)
+    const topLevelCode = topLevel.length > 0
+      ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
+      : '';
+
+    // Scan cli command bodies for builtin usage
+    for (const block of cliBlocks) {
+      for (const cmd of block.commands) {
+        this._scanBlocksForBuiltins([cmd.body], sharedGen._usedBuiltins);
+      }
+    }
+    // Also scan top-level for builtins
+    this._scanBlocksForBuiltins(topLevel, sharedGen._usedBuiltins);
+
+    const helpers = sharedGen.generateHelpers();
+    const combinedShared = [helpers, topLevelCode].filter(s => s.trim()).join('\n').trim();
+
+    const cliConfig = CliCodegen.mergeCliBlocks(cliBlocks);
+    const cliGen = new CliCodegen();
+    cliGen._sourceMapsEnabled = this._sourceMaps;
+    const cliCode = cliGen.generate(cliConfig, combinedShared);
+
+    return {
+      cli: cliCode,
+      isCli: true,
+      shared: '',
+      server: '',
+      client: '',
+      sourceMappings: sharedGen.getSourceMappings(),
+      _sourceFile: this.filename,
+    };
   }
 
   // Walk AST nodes to find builtin function calls/identifiers

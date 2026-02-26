@@ -16,13 +16,14 @@ write(data, "summary.json")
 ```
 
 ```tova
-// CLI tool: pattern-matched arguments
-match args() {
-  ["add", name]      => add_task(name)
-  ["done", id]       => complete_task(to_int(id))
-  ["list"]           => list_tasks() |> each(fn(t) print(t))
-  _                  => print("Usage: tasks <add|done|list>")
+// CLI tool: function signatures become the interface
+cli {
+  name: "tasks"
+  fn add(name: String)            { add_task(name) }
+  fn done(id: Int)                { complete_task(id) }
+  fn list(--all: Bool)            { list_tasks(all) |> each(fn(t) print(t)) }
 }
+// Auto-generates --help, type validation, error messages
 ```
 
 ```tova

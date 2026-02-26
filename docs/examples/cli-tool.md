@@ -1,6 +1,93 @@
 # CLI Tool
 
-This example builds command-line utilities in Tova without any server or client blocks. It demonstrates that Tova is a general-purpose scripting language: argument dispatch with if/elif chains, pipe-based data transformation, Result/Option error handling, and file I/O for reading CSV and writing JSON.
+Tova offers two ways to build CLI tools: the `cli {}` block (recommended for most tools) and manual argument dispatch with `main(args)`. This page shows both approaches.
+
+## Using the `cli {}` Block (Recommended)
+
+The `cli {}` block lets you define commands as functions. The compiler generates argument parsing, validation, help text, and subcommand routing from your function signatures alone.
+
+```tova
+cli {
+  name: "todo"
+  version: "0.1.0"
+  description: "A simple todo list manager"
+
+  fn add(task: String, --priority: Int = 3) {
+    print(green("Added: ") + bold(task) + dim(" (priority: {priority})"))
+  }
+
+  fn list(--all: Bool) {
+    print(bold("Your tasks:"))
+    print("  1. Buy groceries (priority: 2)")
+    print("  2. Write docs (priority: 1)")
+    if all {
+      print(dim("  3. [done] Setup project"))
+    }
+  }
+
+  fn remove(id: Int) {
+    print(yellow("Removed task #{id}"))
+  }
+}
+```
+
+### Running It
+
+```bash
+$ tova run todo.tova -- add "Buy milk" --priority 1
+Added: Buy milk (priority: 1)
+
+$ tova run todo.tova -- list --all
+Your tasks:
+  1. Buy groceries (priority: 2)
+  2. Write docs (priority: 1)
+  3. [done] Setup project
+
+$ tova run todo.tova -- --help
+todo -- A simple todo list manager
+Version: 0.1.0
+
+USAGE:
+  todo <command> [options]
+
+COMMANDS:
+  add
+  list
+  remove
+
+OPTIONS:
+  --help, -h     Show help
+  --version, -v  Show version
+
+$ tova run todo.tova -- add
+Error: Missing required argument <task>
+```
+
+### What You Get for Free
+
+- **Automatic `--help`** for the tool and each subcommand
+- **Type validation** -- `--priority abc` shows `"Error: --priority must be an integer"`
+- **Default values** -- `--priority` defaults to 3 without the flag
+- **Bool toggles** -- `--all` is a flag with no value, `--no-all` to disable
+- **Unknown flag detection** -- `--typo` shows `"Error: Unknown flag --typo"`
+- **Rich colors** -- `green()`, `bold()`, `dim()` for formatted output
+
+### Building to an Executable
+
+```bash
+tova build src --output dist
+node dist/todo.js add "Buy milk"
+```
+
+The output has a `#!/usr/bin/env node` shebang and executable permissions.
+
+See the [CLI Block guide](/fullstack/cli-block) for the complete reference.
+
+---
+
+## Manual Approach (Without `cli {}`)
+
+For tools that need custom argument parsing or when you want full control, you can use `main(args)` with manual dispatch. This approach demonstrates that Tova works as a general-purpose scripting language without any blocks at all.
 
 ## The Full Application
 

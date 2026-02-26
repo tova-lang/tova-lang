@@ -57,6 +57,7 @@ Each `.tova` source file produces up to several output files:
 | `<name>.server.<block>.js` | `server "<block>" { ... }` | Named server blocks |
 | `<name>.client.js` | `client { ... }` | Default client block code |
 | `<name>.client.<block>.js` | `client "<block>" { ... }` | Named client blocks |
+| `<name>.js` | `cli { ... }` | Standalone CLI executable with `#!/usr/bin/env node` shebang |
 
 ## Incremental Caching
 
@@ -116,6 +117,41 @@ tova build --binary my-app
 ```
 
 This compiles all `.tova` files into a single JavaScript bundle and uses `bun build --compile` to produce a self-contained binary. If the code defines a `main()` function, it is called automatically.
+
+## CLI Builds
+
+When a `.tova` file contains a `cli {}` block, the build system produces a single executable JavaScript file instead of the usual shared/server/client split:
+
+```bash
+tova build src --output dist
+```
+
+```
+dist/
+  mycli.js        # #!/usr/bin/env node + generated CLI code
+```
+
+The output file includes:
+- A `#!/usr/bin/env node` shebang line
+- Executable permissions (`chmod 755`)
+- All stdlib functions used by the CLI
+- Complete argument parsing, help generation, and subcommand routing
+
+Run it directly:
+
+```bash
+node dist/mycli.js --help
+# or
+./dist/mycli.js --help
+```
+
+For a standalone binary, combine with `--binary`:
+
+```bash
+tova build --binary mycli
+```
+
+See the [CLI Block guide](/fullstack/cli-block) for details on writing CLI tools.
 
 ## Source Maps
 

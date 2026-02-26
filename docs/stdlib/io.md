@@ -314,6 +314,10 @@ await proc.wait()
 
 ## Environment and CLI
 
+::: tip Building a CLI tool?
+For structured CLI tools with subcommands, typed arguments, and auto-generated help, use the [`cli {}` block](/fullstack/cli-block) instead of manual argument parsing. For terminal colors, tables, progress bars, and interactive prompts, see [Terminal & CLI](/stdlib/terminal).
+:::
+
 ### env
 
 ```tova

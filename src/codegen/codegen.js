@@ -7,6 +7,8 @@ import { BUILTIN_NAMES } from '../stdlib/inline.js';
 import { ServerCodegen } from './server-codegen.js';
 import { ClientCodegen } from './client-codegen.js';
 import { SecurityCodegen } from './security-codegen.js';
+import { CliCodegen } from './cli-codegen.js';
+import { BlockRegistry } from '../registry/register-all.js';
 
 function getServerCodegen() {
   return ServerCodegen;
@@ -35,35 +37,41 @@ export class CodeGenerator {
   }
 
   generate() {
-    const sharedBlocks = [];
-    const serverBlocks = [];
-    const clientBlocks = [];
+    // Registry-driven block sorting
+    const blocksByType = new Map();
     const topLevel = [];
 
-    const testBlocks = [];
-    const benchBlocks = [];
-    const dataBlocks = [];
-    const securityBlocks = [];
-
     for (const node of this.ast.body) {
-      switch (node.type) {
-        case 'SharedBlock': sharedBlocks.push(node); break;
-        case 'ServerBlock': serverBlocks.push(node); break;
-        case 'ClientBlock': clientBlocks.push(node); break;
-        case 'TestBlock': testBlocks.push(node); break;
-        case 'BenchBlock': benchBlocks.push(node); break;
-        case 'DataBlock': dataBlocks.push(node); break;
-        case 'SecurityBlock': securityBlocks.push(node); break;
-        default: topLevel.push(node); break;
+      const plugin = BlockRegistry.getByAstType(node.type);
+      if (plugin) {
+        if (!blocksByType.has(plugin.name)) blocksByType.set(plugin.name, []);
+        blocksByType.get(plugin.name).push(node);
+      } else {
+        topLevel.push(node);
       }
     }
 
+    const getBlocks = (name) => blocksByType.get(name) || [];
+
+    // Early-return blocks (e.g., CLI mode)
+    for (const plugin of BlockRegistry.all()) {
+      if (plugin.codegen?.earlyReturn && getBlocks(plugin.name).length > 0) {
+        return this[plugin.codegen.earlyReturnMethod](getBlocks(plugin.name), topLevel);
+      }
+    }
+
+    // Convenience aliases
+    const sharedBlocks = getBlocks('shared');
+    const serverBlocks = getBlocks('server');
+    const clientBlocks = getBlocks('client');
+    const testBlocks = getBlocks('test');
+    const benchBlocks = getBlocks('bench');
+    const dataBlocks = getBlocks('data');
+    const securityBlocks = getBlocks('security');
+
     // Detect module mode: no blocks, only top-level statements
-    const isModule = sharedBlocks.length === 0 && serverBlocks.length === 0
-      && clientBlocks.length === 0 && testBlocks.length === 0
-      && benchBlocks.length === 0 && dataBlocks.length === 0
-      && securityBlocks.length === 0
-      && topLevel.length > 0;
+    const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
+    const isModule = !hasAnyBlocks && topLevel.length > 0;
 
     if (isModule) {
       const moduleGen = new SharedCodegen();
@@ -217,6 +225,45 @@ export class CodeGenerator {
     if (testCode) result.test = testCode;
     if (benchCode) result.bench = benchCode;
     return result;
+  }
+
+  // Generate CLI executable from cli {} blocks
+  _generateCli(cliBlocks, topLevel) {
+    const sharedGen = new SharedCodegen();
+    sharedGen._sourceMapsEnabled = this._sourceMaps;
+    sharedGen.setSourceFile(this.filename);
+
+    // Generate top-level code (shared helpers, type declarations, etc.)
+    const topLevelCode = topLevel.length > 0
+      ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
+      : '';
+
+    // Scan cli command bodies for builtin usage
+    for (const block of cliBlocks) {
+      for (const cmd of block.commands) {
+        this._scanBlocksForBuiltins([cmd.body], sharedGen._usedBuiltins);
+      }
+    }
+    // Also scan top-level for builtins
+    this._scanBlocksForBuiltins(topLevel, sharedGen._usedBuiltins);
+
+    const helpers = sharedGen.generateHelpers();
+    const combinedShared = [helpers, topLevelCode].filter(s => s.trim()).join('\n').trim();
+
+    const cliConfig = CliCodegen.mergeCliBlocks(cliBlocks);
+    const cliGen = new CliCodegen();
+    cliGen._sourceMapsEnabled = this._sourceMaps;
+    const cliCode = cliGen.generate(cliConfig, combinedShared);
+
+    return {
+      cli: cliCode,
+      isCli: true,
+      shared: '',
+      server: '',
+      client: '',
+      sourceMappings: sharedGen.getSourceMappings(),
+      _sourceFile: this.filename,
+    };
   }
 
   // Walk AST nodes to find builtin function calls/identifiers

@@ -651,6 +651,173 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   bold: `function bold(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[1m' + text + '\\x1b[0m'; }`,
   dim: `function dim(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[2m' + text + '\\x1b[0m'; }`,
 
+  // ── Scripting: Color shortcuts ────────────────────────
+  green: `function green(text) { return color(text, 'green'); }`,
+  red: `function red(text) { return color(text, 'red'); }`,
+  yellow: `function yellow(text) { return color(text, 'yellow'); }`,
+  blue: `function blue(text) { return color(text, 'blue'); }`,
+  cyan: `function cyan(text) { return color(text, 'cyan'); }`,
+  magenta: `function magenta(text) { return color(text, 'magenta'); }`,
+  gray: `function gray(text) { return color(text, 'gray'); }`,
+  underline: `function underline(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[4m' + text + '\\x1b[0m'; }`,
+  strikethrough: `function strikethrough(text) { if (typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY))) return String(text); return '\\x1b[9m' + text + '\\x1b[0m'; }`,
+
+  // ── Scripting: Rich output ────────────────────────────
+  table: `function table(data, opts) {
+  if (!data || data.length === 0) { console.log("(empty)"); return; }
+  const o = opts || {};
+  const headers = o.headers || Object.keys(data[0]);
+  const rows = data.map(function(row) { return headers.map(function(h) { return String(row[h] != null ? row[h] : ''); }); });
+  const widths = headers.map(function(h, i) {
+    return Math.max(h.length, ...rows.map(function(r) { return r[i].length; }));
+  });
+  const noColor = typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY));
+  const b = function(t) { return noColor ? t : '\\x1b[1m' + t + '\\x1b[0m'; };
+  const line = widths.map(function(w) { return '-'.repeat(w + 2); }).join('+');
+  console.log(b(headers.map(function(h, i) { return ' ' + h.padEnd(widths[i]) + ' '; }).join('|')));
+  console.log(line);
+  rows.forEach(function(r) { console.log(r.map(function(c, i) { return ' ' + c.padEnd(widths[i]) + ' '; }).join('|')); });
+}`,
+
+  panel: `function panel(title, content) {
+  var lines = String(content).split('\\n');
+  var maxLen = Math.max(title ? title.length + 2 : 0, ...lines.map(function(l) { return l.length; }));
+  var noColor = typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY));
+  var b = function(t) { return noColor ? t : '\\x1b[1m' + t + '\\x1b[0m'; };
+  var top = '\\u250c' + (title ? '\\u2500 ' + b(title) + ' ' + '\\u2500'.repeat(Math.max(0, maxLen - title.length - 2)) : '\\u2500'.repeat(maxLen + 2)) + '\\u2510';
+  var bot = '\\u2514' + '\\u2500'.repeat(maxLen + 2) + '\\u2518';
+  var body = lines.map(function(l) { return '\\u2502 ' + l.padEnd(maxLen) + ' \\u2502'; }).join('\\n');
+  console.log(top + '\\n' + body + '\\n' + bot);
+}`,
+
+  progress: `function progress(items, opts) {
+  var o = opts || {};
+  var total = items.length || o.total || 0;
+  var label = o.label || '';
+  var width = o.width || 30;
+  var isTTY = typeof process !== 'undefined' && process.stderr && process.stderr.isTTY;
+  var idx = 0;
+  return { [Symbol.iterator]() {
+    var it = items[Symbol.iterator]();
+    return { next() {
+      var r = it.next();
+      if (!r.done) {
+        idx++;
+        if (isTTY) {
+          var pct = Math.round(idx / total * 100);
+          var filled = Math.round(idx / total * width);
+          var bar = '\\u2588'.repeat(filled) + '\\u2591'.repeat(width - filled);
+          process.stderr.write('\\r' + label + ' [' + bar + '] ' + pct + '% ' + idx + '/' + total);
+        }
+      } else if (isTTY) {
+        process.stderr.write('\\r' + ' '.repeat(width + label.length + 20) + '\\r');
+      }
+      return r;
+    }};
+  }};
+}`,
+
+  spin: `async function spin(label, fn) {
+  var frames = ['\\u2838','\\u2834','\\u2826','\\u2823','\\u2831','\\u2839'];
+  var isTTY = typeof process !== 'undefined' && process.stderr && process.stderr.isTTY;
+  var i = 0;
+  var iv = isTTY ? setInterval(function() { process.stderr.write('\\r' + frames[i++ % frames.length] + ' ' + label); }, 80) : null;
+  try {
+    var result = await fn();
+    if (iv) clearInterval(iv);
+    if (isTTY) process.stderr.write('\\r\\u2714 ' + label + '\\n');
+    return result;
+  } catch (e) {
+    if (iv) clearInterval(iv);
+    if (isTTY) process.stderr.write('\\r\\u2718 ' + label + '\\n');
+    throw e;
+  }
+}`,
+
+  // ── Scripting: Interactive prompts ─────────────────────
+  ask: `async function ask(prompt, opts) {
+  var o = opts || {};
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  var suffix = o.default ? ' (' + o.default + ')' : '';
+  return new Promise(function(resolve) {
+    rl.question(prompt + suffix + ' ', function(answer) {
+      rl.close();
+      resolve(answer || o.default || '');
+    });
+  });
+}`,
+
+  confirm: `async function confirm(prompt, opts) {
+  var o = opts || {};
+  var def = o.default !== undefined ? o.default : true;
+  var hint = def ? '[Y/n]' : '[y/N]';
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    rl.question(prompt + ' ' + hint + ' ', function(answer) {
+      rl.close();
+      if (!answer) { resolve(def); return; }
+      resolve(answer.toLowerCase().startsWith('y'));
+    });
+  });
+}`,
+
+  choose: `async function choose(prompt, options) {
+  console.log(prompt);
+  for (var i = 0; i < options.length; i++) console.log('  ' + (i + 1) + '. ' + options[i]);
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    rl.question('Select [1-' + options.length + ']: ', function(answer) {
+      rl.close();
+      var idx = parseInt(answer, 10) - 1;
+      resolve(idx >= 0 && idx < options.length ? options[idx] : options[0]);
+    });
+  });
+}`,
+
+  choose_many: `async function choose_many(prompt, options) {
+  console.log(prompt);
+  for (var i = 0; i < options.length; i++) console.log('  ' + (i + 1) + '. ' + options[i]);
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    rl.question('Select (comma-separated): ', function(answer) {
+      rl.close();
+      var indices = answer.split(',').map(function(s) { return parseInt(s.trim(), 10) - 1; });
+      resolve(indices.filter(function(i) { return i >= 0 && i < options.length; }).map(function(i) { return options[i]; }));
+    });
+  });
+}`,
+
+  secret: `async function secret(prompt) {
+  var rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(function(resolve) {
+    if (process.stdin.isTTY) {
+      process.stdout.write(prompt + ' ');
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      var buf = '';
+      var onData = function(ch) {
+        ch = ch.toString();
+        if (ch === '\\n' || ch === '\\r' || ch === '\\u0004') {
+          process.stdin.setRawMode(false);
+          process.stdin.pause();
+          process.stdin.removeListener('data', onData);
+          process.stdout.write('\\n');
+          rl.close();
+          resolve(buf);
+        } else if (ch === '\\u007f' || ch === '\\b') {
+          if (buf.length > 0) { buf = buf.slice(0, -1); process.stdout.write('\\b \\b'); }
+        } else {
+          buf += ch;
+          process.stdout.write('*');
+        }
+      };
+      process.stdin.on('data', onData);
+    } else {
+      rl.question(prompt + ' ', function(answer) { rl.close(); resolve(answer); });
+    }
+  });
+}`,
+
   // ── Scripting: Signal handling ────────────────────────
   on_signal: `function on_signal(name, callback) { process.on(name, callback); }`,
 
@@ -1169,6 +1336,14 @@ export const STDLIB_DEPS = {
   compare_by: ['Less', 'Equal', 'Greater'],
   // mock/spy
   create_mock: ['create_spy'],
+  // color shortcuts depend on color()
+  green: ['color'],
+  red: ['color'],
+  yellow: ['color'],
+  blue: ['color'],
+  cyan: ['color'],
+  magenta: ['color'],
+  gray: ['color'],
 };
 
 // Resolve all transitive dependencies for a set of used names
