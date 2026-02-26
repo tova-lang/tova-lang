@@ -35,7 +35,17 @@ export default defineConfig({
       { text: 'Stdlib', link: '/stdlib/' },
       { text: 'Examples', link: '/examples/' },
       { text: 'Tooling', link: '/tooling/cli' },
-      { text: 'Full-Stack', link: '/fullstack/architecture' },
+      {
+        text: 'App Models',
+        items: [
+          { text: 'Full-Stack Web', link: '/fullstack/architecture' },
+          { text: 'Server', link: '/server/routes' },
+          { text: 'Reactive UI', link: '/reactivity/signals' },
+          { text: 'CLI Apps', link: '/fullstack/cli-block' },
+          { text: 'Data Pipelines', link: '/fullstack/data-block' },
+          { text: 'AI Integration', link: '/guide/ai' },
+        ],
+      },
       { text: 'Playground', link: '/playground' },
     ],
 
@@ -53,7 +63,7 @@ export default defineConfig({
 
       '/guide/': [
         {
-          text: 'Language Guide',
+          text: 'Core Language',
           items: [
             { text: 'Variables', link: '/guide/variables' },
             { text: 'Functions', link: '/guide/functions' },
@@ -68,10 +78,19 @@ export default defineConfig({
             { text: 'Strings', link: '/guide/strings' },
             { text: 'Async', link: '/guide/async' },
             { text: 'Pipes', link: '/guide/pipes' },
+          ],
+        },
+        {
+          text: 'Scripting & I/O',
+          items: [
             { text: 'Tables & Data', link: '/guide/data' },
             { text: 'I/O', link: '/guide/io' },
-            { text: 'AI Integration', link: '/guide/ai' },
             { text: 'JS Interop', link: '/guide/js-interop' },
+          ],
+        },
+        {
+          text: 'Performance',
+          items: [
             { text: 'Performance', link: '/guide/performance' },
           ],
         },

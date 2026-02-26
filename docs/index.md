@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Tova
   text: A Modern Programming Language
-  tagline: Clean syntax. Compile-time security. High performance. One language for scripts, data pipelines, AI apps, and full-stack web.
+  tagline: Clean syntax. Pattern matching. Result types. High performance. From scripts to full-stack web — one language, one toolchain.
   actions:
     - theme: brand
       text: Get Started
@@ -19,22 +19,22 @@ hero:
 features:
   - title: Clean, Expressive Syntax
     details: "Pipe operators, pattern matching with ranges/guards/string concat, algebraic data types, generics, interfaces, derive, guard clauses, Result/Option error handling, implicit returns, no semicolons."
-  - title: Compile-Time Security
-    details: "One declarative security block for auth, RBAC, route protection, sensitive fields, CORS, CSP, rate limiting, CSRF, HSTS, and audit logging. Zero runtime dependencies. Compiler catches misconfigurations before your code runs."
   - title: High Performance
     details: "Result.map chain fusion (10x), array fill detection with Uint8Array upgrade (3x), range-to-for-loop rewrite, @wasm WebAssembly compilation, @fast TypedArray coercion, Rust FFI radix sort, multi-core parallel_map."
   - title: "@wasm -- Native WebAssembly"
     details: "Decorate any numeric function with @wasm to compile it to WebAssembly binary. Zero external toolchain. The compiler generates raw WASM bytes directly. Falls back to standard codegen automatically."
   - title: "@fast -- TypedArray Optimization"
     details: "Decorate functions with @fast to auto-coerce arrays to Float64Array/Int32Array. Dot product on 1M elements in 97ms. Kahan summation, vector ops, and a typed stdlib included."
-  - title: Full-Stack Web
-    details: "shared/server/browser blocks with automatic RPC bridge. Call server.get_users() from browser code -- the compiler handles networking, serialization, validation. Fine-grained signal reactivity."
-  - title: Batteries Included
-    details: "60+ stdlib functions, Tables/DataFrames, AI integration (Anthropic/OpenAI/Ollama), built-in test runner, REPL, LSP server, VS Code extension, production build with minification."
   - title: Scripting & Data
     details: "CSV/JSON/JSONL/TSV I/O, file system ops, shell execution, pipe-based data pipelines. Run any .tova file directly -- no project scaffold needed."
   - title: parallel_map -- Multi-Core
     details: "Distribute CPU-intensive work across all cores with a persistent worker pool. 3.5x speedup on 8 cores. Workers reuse across calls -- zero startup overhead after first invocation."
+  - title: Batteries Included
+    details: "60+ stdlib functions, Tables/DataFrames, AI integration (Anthropic/OpenAI/Ollama), built-in test runner, REPL, LSP server, VS Code extension, production build with minification."
+  - title: Compile-Time Security
+    details: "One declarative security block for auth, RBAC, route protection, sensitive fields, CORS, CSP, rate limiting, CSRF, HSTS, and audit logging. Zero runtime dependencies. Compiler catches misconfigurations before your code runs."
+  - title: Full-Stack Web
+    details: "shared/server/browser blocks with automatic RPC bridge. Call server.get_users() from browser code -- the compiler handles networking, serialization, validation. Fine-grained signal reactivity."
 ---
 
 <div style="max-width: 800px; margin: 2rem auto; padding: 0 24px;">
@@ -103,6 +103,29 @@ type Shape {
 interface Printable {
   fn to_string() -> String
 }
+```
+
+## Scripting & Data
+
+Tova works without web blocks. Scripts, CLI tools, data pipelines, AI apps:
+
+```tova
+// Data pipeline with pipes
+data = read("sales.csv")
+  |> filter(fn(row) row.revenue > 1000)
+  |> sort_by(.region)
+  |> group_by(.region, fn(rows) {
+    { total: sum_by(rows, .revenue), count: len(rows) }
+  })
+
+write(data, "summary.json")
+```
+
+```tova
+// AI integration built in
+response = ask("Summarize this document", provider: "anthropic")
+embeddings = embed(texts, provider: "openai")
+category = classify(text, ["positive", "negative", "neutral"])
 ```
 
 ## Performance
@@ -192,29 +215,6 @@ browser {
 ```
 
 `server.add_todo(draft)` is a compile-time RPC call. The compiler generates the HTTP endpoint, the fetch call, the serialization, and the async wrapping. You never write networking code.
-
-## Scripting & Data
-
-Tova works without web blocks. Scripts, CLI tools, data pipelines, AI apps:
-
-```tova
-// Data pipeline with pipes
-data = read("sales.csv")
-  |> filter(fn(row) row.revenue > 1000)
-  |> sort_by(.region)
-  |> group_by(.region, fn(rows) {
-    { total: sum_by(rows, .revenue), count: len(rows) }
-  })
-
-write(data, "summary.json")
-```
-
-```tova
-// AI integration built in
-response = ask("Summarize this document", provider: "anthropic")
-embeddings = embed(texts, provider: "openai")
-category = classify(text, ["positive", "negative", "neutral"])
-```
 
 ## Developer Experience
 

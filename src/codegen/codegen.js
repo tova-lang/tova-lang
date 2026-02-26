@@ -2,20 +2,33 @@
 // Supports named multi-blocks: server "api" { }, server "ws" { }
 // Blocks with the same name are merged; different names produce separate output files.
 
+import { createRequire } from 'module';
 import { SharedCodegen } from './shared-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
-import { ServerCodegen } from './server-codegen.js';
-import { BrowserCodegen } from './browser-codegen.js';
-import { SecurityCodegen } from './security-codegen.js';
-import { CliCodegen } from './cli-codegen.js';
 import { BlockRegistry } from '../registry/register-all.js';
 
+// Lazy-load domain-specific codegens so pure scripts don't pay for them
+const _require = createRequire(import.meta.url);
+let _ServerCodegen, _BrowserCodegen, _SecurityCodegen, _CliCodegen;
+
 function getServerCodegen() {
-  return ServerCodegen;
+  if (!_ServerCodegen) _ServerCodegen = _require('./server-codegen.js').ServerCodegen;
+  return _ServerCodegen;
 }
 
 function getBrowserCodegen() {
-  return BrowserCodegen;
+  if (!_BrowserCodegen) _BrowserCodegen = _require('./browser-codegen.js').BrowserCodegen;
+  return _BrowserCodegen;
+}
+
+function getSecurityCodegen() {
+  if (!_SecurityCodegen) _SecurityCodegen = _require('./security-codegen.js').SecurityCodegen;
+  return _SecurityCodegen;
+}
+
+function getCliCodegen() {
+  if (!_CliCodegen) _CliCodegen = _require('./cli-codegen.js').CliCodegen;
+  return _CliCodegen;
 }
 
 export class CodeGenerator {
@@ -142,7 +155,7 @@ export class CodeGenerator {
 
     // Merge security blocks into a single config
     const securityConfig = securityBlocks.length > 0
-      ? SecurityCodegen.mergeSecurityBlocks(securityBlocks)
+      ? getSecurityCodegen().mergeSecurityBlocks(securityBlocks)
       : null;
 
     // Generate server outputs (one per named group)
@@ -256,8 +269,9 @@ export class CodeGenerator {
     const helpers = sharedGen.generateHelpers();
     const combinedShared = [helpers, topLevelCode].filter(s => s.trim()).join('\n').trim();
 
-    const cliConfig = CliCodegen.mergeCliBlocks(cliBlocks);
-    const cliGen = new CliCodegen();
+    const Cli = getCliCodegen();
+    const cliConfig = Cli.mergeCliBlocks(cliBlocks);
+    const cliGen = new Cli();
     cliGen._sourceMapsEnabled = this._sourceMaps;
     const cliCode = cliGen.generate(cliConfig, combinedShared);
 
