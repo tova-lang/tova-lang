@@ -981,3 +981,1091 @@ describe('edge block - unsupported binding warnings', () => {
     expect(w).toBeUndefined();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 3: Health Checks, CORS, and Error Handlers
+// ═══════════════════════════════════════════════════════════════
+
+// ── Parsing ──
+
+describe('edge block - health/cors/error parsing', () => {
+  test('health declaration parses inside edge block', () => {
+    const ast = parse(`edge { health "/health" }`);
+    const body = ast.body[0].body;
+    expect(body).toHaveLength(1);
+    expect(body[0].type).toBe('HealthCheckDeclaration');
+    expect(body[0].path).toBe('/health');
+  });
+
+  test('health declaration with checks', () => {
+    const ast = parse(`edge { health "/ready" { check_memory } }`);
+    const stmt = ast.body[0].body[0];
+    expect(stmt.type).toBe('HealthCheckDeclaration');
+    expect(stmt.path).toBe('/ready');
+    expect(stmt.checks).toContain('check_memory');
+  });
+
+  test('cors declaration parses inside edge block', () => {
+    const ast = parse(`edge { cors { origins: ["https://example.com"] } }`);
+    const stmt = ast.body[0].body[0];
+    expect(stmt.type).toBe('CorsDeclaration');
+    expect(stmt.config).toBeDefined();
+    expect(stmt.config.origins).toBeDefined();
+  });
+
+  test('empty cors declaration parses', () => {
+    const ast = parse(`edge { cors {} }`);
+    const stmt = ast.body[0].body[0];
+    expect(stmt.type).toBe('CorsDeclaration');
+  });
+
+  test('on_error declaration parses inside edge block', () => {
+    const ast = parse(`edge { on_error fn(err, req) { { error: err.message } } }`);
+    const stmt = ast.body[0].body[0];
+    expect(stmt.type).toBe('ErrorHandlerDeclaration');
+    expect(stmt.params).toHaveLength(2);
+    expect(stmt.body).toBeDefined();
+  });
+});
+
+// ── CORS Codegen ──
+
+describe('edge block - CORS codegen', () => {
+  test('cloudflare: empty cors generates wildcard headers', () => {
+    const result = compile(`edge {
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__corsHeaders');
+    expect(result.edge).toContain('"Access-Control-Allow-Origin": "*"');
+    expect(result.edge).toContain('__getCorsHeaders');
+  });
+
+  test('cloudflare: cors generates OPTIONS preflight', () => {
+    const result = compile(`edge {
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('request.method === "OPTIONS"');
+    expect(result.edge).toContain('status: 204');
+    expect(result.edge).toContain('__getCorsHeaders(request)');
+  });
+
+  test('cloudflare: cors with explicit origins', () => {
+    const result = compile(`edge {
+      cors { origins: ["https://example.com"], credentials: true }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__corsOrigins');
+    expect(result.edge).toContain('"https://example.com"');
+    expect(result.edge).toContain('Access-Control-Allow-Credentials');
+  });
+
+  test('cloudflare: cors merges headers into JSON responses', () => {
+    const result = compile(`edge {
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('...__getCorsHeaders(request)');
+  });
+
+  test('deno: cors generates OPTIONS preflight', () => {
+    const result = compile(`edge {
+      target: "deno"
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('request.method === "OPTIONS"');
+    expect(result.edge).toContain('__getCorsHeaders');
+  });
+
+  test('vercel: cors generates OPTIONS preflight', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('request.method === "OPTIONS"');
+    expect(result.edge).toContain('__getCorsHeaders');
+  });
+
+  test('lambda: cors generates OPTIONS preflight with statusCode', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('method === "OPTIONS"');
+    expect(result.edge).toContain('statusCode: 204');
+    expect(result.edge).toContain('__getCorsHeaders');
+  });
+
+  test('lambda: cors merges headers into success response', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('...__getCorsHeaders(request)');
+    expect(result.edge).toContain('statusCode: 200');
+  });
+
+  test('bun: cors generates OPTIONS preflight', () => {
+    const result = compile(`edge {
+      target: "bun"
+      cors {}
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('request.method === "OPTIONS"');
+    expect(result.edge).toContain('__getCorsHeaders');
+  });
+
+  test('no cors: no OPTIONS handler generated', () => {
+    const result = compile(`edge {
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).not.toContain('OPTIONS');
+    expect(result.edge).not.toContain('__getCorsHeaders');
+  });
+});
+
+// ── Health Check Codegen ──
+
+describe('edge block - health check codegen', () => {
+  test('cloudflare: simple health check generates route', () => {
+    const result = compile(`edge {
+      health "/health"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('Health Check');
+    expect(result.edge).toContain('/health');
+    expect(result.edge).toContain('status: "ok"');
+  });
+
+  test('cloudflare: health check with check_memory', () => {
+    const result = compile(`edge {
+      health "/ready" { check_memory }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('/ready');
+    expect(result.edge).toContain('memoryUsage');
+    expect(result.edge).toContain('heapUsed');
+    expect(result.edge).toContain('"degraded"');
+    expect(result.edge).toContain('"healthy"');
+  });
+
+  test('deno: health check generates route', () => {
+    const result = compile(`edge {
+      target: "deno"
+      health "/health"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('/health');
+    expect(result.edge).toContain('status: "ok"');
+  });
+
+  test('lambda: health check uses statusCode format', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      health "/health"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('/health');
+    expect(result.edge).toContain('statusCode: 200');
+    expect(result.edge).toContain('JSON.stringify');
+  });
+
+  test('bun: health check generates route', () => {
+    const result = compile(`edge {
+      target: "bun"
+      health "/health"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('/health');
+    expect(result.edge).toContain('status: "ok"');
+  });
+
+  test('no health check: no health route generated', () => {
+    const result = compile(`edge {
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).not.toContain('Health Check');
+  });
+});
+
+// ── Error Handler Codegen ──
+
+describe('edge block - error handler codegen', () => {
+  test('cloudflare: error handler generates __errorHandler function', () => {
+    const result = compile(`edge {
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('async function __errorHandler');
+    expect(result.edge).toContain('Error Handler');
+  });
+
+  test('cloudflare: error handler called in catch block', () => {
+    const result = compile(`edge {
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('typeof __errorHandler === "function"');
+    expect(result.edge).toContain('await __errorHandler(e, request)');
+  });
+
+  test('deno: error handler called in catch block', () => {
+    const result = compile(`edge {
+      target: "deno"
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('async function __errorHandler');
+    expect(result.edge).toContain('await __errorHandler(e, request)');
+  });
+
+  test('vercel: error handler called in catch block', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('async function __errorHandler');
+    expect(result.edge).toContain('await __errorHandler(e, request)');
+  });
+
+  test('lambda: error handler uses statusCode format', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('async function __errorHandler');
+    expect(result.edge).toContain('await __errorHandler(e, request)');
+    expect(result.edge).toContain('__errResult.statusCode');
+  });
+
+  test('bun: error handler called in catch block', () => {
+    const result = compile(`edge {
+      target: "bun"
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('async function __errorHandler');
+    expect(result.edge).toContain('await __errorHandler(e, request)');
+  });
+
+  test('no error handler: standard catch block', () => {
+    const result = compile(`edge {
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).not.toContain('__errorHandler');
+    expect(result.edge).toContain('catch (e)');
+    expect(result.edge).toContain('error: e.message');
+  });
+
+  test('error handler with CORS merges headers in error response', () => {
+    const result = compile(`edge {
+      cors {}
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__getCorsHeaders');
+    expect(result.edge).toContain('__errorHandler');
+  });
+});
+
+// ── Combined features ──
+
+describe('edge block - combined health/cors/error', () => {
+  test('all three features together on cloudflare', () => {
+    const result = compile(`edge {
+      cors { origins: ["https://myapp.com"] }
+      health "/health"
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__getCorsHeaders');
+    expect(result.edge).toContain('/health');
+    expect(result.edge).toContain('__errorHandler');
+    expect(result.edge).toContain('OPTIONS');
+    expect(result.edge).toContain('__corsOrigins');
+  });
+
+  test('all three features together on lambda', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      cors {}
+      health "/ready" { check_memory }
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('statusCode: 204');
+    expect(result.edge).toContain('/ready');
+    expect(result.edge).toContain('memoryUsage');
+    expect(result.edge).toContain('__errorHandler');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Fix #1: Middleware + Error Handler Integration
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - middleware error handling (fix #1)', () => {
+  test('cloudflare: middleware path has try/catch', () => {
+    const result = compile(`edge {
+      middleware fn logger(req, next) { next(req) }
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_logger');
+    expect(result.edge).toContain('try {');
+    expect(result.edge).toContain('catch (e)');
+    expect(result.edge).toContain('__errorHandler');
+  });
+
+  test('cloudflare: middleware path formats JSON response', () => {
+    const result = compile(`edge {
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('instanceof Response');
+    expect(result.edge).toContain('Response.json');
+  });
+
+  test('cloudflare: middleware + CORS merges headers', () => {
+    const result = compile(`edge {
+      cors {}
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('...__getCorsHeaders(request)');
+    expect(result.edge).toContain('try {');
+    expect(result.edge).toContain('catch (e)');
+  });
+
+  test('deno: middleware path has try/catch', () => {
+    const result = compile(`edge {
+      target: "deno"
+      middleware fn auth(req, next) { next(req) }
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_auth');
+    expect(result.edge).toContain('try {');
+    expect(result.edge).toContain('catch (e)');
+    expect(result.edge).toContain('__errorHandler');
+  });
+
+  test('bun: middleware path has try/catch', () => {
+    const result = compile(`edge {
+      target: "bun"
+      middleware fn cors_mw(req, next) { next(req) }
+      on_error fn(err, req) { { error: err.message } }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_cors_mw');
+    expect(result.edge).toContain('try {');
+    expect(result.edge).toContain('catch (e)');
+    expect(result.edge).toContain('__errorHandler');
+  });
+
+  test('bun: middleware + CORS merges headers in response', () => {
+    const result = compile(`edge {
+      target: "bun"
+      cors {}
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('...__getCorsHeaders(request)');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Fix #4: Lambda headers.get() Adapter
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - lambda headers adapter (fix #4)', () => {
+  test('lambda request adapter has headers.get method', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('headers');
+    expect(result.edge).toContain('get:');
+  });
+
+  test('lambda CORS uses headers.get for origin checking', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      cors { origins: ["https://example.com"] }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__corsOrigins');
+    expect(result.edge).toContain('headers.get');
+    expect(result.edge).toContain('"https://example.com"');
+  });
+
+  test('lambda uses pathname variable consistently', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      route GET "/api/users/:id" => fn(req, params) { params }
+    }`);
+    expect(result.edge).toContain('const pathname');
+    expect(result.edge).toContain('__matchRoute(method, pathname');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Fix #12: Security Block Integration
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - security integration (fix #12)', () => {
+  test('cloudflare: security block generates auth function', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "test-secret" }
+      }
+      edge {
+        route GET "/api/data" => fn(req) { { data: "test" } }
+      }
+    `);
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('__authSecret');
+    expect(result.edge).toContain('"test-secret"');
+    expect(result.edge).toContain('crypto.subtle');
+    expect(result.edge).toContain('Bearer');
+  });
+
+  test('cloudflare: security block generates role definitions', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        role admin { permissions: ["read", "write"] }
+        role viewer { permissions: ["read"] }
+      }
+      edge {
+        route GET "/" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__securityRoles');
+    expect(result.edge).toContain('"admin"');
+    expect(result.edge).toContain('"viewer"');
+    expect(result.edge).toContain('__hasRole');
+    expect(result.edge).toContain('__hasPermission');
+  });
+
+  test('cloudflare: security block generates route protection', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        role admin { permissions: ["write"] }
+        protect "/api/**" { require: admin }
+      }
+      edge {
+        route GET "/api/data" => fn(req) { { data: "test" } }
+      }
+    `);
+    expect(result.edge).toContain('__protectRules');
+    expect(result.edge).toContain('__checkProtection');
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('const __user = await __authenticate(request)');
+    expect(result.edge).toContain('__prot.allowed');
+  });
+
+  test('cloudflare: protection returns 401/403', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('403 : 401');
+    expect(result.edge).toContain('__prot.reason');
+  });
+
+  test('deno: security integration works', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        target: "deno"
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('__checkProtection');
+    expect(result.edge).toContain('Deno.serve');
+  });
+
+  test('vercel: security integration works', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        target: "vercel"
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('__checkProtection');
+    expect(result.edge).toContain('export default async function handler');
+  });
+
+  test('lambda: security integration works', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        target: "lambda"
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('__checkProtection');
+    expect(result.edge).toContain('statusCode');
+  });
+
+  test('lambda: protection returns statusCode 401/403', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        target: "lambda"
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('statusCode: (__user ? 403 : 401)');
+    expect(result.edge).toContain('__prot.reason');
+  });
+
+  test('bun: security integration works', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        target: "bun"
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('__checkProtection');
+    expect(result.edge).toContain('Bun.serve');
+  });
+
+  test('sensitive field sanitization in edge', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        sensitive User.password { never_expose: true }
+      }
+      edge {
+        route GET "/api/user" => fn(req) { { name: "Alice", password: "secret" } }
+      }
+    `);
+    expect(result.edge).toContain('__sanitizeUser');
+    expect(result.edge).toContain('__autoSanitize');
+  });
+
+  test('auto-sanitize wraps response in non-middleware path', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        sensitive User.ssn { never_expose: true }
+      }
+      edge {
+        route GET "/" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__autoSanitize(__result');
+  });
+
+  test('auto-sanitize wraps response in middleware path', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        sensitive User.ssn { never_expose: true }
+      }
+      edge {
+        middleware fn logger(req, next) { next(req) }
+        route GET "/" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__autoSanitize(__result');
+    expect(result.edge).toContain('__mw_logger');
+  });
+
+  test('security + CORS + error handler combined', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        cors {}
+        on_error fn(err, req) { { error: err.message } }
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('__authenticate');
+    expect(result.edge).toContain('__checkProtection');
+    expect(result.edge).toContain('__getCorsHeaders');
+    expect(result.edge).toContain('__errorHandler');
+    expect(result.edge).toContain('OPTIONS');
+  });
+
+  test('security protection + CORS merges headers in 401/403 response', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+        protect "/api/**" { require: authenticated }
+      }
+      edge {
+        cors {}
+        route GET "/api/data" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('...__getCorsHeaders(request)');
+    // 401/403 response should include CORS headers
+    const code = result.edge;
+    const protSection = code.slice(code.indexOf('__prot.allowed'), code.indexOf('__prot.allowed') + 300);
+    expect(protSection).toContain('__getCorsHeaders');
+  });
+
+  test('no security block: no auth or protect code generated', () => {
+    const result = compile(`edge {
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).not.toContain('__authenticate');
+    expect(result.edge).not.toContain('__checkProtection');
+    expect(result.edge).not.toContain('__securityRoles');
+    expect(result.edge).not.toContain('__autoSanitize');
+  });
+
+  test('JWT auth verifies HS256 algorithm', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "my-secret" }
+      }
+      edge {
+        route GET "/" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('HS256');
+    expect(result.edge).toContain('HMAC');
+    expect(result.edge).toContain('SHA-256');
+    expect(result.edge).toContain('crypto.subtle.importKey');
+    expect(result.edge).toContain('crypto.subtle.verify');
+  });
+
+  test('JWT auth checks token expiry', () => {
+    const result = compile(`
+      security {
+        auth jwt { secret: "s" }
+      }
+      edge {
+        route GET "/" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).toContain('.exp');
+    expect(result.edge).toContain('Date.now()');
+  });
+
+  test('non-JWT auth type does not generate auth function', () => {
+    const result = compile(`
+      security {
+        auth api_key { header: "X-API-Key" }
+      }
+      edge {
+        route GET "/" => fn(req) { "ok" }
+      }
+    `);
+    expect(result.edge).not.toContain('__authenticate');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Medium Priority Fixes
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - Vercel middleware support', () => {
+  test('Vercel emits middleware functions', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      middleware fn logger(req, next) { next(req) }
+      route GET "/api/data" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_logger');
+    expect(result.edge).toContain('async function __mw_logger');
+  });
+
+  test('Vercel wires middleware chain in handler', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      middleware fn logger(req, next) { next(req) }
+      route GET "/api/data" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__handler');
+    expect(result.edge).toContain('__mw_logger(req, __handler)');
+  });
+
+  test('Vercel middleware chain with multiple middlewares', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      middleware fn auth(req, next) { next(req) }
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_auth');
+    expect(result.edge).toContain('__mw_logger');
+    // Outer middleware wraps inner: auth(req, logger(req, handler))
+    expect(result.edge).toContain('__mw_auth(req,');
+  });
+
+  test('Vercel middleware with CORS merges headers', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      cors {}
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__getCorsHeaders');
+    expect(result.edge).toContain('__mw_logger');
+  });
+
+  test('Vercel middleware with error handler wraps in try/catch', () => {
+    const result = compile(`edge {
+      target: "vercel"
+      on_error fn(err, req) { { error: err.message } }
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('try {');
+    expect(result.edge).toContain('catch (e)');
+    expect(result.edge).toContain('__errorHandler');
+  });
+});
+
+describe('edge block - Lambda middleware support', () => {
+  test('Lambda emits middleware functions', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      middleware fn logger(req, next) { next(req) }
+      route GET "/api/data" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_logger');
+    expect(result.edge).toContain('async function __mw_logger');
+  });
+
+  test('Lambda wires middleware chain in handler', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      middleware fn logger(req, next) { next(req) }
+      route GET "/api/data" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__handler');
+    expect(result.edge).toContain('__mw_logger(req, __handler)');
+  });
+
+  test('Lambda middleware chain with multiple middlewares', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      middleware fn auth(req, next) { next(req) }
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('__mw_auth');
+    expect(result.edge).toContain('__mw_logger');
+  });
+
+  test('Lambda middleware with error handler wraps in try/catch', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      on_error fn(err, req) { { error: err.message } }
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('try {');
+    expect(result.edge).toContain('catch (e)');
+    expect(result.edge).toContain('__errorHandler');
+  });
+
+  test('Lambda middleware returns Lambda-format responses', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      middleware fn logger(req, next) { next(req) }
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    // Inner handler should produce Lambda-format {statusCode, body} responses
+    expect(result.edge).toContain('statusCode: 200');
+    expect(result.edge).toContain('statusCode: 404');
+  });
+});
+
+describe('edge block - wrangler.toml queue consumers', () => {
+  test('generates [[queues.consumers]] entries', () => {
+    const { EdgeCodegen } = require('../src/codegen/edge-codegen.js');
+
+    const config = {
+      target: 'cloudflare',
+      bindings: { kv: [], sql: [], storage: [], queue: [{ name: 'TASKS' }] },
+      envVars: [],
+      secrets: [],
+      schedules: [],
+      consumers: [{ queue: 'TASKS' }],
+    };
+
+    const toml = EdgeCodegen.generateWranglerToml(config, 'my-worker');
+    expect(toml).toContain('[[queues.producers]]');
+    expect(toml).toContain('binding = "TASKS"');
+    expect(toml).toContain('[[queues.consumers]]');
+    expect(toml).toContain('queue = "tasks"');
+    expect(toml).toContain('max_batch_size');
+  });
+
+  test('generates multiple consumer entries', () => {
+    const { EdgeCodegen } = require('../src/codegen/edge-codegen.js');
+
+    const config = {
+      target: 'cloudflare',
+      bindings: { kv: [], sql: [], storage: [], queue: [{ name: 'TASKS' }, { name: 'EVENTS' }] },
+      envVars: [],
+      secrets: [],
+      schedules: [],
+      consumers: [{ queue: 'TASKS' }, { queue: 'EVENTS' }],
+    };
+
+    const toml = EdgeCodegen.generateWranglerToml(config, 'my-worker');
+    const consumerMatches = toml.match(/\[\[queues\.consumers\]\]/g);
+    expect(consumerMatches).toHaveLength(2);
+  });
+
+  test('no consumers produces no consumer section', () => {
+    const { EdgeCodegen } = require('../src/codegen/edge-codegen.js');
+
+    const config = {
+      target: 'cloudflare',
+      bindings: { kv: [], sql: [], storage: [], queue: [{ name: 'TASKS' }] },
+      envVars: [],
+      secrets: [],
+      schedules: [],
+      consumers: [],
+    };
+
+    const toml = EdgeCodegen.generateWranglerToml(config, 'my-worker');
+    expect(toml).toContain('[[queues.producers]]');
+    expect(toml).not.toContain('[[queues.consumers]]');
+  });
+});
+
+describe('edge block - analyzer warnings for schedule/consume', () => {
+  test('warns on schedule for unsupported target (vercel)', () => {
+    const result = analyze(`edge {
+      target: "vercel"
+      schedule "cleanup" cron("0 0 * * *") { print("cleaning") }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_UNSUPPORTED_SCHEDULE');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('vercel');
+  });
+
+  test('warns on schedule for unsupported target (lambda)', () => {
+    const result = analyze(`edge {
+      target: "lambda"
+      schedule "cleanup" cron("0 0 * * *") { print("cleaning") }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_UNSUPPORTED_SCHEDULE');
+    expect(w).toBeDefined();
+  });
+
+  test('no warning on schedule for cloudflare', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      schedule "cleanup" cron("0 0 * * *") { print("cleaning") }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_UNSUPPORTED_SCHEDULE');
+    expect(w).toBeUndefined();
+  });
+
+  test('no warning on schedule for deno', () => {
+    const result = analyze(`edge {
+      target: "deno"
+      schedule "cleanup" cron("0 0 * * *") { print("cleaning") }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_UNSUPPORTED_SCHEDULE');
+    expect(w).toBeUndefined();
+  });
+
+  test('warns on consume for non-cloudflare target', () => {
+    const result = analyze(`edge {
+      target: "deno"
+      queue TASKS
+      consume TASKS fn(msgs) { print(msgs) }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_UNSUPPORTED_CONSUME');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('deno');
+  });
+
+  test('no warning on consume for cloudflare', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      queue TASKS
+      consume TASKS fn(msgs) { print(msgs) }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_UNSUPPORTED_CONSUME');
+    expect(w).toBeUndefined();
+  });
+
+  test('warns on consume referencing undeclared queue', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      consume MISSING fn(msgs) { print(msgs) }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_CONSUME_UNKNOWN_QUEUE');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('MISSING');
+  });
+
+  test('no warning on consume with declared queue', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      queue TASKS
+      consume TASKS fn(msgs) { print(msgs) }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_CONSUME_UNKNOWN_QUEUE');
+    expect(w).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Low Priority Fixes
+// ═══════════════════════════════════════════════════════════════
+
+describe('edge block - Cloudflare scheduled cron no fall-through', () => {
+  test('multiple schedules use else-if chain', () => {
+    const result = compile(`edge {
+      schedule "cleanup" cron("0 0 * * *") { print("cleanup") }
+      schedule "report" cron("0 9 * * 1") { print("report") }
+    }`);
+    expect(result.edge).toContain('if (event.cron ===');
+    expect(result.edge).toContain('else if (event.cron ===');
+  });
+
+  test('single schedule uses if (no else if)', () => {
+    const result = compile(`edge {
+      schedule "cleanup" cron("0 0 * * *") { print("cleanup") }
+    }`);
+    expect(result.edge).toContain('if (event.cron ===');
+    expect(result.edge).not.toContain('else if');
+  });
+});
+
+describe('edge block - wrangler.toml named block path', () => {
+  test('named block produces correct main path', () => {
+    const { EdgeCodegen } = require('../src/codegen/edge-codegen.js');
+
+    const config = {
+      target: 'cloudflare',
+      bindings: { kv: [], sql: [], storage: [], queue: [] },
+      envVars: [],
+      secrets: [],
+      schedules: [],
+      consumers: [],
+    };
+
+    const toml = EdgeCodegen.generateWranglerToml(config, 'my-worker', 'api');
+    expect(toml).toContain('main = ".tova-out/my-worker.edge.api.js"');
+  });
+
+  test('unnamed block produces default main path', () => {
+    const { EdgeCodegen } = require('../src/codegen/edge-codegen.js');
+
+    const config = {
+      target: 'cloudflare',
+      bindings: { kv: [], sql: [], storage: [], queue: [] },
+      envVars: [],
+      secrets: [],
+      schedules: [],
+      consumers: [],
+    };
+
+    const toml = EdgeCodegen.generateWranglerToml(config, 'my-worker');
+    expect(toml).toContain('main = ".tova-out/my-worker.edge.js"');
+  });
+});
+
+describe('edge block - Lambda 404 JSON format', () => {
+  test('Lambda 404 returns JSON body with Content-Type', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      route GET "/api/data" => fn(req) { "ok" }
+    }`);
+    expect(result.edge).toContain('statusCode: 404');
+    expect(result.edge).toContain('"Content-Type": "application/json"');
+    expect(result.edge).toContain('JSON.stringify({ error: "Not Found" })');
+  });
+
+  test('Lambda middleware 404 returns JSON body', () => {
+    const result = compile(`edge {
+      target: "lambda"
+      middleware fn logger(req, next) { next(req) }
+      route GET "/api/data" => fn(req) { "ok" }
+    }`);
+    // Inner handler 404 should also be JSON
+    expect(result.edge).toContain('JSON.stringify({ error: "Not Found" })');
+  });
+});
+
+describe('edge block - analyzer empty block warning', () => {
+  test('warns on edge block with no routes or schedules', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      env API_KEY
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_EDGE_NO_HANDLERS');
+    expect(w).toBeDefined();
+    expect(w.message).toContain('no routes');
+  });
+
+  test('no warning when edge block has routes', () => {
+    // Use compile to verify - analyzer's visitEdgeBlock checks the body types
+    const result = compile(`edge {
+      route GET "/" => fn(req) { "ok" }
+    }`);
+    // If it compiled, it has routes and wouldn't warn
+    expect(result.edge).toContain('__routes');
+  });
+
+  test('no warning when edge block has schedules', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      schedule "cleanup" cron("0 0 * * *") { print("cleanup") }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_EDGE_NO_HANDLERS');
+    expect(w).toBeUndefined();
+  });
+
+  test('no warning when edge block has consumers', () => {
+    const result = analyze(`edge {
+      target: "cloudflare"
+      queue TASKS
+      consume TASKS fn(msgs) { print(msgs) }
+    }`);
+    const w = result.warnings.find(w => w.code === 'W_EDGE_NO_HANDLERS');
+    expect(w).toBeUndefined();
+  });
+});

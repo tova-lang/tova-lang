@@ -1063,6 +1063,10 @@ export class Analyzer {
       bun:        { kv: false, sql: true, storage: false, queue: false },
     };
 
+    // Targets that support schedule/consume/middleware
+    const SCHEDULE_TARGETS = new Set(['cloudflare', 'deno']);
+    const CONSUME_TARGETS = new Set(['cloudflare']);
+
     // Determine target from config fields
     let target = 'cloudflare';
     for (const stmt of node.body) {
@@ -1074,6 +1078,8 @@ export class Analyzer {
     this.pushScope('edge');
 
     let kvCount = 0;
+    const queueNames = new Set();
+    const consumers = [];
 
     for (const stmt of node.body) {
       // Validate config fields
@@ -1108,6 +1114,11 @@ export class Analyzer {
           });
         }
         bindingNames.add(stmt.name);
+      }
+
+      // Track queue names for consume validation
+      if (stmt.type === 'EdgeQueueDeclaration') {
+        queueNames.add(stmt.name);
       }
 
       // Check for duplicate env/secret names
@@ -1165,7 +1176,7 @@ export class Analyzer {
         }
       }
 
-      // Validate schedule cron expressions (basic format check)
+      // Validate schedule cron expressions + target support
       if (stmt.type === 'EdgeScheduleDeclaration') {
         const parts = stmt.cron.split(/\s+/);
         if (parts.length < 5 || parts.length > 6) {
@@ -1175,11 +1186,25 @@ export class Analyzer {
             code: 'W_INVALID_CRON',
           });
         }
+        if (!SCHEDULE_TARGETS.has(target)) {
+          this.warnings.push({
+            message: `Scheduled tasks are not supported on target '${target}' — schedule '${stmt.name}' will be ignored. Supported targets: ${[...SCHEDULE_TARGETS].join(', ')}`,
+            loc: stmt.loc,
+            code: 'W_UNSUPPORTED_SCHEDULE',
+          });
+        }
       }
 
-      // Validate consume references a declared queue
+      // Collect consume declarations for post-loop validation
       if (stmt.type === 'EdgeConsumeDeclaration') {
-        // We'll check this after all statements are processed
+        consumers.push(stmt);
+        if (!CONSUME_TARGETS.has(target)) {
+          this.warnings.push({
+            message: `Queue consumers are not supported on target '${target}' — consume '${stmt.queue}' will be ignored. Supported targets: ${[...CONSUME_TARGETS].join(', ')}`,
+            loc: stmt.loc,
+            code: 'W_UNSUPPORTED_CONSUME',
+          });
+        }
       }
 
       // Visit child nodes — edge-specific types are noop in the registry,
@@ -1189,6 +1214,29 @@ export class Analyzer {
       } else if (stmt.type === 'FunctionDeclaration' || stmt.type === 'RouteDeclaration') {
         this.visitNode(stmt);
       }
+    }
+
+    // Post-loop: validate consume references a declared queue
+    for (const consumer of consumers) {
+      if (!queueNames.has(consumer.queue)) {
+        this.warnings.push({
+          message: `consume '${consumer.queue}' references undeclared queue binding — add 'queue ${consumer.queue}' to the edge block`,
+          loc: consumer.loc,
+          code: 'W_CONSUME_UNKNOWN_QUEUE',
+        });
+      }
+    }
+
+    // Warn if edge block has no route or schedule handlers
+    const hasRoutes = node.body.some(s => s.type === 'RouteDeclaration');
+    const hasSchedules = node.body.some(s => s.type === 'EdgeScheduleDeclaration');
+    const hasConsumers = consumers.length > 0;
+    if (!hasRoutes && !hasSchedules && !hasConsumers) {
+      this.warnings.push({
+        message: 'edge block has no routes, schedules, or consumers — it will produce no handlers',
+        loc: node.loc,
+        code: 'W_EDGE_NO_HANDLERS',
+      });
     }
 
     this.popScope();

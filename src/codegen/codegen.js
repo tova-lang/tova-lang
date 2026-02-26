@@ -123,7 +123,7 @@ export class CodeGenerator {
       : '';
 
     // Pre-scan server/browser blocks for builtin usage so shared stdlib includes them
-    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks], sharedGen._usedBuiltins);
+    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks, ...edgeBlocks], sharedGen._usedBuiltins);
 
     const helpers = sharedGen.generateHelpers();
 
@@ -202,7 +202,7 @@ export class CodeGenerator {
         gen._sourceMapsEnabled = this._sourceMaps;
         const key = name || 'default';
         const edgeConfig = Edge.mergeEdgeBlocks(blocks);
-        edges[key] = gen.generate(edgeConfig, combinedShared);
+        edges[key] = gen.generate(edgeConfig, combinedShared, securityConfig);
       }
     }
 
