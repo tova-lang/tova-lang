@@ -734,6 +734,15 @@ export {
   EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration,
 } from './edge-ast.js';
 
+// ============================================================
+// Form-specific nodes (lazy-loaded from form-ast.js, re-exported for backward compat)
+// ============================================================
+
+export {
+  FormDeclaration, FormFieldDeclaration, FormGroupDeclaration,
+  FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep,
+} from './form-ast.js';
+
 export class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';
