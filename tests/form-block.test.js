@@ -154,3 +154,147 @@ describe('Form Block — Parser (simple form)', () => {
     expect(() => compile(src)).not.toThrow();
   });
 });
+
+describe('Form Block — Parser (groups, arrays, steps)', () => {
+  test('form with group parses without error', () => {
+    const src = `browser {
+      component App() {
+        form checkout {
+          group shipping {
+            field street: String = "" { required("Required") }
+            field city: String = ""
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with conditional group parses without error', () => {
+    const src = `browser {
+      component App() {
+        form checkout {
+          field sameAsShipping: Bool = true
+          group billing when !sameAsShipping {
+            field street: String = "" { required("Required") }
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with nested groups parses without error', () => {
+    const src = `browser {
+      component App() {
+        form checkout {
+          group billing {
+            field sameAsShipping: Bool = true
+            group address when !sameAsShipping {
+              field street: String = ""
+            }
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with array parses without error', () => {
+    const src = `browser {
+      component App() {
+        form invoice {
+          array lineItems {
+            field description: String = "" { required("Required") }
+            field quantity: Int = 1 { min(1, "At least 1") }
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with steps parses without error', () => {
+    const src = `browser {
+      component App() {
+        form wizard {
+          field email: String = ""
+          group profile {
+            field name: String = ""
+          }
+          steps {
+            step "Account" { email }
+            step "Profile" { profile }
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with all features combined', () => {
+    const src = `browser {
+      component App() {
+        form checkout {
+          field email: String = "" {
+            required("Email required")
+            email("Invalid")
+          }
+          group shipping {
+            field street: String = "" { required("Required") }
+            field city: String = "" { required("Required") }
+          }
+          array lineItems {
+            field description: String = ""
+            field qty: Int = 1
+          }
+          steps {
+            step "Info" { email }
+            step "Shipping" { shipping }
+            step "Items" { lineItems }
+          }
+          on submit {
+            print("submitted")
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with async validator parses without error', () => {
+    const src = `browser {
+      component App() {
+        form register {
+          field email: String = "" {
+            required("Required")
+            async validate(fn(v) v)
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with type annotation parses without error', () => {
+    const src = `browser {
+      component App() {
+        form order: OrderRequest {
+          field email: String = ""
+          on submit {
+            print("ok")
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+});
