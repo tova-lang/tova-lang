@@ -279,6 +279,7 @@ export class BaseCodegen {
       case 'TypeAlias': result = this.genTypeAlias(node); break;
       case 'DeferStatement': result = this.genDeferStatement(node); break;
       case 'WithStatement': result = this.genWithStatement(node); break;
+      case 'ConcurrentBlock': result = this.genConcurrentBlock(node); break;
       case 'ExternDeclaration': result = `${this.i()}// extern: ${node.name}`; break;
       // Config declarations handled at block level — emit nothing in statement context
       case 'AiConfigDeclaration': result = ''; break;
@@ -353,6 +354,7 @@ export class BaseCodegen {
       case 'ColumnExpression': return this.genColumnExpression(node);
       case 'ColumnAssignment': return this.genColumnAssignment(node);
       case 'NegatedColumnExpression': return `{ __exclude: ${JSON.stringify(node.name)} }`;
+      case 'SpawnExpression': return this.genSpawnExpression(node);
       default:
         throw new Error(`Codegen: unknown expression type '${node.type}'`);
     }
@@ -3011,6 +3013,77 @@ export class BaseCodegen {
     this.indent--;
     p.push(`${this.i()}}`);
     return p.join('\n');
+  }
+
+  genConcurrentBlock(node) {
+    const lines = [];
+    const tasks = [];
+    const assignments = [];
+
+    // Collect spawn tasks from body
+    for (const stmt of node.body) {
+      if (stmt.type === 'Assignment' && stmt.values && stmt.values[0] && stmt.values[0].type === 'SpawnExpression') {
+        const spawn = stmt.values[0];
+        const callCode = `${this.genExpression(spawn.callee)}(${spawn.arguments.map(a => this.genExpression(a)).join(', ')})`;
+        tasks.push(callCode);
+        assignments.push(stmt.targets[0]); // string variable name
+      } else if (stmt.type === 'ExpressionStatement' && stmt.expression && stmt.expression.type === 'SpawnExpression') {
+        const spawn = stmt.expression;
+        const callCode = `${this.genExpression(spawn.callee)}(${spawn.arguments.map(a => this.genExpression(a)).join(', ')})`;
+        tasks.push(callCode);
+        assignments.push(null); // fire-and-forget
+      } else {
+        // Non-spawn statement — generate normally
+        lines.push(this.generateStatement(stmt));
+      }
+    }
+
+    this._needsResultOption = true;
+
+    if (tasks.length === 0) {
+      return lines.join('\n');
+    }
+
+    // Generate Promise.all with Result wrapping
+    const tempVars = tasks.map((_, i) => `__c${i}`);
+    const taskExprs = tasks.map(call =>
+      `(async () => { try { return new Ok(await ${call}); } catch(__e) { return new Err(__e); } })()`
+    );
+
+    if (node.mode === 'timeout' && node.timeout) {
+      const timeoutMs = this.genExpression(node.timeout);
+      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
+      lines.push(`${this.i()}  Promise.all([`);
+      for (let i = 0; i < taskExprs.length; i++) {
+        lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+      }
+      lines.push(`${this.i()}  ]),`);
+      lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
+      lines.push(`${this.i()}]);`);
+    } else {
+      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+      for (let i = 0; i < taskExprs.length; i++) {
+        lines.push(`${this.i()}  ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+      }
+      lines.push(`${this.i()}]);`);
+    }
+
+    // Assign results to named variables
+    for (let i = 0; i < assignments.length; i++) {
+      if (assignments[i]) {
+        this.declareVar(assignments[i]);
+        lines.push(`${this.i()}const ${assignments[i]} = ${tempVars[i]};`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  genSpawnExpression(node) {
+    // Standalone spawn expression (not inside concurrent block codegen path)
+    // This happens when spawn is used directly in an expression context
+    const callCode = `${this.genExpression(node.callee)}(${node.arguments.map(a => this.genExpression(a)).join(', ')})`;
+    return `(async () => { try { return new Ok(await ${callCode}); } catch(__e) { return new Err(__e); } })()`;
   }
 
   // Check if a function body contains yield expressions (for generator detection)

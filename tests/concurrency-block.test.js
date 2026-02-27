@@ -5,6 +5,7 @@ import { BlockRegistry } from '../src/registry/register-all.js';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
 
 function parse(code) {
     const lexer = new Lexer(code);
@@ -34,6 +35,12 @@ function getWarnings(code) {
         // If analyzer throws (errors present), warnings are on the error object
         return e.warnings || [];
     }
+}
+
+function compileCode(code) {
+    const ast = parse(code);
+    const result = new CodeGenerator(ast, '<test>').generate();
+    return result.shared || '';
 }
 
 describe('concurrency AST nodes', () => {
@@ -222,5 +229,87 @@ describe('concurrency analyzer', () => {
         const warnings = getWarnings('concurrent { }');
         const emptyWarning = warnings.find(w => w.code === 'W_EMPTY_CONCURRENT');
         expect(emptyWarning).toBeDefined();
+    });
+});
+
+describe('concurrency codegen', () => {
+    test('concurrent block generates Promise.all', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent {
+                    a = spawn foo()
+                    b = spawn foo()
+                }
+            }
+        `);
+        expect(code).toContain('Promise.all');
+    });
+
+    test('spawn wraps in Result (try/catch)', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent {
+                    a = spawn foo()
+                }
+            }
+        `);
+        // Result wrapping: Ok on success, Err on catch
+        expect(code).toContain('Ok(');
+        expect(code).toContain('Err(');
+    });
+
+    test('concurrent block assigns results to variables', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent {
+                    a = spawn foo()
+                    b = spawn foo()
+                }
+            }
+        `);
+        // Variables should be assigned from the Promise.all result
+        expect(code).toContain('const a =');
+        expect(code).toContain('const b =');
+    });
+
+    test('fire-and-forget spawn (no assignment)', () => {
+        const code = compileCode(`
+            fn fire() { print("done") }
+            fn main() {
+                concurrent {
+                    spawn fire()
+                }
+            }
+        `);
+        expect(code).toContain('Promise.all');
+        // Should still be in the task list, just no variable assignment
+    });
+
+    test('concurrent with timeout generates timeout wrapper', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent timeout(5000) {
+                    a = spawn foo()
+                }
+            }
+        `);
+        // Should include a timeout mechanism
+        expect(code).toContain('5000');
+    });
+
+    test('spawn standalone expression generates correctly', () => {
+        const code = compileCode(`
+            fn foo(n: Int) -> Int { n * 2 }
+            fn main() {
+                concurrent {
+                    a = spawn foo(21)
+                }
+            }
+        `);
+        expect(code).toContain('foo(21)');
     });
 });
