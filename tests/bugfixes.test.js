@@ -1320,6 +1320,27 @@ describe('LazyTable query builder', () => {
   });
 });
 
+// ── Bug Fix: Devirtualization and scalar replacement regressions ──
+
+describe('devirtualization and scalar replacement regressions', () => {
+  test('devirtualization preserves side effect calls', () => {
+    const code = compile('result = Ok(compute()).unwrap()');
+    expect(code).toContain('compute()');
+    expect(code).not.toContain('Ok(');
+  });
+
+  test('scalar replacement skipped when variable is used unsafely', () => {
+    const code = compile(`
+      fn test(x) {
+        r = if x > 0 { Ok(x) } else { Err("bad") }
+        send(r)
+      }
+    `);
+    // Should NOT use scalar replacement since r is passed to a function
+    expect(code).not.toContain('r__ok');
+  });
+});
+
 // ── H1: Standalone range → stdlib range() ──
 describe('H1: standalone range uses stdlib range()', () => {
   test('exclusive standalone range emits range(start, end)', () => {

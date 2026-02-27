@@ -735,3 +735,102 @@ describe('Codegen — scalar replacement', () => {
     expect(code).not.toContain('Some(');
   });
 });
+
+// ─── Runtime — scalar replacement correctness ────────────────
+
+describe('Runtime — scalar replacement correctness', () => {
+  test('Result create+check pattern returns correct values', () => {
+    const code = compile(`
+      fn test(x) {
+        r = if x > 0 { Ok(x * 2) } else { Err("negative") }
+        if r.isOk() { r.unwrap() } else { -1 }
+      }
+    `).shared;
+    const test5 = new Function(code + '\nreturn test(5);');
+    const testNeg = new Function(code + '\nreturn test(-1);');
+    expect(test5()).toBe(10);
+    expect(testNeg()).toBe(-1);
+  });
+
+  test('Option create+unwrapOr returns correct values', () => {
+    const code = compile(`
+      fn test(x) {
+        o = if x > 0 { Some(x) } else { None }
+        o.unwrapOr(0)
+      }
+    `).shared;
+    const test5 = new Function(code + '\nreturn test(5);');
+    const testNeg = new Function(code + '\nreturn test(-1);');
+    expect(test5()).toBe(5);
+    expect(testNeg()).toBe(0);
+  });
+
+  test('Loop with scalar replacement (sum of filtered values)', () => {
+    const code = compile(`
+      fn test() {
+        var total = 0
+        var i = 0
+        while i < 5 {
+          r = if i > 2 { Ok(i) } else { Err("skip") }
+          if r.isOk() { total = total + r.unwrap() }
+          i = i + 1
+        }
+        total
+      }
+    `).shared;
+    const result = new Function(code + '\nreturn test();');
+    expect(result()).toBe(7);
+  });
+});
+
+// ─── Codegen — devirtualization edge cases ───────────────────
+
+describe('Codegen — devirtualization edge cases', () => {
+  test('Ok(sideEffect()).map(fn(x) x) preserves side effect', () => {
+    const code = compileShared('result = Ok(foo()).map(fn(x) x)');
+    // The call to foo() must be preserved in the output
+    expect(code).toContain('foo()');
+  });
+
+  test('Ok(x).map(f).map(g) still fuses (existing 2+ chain)', () => {
+    const code = compileShared('result = Ok(1).map(fn(x) x + 1).map(fn(y) y * 2)');
+    // Map chain fusion should eliminate .map( calls
+    expect(code).not.toContain('.map(');
+  });
+
+  test('variable.unwrap() NOT devirtualized (runtime variable)', () => {
+    const code = compileShared('fn test(r) { r.unwrap() }');
+    // r is a runtime variable, not a known Ok/Err constructor
+    expect(code).toContain('.unwrap()');
+  });
+
+  test('Returned Result NOT scalar-replaced (must be real object)', () => {
+    const code = compileShared(`
+      fn test(x) {
+        r = if x > 0 { Ok(x) } else { Err("bad") }
+        r
+      }
+    `);
+    // r is returned bare, so scalar replacement should NOT apply
+    const hasOkOrErr = code.includes('Ok(') || code.includes('Err(');
+    expect(hasOkOrErr).toBe(true);
+  });
+
+  test('Result passed to function NOT scalar-replaced', () => {
+    const code = compileShared(`
+      fn test(x) {
+        r = if x > 0 { Ok(x) } else { Err("bad") }
+        process(r)
+      }
+    `);
+    // r is passed to process() (bare reference = unsafe), so no scalar replacement
+    const hasOkOrErr = code.includes('Ok(') || code.includes('Err(');
+    expect(hasOkOrErr).toBe(true);
+  });
+
+  test('getResult().unwrap() NOT devirtualized (non-constructor)', () => {
+    const code = compileShared('fn test() { getResult().unwrap() }');
+    // getResult() is not Ok/Err/Some/None, so unwrap stays
+    expect(code).toContain('.unwrap()');
+  });
+});
