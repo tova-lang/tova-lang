@@ -2,11 +2,11 @@ import { describe, test, expect } from 'bun:test';
 import { BlockRegistry } from '../src/registry/register-all.js';
 
 describe('BlockRegistry', () => {
-  test('all() returns 9 built-in plugins in registration order', () => {
+  test('all() returns 10 built-in plugins in registration order', () => {
     const all = BlockRegistry.all();
-    expect(all.length).toBe(9);
+    expect(all.length).toBe(10);
     expect(all.map(p => p.name)).toEqual([
-      'server', 'browser', 'shared', 'security', 'cli', 'data', 'test', 'bench', 'edge',
+      'server', 'browser', 'shared', 'security', 'cli', 'data', 'test', 'bench', 'edge', 'concurrency',
     ]);
   });
 
@@ -89,7 +89,7 @@ describe('BlockRegistry', () => {
 
   test('identifier-strategy plugins have identifierValue', () => {
     const ids = BlockRegistry.all().filter(p => p.detection.strategy === 'identifier');
-    expect(ids.length).toBe(6); // security, cli, data, test, bench, edge
+    expect(ids.length).toBe(7); // security, cli, data, test, bench, edge, concurrency
     for (const p of ids) {
       expect(p.detection.identifierValue).toBeString();
     }
