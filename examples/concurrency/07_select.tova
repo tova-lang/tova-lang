@@ -1,0 +1,33 @@
+// Select statement — multiplexing across channels
+// Demonstrates receive, timeout, and default select cases
+
+async fn main() {
+    // Test 1: Select receive from buffered channel
+    print("--- Test 1: Select receive ---")
+    ch = Channel.new(1)
+    ch.send(42)
+    select {
+        msg from ch => print(msg)
+    }
+    print("Expected: 42")
+
+    // Test 2: Select with timeout on empty channel
+    print("--- Test 2: Select timeout ---")
+    empty = Channel.new(0)
+    select {
+        msg from empty => print(msg)
+        timeout(100) => print("timed out")
+    }
+    print("Expected: timed out")
+
+    // Test 3: Select with default (non-blocking)
+    print("--- Test 3: Select default ---")
+    ch2 = Channel.new(0)
+    select {
+        msg from ch2 => print(msg)
+        _ => print("nothing ready")
+    }
+    print("Expected: nothing ready")
+}
+
+main()

@@ -1,0 +1,42 @@
+// Cancel-on-error and first modes for concurrent blocks
+// Demonstrates cooperative cancellation with AbortController
+
+fn might_fail() -> Int {
+    var x = None
+    x.unwrap()
+}
+
+fn succeed() -> Int { 42 }
+
+fn fast_task() -> Int { 1 }
+
+async fn main() {
+    // Test 1: cancel_on_error — one task fails, other succeeds
+    print("--- Test 1: cancel_on_error ---")
+    concurrent cancel_on_error {
+        a = spawn might_fail()
+        b = spawn succeed()
+    }
+    match a {
+        Ok(v) => print(v)
+        Err(_) => print("a errored")
+    }
+    match b {
+        Ok(v) => print(v)
+        Err(_) => print("b errored")
+    }
+    print("Expected: a errored, 42")
+
+    // Test 2: first mode — first to complete wins
+    print("--- Test 2: first mode ---")
+    concurrent first {
+        c = spawn fast_task()
+    }
+    match c {
+        Ok(v) => print(v)
+        Err(_) => print("error")
+    }
+    print("Expected: 1")
+}
+
+main()
