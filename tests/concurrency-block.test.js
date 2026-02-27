@@ -483,3 +483,78 @@ describe('select AST nodes', () => {
         expect(c.body).toEqual([{ type: 'ExpressionStatement' }]);
     });
 });
+
+describe('select parser', () => {
+    test('parses basic receive case', () => {
+        const ast = parse('select { msg from ch => print(msg) }');
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel).not.toBeNull();
+        expect(sel.cases.length).toBe(1);
+        expect(sel.cases[0].kind).toBe('receive');
+        expect(sel.cases[0].binding).toBe('msg');
+        expect(sel.cases[0].channel.name).toBe('ch');
+    });
+
+    test('parses wildcard receive', () => {
+        const ast = parse('select { _ from done => print("done") }');
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel.cases[0].kind).toBe('receive');
+        expect(sel.cases[0].binding).toBeNull();
+        expect(sel.cases[0].channel.name).toBe('done');
+    });
+
+    test('parses timeout case', () => {
+        const ast = parse('select { timeout(5000) => print("timeout") }');
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel.cases[0].kind).toBe('timeout');
+        expect(sel.cases[0].value.value).toBe(5000);
+    });
+
+    test('parses default case', () => {
+        const ast = parse('select { _ => print("default") }');
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel.cases[0].kind).toBe('default');
+    });
+
+    test('parses send case', () => {
+        const ast = parse('select { ch.send(42) => print("sent") }');
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel.cases[0].kind).toBe('send');
+        expect(sel.cases[0].channel.name).toBe('ch');
+        expect(sel.cases[0].value.value).toBe(42);
+    });
+
+    test('parses multiple cases', () => {
+        const ast = parse(`
+            select {
+                msg from ch1 => print(msg)
+                timeout(5000) => print("timeout")
+                _ => print("default")
+            }
+        `);
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel.cases.length).toBe(3);
+        expect(sel.cases[0].kind).toBe('receive');
+        expect(sel.cases[1].kind).toBe('timeout');
+        expect(sel.cases[2].kind).toBe('default');
+    });
+
+    test('parses block body in select case', () => {
+        const ast = parse(`
+            select {
+                msg from ch => {
+                    print(msg)
+                    print("done")
+                }
+            }
+        `);
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel.cases[0].body.length).toBe(2);
+    });
+
+    test('select() function call is NOT parsed as SelectStatement', () => {
+        const ast = parse('select(table, cols)');
+        const sel = findNode(ast, 'SelectStatement');
+        expect(sel).toBeNull();
+    });
+});

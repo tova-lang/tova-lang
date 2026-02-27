@@ -3,10 +3,10 @@
 
 /**
  * select {
- *   receive msg from ch => { ... }
- *   send val to ch => { ... }
+ *   msg from ch => { ... }
+ *   ch.send(val) => { ... }
  *   timeout(5000) => { ... }
- *   default => { ... }
+ *   _ => { ... }
  * }
  */
 export class SelectStatement {
