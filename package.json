@@ -1,6 +1,6 @@
 {
   "name": "tova",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Tova — a modern programming language that transpiles to JavaScript, unifying frontend and backend",
   "type": "module",
   "main": "src/index.js",
