@@ -801,3 +801,90 @@ describe('cancel_on_error and first mode codegen', () => {
         expect(w).toBeUndefined();
     });
 });
+
+describe('select and cancellation E2E', () => {
+    test('select receives from channel', () => {
+        const output = runTova(`
+            async fn main() {
+                ch = Channel.new(1)
+                ch.send(42)
+                select {
+                    msg from ch => print(msg)
+                }
+            }
+        `);
+        expect(output).toContain('42');
+    });
+
+    test('select with timeout fires on empty channel', () => {
+        const output = runTova(`
+            async fn main() {
+                ch = Channel.new(0)
+                select {
+                    msg from ch => print(msg)
+                    timeout(100) => print("timeout")
+                }
+            }
+        `);
+        expect(output).toContain('timeout');
+    });
+
+    test('select with default on empty channel', () => {
+        const output = runTova(`
+            async fn main() {
+                ch = Channel.new(0)
+                select {
+                    msg from ch => print(msg)
+                    _ => print("default")
+                }
+            }
+        `);
+        expect(output).toContain('default');
+    });
+
+    test('cancel_on_error returns Err for failing task', () => {
+        const output = runTova(`
+            fn might_fail() -> Int {
+                var x = None
+                x.unwrap()
+            }
+
+            fn succeed() -> Int { 42 }
+
+            async fn main() {
+                concurrent cancel_on_error {
+                    a = spawn might_fail()
+                    b = spawn succeed()
+                }
+                match a {
+                    Ok(v) => print(v)
+                    Err(_) => print("a failed")
+                }
+                match b {
+                    Ok(v) => print(v)
+                    Err(_) => print("b failed")
+                }
+            }
+        `);
+        expect(output).toContain('a failed');
+        expect(output).toContain('42');
+    });
+
+    test('first mode returns winner result', () => {
+        const output = runTova(`
+            fn fast() -> Int { 1 }
+            fn slow() -> Int { 2 }
+
+            async fn main() {
+                concurrent first {
+                    a = spawn fast()
+                }
+                match a {
+                    Ok(v) => print(v)
+                    Err(_) => print("error")
+                }
+            }
+        `);
+        expect(output).toContain('1');
+    });
+});
