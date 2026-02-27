@@ -1,10 +1,21 @@
 import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
+import { Parser } from '../src/parser/parser.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
 import { TokenType } from '../src/lexer/tokens.js';
 import {
   FormDeclaration, FormFieldDeclaration, FormGroupDeclaration,
   FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep
 } from '../src/parser/form-ast.js';
+
+function compile(source) {
+  const lexer = new Lexer(source, '<test>');
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, '<test>');
+  const ast = parser.parse();
+  const codegen = new CodeGenerator(ast, '<test>');
+  return codegen.generate();
+}
 
 describe('Form Block — Lexer', () => {
   test('form keyword produces FORM token', () => {
@@ -81,5 +92,65 @@ describe('Form Block — AST Nodes', () => {
     expect(ast.FormValidator).toBeDefined();
     expect(ast.FormStepsDeclaration).toBeDefined();
     expect(ast.FormStep).toBeDefined();
+  });
+});
+
+describe('Form Block — Parser (simple form)', () => {
+  test('form with a single field parses without error', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with field and validators parses without error', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = "" {
+            required("Email is required")
+            email("Invalid email")
+          }
+          field password: String = "" {
+            required("Password is required")
+            minLength(8, "Too short")
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form at browser block top-level parses without error', () => {
+    const src = `browser {
+      form settings {
+        field theme: String = "light"
+      }
+      component App() {
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
+  });
+
+  test('form with on submit parses without error', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+          on submit {
+            print(login.values)
+          }
+        }
+        <div>"hello"</div>
+      }
+    }`;
+    expect(() => compile(src)).not.toThrow();
   });
 });

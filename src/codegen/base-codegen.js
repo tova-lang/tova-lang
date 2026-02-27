@@ -286,6 +286,7 @@ export class BaseCodegen {
       case 'SourceDeclaration': result = ''; break;
       case 'PipelineDeclaration': result = ''; break;
       case 'ValidateBlock': result = ''; break;
+      case 'FormDeclaration': result = ''; break;
       case 'RefreshPolicy': result = ''; break;
       case 'RefinementType': result = this.genRefinementType(node); break;
       default:

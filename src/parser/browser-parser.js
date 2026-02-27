@@ -3,10 +3,13 @@
 
 import { TokenType, Keywords } from '../lexer/tokens.js';
 import * as AST from './ast.js';
+import { installFormParser } from './form-parser.js';
 
 export function installBrowserParser(ParserClass) {
   if (ParserClass.prototype._browserParserInstalled) return;
   ParserClass.prototype._browserParserInstalled = true;
+
+  installFormParser(ParserClass);
 
   ParserClass.prototype.parseBrowserBlock = function() {
     const l = this.loc();
@@ -46,6 +49,7 @@ export function installBrowserParser(ParserClass) {
     if (this.check(TokenType.EFFECT)) return this.parseEffect();
     if (this.check(TokenType.COMPONENT)) return this.parseComponent();
     if (this.check(TokenType.STORE)) return this.parseStore();
+    if (this.check(TokenType.FORM)) return this.parseFormDeclaration();
     return this.parseStatement();
   };
 
@@ -134,6 +138,8 @@ export function installBrowserParser(ParserClass) {
         body.push(this.parseEffect());
       } else if (this.check(TokenType.COMPONENT)) {
         body.push(this.parseComponent());
+      } else if (this.check(TokenType.FORM)) {
+        body.push(this.parseFormDeclaration());
       } else {
         body.push(this.parseStatement());
       }
