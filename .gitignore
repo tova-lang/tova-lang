@@ -34,3 +34,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+# Rust build artifacts
+tova_runtime/target/
+tova_runtime/*.node
