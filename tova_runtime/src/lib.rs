@@ -1,7 +1,11 @@
 mod scheduler;
+mod executor;
+mod channels;
+mod host_imports;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use std::sync::Arc;
 
 #[napi]
 pub fn health_check() -> String {
@@ -29,4 +33,90 @@ pub async fn concurrent_all(values: Vec<i64>) -> Result<Vec<i64>> {
         results.push(r);
     }
     Ok(results)
+}
+
+// --- WASM execution ---
+
+#[napi(object)]
+pub struct WasmTask {
+    pub wasm: Buffer,
+    pub func: String,
+    pub args: Vec<i64>,
+}
+
+#[napi]
+pub async fn exec_wasm(wasm: Buffer, func: String, args: Vec<i64>) -> Result<i64> {
+    let wasm_bytes = wasm.to_vec();
+    let result = scheduler::TOKIO_RT
+        .spawn(async move {
+            executor::exec_wasm_sync(&wasm_bytes, &func, &args)
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("task join error: {}", e)))?
+        .map_err(|e| Error::from_reason(e))?;
+    Ok(result)
+}
+
+#[napi]
+pub async fn concurrent_wasm(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
+    let mut handles = Vec::with_capacity(tasks.len());
+
+    for task in tasks {
+        let wasm_bytes = task.wasm.to_vec();
+        let func = task.func;
+        let args = task.args;
+        handles.push(scheduler::TOKIO_RT.spawn(async move {
+            executor::exec_wasm_sync(&wasm_bytes, &func, &args)
+        }));
+    }
+
+    let mut results = Vec::with_capacity(handles.len());
+    for handle in handles {
+        let r = handle
+            .await
+            .map_err(|e| Error::from_reason(format!("join: {}", e)))?
+            .map_err(|e| Error::from_reason(e))?;
+        results.push(r);
+    }
+    Ok(results)
+}
+
+#[napi]
+pub async fn concurrent_wasm_shared(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
+    if tasks.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let wasm_bytes = tasks[0].wasm.to_vec();
+    let chunk_size = (tasks.len() + 7) / 8;
+    let task_data: Vec<(String, Vec<i64>)> = tasks
+        .into_iter()
+        .map(|t| (t.func, t.args))
+        .collect();
+
+    let chunks: Vec<Vec<(String, Vec<i64>)>> = task_data
+        .chunks(chunk_size.max(1))
+        .map(|c| c.to_vec())
+        .collect();
+
+    let wasm_arc = Arc::new(wasm_bytes);
+    let mut handles = Vec::new();
+
+    for chunk in chunks {
+        let wasm = Arc::clone(&wasm_arc);
+        handles.push(scheduler::TOKIO_RT.spawn_blocking(move || {
+            executor::exec_many_shared(&wasm, chunk)
+        }));
+    }
+
+    let mut all_results = Vec::new();
+    for handle in handles {
+        let chunk_results = handle
+            .await
+            .map_err(|e| Error::from_reason(format!("join: {}", e)))?;
+        for r in chunk_results {
+            all_results.push(r.map_err(|e| Error::from_reason(e))?);
+        }
+    }
+    Ok(all_results)
 }
