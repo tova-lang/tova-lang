@@ -109,6 +109,16 @@ describe('concurrency plugin registration', () => {
         expect(plugin.detection.strategy).toBe('identifier');
         expect(plugin.detection.identifierValue).toBe('concurrent');
     });
+
+    test('SelectStatement routed to concurrency plugin', () => {
+        const plugin = BlockRegistry.getByAstType('SelectStatement');
+        expect(plugin).toBeTruthy();
+        expect(plugin.name).toBe('concurrency');
+    });
+
+    test('SelectCase is a noop type', () => {
+        expect(BlockRegistry.isNoopType('SelectCase')).toBe(true);
+    });
 });
 
 describe('concurrency parser', () => {

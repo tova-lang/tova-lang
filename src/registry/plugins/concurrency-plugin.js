@@ -21,8 +21,12 @@ export const concurrencyPlugin = {
     method: 'parseConcurrentBlock',
   },
   analyzer: {
-    visit: (analyzer, node) => analyzer.visitConcurrentBlock(node),
-    noopNodeTypes: ['SpawnExpression'],
+    visit: (analyzer, node) => {
+      if (node.type === 'SelectStatement') return analyzer.visitSelectStatement(node);
+      return analyzer.visitConcurrentBlock(node);
+    },
+    childNodeTypes: ['SelectStatement'],
+    noopNodeTypes: ['SpawnExpression', 'SelectCase'],
   },
   codegen: {},
 };
