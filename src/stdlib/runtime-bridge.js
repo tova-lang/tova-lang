@@ -80,18 +80,17 @@ function channelCreate(capacity) {
 }
 
 function channelSend(id, value) {
-    if (!_init()) return false;
-    _runtime.channelSend(id, value);
-    return true;
+    if (!_init()) throw new Error('tova_runtime not available');
+    return _runtime.channelSend(id, value);
 }
 
 function channelReceive(id) {
-    if (!_init()) return null;
+    if (!_init()) throw new Error('tova_runtime not available');
     return _runtime.channelReceive(id);
 }
 
 function channelClose(id) {
-    if (!_init()) return;
+    if (!_init()) throw new Error('tova_runtime not available');
     _runtime.channelClose(id);
 }
 

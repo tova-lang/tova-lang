@@ -205,8 +205,7 @@ describe('runtime bridge', () => {
         bridge.channelClose(chId);
     });
 
-    test('bridge falls back gracefully when unavailable', () => {
-        // Verify the module structure is correct — all expected exports exist
+    test('bridge exports all expected functions', () => {
         expect(typeof bridge.isRuntimeAvailable).toBe('function');
         expect(typeof bridge.healthCheck).toBe('function');
         expect(typeof bridge.channelCreate).toBe('function');
