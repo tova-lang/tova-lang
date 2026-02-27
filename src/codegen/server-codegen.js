@@ -136,6 +136,69 @@ export class ServerCodegen extends BaseCodegen {
     return checks;
   }
 
+  // Generate validation checks from type-level validators (Phase 3)
+  // Returns an array of JS code lines for inline validation
+  _genTypeValidatorCode(paramName, typeInfo, indent = '  ') {
+    const checks = [];
+    for (const field of typeInfo.fields) {
+      if (!field.validators || field.validators.length === 0) continue;
+      const accessor = `${paramName}.${field.name}`;
+      for (const v of field.validators) {
+        // The last argument is typically the error message
+        const msgArg = v.args.length > 0 ? this.genExpression(v.args[v.args.length - 1]) : null;
+        switch (v.name) {
+          case 'required': {
+            const msg = msgArg || `"${field.name} is required"`;
+            checks.push(`${indent}if (${accessor} === undefined || ${accessor} === null || ${accessor} === "") __validationErrors.push({ field: "${field.name}", message: ${msg} });`);
+            break;
+          }
+          case 'email': {
+            const msg = msgArg || `"${field.name} must be a valid email"`;
+            checks.push(`${indent}if (${accessor} && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(${accessor})) __validationErrors.push({ field: "${field.name}", message: ${msg} });`);
+            break;
+          }
+          case 'min': {
+            const minVal = this.genExpression(v.args[0]);
+            const minMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} must be at least ${v.args[0].value || v.args[0].name}"`;
+            checks.push(`${indent}if (typeof ${accessor} === "number" && ${accessor} < ${minVal}) __validationErrors.push({ field: "${field.name}", message: ${minMsg} });`);
+            break;
+          }
+          case 'max': {
+            const maxVal = this.genExpression(v.args[0]);
+            const maxMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} must be at most ${v.args[0].value || v.args[0].name}"`;
+            checks.push(`${indent}if (typeof ${accessor} === "number" && ${accessor} > ${maxVal}) __validationErrors.push({ field: "${field.name}", message: ${maxMsg} });`);
+            break;
+          }
+          case 'minLength': {
+            const minLen = this.genExpression(v.args[0]);
+            const minLenMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} is too short"`;
+            checks.push(`${indent}if (typeof ${accessor} === "string" && ${accessor}.length < ${minLen}) __validationErrors.push({ field: "${field.name}", message: ${minLenMsg} });`);
+            break;
+          }
+          case 'maxLength': {
+            const maxLen = this.genExpression(v.args[0]);
+            const maxLenMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} is too long"`;
+            checks.push(`${indent}if (typeof ${accessor} === "string" && ${accessor}.length > ${maxLen}) __validationErrors.push({ field: "${field.name}", message: ${maxLenMsg} });`);
+            break;
+          }
+          case 'pattern': {
+            const regex = this.genExpression(v.args[0]);
+            const patMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} has invalid format"`;
+            checks.push(`${indent}if (typeof ${accessor} === "string" && !${regex}.test(${accessor})) __validationErrors.push({ field: "${field.name}", message: ${patMsg} });`);
+            break;
+          }
+          case 'oneOf': {
+            const vals = this.genExpression(v.args[0]);
+            const oneOfMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} has invalid value"`;
+            checks.push(`${indent}if (!${vals}.includes(${accessor})) __validationErrors.push({ field: "${field.name}", message: ${oneOfMsg} });`);
+            break;
+          }
+        }
+      }
+    }
+    return checks;
+  }
+
   // Emit handler call, optionally wrapped in Promise.race for timeout
   _emitHandlerCall(lines, callExpr, timeoutMs) {
     if (timeoutMs) {
@@ -304,14 +367,19 @@ export class ServerCodegen extends BaseCodegen {
     }
 
     // Collect type declarations from shared blocks for model/ORM generation
-    const sharedTypes = new Map(); // typeName -> { fields: [{ name, type }] }
+    const sharedTypes = new Map(); // typeName -> { fields: [{ name, type, validators? }] }
     const _collectTypes = (stmts) => {
       for (const stmt of stmts) {
         if (stmt.type === 'TypeDeclaration' && stmt.variants) {
           const fields = [];
           for (const v of stmt.variants) {
             if (v.type === 'TypeField' && v.typeAnnotation) {
-              fields.push({ name: v.name, type: v.typeAnnotation.name || (v.typeAnnotation.type === 'ArrayTypeAnnotation' ? 'Array' : 'Any') });
+              const fieldInfo = { name: v.name, type: v.typeAnnotation.name || (v.typeAnnotation.type === 'ArrayTypeAnnotation' ? 'Array' : 'Any') };
+              // Capture type-level validators (Phase 3) if present
+              if (v.validators && v.validators.length > 0) {
+                fieldInfo.validators = v.validators;
+              }
+              fields.push(fieldInfo);
             }
           }
           if (fields.length > 0) {
@@ -2166,9 +2234,19 @@ export class ServerCodegen extends BaseCodegen {
             lines.push(`  const ${paramNames[pi]} = body.__args ? body.__args[${pi}] : body.${paramNames[pi]};`);
           }
           const validationChecks = this._genValidationCode(fn.params);
-          if (validationChecks.length > 0) {
+          // Phase 3: Also generate type-level validator checks for typed parameters
+          const typeValidatorChecks = [];
+          for (const p of fn.params) {
+            if (p.typeAnnotation && p.typeAnnotation.type === 'TypeAnnotation' && sharedTypes.has(p.typeAnnotation.name)) {
+              const typeInfo = sharedTypes.get(p.typeAnnotation.name);
+              const tvChecks = this._genTypeValidatorCode(p.name, typeInfo);
+              typeValidatorChecks.push(...tvChecks);
+            }
+          }
+          const allChecks = [...validationChecks, ...typeValidatorChecks];
+          if (allChecks.length > 0) {
             lines.push(`  const __validationErrors = [];`);
-            for (const check of validationChecks) {
+            for (const check of allChecks) {
               lines.push(check);
             }
             lines.push(`  if (__validationErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors);`);

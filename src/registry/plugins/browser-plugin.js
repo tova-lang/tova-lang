@@ -23,7 +23,7 @@ export const browserPlugin = {
     },
     childNodeTypes: [
       'StateDeclaration', 'ComputedDeclaration', 'EffectDeclaration',
-      'ComponentDeclaration', 'StoreDeclaration',
+      'ComponentDeclaration', 'StoreDeclaration', 'FormDeclaration',
     ],
   },
   codegen: {},

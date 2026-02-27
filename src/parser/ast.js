@@ -148,11 +148,12 @@ export class TypeVariant {
 }
 
 export class TypeField {
-  constructor(name, typeAnnotation, loc) {
+  constructor(name, typeAnnotation, loc, validators) {
     this.type = 'TypeField';
     this.name = name;
     this.typeAnnotation = typeAnnotation;
     this.loc = loc;
+    this.validators = validators || [];
   }
 }
 

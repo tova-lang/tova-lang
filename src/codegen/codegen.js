@@ -180,8 +180,34 @@ export class CodeGenerator {
           }
         }
       }
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks, securityConfig);
+      // Include top-level statements so _collectTypes finds top-level type declarations
+      const allSharedBlocks = topLevel.length > 0
+        ? [...sharedBlocks, { type: 'BlockStatement', body: topLevel }]
+        : sharedBlocks;
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, allSharedBlocks, securityConfig);
     }
+
+    // Collect type validators from shared blocks and top-level for form type inheritance
+    const typeValidatorsMap = {};
+    const _collectTypeValidators = (stmts) => {
+      for (const stmt of stmts) {
+        if (stmt.type === 'TypeDeclaration' && stmt.variants) {
+          const fields = [];
+          for (const v of stmt.variants) {
+            if (v.type === 'TypeField' && v.validators && v.validators.length > 0) {
+              fields.push({ name: v.name, validators: v.validators });
+            }
+          }
+          if (fields.length > 0) {
+            typeValidatorsMap[stmt.name] = { fields };
+          }
+        }
+      }
+    };
+    for (const sb of sharedBlocks) {
+      _collectTypeValidators(sb.body);
+    }
+    _collectTypeValidators(topLevel);
 
     // Generate browser outputs (one per named group)
     const browsers = {};
@@ -189,7 +215,7 @@ export class CodeGenerator {
       const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap);
     }
 
     // Generate edge outputs (one per named group)

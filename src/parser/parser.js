@@ -1,5 +1,6 @@
 import { TokenType, Keywords } from '../lexer/tokens.js';
 import * as AST from './ast.js';
+import { FormValidator } from './form-ast.js';
 import { BlockRegistry } from '../registry/register-all.js';
 
 export class Parser {
@@ -991,6 +992,43 @@ export class Parser {
     return new AST.TypeAnnotation(name, typeParams, l);
   }
 
+  // Parse inline validators for type fields: { required, email, min(18) }
+  // Uses comma-separated validator names, supports args in parens
+  _parseTypeFieldValidators() {
+    const validators = [];
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume {
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        validators.push(this._parseInlineValidator());
+        this.match(TokenType.COMMA); // optional comma separator
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close validator block");
+    }
+    return validators;
+  }
+
+  // Parse a single inline validator: name or name(args...)
+  _parseInlineValidator() {
+    const l = this.loc();
+    let isAsync = false;
+    if (this.check(TokenType.ASYNC)) {
+      isAsync = true;
+      this.advance();
+    }
+    const name = this.expect(TokenType.IDENTIFIER, "Expected validator name").value;
+    const args = [];
+    if (this.match(TokenType.LPAREN)) {
+      if (!this.check(TokenType.RPAREN)) {
+        args.push(this.parseExpression());
+        while (this.match(TokenType.COMMA)) {
+          args.push(this.parseExpression());
+        }
+      }
+      this.expect(TokenType.RPAREN, "Expected ')' after validator arguments");
+    }
+    return new FormValidator(name, args, isAsync, l);
+  }
+
   parseTypeDeclaration() {
     const l = this.loc();
     this.expect(TokenType.TYPE);
@@ -1077,9 +1115,10 @@ export class Parser {
         this.expect(TokenType.RPAREN, "Expected ')' after variant fields");
         variants.push(new AST.TypeVariant(vname, fields, vl));
       } else if (this.match(TokenType.COLON)) {
-        // Simple field: name: String
+        // Simple field: name: String  or  name: String { required, email }
         const ftype = this.parseTypeAnnotation();
-        variants.push(new AST.TypeField(vname, ftype, vl));
+        const validators = this._parseTypeFieldValidators();
+        variants.push(new AST.TypeField(vname, ftype, vl, validators));
       } else {
         // Bare variant: None
         variants.push(new AST.TypeVariant(vname, [], vl));

@@ -1,7 +1,7 @@
 import { BaseCodegen } from './base-codegen.js';
 import { getBrowserStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 import { SecurityCodegen } from './security-codegen.js';
-import { generateValidatorFn, generateFieldSignals, generateFieldAccessor, generateGroupCode, generateArrayCode } from './form-codegen.js';
+import { generateValidatorFn, generateFieldSignals, generateFieldAccessor, generateGroupCode, generateArrayCode, generateAsyncValidatorEffect } from './form-codegen.js';
 
 export class BrowserCodegen extends BaseCodegen {
   constructor() {
@@ -187,8 +187,9 @@ export class BrowserCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
+    this._typeValidators = typeValidatorsMap || {};
     const lines = [];
 
     // Runtime imports
@@ -733,6 +734,31 @@ export class BrowserCodegen extends BaseCodegen {
     const arrays = form.arrays || [];
     const fieldNames = fields.map(f => f.name);
 
+    // Build merged validators map: field name -> validators array
+    // If form has a type annotation, inherit validators from the type definition.
+    // Form-level validators override type-level for the same validator name;
+    // additional type validators (with different names) are appended.
+    const mergedValidatorsMap = {};
+    for (const field of fields) {
+      mergedValidatorsMap[field.name] = [...(field.validators || [])];
+    }
+    if (form.typeAnnotation && this._typeValidators) {
+      const typeName = form.typeAnnotation.name;
+      const typeInfo = this._typeValidators[typeName];
+      if (typeInfo) {
+        for (const typeField of typeInfo.fields) {
+          if (mergedValidatorsMap[typeField.name] !== undefined) {
+            const existingNames = new Set(mergedValidatorsMap[typeField.name].map(v => v.name));
+            for (const tv of typeField.validators) {
+              if (!existingNames.has(tv.name)) {
+                mergedValidatorsMap[typeField.name].push(tv);
+              }
+            }
+          }
+        }
+      }
+    }
+
     const p = [];
     p.push(`const ${form.name} = (() => {\n`);
     this.indent++;
@@ -744,9 +770,9 @@ export class BrowserCodegen extends BaseCodegen {
     }
     if (fields.length > 0) p.push('\n');
 
-    // Validator functions (top-level fields)
+    // Validator functions (top-level fields) — use merged validators
     for (const field of fields) {
-      p.push(generateValidatorFn(field.name, field.validators, genExpr, this.i()));
+      p.push(generateValidatorFn(field.name, mergedValidatorsMap[field.name] || [], genExpr, this.i()));
     }
     if (fields.length > 0) p.push('\n');
 
@@ -773,6 +799,39 @@ export class BrowserCodegen extends BaseCodegen {
       p.push(generateArrayCode(arr, genExpr, this.i()));
       p.push('\n');
       arrayNames.push({ name: arr.name, fields: (arr.fields || []).map(f => f.name) });
+    }
+
+    // Cross-field re-validation effects (e.g., matches() validator) — use merged validators
+    for (const field of fields) {
+      const validators = mergedValidatorsMap[field.name] || [];
+      for (const v of validators) {
+        if (v.name === 'matches') {
+          const sourceField = v.args[0] && (v.args[0].name || v.args[0]);
+          const depField = field.name;
+          if (sourceField) {
+            p.push(`${this.i()}createEffect(() => {\n`);
+            p.push(`${this.i()}  __${sourceField}_value();\n`);
+            p.push(`${this.i()}  if (__${depField}_touched()) {\n`);
+            p.push(`${this.i()}    const e = __validate_${depField}(__${depField}_value());\n`);
+            p.push(`${this.i()}    __set_${depField}_error(e);\n`);
+            p.push(`${this.i()}  }\n`);
+            p.push(`${this.i()}});\n`);
+          }
+        }
+      }
+    }
+
+    // Async validator effects (debounced, versioned) — use merged validators
+    for (const field of fields) {
+      const validators = mergedValidatorsMap[field.name] || [];
+      for (const v of validators) {
+        if (v.isAsync && v.name === 'validate') {
+          p.push(generateAsyncValidatorEffect(
+            field.name, v, (expr) => this.genExpression(expr), this.i()
+          ));
+          p.push('\n');
+        }
+      }
     }
 
     // Form-level signals — include both top-level fields and group-prefixed fields

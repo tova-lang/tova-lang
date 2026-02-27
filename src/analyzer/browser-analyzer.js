@@ -2,10 +2,13 @@
 // Extracted from analyzer.js for lazy loading — only loaded when browser { } blocks are encountered.
 
 import { Symbol } from './scope.js';
+import { installFormAnalyzer } from './form-analyzer.js';
 
 export function installBrowserAnalyzer(AnalyzerClass) {
   if (AnalyzerClass.prototype._browserAnalyzerInstalled) return;
   AnalyzerClass.prototype._browserAnalyzerInstalled = true;
+
+  installFormAnalyzer(AnalyzerClass);
 
   AnalyzerClass.prototype.visitBrowserBlock = function(node) {
     const prevScope = this.currentScope;
