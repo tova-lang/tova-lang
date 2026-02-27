@@ -706,3 +706,32 @@ describe('Codegen — devirtualization', () => {
     expect(code).not.toContain('Ok(');
   });
 });
+
+// ─── Codegen — scalar replacement ────────────────────────────
+
+describe('Codegen — scalar replacement', () => {
+  test('if/else Ok/Err + isOk/unwrap emits scalar vars', () => {
+    const code = compileShared(`
+      fn test(x) {
+        r = if x > 0 { Ok(x) } else { Err("negative") }
+        if r.isOk() { r.unwrap() } else { 0 }
+      }
+    `);
+    expect(code).toContain('r__ok');
+    expect(code).toContain('r__v');
+    expect(code).not.toContain('Ok(');
+    expect(code).not.toContain('Err(');
+  });
+
+  test('if/else Some/None + unwrapOr emits scalar vars', () => {
+    const code = compileShared(`
+      fn test(x) {
+        o = if x > 0 { Some(x) } else { None }
+        o.unwrapOr(0)
+      }
+    `);
+    expect(code).toContain('o__ok');
+    expect(code).toContain('o__v');
+    expect(code).not.toContain('Some(');
+  });
+});

@@ -3468,4 +3468,359 @@ export class BaseCodegen {
     this._yieldCache.set(node, result);
     return result;
   }
+
+  // ─── Scalar replacement analysis for Result/Option ──────────
+  // Detects local variables assigned from if-expressions that produce
+  // Ok/Err or Some/None, where all subsequent usages are safe method
+  // calls (isOk, unwrap, unwrapOr, etc.). Such variables can be
+  // replaced with a boolean + value pair (zero allocation).
+
+  /**
+   * Scans an array of statements for scalar-replaceable Result/Option
+   * assignments. Returns Map<varName, {kind, assignIdx}>.
+   */
+  _preAnalyzeScalarResults(stmts) {
+    const map = new Map();
+    for (let i = 0; i < stmts.length; i++) {
+      const stmt = stmts[i];
+      // Must be a single-target, single-value assignment
+      if (stmt.type !== 'Assignment' || stmt.targets.length !== 1 || stmt.values.length !== 1) continue;
+      const target = stmt.targets[0];
+      if (typeof target !== 'string') continue; // skip MemberExpression targets
+      const value = stmt.values[0];
+      // Value must be an IfExpression (or IfStatement used as expression)
+      if (value.type !== 'IfExpression' && value.type !== 'IfStatement') continue;
+      const kind = this._detectResultOptionIf(value);
+      if (kind === null) continue;
+      // Check all subsequent statements for safe usage
+      let allSafe = true;
+      let anyUsed = false;
+      for (let j = i + 1; j < stmts.length; j++) {
+        const usage = this._checkScalarSafeUsage(stmts[j], target, kind);
+        if (usage === 'unsafe') { allSafe = false; break; }
+        if (usage === 'used') anyUsed = true;
+      }
+      if (allSafe && anyUsed) {
+        map.set(target, { kind, assignIdx: i });
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Checks if ALL branches of an if expression return Ok/Err or Some/None.
+   * Returns 'result' | 'option' | null.
+   */
+  _detectResultOptionIf(ifExpr) {
+    // Must have an else branch (otherwise result could be undefined)
+    if (!ifExpr.elseBody) return null;
+
+    const types = [];
+
+    // Check consequent block
+    types.push(this._getBlockResultType(ifExpr.consequent));
+
+    // Check elif alternates
+    if (ifExpr.alternates) {
+      for (const alt of ifExpr.alternates) {
+        types.push(this._getBlockResultType(alt.body));
+      }
+    }
+
+    // Check else block
+    types.push(this._getBlockResultType(ifExpr.elseBody));
+
+    // All must be non-null
+    if (types.some(t => t === null)) return null;
+
+    // Check if all are Result constructors (Ok/Err)
+    if (types.every(t => t === 'Ok' || t === 'Err')) return 'result';
+
+    // Check if all are Option constructors (Some/None)
+    if (types.every(t => t === 'Some' || t === 'None')) return 'option';
+
+    return null;
+  }
+
+  /**
+   * Gets the constructor name from the last expression in a block.
+   * Returns 'Ok' | 'Err' | 'Some' | 'None' | null.
+   */
+  _getBlockResultType(block) {
+    if (!block) return null;
+    const stmts = block.type === 'BlockStatement' ? block.body : [block];
+    if (stmts.length === 0) return null;
+    const last = stmts[stmts.length - 1];
+    // Could be ExpressionStatement or bare expression (implicit return)
+    let expr = last;
+    if (last.type === 'ExpressionStatement') expr = last.expression;
+    if (last.type === 'ReturnStatement' && last.value) expr = last.value;
+    // Check for Ok(val), Err(val), Some(val) call
+    if (expr.type === 'CallExpression' && expr.callee && expr.callee.type === 'Identifier') {
+      const name = expr.callee.name;
+      if (['Ok', 'Err', 'Some'].includes(name) && expr.arguments.length === 1) return name;
+    }
+    // Check for bare None identifier
+    if (expr.type === 'Identifier' && expr.name === 'None') return 'None';
+    return null;
+  }
+
+  /**
+   * Walks a statement checking all references to varName.
+   * Returns 'used' | 'unsafe' | 'none'.
+   */
+  _checkScalarSafeUsage(stmt, varName, kind) {
+    let found = false;
+    let safe = true;
+
+    const SAFE_RESULT = new Set(['isOk', 'isErr', 'unwrap', 'unwrapOr', 'expect']);
+    const SAFE_OPTION = new Set(['isSome', 'isNone', 'unwrap', 'unwrapOr', 'expect']);
+    const safeSet = kind === 'result' ? SAFE_RESULT : SAFE_OPTION;
+
+    // Custom expression walker that handles method calls specially
+    const walkExpr = (expr) => {
+      if (!expr || !safe) return;
+      // Check for varName.method() pattern FIRST
+      if (expr.type === 'CallExpression' &&
+          expr.callee && expr.callee.type === 'MemberExpression' &&
+          !expr.callee.computed &&
+          expr.callee.object && expr.callee.object.type === 'Identifier' &&
+          expr.callee.object.name === varName) {
+        if (safeSet.has(expr.callee.property)) {
+          found = true;
+          // Walk only the arguments (NOT the callee.object to avoid bare ref detection)
+          for (const arg of expr.arguments) walkExpr(arg);
+          return;
+        }
+        // Unsafe method call on the variable
+        safe = false;
+        return;
+      }
+      // Check for bare varName reference (not part of a safe method call)
+      if (expr.type === 'Identifier' && expr.name === varName) {
+        safe = false;
+        return;
+      }
+      // Walk children
+      switch (expr.type) {
+        case 'BinaryExpression':
+        case 'LogicalExpression':
+          walkExpr(expr.left);
+          walkExpr(expr.right);
+          break;
+        case 'UnaryExpression':
+          walkExpr(expr.operand);
+          break;
+        case 'CallExpression':
+          walkExpr(expr.callee);
+          for (const arg of expr.arguments) walkExpr(arg);
+          break;
+        case 'MemberExpression':
+          walkExpr(expr.object);
+          if (expr.computed) walkExpr(expr.property);
+          break;
+        case 'ConditionalExpression':
+          walkExpr(expr.condition);
+          walkExpr(expr.consequent);
+          walkExpr(expr.alternate);
+          break;
+        case 'ArrayLiteral':
+          if (expr.elements) for (const el of expr.elements) walkExpr(el);
+          break;
+        case 'ObjectLiteral':
+          if (expr.properties) for (const prop of expr.properties) walkExpr(prop.value);
+          break;
+        case 'TemplateLiteral':
+          if (expr.expressions) for (const e of expr.expressions) walkExpr(e);
+          break;
+        // Lambdas/functions — don't descend (separate scope)
+        case 'FunctionExpression':
+        case 'ArrowFunction':
+        case 'LambdaExpression':
+          break;
+        // Assignment expression
+        case 'AssignmentExpression':
+          walkExpr(expr.right);
+          break;
+      }
+    };
+
+    // Walk statement dispatching to expression walker
+    this._walkStmtForScalar(stmt, walkExpr);
+
+    if (!safe) return 'unsafe';
+    return found ? 'used' : 'none';
+  }
+
+  /**
+   * Walks all expressions within a statement, calling walkExpr for each
+   * top-level expression found. Used by _checkScalarSafeUsage.
+   */
+  _walkStmtForScalar(stmt, walkExpr) {
+    if (!stmt) return;
+    switch (stmt.type) {
+      case 'ExpressionStatement':
+        walkExpr(stmt.expression);
+        break;
+      case 'Assignment':
+      case 'VarDeclaration':
+        if (stmt.values) for (const v of stmt.values) walkExpr(v);
+        if (stmt.targets) {
+          for (const t of stmt.targets) {
+            if (typeof t === 'object') walkExpr(t);
+          }
+        }
+        break;
+      case 'ReturnStatement':
+        if (stmt.value) walkExpr(stmt.value);
+        break;
+      case 'IfStatement':
+      case 'IfExpression':
+        walkExpr(stmt.condition);
+        this._walkBlockForScalar(stmt.consequent, walkExpr);
+        if (stmt.alternates) {
+          for (const alt of stmt.alternates) {
+            walkExpr(alt.condition);
+            this._walkBlockForScalar(alt.body, walkExpr);
+          }
+        }
+        if (stmt.elseBody) this._walkBlockForScalar(stmt.elseBody, walkExpr);
+        break;
+      case 'ForStatement':
+        walkExpr(stmt.iterable);
+        this._walkBlockForScalar(stmt.body, walkExpr);
+        break;
+      case 'WhileStatement':
+        walkExpr(stmt.condition);
+        this._walkBlockForScalar(stmt.body, walkExpr);
+        break;
+      case 'CallExpression':
+        walkExpr(stmt);
+        break;
+      default:
+        if (stmt.expression) walkExpr(stmt.expression);
+        break;
+    }
+  }
+
+  /**
+   * Walks all statements in a block, dispatching to _walkStmtForScalar.
+   */
+  _walkBlockForScalar(block, walkExpr) {
+    if (!block) return;
+    const stmts = block.type === 'BlockStatement' ? block.body : [block];
+    for (const s of stmts) this._walkStmtForScalar(s, walkExpr);
+  }
+
+  /**
+   * General-purpose expression walker. Calls callback(node) for every
+   * expression node in the tree.
+   */
+  _walkExpressions(node, callback) {
+    if (!node) return;
+    callback(node);
+    switch (node.type) {
+      case 'BinaryExpression':
+      case 'LogicalExpression':
+        this._walkExpressions(node.left, callback);
+        this._walkExpressions(node.right, callback);
+        break;
+      case 'UnaryExpression':
+        this._walkExpressions(node.operand, callback);
+        break;
+      case 'CallExpression':
+        this._walkExpressions(node.callee, callback);
+        for (const arg of node.arguments) this._walkExpressions(arg, callback);
+        break;
+      case 'MemberExpression':
+        this._walkExpressions(node.object, callback);
+        if (node.computed) this._walkExpressions(node.property, callback);
+        break;
+      case 'ConditionalExpression':
+        this._walkExpressions(node.condition, callback);
+        this._walkExpressions(node.consequent, callback);
+        this._walkExpressions(node.alternate, callback);
+        break;
+      case 'ArrayLiteral':
+        if (node.elements) for (const el of node.elements) this._walkExpressions(el, callback);
+        break;
+      case 'ObjectLiteral':
+        if (node.properties) for (const prop of node.properties) this._walkExpressions(prop.value, callback);
+        break;
+      case 'TemplateLiteral':
+        if (node.expressions) for (const expr of node.expressions) this._walkExpressions(expr, callback);
+        break;
+      // Lambdas/functions — don't descend (separate scope)
+      case 'FunctionExpression':
+      case 'ArrowFunction':
+      case 'LambdaExpression':
+        break;
+      // Leaf nodes — no children
+      case 'Identifier':
+      case 'NumberLiteral':
+      case 'StringLiteral':
+      case 'BooleanLiteral':
+      case 'NilLiteral':
+        break;
+    }
+  }
+
+  /**
+   * Walks all expressions within a statement.
+   */
+  _walkStatementExpressions(stmt, callback) {
+    if (!stmt) return;
+    switch (stmt.type) {
+      case 'ExpressionStatement':
+        this._walkExpressions(stmt.expression, callback);
+        break;
+      case 'Assignment':
+      case 'VarDeclaration':
+        if (stmt.values) for (const v of stmt.values) this._walkExpressions(v, callback);
+        if (stmt.targets) {
+          for (const t of stmt.targets) {
+            if (typeof t === 'object') this._walkExpressions(t, callback);
+          }
+        }
+        break;
+      case 'ReturnStatement':
+        if (stmt.value) this._walkExpressions(stmt.value, callback);
+        break;
+      case 'IfStatement':
+      case 'IfExpression':
+        this._walkExpressions(stmt.condition, callback);
+        this._walkStatementBlock(stmt.consequent, callback);
+        if (stmt.alternates) {
+          for (const alt of stmt.alternates) {
+            this._walkExpressions(alt.condition, callback);
+            this._walkStatementBlock(alt.body, callback);
+          }
+        }
+        if (stmt.elseBody) this._walkStatementBlock(stmt.elseBody, callback);
+        break;
+      case 'ForStatement':
+        this._walkExpressions(stmt.iterable, callback);
+        this._walkStatementBlock(stmt.body, callback);
+        break;
+      case 'WhileStatement':
+        this._walkExpressions(stmt.condition, callback);
+        this._walkStatementBlock(stmt.body, callback);
+        break;
+      case 'CallExpression':
+        this._walkExpressions(stmt, callback);
+        break;
+      default:
+        if (stmt.expression) this._walkExpressions(stmt.expression, callback);
+        break;
+    }
+  }
+
+  /**
+   * Walks all statements in a block for _walkStatementExpressions.
+   */
+  _walkStatementBlock(block, callback) {
+    if (!block) return;
+    const stmts = block.type === 'BlockStatement' ? block.body : [block];
+    for (const s of stmts) this._walkStatementExpressions(s, callback);
+  }
 }
