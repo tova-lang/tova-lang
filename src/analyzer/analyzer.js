@@ -1074,6 +1074,58 @@ export class Analyzer {
     this._concurrentDepth--;
   }
 
+  visitSelectStatement(node) {
+    if (node.cases.length === 0) {
+      this.warn("Empty select block", node.loc, null, {
+        code: 'W_EMPTY_SELECT',
+      });
+    }
+
+    let defaultCount = 0;
+    let timeoutCount = 0;
+    for (const c of node.cases) {
+      if (c.kind === 'default') defaultCount++;
+      if (c.kind === 'timeout') timeoutCount++;
+    }
+
+    if (defaultCount > 1) {
+      this.warn("select block has multiple default cases", node.loc, null, {
+        code: 'W_DUPLICATE_SELECT_DEFAULT',
+      });
+    }
+    if (timeoutCount > 1) {
+      this.warn("select block has multiple timeout cases", node.loc, null, {
+        code: 'W_DUPLICATE_SELECT_TIMEOUT',
+      });
+    }
+    if (defaultCount > 0 && timeoutCount > 0) {
+      this.warn("select block has both default and timeout — default makes timeout unreachable", node.loc, null, {
+        code: 'W_SELECT_DEFAULT_TIMEOUT',
+      });
+    }
+
+    // Visit each case's expressions and body
+    for (const c of node.cases) {
+      if (c.channel) this.visitNode(c.channel);
+      if (c.value) this.visitNode(c.value);
+
+      if (c.kind === 'receive' && c.binding) {
+        // Create scope for the binding variable
+        this.pushScope('select-case');
+        this.currentScope.define(c.binding,
+          new Symbol(c.binding, 'variable', null, false, c.loc));
+        for (const stmt of c.body) {
+          this.visitNode(stmt);
+        }
+        this.popScope();
+      } else {
+        for (const stmt of c.body) {
+          this.visitNode(stmt);
+        }
+      }
+    }
+  }
+
   _validateCliCrossBlock() {
     const cliBlocks = this.ast.body.filter(n => n.type === 'CliBlock');
     if (cliBlocks.length === 0) return;

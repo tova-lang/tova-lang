@@ -558,3 +558,76 @@ describe('select parser', () => {
         expect(sel).toBeNull();
     });
 });
+
+describe('select analyzer', () => {
+    test('empty select warns', () => {
+        const warnings = getWarnings('select { }');
+        const w = warnings.find(w => w.code === 'W_EMPTY_SELECT');
+        expect(w).toBeDefined();
+    });
+
+    test('duplicate default warns', () => {
+        const warnings = getWarnings(`
+            fn main() {
+                select {
+                    _ => print("one")
+                    _ => print("two")
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_DUPLICATE_SELECT_DEFAULT');
+        expect(w).toBeDefined();
+    });
+
+    test('duplicate timeout warns', () => {
+        const warnings = getWarnings(`
+            fn main() {
+                select {
+                    timeout(100) => print("one")
+                    timeout(200) => print("two")
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_DUPLICATE_SELECT_TIMEOUT');
+        expect(w).toBeDefined();
+    });
+
+    test('default + timeout warns', () => {
+        const warnings = getWarnings(`
+            fn main() {
+                select {
+                    _ => print("default")
+                    timeout(100) => print("timeout")
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_SELECT_DEFAULT_TIMEOUT');
+        expect(w).toBeDefined();
+    });
+
+    test('receive binding accessible in case body', () => {
+        // This should NOT produce undefined identifier warning for 'msg'
+        const warnings = getWarnings(`
+            fn main() {
+                ch = Channel.new(1)
+                select {
+                    msg from ch => print(msg)
+                }
+            }
+        `);
+        const flagged = warnings.filter(w => w.message && w.message.includes("'msg'"));
+        expect(flagged.length).toBe(0);
+    });
+
+    test('undefined channel warns', () => {
+        const warnings = getWarnings(`
+            fn main() {
+                select {
+                    msg from unknown_channel => print(msg)
+                }
+            }
+        `);
+        const flagged = warnings.filter(w => w.message && w.message.includes("'unknown_channel'"));
+        expect(flagged.length).toBeGreaterThan(0);
+    });
+});
