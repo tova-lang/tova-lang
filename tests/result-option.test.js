@@ -597,6 +597,45 @@ describe('Integration — end-to-end', () => {
   });
 });
 
+// ─── Runtime — devirtualization correctness ─────────────────
+
+describe('Runtime — devirtualization correctness', () => {
+  // Helper: compile Tova source, eval the generated JS, return the value of `result`
+  function evalCompiled(source) {
+    const code = compile(source).shared;
+    // The generated code may include stdlib definitions or may be fully devirtualized.
+    // We wrap in a function and return the `result` variable.
+    const wrapper = new Function(code + '\nreturn result;');
+    return wrapper();
+  }
+
+  test('Ok(42).unwrap() returns 42', () => {
+    expect(evalCompiled('result = Ok(42).unwrap()')).toBe(42);
+  });
+
+  test('Err("fail").unwrapOr(0) returns 0', () => {
+    expect(evalCompiled('result = Err("fail").unwrapOr(0)')).toBe(0);
+  });
+
+  test('Ok(5).map(fn(x) x * 3).unwrap() returns 15', () => {
+    expect(evalCompiled('result = Ok(5).map(fn(x) x * 3).unwrap()')).toBe(15);
+  });
+
+  test('Ok(10).flatMap(fn(x) if x > 5 { Ok(x * 2) } else { Err("low") }).unwrap() returns 20', () => {
+    const code = compile('result = Ok(10).flatMap(fn(x) if x > 5 { Ok(x * 2) } else { Err("low") })').shared;
+    const wrapper = new Function(code + '\nreturn result.unwrap();');
+    expect(wrapper()).toBe(20);
+  });
+
+  test('None.unwrapOr(99) returns 99', () => {
+    expect(evalCompiled('result = None.unwrapOr(99)')).toBe(99);
+  });
+
+  test('Some(7).filter(fn(x) x > 5).unwrap() returns 7', () => {
+    expect(evalCompiled('result = Some(7).filter(fn(x) x > 5).unwrap()')).toBe(7);
+  });
+});
+
 // ─── Codegen — devirtualization ─────────────────────────────
 
 describe('Codegen — devirtualization', () => {
