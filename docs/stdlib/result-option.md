@@ -388,6 +388,27 @@ None.filter(fn(x) true)         // None
 
 ---
 
+## Performance
+
+Result and Option operations are optimized at compile time. You pay zero allocation cost in many common patterns:
+
+**Devirtualization:** When the compiler knows the exact type (e.g., `Ok(x).unwrap()`), it inlines the method body directly. `Ok(42).unwrap()` compiles to just `42` -- no wrapper object is created.
+
+**Map chain fusion:** Chains like `Ok(val).map(f).map(g).map(h)` are fused into a single `Ok(h(g(f(val))))`, eliminating intermediate allocations.
+
+**Scalar replacement:** When a Result/Option is created in an if/else and only accessed through methods like `.isOk()`, `.unwrap()`, or `.unwrapOr()`, the compiler replaces the object with a boolean+value pair. Zero allocation.
+
+```tova
+// This runs at near-raw-integer speed:
+r = if x > 0 { Ok(x * 2) } else { Err("negative") }
+if r.isOk() { r.unwrap() } else { -1 }
+// Compiler eliminates all Result allocations
+```
+
+These optimizations are automatic. Write clean, expressive code and the compiler makes it fast. See the [Performance guide](/guide/performance) for benchmarks.
+
+---
+
 ## Propagation Operator `?`
 
 The `?` operator provides concise syntax for unwrapping `Ok`/`Some` values and short-circuiting on `Err`/`None`. It works like Rust's `?` operator.

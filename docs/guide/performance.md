@@ -21,6 +21,9 @@ All benchmarks run on Apple Silicon. Each reports the best of 3 runs.
 | @fast vector add 1M | 90ms | TypedArray element-wise ops |
 | Prime sieve 10M | 25ms | Uint8Array fill optimization |
 | Result.map 3x chain (10M iter) | 10ms | Compile-time fusion |
+| Result create+check (10M iter) | 17ms | Scalar replacement (zero allocation) |
+| Option create+unwrapOr (10M iter) | 10ms | Scalar replacement (zero allocation) |
+| unwrapOr alternating (10M iter) | 7ms | Compile-time devirtualization |
 
 ### HTTP Server
 
@@ -39,6 +42,8 @@ Several benchmarks improved dramatically through compiler optimizations:
 |-----------|--------|-------|-------------|
 | Prime sieve 10M | 78ms | 25ms | 3.1x (array fill + Uint8Array) |
 | Result.map 3x chain | 101ms | 10ms | 10x (map chain fusion) |
+| Result create+check 10M | 36ms | 17ms | 2.1x (scalar replacement) |
+| Option create+unwrapOr 10M | 190ms | 10ms | 19x (scalar replacement) |
 | HTTP req/s | 66K | 108K | 1.6x (fast mode) |
 | Lexer throughput | 0.079ms/iter | 0.045ms/iter | 1.8x (substring extraction) |
 
@@ -114,6 +119,61 @@ The optimization applies when:
 - The receiver is an `Ok()` or `Some()` call
 - Each `.map()` argument is a single-expression lambda with one parameter
 - Two or more `.map()` calls are chained
+
+### Result/Option Devirtualization
+
+When the compiler sees a method call on a known Result or Option constructor, it inlines the method body directly, eliminating the object allocation entirely:
+
+```tova
+// You write:
+value = Ok(42).unwrap()
+
+// Compiler generates: const value = 42;
+// No Ok wrapper is ever created
+```
+
+This applies to all methods on `Ok()`, `Err()`, `Some()`, and `None`:
+
+```tova
+Ok(x).isOk()         // compiles to: true
+Err(e).unwrapOr(0)   // compiles to: 0
+None.isSome()        // compiles to: false
+Some(x).unwrapOr(d)  // compiles to: x
+```
+
+For `.map()` and `.flatMap()` with simple lambdas, the lambda body is inlined:
+
+```tova
+Ok(5).map(fn(x) x * 3)    // compiles to: Ok((5 * 3))
+```
+
+Combined with map chain fusion, a chain like `Ok(val).map(f).map(g).unwrap()` compiles down to a single arithmetic expression with zero allocations.
+
+**Impact:** `unwrapOr` on pre-created values runs at 7ms/10M iterations -- faster than Go.
+
+### Scalar Replacement for Local Results
+
+When a Result or Option is created via an if/else and only accessed through safe methods (`.isOk()`, `.unwrap()`, `.unwrapOr()`, etc.), the compiler replaces the object with a boolean+value pair:
+
+```tova
+// You write:
+r = if x > 0 { Ok(x * 2) } else { Err("negative") }
+if r.isOk() { r.unwrap() } else { -1 }
+
+// Compiler generates:
+// let r__ok, r__v;
+// if (x > 0) { r__ok = true; r__v = x * 2; }
+// else { r__ok = false; r__v = "negative"; }
+// if (r__ok) { r__v } else { -1 }
+```
+
+No `Ok` or `Err` object is ever allocated. This is the same strategy that JVM JIT compilers use ("escape analysis" / "scalar replacement"), but applied at compile time.
+
+**Impact:** Result create+check pattern runs at 17ms/10M iterations (was 36ms). Option create+unwrapOr runs at 10ms/10M iterations (was 190ms -- a 19x improvement).
+
+The optimization triggers when:
+- A variable is assigned from an if/else where all branches return Result or Option constructors
+- All subsequent uses of the variable are safe method calls (no bare references, no passing to functions, no returning the value)
 
 ### Lexer Fast Path
 

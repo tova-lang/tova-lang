@@ -44,6 +44,7 @@ export default defineConfig({
           { text: 'CLI Apps', link: '/fullstack/cli-block' },
           { text: 'Edge/Serverless', link: '/fullstack/edge-block' },
           { text: 'Data Pipelines', link: '/fullstack/data-block' },
+          { text: 'Tova for Data Professionals', link: '/guide/data-professionals' },
           { text: 'AI Integration', link: '/guide/ai' },
         ],
       },
@@ -98,6 +99,7 @@ export default defineConfig({
         {
           text: 'Coming From...',
           items: [
+            { text: 'Data Professionals', link: '/guide/data-professionals' },
             { text: 'Python Developers', link: '/guide/from-python' },
             { text: 'JavaScript Developers', link: '/guide/from-javascript' },
           ],

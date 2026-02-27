@@ -1278,6 +1278,16 @@ Session 15+: 4.1 (LLVM/Cranelift native backend)
 - [x] `filled()` stdlib function for explicit pre-allocation
 - [x] **10 benchmarks now beat Go**, 2 tie, 7 within 2x, only 3 still slower
 
+**Session 10 — Result/Option Devirtualization + Scalar Replacement:**
+- [x] Compile-time devirtualization: `Ok(x).unwrap()` → `x`, `Err(e).isOk()` → `false`, etc.
+- [x] Scalar replacement: if/else Ok/Err + safe methods → boolean+value pairs, zero allocation
+- [x] Result create+check: 36ms → **17ms** (2.1x faster, now 2.1x of Go vs 4.4x)
+- [x] Result 3x map: 101ms → **10ms** (devirt unwrap on fused chain)
+- [x] Option create+unwrapOr: 190ms → **10ms** (19x faster, now ~1x of Go)
+- [x] unwrapOr alternating: 6ms → **7ms** (holds, still BEATS GO)
+- [x] Result flatMap: 160ms → **35ms** (4.6x faster, now 3.9x of Go vs 18x)
+- [x] 29 new tests (108 total in result-option.test.js), 7211 tests pass
+
 **Phase 4 (Tier 4 — stretch goal):**
 - [ ] Native-compiled Tova beats Go in fibonacci, sorting, JSON
 - [ ] Memory usage within 2x of Go
