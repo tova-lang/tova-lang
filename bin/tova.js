@@ -3,7 +3,7 @@
 import { resolve, basename, dirname, join, relative } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, chmodSync, renameSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
-// Bun.hash used instead of crypto.createHash for faster hashing
+import { createHash as _cryptoHash } from 'crypto';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
@@ -3485,7 +3485,8 @@ class BuildCache {
   }
 
   _hashContent(content) {
-    return Bun.hash(content).toString(16);
+    if (typeof Bun !== 'undefined' && Bun.hash) return Bun.hash(content).toString(16);
+    return _cryptoHash('md5').update(content).digest('hex');
   }
 
   load() {
@@ -3526,7 +3527,8 @@ class BuildCache {
     for (const f of files.slice().sort()) {
       combined += f + readFileSync(f, 'utf-8');
     }
-    return Bun.hash(combined).toString(16);
+    if (typeof Bun !== 'undefined' && Bun.hash) return Bun.hash(combined).toString(16);
+    return _cryptoHash('md5').update(combined).digest('hex');
   }
 
   // Store compiled output for a multi-file group

@@ -2702,6 +2702,9 @@ export class ServerCodegen extends BaseCodegen {
           lines.push('  responses: { "200": { description: "Success" } },');
         }
 
+        // Close the OpenAPI path entry object
+        lines.push('};');
+
         // Auto-generate error responses based on route context
         const routeHasAuth = (route.decorators || []).some(d => d.name === 'auth');
         const routeHasRateLimit = (route.decorators || []).some(d => d.name === 'rate_limit');
@@ -2709,7 +2712,8 @@ export class ServerCodegen extends BaseCodegen {
         const routeHasTimeout = (route.decorators || []).some(d => d.name === 'timeout');
         const errRef = '{ "$ref": "#/components/schemas/ErrorResponse" }';
 
-        // Merge error responses into existing 200 response
+        // Merge error responses into existing 200 response (wrapped in block scope to avoid __r redeclaration)
+        lines.push('{');
         lines.push(`const __r = __openApiSpec.paths[${JSON.stringify(path)}][${JSON.stringify(method)}].responses;`);
         if (routeHasValidation || ['post', 'put', 'patch'].includes(method)) {
           lines.push(`__r["400"] = { description: "Validation Failed", content: { "application/json": { schema: ${errRef} } } };`);
@@ -2733,8 +2737,7 @@ export class ServerCodegen extends BaseCodegen {
           lines.push(`__r["504"] = { description: "Gateway Timeout", content: { "application/json": { schema: ${errRef} } } };`);
         }
         lines.push(`__r["500"] = { description: "Internal Server Error", content: { "application/json": { schema: ${errRef} } } };`);
-
-        lines.push('};');
+        lines.push('}');
       }
 
       // Add the /docs endpoint
