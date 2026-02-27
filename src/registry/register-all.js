@@ -10,6 +10,7 @@ import { cliPlugin } from './plugins/cli-plugin.js';
 import { dataPlugin } from './plugins/data-plugin.js';
 import { testPlugin } from './plugins/test-plugin.js';
 import { benchPlugin } from './plugins/bench-plugin.js';
+import { edgePlugin } from './plugins/edge-plugin.js';
 
 BlockRegistry.register(serverPlugin);
 BlockRegistry.register(browserPlugin);
@@ -19,5 +20,6 @@ BlockRegistry.register(cliPlugin);
 BlockRegistry.register(dataPlugin);
 BlockRegistry.register(testPlugin);
 BlockRegistry.register(benchPlugin);
+BlockRegistry.register(edgePlugin);
 
 export { BlockRegistry };

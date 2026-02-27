@@ -840,6 +840,13 @@ async function buildProject(args) {
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', browserPath)}${timing}`);
         }
 
+        // Write default edge
+        if (output.edge) {
+          const edgePath = join(outDir, `${outBaseName}.edge.js`);
+          writeFileSync(edgePath, generateSourceMap(output.edge, edgePath));
+          if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', edgePath)} [edge]${timing}`);
+        }
+
         // Write named server blocks (multi-block)
         if (output.multiBlock && output.servers) {
           for (const [name, code] of Object.entries(output.servers)) {
@@ -847,6 +854,16 @@ async function buildProject(args) {
             const path = join(outDir, `${outBaseName}.server.${name}.js`);
             writeFileSync(path, code);
             if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]${timing}`);
+          }
+        }
+
+        // Write named edge blocks (multi-block)
+        if (output.multiBlock && output.edges) {
+          for (const [name, code] of Object.entries(output.edges)) {
+            if (name === 'default') continue;
+            const path = join(outDir, `${outBaseName}.edge.${name}.js`);
+            writeFileSync(path, code);
+            if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [edge:${name}]${timing}`);
           }
         }
 

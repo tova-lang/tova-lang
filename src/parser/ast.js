@@ -64,6 +64,15 @@ export class CliBlock {
   }
 }
 
+export class EdgeBlock {
+  constructor(body, loc, name = null) {
+    this.type = 'EdgeBlock';
+    this.name = name;       // optional string name for named edge blocks
+    this.body = body;       // Array of edge statements (config, bindings, routes, functions, etc.)
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Declarations
 // ============================================================
@@ -714,6 +723,16 @@ export {
   SecurityAuditDeclaration,
   SecurityTrustProxyDeclaration, SecurityHstsDeclaration,
 } from './security-ast.js';
+
+// ============================================================
+// Edge-specific nodes (lazy-loaded from edge-ast.js, re-exported for backward compat)
+// ============================================================
+
+export {
+  EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration,
+  EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration,
+  EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration,
+} from './edge-ast.js';
 
 export class TestBlock {
   constructor(name, body, loc, options = {}) {

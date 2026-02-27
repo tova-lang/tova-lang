@@ -42,6 +42,7 @@ export default defineConfig({
           { text: 'Server', link: '/server/routes' },
           { text: 'Reactive UI', link: '/reactivity/signals' },
           { text: 'CLI Apps', link: '/fullstack/cli-block' },
+          { text: 'Edge/Serverless', link: '/fullstack/edge-block' },
           { text: 'Data Pipelines', link: '/fullstack/data-block' },
           { text: 'AI Integration', link: '/guide/ai' },
         ],
@@ -126,6 +127,7 @@ export default defineConfig({
             { text: 'Data Block', link: '/fullstack/data-block' },
             { text: 'Security Block', link: '/fullstack/security-block' },
             { text: 'CLI Block', link: '/fullstack/cli-block' },
+            { text: 'Edge Block', link: '/fullstack/edge-block' },
             { text: 'Server Block', link: '/fullstack/server-block' },
             { text: 'Browser Block', link: '/fullstack/browser-block' },
             { text: 'RPC Bridge', link: '/fullstack/rpc' },
@@ -280,6 +282,16 @@ export default defineConfig({
             { text: 'API Gateway', link: '/examples/api-gateway' },
             { text: 'Monitoring Service', link: '/examples/monitoring-service' },
             { text: 'Real-Time Dashboard', link: '/examples/real-time-dashboard' },
+          ],
+        },
+        {
+          text: 'Edge & Serverless',
+          items: [
+            { text: 'URL Shortener', link: '/examples/edge-url-shortener' },
+            { text: 'API Proxy', link: '/examples/edge-api-proxy' },
+            { text: 'Feature Flags', link: '/examples/edge-feature-flags' },
+            { text: 'Image Pipeline', link: '/examples/edge-image-pipeline' },
+            { text: 'Webhook Handler', link: '/examples/edge-webhook-handler' },
           ],
         },
         {
