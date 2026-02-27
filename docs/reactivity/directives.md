@@ -34,6 +34,29 @@ state agreed = false
 
 See [Two-Way Binding](/reactivity/jsx#two-way-binding) for full documentation.
 
+### `bind:form` — Form Controller Binding
+
+Connect a `<form>` element to a form controller created by a `form` block:
+
+```tova
+form login {
+  field email: String = "" { required("Required") }
+  on submit { server.login(login.values) }
+}
+
+<form bind:form={login}>
+  <FormField field={login.email}>
+    <input type="email" />
+    <ErrorMessage />
+  </FormField>
+  <button type="submit">"Log In"</button>
+</form>
+```
+
+This wires the form element's `onSubmit` to the controller's `submit()` method, which calls `preventDefault()`, validates all fields, and runs the `on submit` handler.
+
+See [Form Block](/fullstack/form-block) and [Forms & Validation](/reactivity/forms) for full documentation.
+
 ## `class:` — Conditional Classes
 
 Toggle CSS classes based on expressions:
@@ -149,6 +172,7 @@ See [Directional Transitions](/reactivity/transitions#directional-transitions) f
 | `bind:checked` | Two-way checkbox binding | `bind:checked={flag}` |
 | `bind:group` | Radio/checkbox group | `bind:group={selected}` |
 | `bind:this` | Element reference | `bind:this={ref}` |
+| `bind:form` | Form controller binding | `bind:form={myForm}` |
 | `class:name` | Conditional class | `class:active={cond}` |
 | `show` | Toggle visibility | `show={visible}` |
 | `use:action` | Element action | `use:tooltip={text}` |

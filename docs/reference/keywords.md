@@ -27,10 +27,13 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | `export` | Reserved keyword (use [`pub`](#pub) instead) |
 | [`extern`](#extern) | Declare an external (foreign) binding |
 | [`false`](#false) | Boolean false literal |
+| [`field`](#field) | Declare a form field inside a form block |
 | [`finally`](#finally) | Code that always runs after try/catch |
 | [`fn`](#fn) | Declare a function |
 | [`for`](#for) | Iterate over a collection or range |
+| [`form`](#form) | Declare a reactive form inside a browser/component scope |
 | [`from`](#from) | Specify the module source in an import |
+| [`group`](#group) | Declare a field group inside a form block |
 | [`guard`](#guard) | Assert a condition or execute an else block |
 | [`if`](#if) | Conditional branch |
 | [`impl`](#impl) | Implement methods or traits for a type |
@@ -54,6 +57,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`shared`](#shared) | Define a block shared between server and browser |
 | [`source`](#source) | Declare a data source in a data block |
 | [`state`](#state) | Declare a reactive state variable |
+| [`steps`](#steps) | Declare wizard steps inside a form block |
 | [`store`](#store) | Declare a reactive store |
 | [`test`](#test) | Define a test block |
 | [`trait`](#trait) | Define a named set of behaviors |
@@ -321,6 +325,21 @@ The boolean false literal.
 is_done = false
 ```
 
+### `field`
+
+Declares a form field inside a `form` block. Each field gets reactive value, error, and touched signals with optional validators.
+
+```tova
+form login {
+  field email: String = "" {
+    required("Email is required")
+    email("Must be valid")
+  }
+}
+```
+
+See [Form Block](/fullstack/form-block) for full documentation.
+
 ### `finally`
 
 Specifies a block that always executes after `try`/`catch`, whether or not an error occurred.
@@ -361,6 +380,22 @@ for i, val in items {
 }
 ```
 
+### `form`
+
+Declares a reactive form controller inside a `browser {}` or `component` scope. Supports fields, groups, arrays, wizard steps, and built-in validators.
+
+```tova
+form checkout {
+  field email: String = "" { required("Required") }
+  group shipping {
+    field street: String = "" { required("Required") }
+  }
+  on submit { server.placeOrder(checkout.values) }
+}
+```
+
+See [Form Block](/fullstack/form-block) for full documentation.
+
 ### `from`
 
 Specifies the module path in an import statement.
@@ -368,6 +403,27 @@ Specifies the module path in an import statement.
 ```tova
 import { sqrt, PI } from "math"
 ```
+
+### `group`
+
+Declares a field group inside a `form` block. Groups namespace related fields and support conditional visibility with `when`.
+
+```tova
+form checkout {
+  group shipping {
+    field street: String = "" { required("Required") }
+    field city: String = "" { required("Required") }
+  }
+  group billing {
+    field sameAsShipping: Bool = true
+    group address when !sameAsShipping {
+      field street: String = "" { required("Required") }
+    }
+  }
+}
+```
+
+See [Form Block](/fullstack/form-block#groups) for full documentation.
 
 ### `guard`
 
@@ -668,6 +724,26 @@ store TodoStore {
   }
 }
 ```
+
+### `steps`
+
+Declares wizard steps inside a `form` block. Each step references fields, groups, or arrays that must be valid before advancing.
+
+```tova
+form checkout {
+  field email: String = "" { required("Required") }
+  group shipping { /* ... */ }
+  group payment { /* ... */ }
+
+  steps {
+    step "Account" { email }
+    step "Shipping" { shipping }
+    step "Payment" { payment }
+  }
+}
+```
+
+See [Form Block](/fullstack/form-block#wizard-steps) for full documentation.
 
 ### `test`
 

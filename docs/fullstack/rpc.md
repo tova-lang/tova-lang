@@ -565,4 +565,5 @@ browser {
 - [Server Block](./server-block) -- defining server functions
 - [Browser Block](./browser-block) -- calling server functions from the UI
 - [Named Blocks](./named-blocks) -- cross-server RPC between named blocks
+- [Form Block](./form-block) -- forms with server-side type-level validation
 - [Compilation](./compilation) -- how RPC code is generated

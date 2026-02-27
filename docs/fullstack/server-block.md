@@ -320,6 +320,7 @@ tova dev
 - [Named Blocks](./named-blocks) -- running multiple server processes
 - [Compilation](./compilation) -- build output details
 - [Shared Block](./shared-block) -- types and validation shared with the client
+- [Form Block](./form-block) -- full-stack form validation with type-level validators
 
 For detailed reference on each server feature, see the Server Reference pages:
 - [Routes](/server/routes)
