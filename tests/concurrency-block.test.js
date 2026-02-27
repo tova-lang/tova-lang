@@ -2,6 +2,22 @@ import { describe, test, expect } from 'bun:test';
 import { ConcurrentBlock } from '../src/parser/ast.js';
 import { SpawnExpression } from '../src/parser/concurrency-ast.js';
 import { BlockRegistry } from '../src/registry/register-all.js';
+import { Lexer } from '../src/lexer/lexer.js';
+import { Parser } from '../src/parser/parser.js';
+
+function parse(code) {
+    const lexer = new Lexer(code);
+    const tokens = lexer.tokenize();
+    const parser = new Parser(tokens, code);
+    return parser.parse();
+}
+
+function findNode(ast, type) {
+    for (const node of ast.body) {
+        if (node.type === type) return node;
+    }
+    return null;
+}
 
 describe('concurrency AST nodes', () => {
     test('ConcurrentBlock has correct structure', () => {
@@ -64,5 +80,84 @@ describe('concurrency plugin registration', () => {
         const plugin = BlockRegistry.get('concurrency');
         expect(plugin.detection.strategy).toBe('identifier');
         expect(plugin.detection.identifierValue).toBe('concurrent');
+    });
+});
+
+describe('concurrency parser', () => {
+    test('parses basic concurrent block', () => {
+        const ast = parse('concurrent { x = 1 }');
+        const block = findNode(ast, 'ConcurrentBlock');
+        expect(block).not.toBeNull();
+        expect(block.mode).toBe('all');
+        expect(block.timeout).toBeNull();
+        expect(block.body.length).toBeGreaterThan(0);
+    });
+
+    test('parses concurrent cancel_on_error', () => {
+        const ast = parse('concurrent cancel_on_error { x = 1 }');
+        const block = findNode(ast, 'ConcurrentBlock');
+        expect(block).not.toBeNull();
+        expect(block.mode).toBe('cancel_on_error');
+    });
+
+    test('parses concurrent first', () => {
+        const ast = parse('concurrent first { x = 1 }');
+        const block = findNode(ast, 'ConcurrentBlock');
+        expect(block.mode).toBe('first');
+    });
+
+    test('parses concurrent timeout(ms)', () => {
+        const ast = parse('concurrent timeout(5000) { x = 1 }');
+        const block = findNode(ast, 'ConcurrentBlock');
+        expect(block.mode).toBe('timeout');
+        expect(block.timeout).not.toBeNull();
+        expect(block.timeout.value).toBe(5000);
+    });
+
+    test('parses spawn as expression', () => {
+        const ast = parse('concurrent { a = spawn foo(42) }');
+        const block = findNode(ast, 'ConcurrentBlock');
+        expect(block.body.length).toBe(1);
+        const assign = block.body[0];
+        expect(assign.type).toBe('Assignment');
+        // The value should be a SpawnExpression (Assignment uses targets/values arrays)
+        expect(assign.values[0].type).toBe('SpawnExpression');
+        expect(assign.values[0].callee.name).toBe('foo');
+    });
+
+    test('parses spawn with no assignment (fire-and-forget)', () => {
+        const ast = parse('concurrent { spawn fire() }');
+        const block = findNode(ast, 'ConcurrentBlock');
+        const stmt = block.body[0];
+        // ExpressionStatement wrapping SpawnExpression
+        expect(stmt.type).toBe('ExpressionStatement');
+        expect(stmt.expression.type).toBe('SpawnExpression');
+    });
+
+    test('parses multiple spawns in concurrent block', () => {
+        const ast = parse(`
+            concurrent {
+                a = spawn fetch_users()
+                b = spawn fetch_posts()
+            }
+        `);
+        const block = findNode(ast, 'ConcurrentBlock');
+        expect(block.body.length).toBe(2);
+        expect(block.body[0].values[0].type).toBe('SpawnExpression');
+        expect(block.body[1].values[0].type).toBe('SpawnExpression');
+    });
+
+    test('concurrent block inside function body', () => {
+        const ast = parse(`
+            fn main() {
+                concurrent {
+                    a = spawn foo()
+                }
+            }
+        `);
+        const fn = findNode(ast, 'FunctionDeclaration');
+        expect(fn).not.toBeNull();
+        const block = fn.body.body[0];
+        expect(block.type).toBe('ConcurrentBlock');
     });
 });
