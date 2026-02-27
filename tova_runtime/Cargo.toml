@@ -1,0 +1,24 @@
+[package]
+name = "tova_runtime"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["async", "napi8"] }
+napi-derive = "2"
+tokio = { version = "1", features = ["full"] }
+wasmtime = "40"
+crossbeam-channel = "0.5"
+once_cell = "1"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

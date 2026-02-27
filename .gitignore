@@ -9,6 +9,11 @@ src/version.js
 native/target/
 native/Cargo.lock
 
+# Rust runtime build artifacts
+tova_runtime/target/
+tova_runtime/Cargo.lock
+tova_runtime/*.node
+
 # Benchmark build artifacts
 benchmarks/.go-bins/
 
