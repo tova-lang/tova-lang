@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// NOTE: Go goroutines are native lightweight threads (~2KB stack) with no FFI overhead.
+// Tova tasks are WASM modules on Tokio threads via napi-rs, with instantiation + FFI cost.
+// This comparison measures realistic end-to-end throughput for each runtime.
+
 // add simulates the WASM add(i, i) operation
 func add(a, b int64) int64 {
 	return a + b

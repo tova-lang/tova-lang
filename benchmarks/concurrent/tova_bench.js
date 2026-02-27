@@ -4,6 +4,13 @@
  * Tova Concurrency Benchmarks
  * Tests: concurrent WASM tasks (Tokio + Wasmtime), crossbeam channels
  * Run with: bun benchmarks/concurrent/tova_bench.js
+ *
+ * NOTE: Tova tasks are WASM modules executed on Tokio's thread pool via napi-rs.
+ * Each task incurs WASM instantiation + NAPI FFI overhead. Go goroutines are native
+ * with ~2KB stack overhead. The comparison measures end-to-end throughput including
+ * all runtime overhead, which is the realistic user-facing metric.
+ * Channel benchmark uses sequential send-then-receive (not concurrent producer/consumer)
+ * because the bridge API is synchronous from JS's perspective.
  */
 
 const { join } = require('path');
