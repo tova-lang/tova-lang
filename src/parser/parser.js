@@ -1,4 +1,4 @@
-import { TokenType } from '../lexer/tokens.js';
+import { TokenType, Keywords } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 import { BlockRegistry } from '../registry/register-all.js';
 
@@ -73,6 +73,16 @@ export class Parser {
       return this.advance();
     }
     this.error(message || `Expected ${type}, got ${this.current().type}`);
+  }
+
+  // Accept IDENTIFIER or any keyword token as a property name (e.g., obj.field, obj.state).
+  // Keywords are valid property names after '.' and '?.' just like in JavaScript.
+  expectPropertyName(message) {
+    const tok = this.current();
+    if (tok.type === TokenType.IDENTIFIER || (typeof tok.value === 'string' && tok.type !== TokenType.EOF && tok.type !== TokenType.NUMBER && tok.type !== TokenType.STRING && /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(tok.value))) {
+      return this.advance();
+    }
+    this.error(message || `Expected property name, got ${tok.type}`);
   }
 
   loc() {
@@ -163,7 +173,8 @@ export class Parser {
     const next = this.peek(1);
     // Fragment: <>
     if (next.type === TokenType.GREATER) return true;
-    if (next.type !== TokenType.IDENTIFIER) return false;
+    // Accept identifiers and keywords as JSX tag names (e.g., <form>, <label>, <field>)
+    if (next.type !== TokenType.IDENTIFIER && !(next.value in Keywords)) return false;
     // Uppercase tag is always a component reference, never a comparison variable
     if (/^[A-Z]/.test(next.value)) return true;
     const afterIdent = this.peek(2);
@@ -1744,7 +1755,7 @@ export class Parser {
           expr = new AST.MemberExpression(expr, new AST.NumberLiteral(idx, l), true, l);
           continue;
         }
-        const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '.'").value;
+        const prop = this.expectPropertyName("Expected property name after '.'").value;
         expr = new AST.MemberExpression(expr, prop, false, l);
         continue;
       }
@@ -1752,7 +1763,7 @@ export class Parser {
       if (this.check(TokenType.QUESTION_DOT)) {
         const l = this.loc();
         this.advance();
-        const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '?.'").value;
+        const prop = this.expectPropertyName("Expected property name after '?.'").value;
         expr = new AST.OptionalChain(expr, prop, false, l);
         continue;
       }

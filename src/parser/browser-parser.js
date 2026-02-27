@@ -251,7 +251,13 @@ export function installBrowserParser(ParserClass) {
     const l = this.loc();
     this.expect(TokenType.LESS, "Expected '<'");
 
-    const tag = this.expect(TokenType.IDENTIFIER, "Expected tag name").value;
+    // Accept identifiers and keywords as JSX tag names (e.g., <form>, <label>)
+    let tag;
+    if (this.check(TokenType.IDENTIFIER) || (this.peek().value in Keywords)) {
+      tag = this.advance().value;
+    } else {
+      tag = this.expect(TokenType.IDENTIFIER, "Expected tag name").value;
+    }
 
     // Parse attributes (including spread: {...expr})
     const attributes = [];
@@ -339,7 +345,13 @@ export function installBrowserParser(ParserClass) {
       if (this.check(TokenType.LESS) && this.peek(1).type === TokenType.SLASH) {
         this.advance(); // <
         this.advance(); // /
-        const closeTag = this.expect(TokenType.IDENTIFIER, "Expected closing tag name").value;
+        // Accept identifiers and keywords as JSX closing tag names (e.g., </form>)
+        let closeTag;
+        if (this.check(TokenType.IDENTIFIER) || (this.peek().value in Keywords)) {
+          closeTag = this.advance().value;
+        } else {
+          closeTag = this.expect(TokenType.IDENTIFIER, "Expected closing tag name").value;
+        }
         if (closeTag !== parentTag) {
           this.error(`Mismatched closing tag: expected </${parentTag}>, got </${closeTag}>`);
         }

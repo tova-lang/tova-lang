@@ -94,6 +94,10 @@ export const TokenType = {
   EFFECT: 'EFFECT',
   COMPONENT: 'COMPONENT',
   STORE: 'STORE',
+  FORM: 'FORM',
+  FIELD: 'FIELD',
+  GROUP: 'GROUP',
+  STEPS: 'STEPS',
   STYLE_BLOCK: 'STYLE_BLOCK',
 
   // HTTP methods (used in route declarations)
@@ -221,6 +225,10 @@ export const Keywords = {
   'effect': TokenType.EFFECT,
   'component': TokenType.COMPONENT,
   'store': TokenType.STORE,
+  'form': TokenType.FORM,
+  'field': TokenType.FIELD,
+  'group': TokenType.GROUP,
+  'steps': TokenType.STEPS,
 };
 
 // Token class
