@@ -3063,6 +3063,37 @@ export class BaseCodegen {
       lines.push(`${this.i()}  ]),`);
       lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
       lines.push(`${this.i()}]);`);
+    } else if (node.mode === 'cancel_on_error') {
+      const acVar = `__ac${base}`;
+      lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+      const taskExprsAbort = tasks.map(call =>
+        `(async () => { try { return new Ok(await ${call}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
+      );
+      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+      for (let i = 0; i < taskExprsAbort.length; i++) {
+        lines.push(`${this.i()}  ${taskExprsAbort[i]}${i < taskExprsAbort.length - 1 ? ',' : ''}`);
+      }
+      lines.push(`${this.i()}]);`);
+    } else if (node.mode === 'first') {
+      const acVar = `__ac${base}`;
+      const firstVar = `__first${base}`;
+      lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+      const taskExprsFirst = tasks.map((call, i) =>
+        `(async () => { try { const __r = await ${call}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`
+      );
+      lines.push(`${this.i()}const ${firstVar} = await Promise.race([`);
+      for (let i = 0; i < taskExprsFirst.length; i++) {
+        lines.push(`${this.i()}  ${taskExprsFirst[i]}${i < taskExprsFirst.length - 1 ? ',' : ''}`);
+      }
+      lines.push(`${this.i()}]);`);
+      // For first mode, assign the winner's result to all named variables
+      for (let i = 0; i < assignments.length; i++) {
+        if (assignments[i]) {
+          this.declareVar(assignments[i]);
+          lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+        }
+      }
+      return lines.join('\n'); // early return — skip the normal assignment loop
     } else {
       lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
       for (let i = 0; i < taskExprs.length; i++) {

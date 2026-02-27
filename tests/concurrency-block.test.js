@@ -714,3 +714,90 @@ describe('select codegen', () => {
         expect(code).toContain('.__value.value');
     });
 });
+
+describe('cancel_on_error and first mode codegen', () => {
+    test('cancel_on_error generates AbortController + Promise.all', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent cancel_on_error {
+                    a = spawn foo()
+                    b = spawn foo()
+                }
+            }
+        `);
+        expect(code).toContain('AbortController');
+        expect(code).toContain('Promise.all');
+        expect(code).toContain('.abort()');
+    });
+
+    test('cancel_on_error aborts in catch block', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent cancel_on_error {
+                    a = spawn foo()
+                }
+            }
+        `);
+        // abort() should be inside the catch
+        expect(code).toContain('catch(__e) {');
+        expect(code).toContain('.abort()');
+        expect(code).toContain('Err(__e)');
+    });
+
+    test('first generates AbortController + Promise.race', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent first {
+                    a = spawn foo()
+                    b = spawn foo()
+                }
+            }
+        `);
+        expect(code).toContain('AbortController');
+        expect(code).toContain('Promise.race');
+        expect(code).toContain('.abort()');
+    });
+
+    test('first aborts on success', () => {
+        const code = compileCode(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent first {
+                    a = spawn foo()
+                }
+            }
+        `);
+        // abort() should be after successful await (not in catch)
+        expect(code).toContain('Ok(__r)');
+        expect(code).toContain('.__result');
+    });
+
+    test('no W_UNIMPLEMENTED_CONCURRENT_MODE warning for cancel_on_error', () => {
+        const warnings = getWarnings(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent cancel_on_error {
+                    a = spawn foo()
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_UNIMPLEMENTED_CONCURRENT_MODE');
+        expect(w).toBeUndefined();
+    });
+
+    test('no W_UNIMPLEMENTED_CONCURRENT_MODE warning for first', () => {
+        const warnings = getWarnings(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent first {
+                    a = spawn foo()
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_UNIMPLEMENTED_CONCURRENT_MODE');
+        expect(w).toBeUndefined();
+    });
+});
