@@ -1,5 +1,6 @@
 mod channels;
 mod executor;
+mod host_imports;
 mod scheduler;
 
 use napi::bindgen_prelude::*;
@@ -97,6 +98,41 @@ pub async fn concurrent_wasm_shared(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
         }
     }
     Ok(all_results)
+}
+
+#[napi]
+pub async fn exec_wasm_with_channels(wasm: Buffer, func: String, args: Vec<i64>) -> Result<i64> {
+    let wasm_bytes = wasm.to_vec();
+    let result = scheduler::TOKIO_RT
+        .spawn(async move {
+            executor::exec_wasm_with_channels(&wasm_bytes, &func, &args)
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("join: {}", e)))?
+        .map_err(|e| Error::from_reason(e))?;
+    Ok(result)
+}
+
+#[napi]
+pub async fn concurrent_wasm_with_channels(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
+    let mut handles = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        let wasm_bytes = task.wasm.to_vec();
+        let func = task.func;
+        let args = task.args;
+        handles.push(scheduler::TOKIO_RT.spawn(async move {
+            executor::exec_wasm_with_channels(&wasm_bytes, &func, &args)
+        }));
+    }
+    let mut results = Vec::with_capacity(handles.len());
+    for handle in handles {
+        let r = handle
+            .await
+            .map_err(|e| Error::from_reason(format!("join: {}", e)))?
+            .map_err(|e| Error::from_reason(e))?;
+        results.push(r);
+    }
+    Ok(results)
 }
 
 #[napi]

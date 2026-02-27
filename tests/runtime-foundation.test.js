@@ -3,6 +3,7 @@ import { join } from 'path';
 import { existsSync, readdirSync } from 'fs';
 
 const { generateAddModule, generateFibModule } = require('./fixtures/gen-test-wasm.js');
+const { generateProducerModule, generateConsumerModule } = require('./fixtures/gen-channel-wasm.js');
 
 // Load the napi-rs addon
 function loadRuntime() {
@@ -147,5 +148,35 @@ describe('channels', () => {
         expect(values.length).toBe(100);
         expect(values[0]).toBe(0);
         expect(values[99]).toBe(99);
+    });
+});
+
+describe('WASM host imports — channels', () => {
+    let runtime;
+    beforeAll(() => { runtime = loadRuntime(); });
+
+    test('producer WASM sends values through channel', async () => {
+        const chId = runtime.channelCreate(100);
+        const wasmBytes = Buffer.from(generateProducerModule());
+        const sent = await runtime.execWasmWithChannels(wasmBytes, 'producer', [chId, 10]);
+        expect(sent).toBe(10);
+        const values = [];
+        let v;
+        while ((v = runtime.channelReceive(chId)) !== null) {
+            values.push(v);
+        }
+        expect(values).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    });
+
+    test('producer + consumer via channel on separate Tokio tasks', async () => {
+        const chId = runtime.channelCreate(50);
+        const producerWasm = Buffer.from(generateProducerModule());
+        const consumerWasm = Buffer.from(generateConsumerModule());
+        const results = await runtime.concurrentWasmWithChannels([
+            { wasm: producerWasm, func: 'producer', args: [chId, 100] },
+            { wasm: consumerWasm, func: 'consumer', args: [chId, 100] },
+        ]);
+        expect(results[0]).toBe(100);  // producer sent 100
+        expect(results[1]).toBe(4950); // consumer sum(0..99) = 4950
     });
 });
