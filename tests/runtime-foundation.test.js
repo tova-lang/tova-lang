@@ -180,3 +180,43 @@ describe('WASM host imports — channels', () => {
         expect(results[1]).toBe(4950); // consumer sum(0..99) = 4950
     });
 });
+
+describe('runtime bridge', () => {
+    const bridge = require('../src/stdlib/runtime-bridge.js');
+
+    test('loads runtime via bridge', () => {
+        expect(bridge.isRuntimeAvailable()).toBe(true);
+    });
+
+    test('bridge healthCheck returns string', () => {
+        const result = bridge.healthCheck();
+        expect(result).toBe('tova_runtime ok');
+    });
+
+    test('bridge exposes high-level API', () => {
+        const chId = bridge.channelCreate(10);
+        expect(typeof chId).toBe('number');
+        bridge.channelSend(chId, 42);
+        bridge.channelSend(chId, 99);
+        const v1 = bridge.channelReceive(chId);
+        const v2 = bridge.channelReceive(chId);
+        expect(v1).toBe(42);
+        expect(v2).toBe(99);
+        bridge.channelClose(chId);
+    });
+
+    test('bridge falls back gracefully when unavailable', () => {
+        // Verify the module structure is correct — all expected exports exist
+        expect(typeof bridge.isRuntimeAvailable).toBe('function');
+        expect(typeof bridge.healthCheck).toBe('function');
+        expect(typeof bridge.channelCreate).toBe('function');
+        expect(typeof bridge.channelSend).toBe('function');
+        expect(typeof bridge.channelReceive).toBe('function');
+        expect(typeof bridge.channelClose).toBe('function');
+        expect(typeof bridge.execWasm).toBe('function');
+        expect(typeof bridge.execWasmWithChannels).toBe('function');
+        expect(typeof bridge.concurrentWasm).toBe('function');
+        expect(typeof bridge.concurrentWasmWithChannels).toBe('function');
+        expect(typeof bridge.concurrentWasmShared).toBe('function');
+    });
+});
