@@ -178,3 +178,23 @@ describe('WASM host imports — channels', () => {
         expect(results[1]).toBe(4950); // consumer sum(0..99)
     });
 });
+
+describe('runtime bridge', () => {
+    test('loads runtime via bridge', () => {
+        const bridge = require('../src/stdlib/runtime-bridge.js');
+        expect(bridge.isRuntimeAvailable()).toBe(true);
+    });
+
+    test('bridge exposes high-level API', () => {
+        const bridge = require('../src/stdlib/runtime-bridge.js');
+        const chId = bridge.channelCreate(10);
+        bridge.channelSend(chId, 42);
+        const val = bridge.channelReceive(chId);
+        expect(val).toBe(42);
+    });
+
+    test('bridge health check', () => {
+        const bridge = require('../src/stdlib/runtime-bridge.js');
+        expect(bridge.healthCheck()).toBe('tova_runtime ok');
+    });
+});
