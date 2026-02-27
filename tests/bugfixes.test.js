@@ -1588,12 +1588,13 @@ describe('analyzer: MemberExpression assignment targets', () => {
     expect(code).toContain('Some(');
   });
 
-  test('Result.map chain fusion: single .map() is NOT fused (needs 2+)', () => {
+  test('Result.map chain fusion: single .map() on Ok is devirtualized', () => {
     const code = compile(`
       result = Ok(10).map(fn(x) x * 2)
     `);
-    // Single map should remain as-is (no benefit from fusion)
-    expect(code).toContain('.map(');
+    // Single map on Ok(val) is now devirtualized: Ok(10).map(fn(x) x * 2) → Ok((10 * 2))
+    expect(code).not.toContain('.map(');
+    expect(code).toContain('Ok(');
   });
 
   test('Result.map chain fusion: non-Ok receiver is NOT fused', () => {

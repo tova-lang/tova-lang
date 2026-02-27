@@ -591,6 +591,79 @@ describe('Integration — end-to-end', () => {
     const code = compileShared(`
       x = Ok(5).map(fn(v) v * 2)
     `);
-    expect(code).toContain('Ok(5).map(');
+    // After devirtualization, Ok(5).map(fn(v) v * 2) inlines to Ok((5 * 2))
+    expect(code).not.toContain('Ok(5).map(');
+    expect(code).toContain('Ok(');
+  });
+});
+
+// ─── Codegen — devirtualization ─────────────────────────────
+
+describe('Codegen — devirtualization', () => {
+  test('Ok(x).unwrap() devirtualizes to x', () => {
+    const code = compileShared('result = Ok(42).unwrap()');
+    expect(code).not.toContain('Ok(');
+    expect(code).toContain('42');
+  });
+
+  test('Err(e).unwrapOr(d) devirtualizes to d', () => {
+    const code = compileShared('result = Err("bad").unwrapOr(99)');
+    expect(code).not.toContain('Err(');
+    expect(code).toContain('99');
+  });
+
+  test('Ok(x).isOk() devirtualizes to true', () => {
+    const code = compileShared('result = Ok(1).isOk()');
+    expect(code).toContain('true');
+  });
+
+  test('Err(e).isOk() devirtualizes to false', () => {
+    const code = compileShared('result = Err("e").isOk()');
+    expect(code).toContain('false');
+  });
+
+  test('Ok(x).unwrapOr(d) devirtualizes to x', () => {
+    const code = compileShared('result = Ok(42).unwrapOr(0)');
+    expect(code).not.toContain('Ok(');
+    expect(code).toContain('42');
+  });
+
+  test('Some(x).unwrap() devirtualizes to x', () => {
+    const code = compileShared('result = Some(10).unwrap()');
+    expect(code).not.toContain('Some(');
+    expect(code).toContain('10');
+  });
+
+  test('None.unwrapOr(d) devirtualizes to d', () => {
+    const code = compileShared('result = None.unwrapOr(42)');
+    expect(code).not.toContain('None');
+    expect(code).toContain('42');
+  });
+
+  test('None.isSome() devirtualizes to false', () => {
+    const code = compileShared('result = None.isSome()');
+    expect(code).toContain('false');
+  });
+
+  test('Ok(x).isErr() devirtualizes to false', () => {
+    const code = compileShared('result = Ok(1).isErr()');
+    expect(code).toContain('false');
+  });
+
+  test('Err(e).isErr() devirtualizes to true', () => {
+    const code = compileShared('result = Err("e").isErr()');
+    expect(code).toContain('true');
+  });
+
+  test('Err(e).unwrapErr() devirtualizes to e', () => {
+    const code = compileShared('result = Err("oops").unwrapErr()');
+    expect(code).not.toContain('Err(');
+    expect(code).toContain('"oops"');
+  });
+
+  test('Ok(foo()).unwrap() devirtualizes preserving call', () => {
+    const code = compileShared('result = Ok(foo()).unwrap()');
+    expect(code).toContain('foo()');
+    expect(code).not.toContain('Ok(');
   });
 });

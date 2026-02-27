@@ -1436,6 +1436,10 @@ export class BaseCodegen {
     const fusedResult = this._tryFuseMapChain(node);
     if (fusedResult !== null) return fusedResult;
 
+    // Compile-time devirtualization: Ok(x).unwrap() → x, Err(e).isOk() → false, etc.
+    const devirt = this._tryDevirtualizeResultOption(node);
+    if (devirt !== null) return devirt;
+
     // Transform Foo.new(...) → new Foo(...)
     if (node.callee.type === 'MemberExpression' && !node.callee.computed && node.callee.property === 'new') {
       const obj = this.genExpression(node.callee.object);
@@ -1584,6 +1588,207 @@ export class BaseCodegen {
     const result = this.genExpression(exprNode);
     this._paramSubstitutions.delete(paramName);
     return result;
+  }
+
+  // ─── Compile-time devirtualization for Result/Option ──────────
+  // When the codegen sees Ok(val).method(), Err(val).method(), Some(val).method(),
+  // or None.method(), it knows the exact type at compile time. Instead of allocating
+  // a Result/Option object and calling a method, inline the method body directly.
+
+  _tryDevirtualizeResultOption(node) {
+    // Must be a CallExpression where callee is a non-computed MemberExpression
+    if (node.callee.type !== 'MemberExpression' || node.callee.computed) return null;
+    const method = node.callee.property;
+    const obj = node.callee.object;
+    const args = node.arguments;
+
+    // Case 1: None.method()
+    if (obj.type === 'Identifier' && obj.name === 'None') {
+      return this._devirtNone(method, args);
+    }
+
+    // Case 2: Ok(val).method(), Err(val).method(), Some(val).method()
+    if (obj.type === 'CallExpression' && obj.callee.type === 'Identifier' && obj.arguments.length === 1) {
+      const ctor = obj.callee.name;
+      const val = obj.arguments[0];
+      if (ctor === 'Ok') return this._devirtOk(val, method, args);
+      if (ctor === 'Err') return this._devirtErr(val, method, args);
+      if (ctor === 'Some') return this._devirtSome(val, method, args);
+    }
+
+    return null;
+  }
+
+  _devirtOk(val, method, args) {
+    switch (method) {
+      case 'unwrap':
+      case 'expect':
+        return this.genExpression(val);
+      case 'unwrapOr':
+        return this.genExpression(val); // Ok ignores default
+      case 'isOk':
+        return 'true';
+      case 'isErr':
+        return 'false';
+      case 'map': {
+        if (!this._isSimpleLambda(args[0])) return null;
+        const parts = this._extractLambdaParts(args[0]);
+        if (!parts) return null;
+        this._needsResultOption = true;
+        return `Ok(${this._substituteParam(parts.bodyExpr, parts.paramName, this.genExpression(val))})`;
+      }
+      case 'flatMap': {
+        if (!this._isSimpleLambda(args[0])) return null;
+        const parts = this._extractLambdaParts(args[0]);
+        if (!parts) return null;
+        return this._substituteParam(parts.bodyExpr, parts.paramName, this.genExpression(val));
+      }
+      case 'mapErr':
+        this._needsResultOption = true;
+        return `Ok(${this.genExpression(val)})`; // passes through
+      case 'or':
+        this._needsResultOption = true;
+        return `Ok(${this.genExpression(val)})`; // passes through
+      case 'and':
+        if (args[0]) return this.genExpression(args[0]);
+        return null;
+      default:
+        return null;
+    }
+  }
+
+  _devirtErr(val, method, args) {
+    switch (method) {
+      case 'unwrapOr':
+        if (args[0]) return this.genExpression(args[0]);
+        return null;
+      case 'isOk':
+        return 'false';
+      case 'isErr':
+        return 'true';
+      case 'unwrapErr':
+        return this.genExpression(val);
+      case 'map':
+        this._needsResultOption = true;
+        return `Err(${this.genExpression(val)})`; // passes through
+      case 'flatMap':
+        this._needsResultOption = true;
+        return `Err(${this.genExpression(val)})`;
+      case 'mapErr': {
+        if (!this._isSimpleLambda(args[0])) return null;
+        const parts = this._extractLambdaParts(args[0]);
+        if (!parts) return null;
+        this._needsResultOption = true;
+        return `Err(${this._substituteParam(parts.bodyExpr, parts.paramName, this.genExpression(val))})`;
+      }
+      case 'or':
+        if (args[0]) return this.genExpression(args[0]);
+        return null;
+      case 'and':
+        this._needsResultOption = true;
+        return `Err(${this.genExpression(val)})`;
+      default:
+        return null;
+    }
+  }
+
+  _devirtSome(val, method, args) {
+    switch (method) {
+      case 'unwrap':
+      case 'expect':
+        return this.genExpression(val);
+      case 'unwrapOr':
+        return this.genExpression(val); // Some ignores default
+      case 'isSome':
+        return 'true';
+      case 'isNone':
+        return 'false';
+      case 'map': {
+        if (!this._isSimpleLambda(args[0])) return null;
+        const parts = this._extractLambdaParts(args[0]);
+        if (!parts) return null;
+        this._needsResultOption = true;
+        return `Some(${this._substituteParam(parts.bodyExpr, parts.paramName, this.genExpression(val))})`;
+      }
+      case 'flatMap': {
+        if (!this._isSimpleLambda(args[0])) return null;
+        const parts = this._extractLambdaParts(args[0]);
+        if (!parts) return null;
+        return this._substituteParam(parts.bodyExpr, parts.paramName, this.genExpression(val));
+      }
+      case 'filter': {
+        if (!this._isSimpleLambda(args[0])) return null;
+        const parts = this._extractLambdaParts(args[0]);
+        if (!parts) return null;
+        this._needsResultOption = true;
+        const valCode = this.genExpression(val);
+        const predCode = this._substituteParam(parts.bodyExpr, parts.paramName, valCode);
+        return `(${predCode} ? Some(${valCode}) : None)`;
+      }
+      case 'or':
+        this._needsResultOption = true;
+        return `Some(${this.genExpression(val)})`; // passes through
+      case 'and':
+        if (args[0]) return this.genExpression(args[0]);
+        return null;
+      default:
+        return null;
+    }
+  }
+
+  _devirtNone(method, args) {
+    switch (method) {
+      case 'unwrapOr':
+        if (args[0]) return this.genExpression(args[0]);
+        return null;
+      case 'isSome':
+        return 'false';
+      case 'isNone':
+        return 'true';
+      case 'map':
+        this._needsResultOption = true;
+        return 'None';
+      case 'flatMap':
+        this._needsResultOption = true;
+        return 'None';
+      case 'filter':
+        this._needsResultOption = true;
+        return 'None';
+      case 'or':
+        if (args[0]) return this.genExpression(args[0]);
+        return null;
+      case 'and':
+        this._needsResultOption = true;
+        return 'None';
+      default:
+        return null;
+    }
+  }
+
+  _isSimpleLambda(node) {
+    if (!node) return false;
+    if (node.type !== 'FunctionExpression' && node.type !== 'ArrowFunction' && node.type !== 'LambdaExpression') return false;
+    const params = node.params || [];
+    if (params.length !== 1) return false;
+    return true;
+  }
+
+  _extractLambdaParts(lambda) {
+    const params = lambda.params || [];
+    const paramName = typeof params[0] === 'string' ? params[0] : (params[0].name || null);
+    if (!paramName) return null;
+    let bodyExpr = lambda.body;
+    if (bodyExpr && bodyExpr.type === 'BlockStatement') {
+      if (bodyExpr.body.length === 1) {
+        const s = bodyExpr.body[0];
+        if (s.type === 'ExpressionStatement') bodyExpr = s.expression;
+        else if (s.type === 'ReturnStatement' && s.value) bodyExpr = s.value;
+        else return null;
+      } else {
+        return null;
+      }
+    }
+    return { paramName, bodyExpr };
   }
 
   // Inline known builtins to direct method calls, eliminating wrapper overhead.
