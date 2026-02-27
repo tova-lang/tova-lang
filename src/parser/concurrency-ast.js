@@ -1,20 +1,5 @@
-// AST node types for structured concurrency.
-
-/**
- * concurrent { ... }
- * concurrent cancel_on_error { ... }
- * concurrent first { ... }
- * concurrent timeout(5000) { ... }
- */
-export class ConcurrentBlock {
-  constructor(mode, timeout, body, loc) {
-    this.type = 'ConcurrentBlock';
-    this.mode = mode;           // "all" | "cancel_on_error" | "first"
-    this.timeout = timeout;     // Expression | null
-    this.body = body;           // Array of statements
-    this.loc = loc;
-  }
-}
+// Concurrency-specific AST Node definitions for the Tova language
+// Extracted for lazy loading -- only loaded when concurrent { } blocks are used.
 
 /**
  * spawn foo(args)

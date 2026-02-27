@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test';
-import { ConcurrentBlock, SpawnExpression } from '../src/parser/concurrency-ast.js';
+import { ConcurrentBlock } from '../src/parser/ast.js';
+import { SpawnExpression } from '../src/parser/concurrency-ast.js';
 
 describe('concurrency AST nodes', () => {
     test('ConcurrentBlock has correct structure', () => {
