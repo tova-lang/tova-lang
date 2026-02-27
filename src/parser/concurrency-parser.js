@@ -67,6 +67,13 @@ export function installConcurrencyParser(ParserClass) {
    */
   ParserClass.prototype.parseUnary = function() {
     if (this.check(TokenType.IDENTIFIER) && this.current().value === 'spawn') {
+      // Distinguish concurrency `spawn foo()` from stdlib function call `spawn("cmd", args)`.
+      // If `spawn` is followed by `(`, it's a regular function call, not a concurrency keyword.
+      const next = this.peek(1);
+      if (next && next.type === TokenType.LPAREN) {
+        return _originalParseUnary.call(this);
+      }
+
       const l = this.loc();
       this.advance(); // consume 'spawn'
 

@@ -210,6 +210,13 @@ export class Parser {
   // ─── Program ───────────────────────────────────────────────
 
   parse() {
+    // Eagerly install all block-plugin parser extensions so they work inside function bodies
+    for (const plugin of BlockRegistry.all()) {
+      const p = plugin.parser;
+      if (p.install && p.installedFlag && !Parser.prototype[p.installedFlag]) {
+        p.install(Parser);
+      }
+    }
     const body = [];
     const maxErrors = 50; // Stop after 50 errors to avoid cascading noise
     while (!this.isAtEnd()) {

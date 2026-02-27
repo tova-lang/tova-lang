@@ -6,6 +6,9 @@ import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
+import { execFileSync } from 'child_process';
+import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
+import { join } from 'path';
 
 function parse(code) {
     const lexer = new Lexer(code);
@@ -311,5 +314,104 @@ describe('concurrency codegen', () => {
             }
         `);
         expect(code).toContain('foo(21)');
+    });
+});
+
+function runTova(code) {
+    const tmpDir = join(__dirname, '..', '.tova-out', 'test-concurrent');
+    if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+    const tmpFile = join(tmpDir, 'test.tova');
+    writeFileSync(tmpFile, code);
+    try {
+        const result = execFileSync(
+            'bun',
+            ['run', join(__dirname, '..', 'bin', 'tova.js'), 'run', tmpFile],
+            { encoding: 'utf-8', timeout: 10000 }
+        );
+        return result.trim();
+    } finally {
+        try { unlinkSync(tmpFile); } catch (e) {}
+    }
+}
+
+describe('concurrency E2E', () => {
+    test('basic concurrent block runs both tasks', () => {
+        const output = runTova(`
+            fn double(n: Int) -> Int { n * 2 }
+
+            async fn main() {
+                concurrent {
+                    a = spawn double(21)
+                    b = spawn double(10)
+                }
+                match a {
+                    Ok(v) => print(v)
+                    Err(_) => print("err")
+                }
+                match b {
+                    Ok(v) => print(v)
+                    Err(_) => print("err")
+                }
+            }
+        `);
+        expect(output).toContain('42');
+        expect(output).toContain('20');
+    });
+
+    test('concurrent with error returns Err result', () => {
+        const output = runTova(`
+            fn might_fail() -> Int {
+                var x = None
+                x.unwrap()
+            }
+
+            fn succeed() -> Int { 42 }
+
+            async fn main() {
+                concurrent {
+                    a = spawn might_fail()
+                    b = spawn succeed()
+                }
+                match a {
+                    Ok(v) => print(v)
+                    Err(_) => print("error caught")
+                }
+                match b {
+                    Ok(v) => print(v)
+                    Err(_) => print("b error")
+                }
+            }
+        `);
+        expect(output).toContain('error caught');
+        expect(output).toContain('42');
+    });
+
+    test('concurrent with multiple spawns all complete', () => {
+        const output = runTova(`
+            fn add(a: Int, b: Int) -> Int { a + b }
+
+            async fn main() {
+                concurrent {
+                    r1 = spawn add(1, 2)
+                    r2 = spawn add(10, 20)
+                    r3 = spawn add(100, 200)
+                }
+                match r1 {
+                    Ok(v) => print(v)
+                    Err(_) => print("err")
+                }
+                match r2 {
+                    Ok(v) => print(v)
+                    Err(_) => print("err")
+                }
+                match r3 {
+                    Ok(v) => print(v)
+                    Err(_) => print("err")
+                }
+            }
+        `);
+        expect(output).toContain('3');
+        expect(output).toContain('30');
+        expect(output).toContain('300');
     });
 });
