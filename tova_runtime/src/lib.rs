@@ -1,3 +1,4 @@
+mod channels;
 mod executor;
 mod scheduler;
 
@@ -96,4 +97,24 @@ pub async fn concurrent_wasm_shared(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
         }
     }
     Ok(all_results)
+}
+
+#[napi]
+pub fn channel_create(capacity: u32) -> u32 {
+    channels::create(capacity)
+}
+
+#[napi]
+pub fn channel_send(id: u32, value: i64) -> bool {
+    channels::send(id, value)
+}
+
+#[napi]
+pub fn channel_receive(id: u32) -> Option<i64> {
+    channels::receive(id)
+}
+
+#[napi]
+pub fn channel_close(id: u32) {
+    channels::close(id)
 }

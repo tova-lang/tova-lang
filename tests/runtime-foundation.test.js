@@ -102,3 +102,50 @@ describe('wasmtime executor', () => {
         expect(results[999]).toBe(1998);
     });
 });
+
+describe('channels', () => {
+    let runtime;
+    beforeAll(() => { runtime = loadRuntime(); });
+
+    test('create a channel and get handle', () => {
+        const chId = runtime.channelCreate(10);
+        expect(typeof chId).toBe('number');
+        expect(chId).toBeGreaterThanOrEqual(0);
+    });
+
+    test('send and receive on a channel', () => {
+        const chId = runtime.channelCreate(10);
+        runtime.channelSend(chId, 42);
+        runtime.channelSend(chId, 99);
+        const v1 = runtime.channelReceive(chId);
+        const v2 = runtime.channelReceive(chId);
+        expect(v1).toBe(42);
+        expect(v2).toBe(99);
+    });
+
+    test('close channel — receive returns null after drain', () => {
+        const chId = runtime.channelCreate(1);
+        runtime.channelSend(chId, 7);
+        runtime.channelClose(chId);
+        const v1 = runtime.channelReceive(chId);
+        expect(v1).toBe(7);
+        const v2 = runtime.channelReceive(chId);
+        expect(v2).toBeNull();
+    });
+
+    test('channel 100 messages', () => {
+        const chId = runtime.channelCreate(100);
+        for (let i = 0; i < 100; i++) {
+            runtime.channelSend(chId, i);
+        }
+        runtime.channelClose(chId);
+        const values = [];
+        let v;
+        while ((v = runtime.channelReceive(chId)) !== null) {
+            values.push(v);
+        }
+        expect(values.length).toBe(100);
+        expect(values[0]).toBe(0);
+        expect(values[99]).toBe(99);
+    });
+});
