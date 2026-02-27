@@ -1,0 +1,28 @@
+// Error handling — spawn wraps results in Ok/Err
+fn safe_divide(a: Int, b: Int) -> Int {
+    if b == 0 {
+        var x = None
+        x.unwrap()
+    }
+    a / b
+}
+
+async fn main() {
+    concurrent {
+        good = spawn safe_divide(10, 2)
+        bad = spawn safe_divide(10, 0)
+    }
+
+    print("--- Test 3: Error handling ---")
+    match good {
+        Ok(v) => print(v)
+        Err(_) => print("unexpected error in good")
+    }
+
+    match bad {
+        Ok(_) => print("should not succeed")
+        Err(_) => print("10/0 correctly caught as Err")
+    }
+}
+
+main()

@@ -1,0 +1,25 @@
+// Fire-and-forget spawns — no assignment needed
+fn log_message(msg: String) {
+    print(msg)
+}
+
+fn compute(n: Int) -> Int {
+    n * n
+}
+
+async fn main() {
+    print("--- Test 4: Fire and forget ---")
+    concurrent {
+        spawn log_message("side-effect-1")
+        result = spawn compute(7)
+        spawn log_message("side-effect-2")
+    }
+
+    match result {
+        Ok(v) => print(v)
+        Err(_) => print("error")
+    }
+    print("Expected: 49 (plus two side-effect messages)")
+}
+
+main()

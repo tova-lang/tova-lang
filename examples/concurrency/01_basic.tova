@@ -1,0 +1,28 @@
+// Basic concurrent block — two tasks run in parallel
+fn double(n: Int) -> Int {
+    n * 2
+}
+
+fn triple(n: Int) -> Int {
+    n * 3
+}
+
+async fn main() {
+    concurrent {
+        a = spawn double(21)
+        b = spawn triple(10)
+    }
+
+    print("--- Test 1: Basic concurrent block ---")
+    match a {
+        Ok(v) => print(v)
+        Err(_) => print("error")
+    }
+    match b {
+        Ok(v) => print(v)
+        Err(_) => print("error")
+    }
+    print("Expected: 42 and 30")
+}
+
+main()

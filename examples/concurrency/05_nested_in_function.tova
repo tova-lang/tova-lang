@@ -1,0 +1,30 @@
+// Concurrent blocks inside regular functions
+fn square(n: Int) -> Int {
+    n * n
+}
+
+async fn compute_and_sum(a: Int, b: Int, c: Int) -> Int {
+    concurrent {
+        r1 = spawn square(a)
+        r2 = spawn square(b)
+        r3 = spawn square(c)
+    }
+
+    var total = 0
+    for r in [r1, r2, r3] {
+        match r {
+            Ok(v) => { total = total + v }
+            Err(_) => print("err")
+        }
+    }
+    total
+}
+
+async fn main() {
+    print("--- Test 5: Nested in function ---")
+    var result = await compute_and_sum(3, 4, 5)
+    print(result)
+    print("Expected: 50 (9 + 16 + 25)")
+}
+
+main()

@@ -1,0 +1,128 @@
+// Phase 2 Concurrency Benchmarks — Tova concurrent/spawn (Promise.all)
+// Tests real Tova syntax performance vs Go goroutines
+
+fn fib(n: Int) -> Int {
+    var prev = 0
+    var curr = 1
+    for i in range(n) {
+        var tmp = curr
+        curr = prev + curr
+        prev = tmp
+    }
+    prev
+}
+
+fn compute(n: Int) -> Int {
+    var sum = 0
+    for i in range(n) {
+        sum = sum + i * i
+    }
+    sum
+}
+
+// Benchmark 1: Two concurrent tasks
+async fn bench_two_tasks() {
+    var iterations = 10000
+    var t0 = Date.now()
+
+    for i in range(iterations) {
+        concurrent {
+            a = spawn fib(30)
+            b = spawn fib(30)
+        }
+    }
+
+    var elapsed = Date.now() - t0
+    print("--- 2 concurrent tasks x 10,000 iterations ---")
+    print("  time=" ++ str(elapsed) ++ "ms")
+    print("  iterations/sec=" ++ str(Math.round(iterations / (elapsed / 1000))))
+}
+
+// Benchmark 2: Four concurrent tasks
+async fn bench_four_tasks() {
+    var iterations = 5000
+    var t0 = Date.now()
+
+    for i in range(iterations) {
+        concurrent {
+            a = spawn fib(30)
+            b = spawn fib(30)
+            c = spawn fib(30)
+            d = spawn fib(30)
+        }
+    }
+
+    var elapsed = Date.now() - t0
+    print("--- 4 concurrent tasks x 5,000 iterations ---")
+    print("  time=" ++ str(elapsed) ++ "ms")
+    print("  iterations/sec=" ++ str(Math.round(iterations / (elapsed / 1000))))
+}
+
+// Benchmark 3: Heavy computation — concurrent vs sequential
+async fn bench_heavy_concurrent() {
+    var t0 = Date.now()
+
+    concurrent {
+        r1 = spawn compute(100000)
+        r2 = spawn compute(100000)
+        r3 = spawn compute(100000)
+        r4 = spawn compute(100000)
+    }
+
+    var elapsed = Date.now() - t0
+    print("--- 4 heavy compute(100k) concurrent ---")
+    print("  time=" ++ str(elapsed) ++ "ms")
+}
+
+async fn bench_heavy_sequential() {
+    var t0 = Date.now()
+
+    var r1 = compute(100000)
+    var r2 = compute(100000)
+    var r3 = compute(100000)
+    var r4 = compute(100000)
+
+    var elapsed = Date.now() - t0
+    print("--- 4 heavy compute(100k) sequential ---")
+    print("  time=" ++ str(elapsed) ++ "ms")
+}
+
+// Benchmark 4: Many small tasks
+async fn bench_many_tasks() {
+    var N = 100
+    var t0 = Date.now()
+
+    for i in range(1000) {
+        concurrent {
+            a = spawn fib(10)
+            b = spawn fib(10)
+            c = spawn fib(10)
+            d = spawn fib(10)
+            e = spawn fib(10)
+        }
+    }
+
+    var elapsed = Date.now() - t0
+    print("--- 5 tasks x 1,000 iterations (5,000 spawns) ---")
+    print("  time=" ++ str(elapsed) ++ "ms")
+    print("  spawns/sec=" ++ str(Math.round(5000 / (elapsed / 1000))))
+}
+
+async fn main() {
+    print("=== Tova Phase 2 Concurrency Benchmarks ===")
+    print("Runtime: Bun + Promise.all (concurrent/spawn syntax)")
+    print("")
+
+    await bench_two_tasks()
+    print("")
+    await bench_four_tasks()
+    print("")
+    await bench_heavy_concurrent()
+    await bench_heavy_sequential()
+    print("")
+    await bench_many_tasks()
+    print("")
+    print("=== Tova Results Complete ===")
+}
+
+main()

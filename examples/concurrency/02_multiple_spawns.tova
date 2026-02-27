@@ -1,0 +1,27 @@
+// Multiple spawns — all tasks complete before block exits
+fn add(a: Int, b: Int) -> Int {
+    a + b
+}
+
+async fn main() {
+    concurrent {
+        r1 = spawn add(1, 2)
+        r2 = spawn add(10, 20)
+        r3 = spawn add(100, 200)
+        r4 = spawn add(1000, 2000)
+    }
+
+    print("--- Test 2: Multiple spawns ---")
+    var total = 0
+    for r in [r1, r2, r3, r4] {
+        match r {
+            Ok(v) => { total = total + v }
+            Err(_) => print("unexpected error")
+        }
+    }
+
+    print(total)
+    print("Expected: 3333")
+}
+
+main()

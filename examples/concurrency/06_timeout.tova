@@ -1,0 +1,19 @@
+// Concurrent with timeout mode
+fn fast_task() -> Int {
+    42
+}
+
+async fn main() {
+    print("--- Test 6: Timeout mode ---")
+    concurrent timeout(5000) {
+        a = spawn fast_task()
+    }
+
+    match a {
+        Ok(v) => print(v)
+        Err(_) => print("timed out or error")
+    }
+    print("Expected: 42")
+}
+
+main()
