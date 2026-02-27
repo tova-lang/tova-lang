@@ -16,4 +16,8 @@ jobs:
         with:
           bun-version: latest
 
+      - run: bun install
+
+      - run: bun scripts/embed-runtime.js
+
       - run: bun test

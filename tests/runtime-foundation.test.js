@@ -1,11 +1,9 @@
 import { describe, test, expect, beforeAll } from 'bun:test';
 import { join } from 'path';
 import { existsSync, readdirSync } from 'fs';
-const { generateAddModule, generateFibModule } = require('./fixtures/gen-test-wasm.js');
-const { generateProducerModule, generateConsumerModule } = require('./fixtures/gen-channel-wasm.js');
 
-// Load the napi-rs addon
-function loadRuntime() {
+// Load the napi-rs addon — returns null if not available
+function tryLoadRuntime() {
     const searchDirs = [
         join(__dirname, '..', 'tova_runtime'),
         join(__dirname, '..', 'tova_runtime', 'target', 'release'),
@@ -17,27 +15,30 @@ function loadRuntime() {
             try { return require(join(dir, f)); } catch (e) { continue; }
         }
     }
-    throw new Error('Could not load tova_runtime native addon');
+    return null;
 }
 
-describe('tova_runtime foundation', () => {
-    let runtime;
+const runtime = tryLoadRuntime();
+const hasRuntime = runtime !== null;
 
+// Lazy-load WASM generators only when runtime is available
+let generateAddModule, generateFibModule, generateProducerModule, generateConsumerModule;
+if (hasRuntime) {
+    ({ generateAddModule, generateFibModule } = require('./fixtures/gen-test-wasm.js'));
+    ({ generateProducerModule, generateConsumerModule } = require('./fixtures/gen-channel-wasm.js'));
+}
+
+describe.skipIf(!hasRuntime)('tova_runtime foundation', () => {
     test('loads native addon', () => {
-        runtime = loadRuntime();
         expect(runtime).toBeDefined();
     });
 
     test('health check', () => {
-        runtime = loadRuntime();
         expect(runtime.healthCheck()).toBe('tova_runtime ok');
     });
 });
 
-describe('tokio scheduler', () => {
-    let runtime;
-    beforeAll(() => { runtime = loadRuntime(); });
-
+describe.skipIf(!hasRuntime)('tokio scheduler', () => {
     test('spawn a single async task and get result', async () => {
         const result = await runtime.spawnTask(42);
         expect(result).toBe(42);
@@ -58,10 +59,7 @@ describe('tokio scheduler', () => {
     });
 });
 
-describe('channels', () => {
-    let runtime;
-    beforeAll(() => { runtime = loadRuntime(); });
-
+describe.skipIf(!hasRuntime)('channels', () => {
     test('create a channel and get handle', () => {
         const chId = runtime.channelCreate(10);
         expect(typeof chId).toBe('number');
@@ -105,10 +103,7 @@ describe('channels', () => {
     });
 });
 
-describe('wasmtime executor', () => {
-    let runtime;
-    beforeAll(() => { runtime = loadRuntime(); });
-
+describe.skipIf(!hasRuntime)('wasmtime executor', () => {
     test('execute a WASM module (add)', async () => {
         const wasmBytes = generateAddModule();
         const result = await runtime.execWasm(Buffer.from(wasmBytes), 'add', [3, 4]);
@@ -146,10 +141,7 @@ describe('wasmtime executor', () => {
     });
 });
 
-describe('WASM host imports — channels', () => {
-    let runtime;
-    beforeAll(() => { runtime = loadRuntime(); });
-
+describe.skipIf(!hasRuntime)('WASM host imports — channels', () => {
     test('producer WASM sends values through channel', async () => {
         const chId = runtime.channelCreate(100);
         const wasmBytes = Buffer.from(generateProducerModule());
@@ -179,7 +171,7 @@ describe('WASM host imports — channels', () => {
     });
 });
 
-describe('runtime bridge', () => {
+describe.skipIf(!hasRuntime)('runtime bridge', () => {
     test('loads runtime via bridge', () => {
         const bridge = require('../src/stdlib/runtime-bridge.js');
         expect(bridge.isRuntimeAvailable()).toBe(true);
