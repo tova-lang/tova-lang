@@ -1520,3 +1520,175 @@ describe('Form Block — bind:form directive', () => {
     expect(b).toContain('login.submit');
   });
 });
+
+describe('Form Block — FormField and ErrorMessage', () => {
+  test('FormField auto-wires child input to field', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <form bind:form={login}>
+          <FormField field={login.email}>
+            <label>"Email"</label>
+            <input type="email" />
+            <ErrorMessage />
+          </FormField>
+        </form>
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    // FormField should generate a wrapper div with class form-field
+    expect(b).toContain('form-field');
+    // FormField should inject binding on the input
+    expect(b).toContain('login.email.value');
+    expect(b).toContain('login.email.set');
+    expect(b).toContain('login.email.blur');
+    // ErrorMessage should generate conditional error display
+    expect(b).toContain('login.email.touched');
+    expect(b).toContain('login.email.error');
+    expect(b).toContain('form-error');
+  });
+
+  test('FormField wraps children in a div with form-field class', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <FormField field={login.email}>
+          <input type="text" />
+        </FormField>
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    expect(b).toContain('tova_el("div"');
+    expect(b).toContain('form-field');
+  });
+
+  test('FormField wires select element', () => {
+    const src = `browser {
+      component App() {
+        form signup {
+          field country: String = ""
+        }
+        <FormField field={signup.country}>
+          <select>
+            <option value="us">"US"</option>
+          </select>
+        </FormField>
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    expect(b).toContain('signup.country.value');
+    expect(b).toContain('signup.country.set');
+    expect(b).toContain('signup.country.blur');
+  });
+
+  test('FormField wires textarea element', () => {
+    const src = `browser {
+      component App() {
+        form feedback {
+          field message: String = ""
+        }
+        <FormField field={feedback.message}>
+          <textarea />
+        </FormField>
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    expect(b).toContain('feedback.message.value');
+    expect(b).toContain('feedback.message.set');
+    expect(b).toContain('feedback.message.blur');
+  });
+
+  test('FormField passes through non-input children', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <FormField field={login.email}>
+          <label>"Email"</label>
+          <input type="email" />
+          <span>"helper text"</span>
+        </FormField>
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    // label and span should be generated normally
+    expect(b).toContain('tova_el("label"');
+    expect(b).toContain('tova_el("span"');
+  });
+
+  test('standalone ErrorMessage with field attribute', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <ErrorMessage field={login.email} />
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    expect(b).toContain('login.email.touched');
+    expect(b).toContain('login.email.error');
+    expect(b).toContain('form-error');
+  });
+
+  test('standalone ErrorMessage for form-level error', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <ErrorMessage form={login} />
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    expect(b).toContain('login.submitError');
+    expect(b).toContain('form-error');
+  });
+
+  test('ErrorMessage renders null when no error', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field email: String = ""
+        }
+        <ErrorMessage field={login.email} />
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    // Should use ternary with null fallback
+    expect(b).toContain('null');
+  });
+
+  test('FormField with ErrorMessage generates conditional span', () => {
+    const src = `browser {
+      component App() {
+        form login {
+          field password: String = ""
+        }
+        <FormField field={login.password}>
+          <input type="password" />
+          <ErrorMessage />
+        </FormField>
+      }
+    }`;
+    const result = compile(src);
+    const b = result.browser;
+    // ErrorMessage inside FormField should use the parent field
+    expect(b).toContain('login.password.touched');
+    expect(b).toContain('login.password.error');
+    expect(b).toContain('form-error');
+  });
+});

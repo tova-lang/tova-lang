@@ -1071,6 +1071,16 @@ export class BrowserCodegen extends BaseCodegen {
       return `(__props.children || '')`;
     }
 
+    // ── <ErrorMessage /> built-in component (compiler-time transform) ──
+    if (node.tag === 'ErrorMessage') {
+      return this._genErrorMessage(node, null);
+    }
+
+    // ── <FormField field={expr}> built-in component (compiler-time transform) ──
+    if (node.tag === 'FormField') {
+      return this._genFormField(node);
+    }
+
     const isComponent = node.tag[0] === node.tag[0].toUpperCase() && /^[A-Z]/.test(node.tag);
 
     // Attributes
@@ -1393,6 +1403,100 @@ export class BrowserCodegen extends BaseCodegen {
     }
 
     return result;
+  }
+
+  // ── <ErrorMessage /> compiler transform ──
+  // Standalone: <ErrorMessage field={form.email} /> or <ErrorMessage form={login} />
+  // Inside FormField: <ErrorMessage /> (inherits parent field expression)
+  _genErrorMessage(node, parentFieldExpr) {
+    const fieldAttr = node.attributes.find(a => a.name === 'field');
+    const formAttr = node.attributes.find(a => a.name === 'form');
+
+    if (formAttr) {
+      // Form-level error: show form.submitError
+      const formExpr = this.genExpression(formAttr.value);
+      return `() => ${formExpr}.submitError ? tova_el("span", {className: "form-error"}, [() => ${formExpr}.submitError]) : null`;
+    }
+
+    // Determine field expression: explicit attr or inherited from parent FormField
+    let fieldExpr;
+    if (fieldAttr) {
+      fieldExpr = this.genExpression(fieldAttr.value);
+    } else if (parentFieldExpr) {
+      fieldExpr = parentFieldExpr;
+    } else {
+      // No field info — render nothing
+      return 'null';
+    }
+
+    return `() => ${fieldExpr}.touched && ${fieldExpr}.error ? tova_el("span", {className: "form-error"}, [() => ${fieldExpr}.error]) : null`;
+  }
+
+  // ── <FormField field={expr}> compiler transform ──
+  // Generates a wrapper div.form-field with auto-wired input/select/textarea children
+  _genFormField(node) {
+    const fieldAttr = node.attributes.find(a => a.name === 'field');
+    if (!fieldAttr) {
+      // No field attribute — fall through to normal div
+      const children = (node.children || []).map(c => this.genJSX(c)).join(', ');
+      return `tova_el("div", {className: "form-field"}, [${children}])`;
+    }
+
+    const fieldExpr = this.genExpression(fieldAttr.value);
+    const inputTags = new Set(['input', 'select', 'textarea']);
+
+    const childParts = [];
+    for (const child of (node.children || [])) {
+      if (child.type === 'JSXElement' && inputTags.has(child.tag)) {
+        // Auto-wire input/select/textarea to the field
+        childParts.push(this._genFormFieldInput(child, fieldExpr));
+      } else if (child.type === 'JSXElement' && child.tag === 'ErrorMessage') {
+        // Replace <ErrorMessage /> with conditional error display using parent field
+        childParts.push(this._genErrorMessage(child, fieldExpr));
+      } else {
+        // Other children: generate normally
+        childParts.push(this.genJSX(child));
+      }
+    }
+
+    return `tova_el("div", {className: "form-field"}, [${childParts.join(', ')}])`;
+  }
+
+  // Generate an input/select/textarea element with field bindings injected
+  _genFormFieldInput(node, fieldExpr) {
+    // Process existing attributes normally, then inject field bindings
+    const attrs = {};
+    const events = {};
+
+    for (const attr of node.attributes) {
+      if (attr.name === 'class') {
+        attrs.className = this.genExpression(attr.value);
+      } else if (attr.name.startsWith('on:')) {
+        events[attr.name.slice(3)] = this.genExpression(attr.value);
+      } else {
+        attrs[attr.name] = this.genExpression(attr.value);
+      }
+    }
+
+    // Inject field bindings
+    attrs.value = `() => ${fieldExpr}.value`;
+    events.input = `(e) => ${fieldExpr}.set(e.target.value)`;
+    events.blur = `() => ${fieldExpr}.blur()`;
+
+    const propParts = [];
+    for (const [key, val] of Object.entries(attrs)) {
+      propParts.push(`${key}: ${val}`);
+    }
+    for (const [event, handler] of Object.entries(events)) {
+      propParts.push(`on${event[0].toUpperCase() + event.slice(1)}: ${handler}`);
+    }
+
+    const tag = JSON.stringify(node.tag);
+    if (node.selfClosing || !node.children || node.children.length === 0) {
+      return `tova_el(${tag}, {${propParts.join(', ')}})`;
+    }
+    const children = node.children.map(c => this.genJSX(c)).join(', ');
+    return `tova_el(${tag}, {${propParts.join(', ')}}, [${children}])`;
   }
 
   genJSXText(node) {
