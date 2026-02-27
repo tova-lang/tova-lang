@@ -754,6 +754,12 @@ export {
   FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep,
 } from './form-ast.js';
 
+// ============================================================
+// Select-specific nodes (lazy-loaded from select-ast.js, re-exported for backward compat)
+// ============================================================
+
+export { SelectStatement, SelectCase } from './select-ast.js';
+
 export class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';

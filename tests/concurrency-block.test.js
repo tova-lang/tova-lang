@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { ConcurrentBlock } from '../src/parser/ast.js';
 import { SpawnExpression } from '../src/parser/concurrency-ast.js';
+import { SelectStatement, SelectCase } from '../src/parser/select-ast.js';
 import { BlockRegistry } from '../src/registry/register-all.js';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
@@ -413,5 +414,62 @@ describe('concurrency E2E', () => {
         expect(output).toContain('3');
         expect(output).toContain('30');
         expect(output).toContain('300');
+    });
+});
+
+describe('select AST nodes', () => {
+    test('SelectStatement has correct structure', () => {
+        const stmt = new SelectStatement([], { line: 1, column: 0 });
+        expect(stmt.type).toBe('SelectStatement');
+        expect(stmt.cases).toEqual([]);
+        expect(stmt.loc).toEqual({ line: 1, column: 0 });
+    });
+
+    test('SelectStatement with multiple cases', () => {
+        const case1 = new SelectCase('receive', { type: 'Identifier', name: 'ch1' }, 'msg', null, [], { line: 2, column: 4 });
+        const case2 = new SelectCase('send', { type: 'Identifier', name: 'ch2' }, null, { type: 'NumberLiteral', value: 42 }, [], { line: 3, column: 4 });
+        const stmt = new SelectStatement([case1, case2], { line: 1, column: 0 });
+        expect(stmt.cases.length).toBe(2);
+        expect(stmt.cases[0].kind).toBe('receive');
+        expect(stmt.cases[1].kind).toBe('send');
+    });
+
+    test('SelectCase receive kind', () => {
+        const c = new SelectCase('receive', { type: 'Identifier', name: 'ch' }, 'msg', null, [], { line: 1, column: 0 });
+        expect(c.type).toBe('SelectCase');
+        expect(c.kind).toBe('receive');
+        expect(c.channel).toEqual({ type: 'Identifier', name: 'ch' });
+        expect(c.binding).toBe('msg');
+        expect(c.value).toBeNull();
+        expect(c.body).toEqual([]);
+        expect(c.loc).toEqual({ line: 1, column: 0 });
+    });
+
+    test('SelectCase send kind', () => {
+        const c = new SelectCase('send', { type: 'Identifier', name: 'ch' }, null, { type: 'NumberLiteral', value: 42 }, [], { line: 1, column: 0 });
+        expect(c.type).toBe('SelectCase');
+        expect(c.kind).toBe('send');
+        expect(c.channel).toEqual({ type: 'Identifier', name: 'ch' });
+        expect(c.binding).toBeNull();
+        expect(c.value).toEqual({ type: 'NumberLiteral', value: 42 });
+    });
+
+    test('SelectCase timeout kind', () => {
+        const c = new SelectCase('timeout', null, null, { type: 'NumberLiteral', value: 5000 }, [], { line: 1, column: 0 });
+        expect(c.type).toBe('SelectCase');
+        expect(c.kind).toBe('timeout');
+        expect(c.channel).toBeNull();
+        expect(c.binding).toBeNull();
+        expect(c.value).toEqual({ type: 'NumberLiteral', value: 5000 });
+    });
+
+    test('SelectCase default kind', () => {
+        const c = new SelectCase('default', null, null, null, [{ type: 'ExpressionStatement' }], { line: 1, column: 0 });
+        expect(c.type).toBe('SelectCase');
+        expect(c.kind).toBe('default');
+        expect(c.channel).toBeNull();
+        expect(c.binding).toBeNull();
+        expect(c.value).toBeNull();
+        expect(c.body).toEqual([{ type: 'ExpressionStatement' }]);
     });
 });
