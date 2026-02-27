@@ -1054,6 +1054,35 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
       this._recvWaiters.push(resolve);
     }.bind(this));
   }
+  _tryReceive() {
+    if (this._buffer.length > 0) {
+      const value = this._buffer.shift();
+      if (this._sendWaiters.length > 0) {
+        const waiter = this._sendWaiters.shift();
+        this._buffer.push(waiter.value);
+        waiter.resolve();
+      }
+      return Some(value);
+    }
+    if (this._sendWaiters.length > 0) {
+      const waiter = this._sendWaiters.shift();
+      waiter.resolve();
+      return Some(waiter.value);
+    }
+    return None;
+  }
+  _trySend(value) {
+    if (this._recvWaiters.length > 0) {
+      const waiter = this._recvWaiters.shift();
+      waiter(Some(value));
+      return true;
+    }
+    if (this._capacity > 0 && this._buffer.length < this._capacity) {
+      this._buffer.push(value);
+      return true;
+    }
+    return false;
+  }
   close() {
     this._closed = true;
     for (const waiter of this._recvWaiters) waiter(None);

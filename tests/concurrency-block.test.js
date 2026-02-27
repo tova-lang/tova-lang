@@ -631,3 +631,86 @@ describe('select analyzer', () => {
         expect(flagged.length).toBeGreaterThan(0);
     });
 });
+
+describe('select codegen', () => {
+    test('receive generates Promise.race with receive().then()', () => {
+        const code = compileCode(`
+            fn main() {
+                ch = Channel.new(1)
+                select {
+                    msg from ch => print(msg)
+                }
+            }
+        `);
+        expect(code).toContain('Promise.race');
+        expect(code).toContain('.receive().then(');
+    });
+
+    test('send generates send().then()', () => {
+        const code = compileCode(`
+            fn main() {
+                ch = Channel.new(1)
+                select {
+                    ch.send(42) => print("sent")
+                }
+            }
+        `);
+        expect(code).toContain('.send(42).then(');
+    });
+
+    test('timeout generates setTimeout promise', () => {
+        const code = compileCode(`
+            fn main() {
+                ch = Channel.new(1)
+                select {
+                    msg from ch => print(msg)
+                    timeout(5000) => print("timeout")
+                }
+            }
+        `);
+        expect(code).toContain('setTimeout');
+        expect(code).toContain('5000');
+    });
+
+    test('default generates _tryReceive() checks', () => {
+        const code = compileCode(`
+            fn main() {
+                ch = Channel.new(1)
+                select {
+                    msg from ch => print(msg)
+                    _ => print("default")
+                }
+            }
+        `);
+        expect(code).toContain('_tryReceive()');
+        expect(code).not.toContain('Promise.race');
+    });
+
+    test('uses if/else chain not switch', () => {
+        const code = compileCode(`
+            fn main() {
+                ch1 = Channel.new(1)
+                ch2 = Channel.new(1)
+                select {
+                    a from ch1 => print(a)
+                    b from ch2 => print(b)
+                }
+            }
+        `);
+        expect(code).toContain('if (');
+        expect(code).toContain('else if (');
+        expect(code).not.toContain('switch');
+    });
+
+    test('receive binding assigned from __value.value', () => {
+        const code = compileCode(`
+            fn main() {
+                ch = Channel.new(1)
+                select {
+                    msg from ch => print(msg)
+                }
+            }
+        `);
+        expect(code).toContain('.__value.value');
+    });
+});

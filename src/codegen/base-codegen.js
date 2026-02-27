@@ -280,6 +280,7 @@ export class BaseCodegen {
       case 'DeferStatement': result = this.genDeferStatement(node); break;
       case 'WithStatement': result = this.genWithStatement(node); break;
       case 'ConcurrentBlock': result = this.genConcurrentBlock(node); break;
+      case 'SelectStatement': result = this.genSelectStatement(node); break;
       case 'ExternDeclaration': result = `${this.i()}// extern: ${node.name}`; break;
       // Config declarations handled at block level — emit nothing in statement context
       case 'AiConfigDeclaration': result = ''; break;
@@ -3077,6 +3078,126 @@ export class BaseCodegen {
         lines.push(`${this.i()}const ${assignments[i]} = ${tempVars[i]};`);
       }
     }
+
+    return lines.join('\n');
+  }
+
+  genSelectStatement(node) {
+    this._needsResultOption = true; // for Some/None in _tryReceive
+    const base = this._selectCounter = (this._selectCounter || 0) + 1;
+
+    const hasDefault = node.cases.some(c => c.kind === 'default');
+
+    if (hasDefault) {
+      return this._genSelectWithDefault(node, base);
+    }
+    return this._genSelectWithRace(node, base);
+  }
+
+  _genSelectWithRace(node, base) {
+    const lines = [];
+    const selVar = `__sel${base}`;
+    const promises = [];
+
+    for (let i = 0; i < node.cases.length; i++) {
+      const c = node.cases[i];
+      if (c.kind === 'receive') {
+        const ch = this.genExpression(c.channel);
+        promises.push(`${ch}.receive().then(__v => ({ __case: ${i}, __value: __v }))`);
+      } else if (c.kind === 'send') {
+        const ch = this.genExpression(c.channel);
+        const val = this.genExpression(c.value);
+        promises.push(`${ch}.send(${val}).then(() => ({ __case: ${i} }))`);
+      } else if (c.kind === 'timeout') {
+        const ms = this.genExpression(c.value);
+        promises.push(`new Promise(__r => setTimeout(() => __r({ __case: ${i} }), ${ms}))`);
+      }
+    }
+
+    lines.push(`${this.i()}const ${selVar} = await Promise.race([`);
+    for (let i = 0; i < promises.length; i++) {
+      lines.push(`${this.i()}  ${promises[i]}${i < promises.length - 1 ? ',' : ''}`);
+    }
+    lines.push(`${this.i()}]);`);
+
+    // Generate if/else chain (NOT switch — avoids break conflicts in loops)
+    for (let i = 0; i < node.cases.length; i++) {
+      const c = node.cases[i];
+      const prefix = i === 0 ? 'if' : ' else if';
+      lines.push(`${this.i()}${prefix} (${selVar}.__case === ${i}) {`);
+      this.indent++;
+      if (c.kind === 'receive' && c.binding) {
+        this.declareVar(c.binding);
+        lines.push(`${this.i()}const ${c.binding} = ${selVar}.__value.value;`);
+      }
+      for (const stmt of c.body) {
+        lines.push(this.generateStatement(stmt));
+      }
+      this.indent--;
+      lines.push(`${this.i()}}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  _genSelectWithDefault(node, base) {
+    const lines = [];
+    const nonDefault = node.cases.filter(c => c.kind !== 'default');
+    const defaultCase = node.cases.find(c => c.kind === 'default');
+
+    lines.push(`${this.i()}{`);
+    this.indent++;
+
+    let depth = 0;
+    for (let i = 0; i < nonDefault.length; i++) {
+      const c = nonDefault[i];
+      const tryVar = `__try${base}_${i}`;
+
+      if (c.kind === 'receive') {
+        const ch = this.genExpression(c.channel);
+        lines.push(`${this.i()}const ${tryVar} = ${ch}._tryReceive();`);
+        lines.push(`${this.i()}if (${tryVar}.__tag === 'Some') {`);
+        this.indent++;
+        if (c.binding) {
+          this.declareVar(c.binding);
+          lines.push(`${this.i()}const ${c.binding} = ${tryVar}.value;`);
+        }
+        for (const stmt of c.body) {
+          lines.push(this.generateStatement(stmt));
+        }
+        this.indent--;
+        lines.push(`${this.i()}} else {`);
+        this.indent++;
+        depth++;
+      } else if (c.kind === 'send') {
+        const ch = this.genExpression(c.channel);
+        const val = this.genExpression(c.value);
+        lines.push(`${this.i()}const ${tryVar} = ${ch}._trySend(${val});`);
+        lines.push(`${this.i()}if (${tryVar}) {`);
+        this.indent++;
+        for (const stmt of c.body) {
+          lines.push(this.generateStatement(stmt));
+        }
+        this.indent--;
+        lines.push(`${this.i()}} else {`);
+        this.indent++;
+        depth++;
+      }
+    }
+
+    // Default case body
+    for (const stmt of defaultCase.body) {
+      lines.push(this.generateStatement(stmt));
+    }
+
+    // Close all else blocks
+    for (let i = 0; i < depth; i++) {
+      this.indent--;
+      lines.push(`${this.i()}}`);
+    }
+
+    this.indent--;
+    lines.push(`${this.i()}}`);
 
     return lines.join('\n');
   }
