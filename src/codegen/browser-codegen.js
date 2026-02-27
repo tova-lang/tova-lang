@@ -1,6 +1,7 @@
 import { BaseCodegen } from './base-codegen.js';
 import { getBrowserStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 import { SecurityCodegen } from './security-codegen.js';
+import { generateValidatorFn, generateFieldSignals, generateFieldAccessor, generateGroupCode, generateArrayCode } from './form-codegen.js';
 
 export class BrowserCodegen extends BaseCodegen {
   constructor() {
@@ -9,6 +10,7 @@ export class BrowserCodegen extends BaseCodegen {
     this.computedNames = new Set(); // Track computed variable names for getter transforms
     this.componentNames = new Set(); // Track component names for JSX
     this.storeNames = new Set(); // Track store names
+    this.formNames = new Set(); // Track form names
     this._asyncContext = false; // When true, server.xxx() calls emit `await`
     this._rpcCache = new WeakMap(); // Memoize _containsRPC() results
     this._signalCache = new WeakMap(); // Memoize _exprReadsSignal() results
@@ -254,6 +256,7 @@ export class BrowserCodegen extends BaseCodegen {
     const effects = [];
     const components = [];
     const stores = [];
+    const forms = [];
     const imports = [];
     const other = [];
 
@@ -265,6 +268,7 @@ export class BrowserCodegen extends BaseCodegen {
           case 'EffectDeclaration': effects.push(stmt); break;
           case 'ComponentDeclaration': components.push(stmt); break;
           case 'StoreDeclaration': stores.push(stmt); break;
+          case 'FormDeclaration': forms.push(stmt); break;
           case 'ImportDeclaration': imports.push(stmt); break;
           case 'ImportDefault': imports.push(stmt); break;
           case 'ImportWildcard': imports.push(stmt); break;
@@ -302,6 +306,11 @@ export class BrowserCodegen extends BaseCodegen {
       this.storeNames.add(store.name);
     }
 
+    // Register form names
+    for (const form of forms) {
+      this.formNames.add(form.name);
+    }
+
     // Generate state signals
     if (states.length > 0) {
       lines.push('// ── Reactive State ──');
@@ -327,6 +336,15 @@ export class BrowserCodegen extends BaseCodegen {
       lines.push('// ── Stores ──');
       for (const store of stores) {
         lines.push(this.generateStore(store));
+        lines.push('');
+      }
+    }
+
+    // Generate forms
+    if (forms.length > 0) {
+      lines.push('// ── Forms ──');
+      for (const form of forms) {
+        lines.push(this.generateForm(form));
         lines.push('');
       }
     }
@@ -600,6 +618,12 @@ export class BrowserCodegen extends BaseCodegen {
         const effectCode = this._generateEffect(node.body);
         this.indent--;
         p.push(`${this.i()}${effectCode}\n`);
+      } else if (node.type === 'FormDeclaration') {
+        this.formNames.add(node.name);
+        p.push(`${this.i()}${this.generateForm(node)}\n`);
+      } else if (node.type === 'StoreDeclaration') {
+        this.storeNames.add(node.name);
+        p.push(`${this.i()}${this.generateStore(node)}\n`);
       } else {
         p.push(this.generateStatement(node) + '\n');
       }
@@ -693,6 +717,254 @@ export class BrowserCodegen extends BaseCodegen {
     // Restore state/computed names
     this.stateNames = savedState;
     this.computedNames = savedComputed;
+
+    return p.join('');
+  }
+
+  generateForm(form) {
+    // Save/restore state and computed names so form-internal names don't leak
+    const savedState = new Set(this.stateNames);
+    const savedComputed = new Set(this.computedNames);
+    const savedFormNames = new Set(this.formNames);
+
+    const genExpr = (node) => this.genExpression(node);
+    const fields = form.fields || [];
+    const groups = form.groups || [];
+    const arrays = form.arrays || [];
+    const fieldNames = fields.map(f => f.name);
+
+    const p = [];
+    p.push(`const ${form.name} = (() => {\n`);
+    this.indent++;
+
+    // Field signals (top-level fields)
+    for (const field of fields) {
+      const init = field.initialValue ? this.genExpression(field.initialValue) : 'null';
+      p.push(generateFieldSignals(field.name, init, this.i()));
+    }
+    if (fields.length > 0) p.push('\n');
+
+    // Validator functions (top-level fields)
+    for (const field of fields) {
+      p.push(generateValidatorFn(field.name, field.validators, genExpr, this.i()));
+    }
+    if (fields.length > 0) p.push('\n');
+
+    // Field accessors (top-level fields)
+    for (const field of fields) {
+      p.push(generateFieldAccessor(field.name, this.i()));
+    }
+    if (fields.length > 0) p.push('\n');
+
+    // Generate groups (signals, validators, accessors, group accessors)
+    const allGroupPrefixedNames = []; // Collects ALL prefixed field names from groups
+    const conditionalGroups = []; // Tracks conditional groups for form-level isValid
+    const groupNames = [];
+    const formFieldNameSet = new Set(fieldNames); // For condition expression resolution
+    for (const group of groups) {
+      p.push(generateGroupCode(group, '', genExpr, this.i(), allGroupPrefixedNames, null, conditionalGroups, formFieldNameSet));
+      p.push('\n');
+      groupNames.push(group.name);
+    }
+
+    // Generate arrays (signal-backed item lists)
+    const arrayNames = [];
+    for (const arr of arrays) {
+      p.push(generateArrayCode(arr, genExpr, this.i()));
+      p.push('\n');
+      arrayNames.push({ name: arr.name, fields: (arr.fields || []).map(f => f.name) });
+    }
+
+    // Form-level signals — include both top-level fields and group-prefixed fields
+    const allFieldNamesForValid = [...fieldNames, ...allGroupPrefixedNames];
+    const isValidParts = allFieldNamesForValid.map(n => `__${n}_error() === null`);
+    // Include array items in isValid: every item in every array must be valid
+    const arrayIsValidParts = arrayNames.map(a => `__${a.name}().every(i => i.isValid)`);
+    const allIsValidParts = [...isValidParts, ...arrayIsValidParts];
+    const isValidExpr = allIsValidParts.length > 0 ? allIsValidParts.join(' && ') : 'true';
+    p.push(`${this.i()}const isValid = createComputed(() => ${isValidExpr});\n`);
+
+    const isDirtyParts = allFieldNamesForValid.map(n => `__${n}_value() !== __${n}_initial`);
+    // Include arrays in isDirty: any items added = dirty
+    const arrayIsDirtyParts = arrayNames.map(a => `__${a.name}().length > 0`);
+    const allIsDirtyParts = [...isDirtyParts, ...arrayIsDirtyParts];
+    const isDirtyExpr = allIsDirtyParts.length > 0 ? allIsDirtyParts.join(' || ') : 'false';
+    p.push(`${this.i()}const isDirty = createComputed(() => ${isDirtyExpr});\n`);
+
+    p.push(`${this.i()}const [__submitting, __set_submitting] = createSignal(false);\n`);
+    p.push(`${this.i()}const [__submitError, __set_submitError] = createSignal(null);\n`);
+    p.push(`${this.i()}const [__submitCount, __set_submitCount] = createSignal(0);\n`);
+    p.push('\n');
+
+    // Wizard steps (only when form has steps block)
+    const hasSteps = form.steps && form.steps.steps && form.steps.steps.length > 0;
+    if (hasSteps) {
+      const fieldNameSet = new Set(fieldNames);
+      const groupNameSet = new Set(groupNames);
+      const arrayNameSet = new Set(arrayNames.map(a => a.name));
+
+      p.push(`${this.i()}const [__currentStep, __set_currentStep] = createSignal(0);\n`);
+      p.push(`${this.i()}const __steps = [\n`);
+      this.indent++;
+      for (const step of form.steps.steps) {
+        const validateParts = step.members.map(member => {
+          if (fieldNameSet.has(member)) return `${member}.validate()`;
+          if (groupNameSet.has(member)) return `${member}.isValid`;
+          if (arrayNameSet.has(member)) return `${member}.items.every(i => i.isValid)`;
+          // Default to field validate
+          return `${member}.validate()`;
+        });
+        const validateExpr = validateParts.length === 1
+          ? validateParts[0]
+          : validateParts.join(' && ');
+        p.push(`${this.i()}{ label: ${JSON.stringify(step.label)}, validate: () => ${validateExpr} },\n`);
+      }
+      this.indent--;
+      p.push(`${this.i()}];\n`);
+
+      p.push(`${this.i()}const canNext = createComputed(() => {\n`);
+      this.indent++;
+      p.push(`${this.i()}const step = __steps[__currentStep()];\n`);
+      p.push(`${this.i()}return step ? step.validate() : false;\n`);
+      this.indent--;
+      p.push(`${this.i()}});\n`);
+
+      p.push(`${this.i()}const canPrev = createComputed(() => __currentStep() > 0);\n`);
+      p.push(`${this.i()}const progress = createComputed(() => (__currentStep() + 1) / __steps.length);\n`);
+      p.push('\n');
+
+      p.push(`${this.i()}function next() {\n`);
+      this.indent++;
+      p.push(`${this.i()}if (canNext()) __set_currentStep(__tova_p => __tova_p + 1);\n`);
+      this.indent--;
+      p.push(`${this.i()}}\n`);
+
+      p.push(`${this.i()}function prev() {\n`);
+      this.indent++;
+      p.push(`${this.i()}if (canPrev()) __set_currentStep(__tova_p => __tova_p - 1);\n`);
+      this.indent--;
+      p.push(`${this.i()}}\n`);
+      p.push('\n');
+    }
+
+    // Reset function — include both top-level and group-prefixed fields + arrays
+    p.push(`${this.i()}function reset() {\n`);
+    this.indent++;
+    for (const name of fieldNames) {
+      p.push(`${this.i()}${name}.reset();\n`);
+    }
+    for (const name of allGroupPrefixedNames) {
+      p.push(`${this.i()}${name}.reset();\n`);
+    }
+    for (const arr of arrayNames) {
+      p.push(`${this.i()}__set_${arr.name}([]); __${arr.name}_nextId = 0;\n`);
+    }
+    p.push(`${this.i()}__set_submitError(null);\n`);
+    this.indent--;
+    p.push(`${this.i()}}\n\n`);
+
+    // Submit function
+    p.push(`${this.i()}async function submit(e) {\n`);
+    this.indent++;
+    p.push(`${this.i()}if (e && e.preventDefault) e.preventDefault();\n`);
+
+    // Touch all fields to show errors (top-level + group fields)
+    for (const name of fieldNames) {
+      p.push(`${this.i()}${name}.blur();\n`);
+    }
+    for (const name of allGroupPrefixedNames) {
+      p.push(`${this.i()}${name}.blur();\n`);
+    }
+    // Touch all array item fields to show errors
+    for (const arr of arrayNames) {
+      const blurCalls = arr.fields.map(f => `i.${f}.blur()`).join('; ');
+      p.push(`${this.i()}__${arr.name}().forEach(i => { ${blurCalls}; });\n`);
+    }
+
+    p.push(`${this.i()}if (!(isValid())) return;\n`);
+    p.push(`${this.i()}__set_submitting(true);\n`);
+    p.push(`${this.i()}__set_submitError(null);\n`);
+    p.push(`${this.i()}__set_submitCount(__tova_p => __tova_p + 1);\n`);
+    p.push(`${this.i()}try {\n`);
+    this.indent++;
+
+    // Generate the on submit body
+    if (form.onSubmit) {
+      p.push(this.genBlockStatements(form.onSubmit));
+      p.push('\n');
+    }
+
+    this.indent--;
+    p.push(`${this.i()}} catch (err) {\n`);
+    this.indent++;
+    p.push(`${this.i()}__set_submitError(err.message || String(err));\n`);
+    this.indent--;
+    p.push(`${this.i()}} finally {\n`);
+    this.indent++;
+    p.push(`${this.i()}__set_submitting(false);\n`);
+    this.indent--;
+    p.push(`${this.i()}}\n`);
+    this.indent--;
+    p.push(`${this.i()}}\n\n`);
+
+    // Return object
+    p.push(`${this.i()}return {\n`);
+    this.indent++;
+
+    // Top-level field accessors
+    for (const name of fieldNames) {
+      p.push(`${this.i()}${name},\n`);
+    }
+
+    // Group accessors
+    for (const name of groupNames) {
+      p.push(`${this.i()}${name},\n`);
+    }
+
+    // Array accessors
+    for (const arr of arrayNames) {
+      p.push(`${this.i()}${arr.name},\n`);
+    }
+
+    // Values getter — includes top-level fields, group values, and array values
+    const topLevelValuesEntries = fieldNames.map(n => `${n}: __${n}_value()`);
+    const groupValuesEntries = groupNames.map(n => `${n}: ${n}.values`);
+    const arrayValuesEntries = arrayNames.map(a => `${a.name}: __${a.name}().map(i => i.values)`);
+    const allValuesEntries = [...topLevelValuesEntries, ...groupValuesEntries, ...arrayValuesEntries];
+    const valuesObj = allValuesEntries.join(', ');
+    p.push(`${this.i()}get values() { return { ${valuesObj} }; },\n`);
+
+    // Form-level getters
+    p.push(`${this.i()}get isValid() { return isValid(); },\n`);
+    p.push(`${this.i()}get isDirty() { return isDirty(); },\n`);
+    p.push(`${this.i()}submit,\n`);
+    p.push(`${this.i()}reset,\n`);
+    p.push(`${this.i()}get submitting() { return __submitting(); },\n`);
+    p.push(`${this.i()}get submitError() { return __submitError(); },\n`);
+    p.push(`${this.i()}get submitCount() { return __submitCount(); },\n`);
+    p.push(`${this.i()}setError: (msg) => __set_submitError(msg),\n`);
+
+    // Wizard step properties in return object
+    if (hasSteps) {
+      p.push(`${this.i()}get currentStep() { return __currentStep(); },\n`);
+      p.push(`${this.i()}next,\n`);
+      p.push(`${this.i()}prev,\n`);
+      p.push(`${this.i()}get canNext() { return canNext(); },\n`);
+      p.push(`${this.i()}get canPrev() { return canPrev(); },\n`);
+      p.push(`${this.i()}get progress() { return progress(); },\n`);
+      p.push(`${this.i()}get steps() { return __steps; },\n`);
+    }
+
+    this.indent--;
+    p.push(`${this.i()}};\n`);
+
+    this.indent--;
+    p.push(`${this.i()}})();`);
+
+    // Restore state/computed/form names
+    this.stateNames = savedState;
+    this.computedNames = savedComputed;
+    this.formNames = savedFormNames;
 
     return p.join('');
   }
@@ -828,6 +1100,10 @@ export class BrowserCodegen extends BaseCodegen {
           const valueExpr = isNumeric ? 'Number(e.target.value)' : 'e.target.value';
           events[eventName] = `(e) => { set${capitalize(exprName)}(${valueExpr}); }`;
         }
+      } else if (attr.name === 'bind:form') {
+        // Form binding: bind:form={login} → onSubmit wires to form controller's submit()
+        const formName = this.genExpression(attr.value);
+        events.submit = `(e) => ${formName}.submit(e)`;
       } else if (attr.name === 'bind:checked') {
         // Two-way binding: bind:checked={flag} → reactive checked + onChange
         const expr = this.genExpression(attr.value);
