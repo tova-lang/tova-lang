@@ -16,17 +16,22 @@ const SOURCE_FILES = [
   'src/parser/ast.js',
   'src/parser/security-ast.js',
   'src/parser/cli-ast.js',
+  'src/parser/edge-ast.js',
+  'src/parser/form-ast.js',
   '__AST_SHIM__',
   'src/diagnostics/error-codes.js',
   'src/registry/block-registry.js',
   'src/parser/server-parser.js',
+  'src/parser/form-parser.js',
   'src/parser/browser-parser.js',
   'src/parser/security-parser.js',
   'src/parser/cli-parser.js',
+  'src/parser/edge-parser.js',
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/types.js',
   'src/analyzer/server-analyzer.js',
+  'src/analyzer/form-analyzer.js',
   'src/analyzer/browser-analyzer.js',
   'src/analyzer/analyzer.js',
   'src/stdlib/inline.js',
@@ -35,6 +40,7 @@ const SOURCE_FILES = [
   'src/registry/plugins/browser-plugin.js',
   'src/registry/plugins/security-plugin.js',
   'src/registry/plugins/cli-plugin.js',
+  'src/registry/plugins/edge-plugin.js',
   'src/registry/plugins/data-plugin.js',
   'src/registry/plugins/test-plugin.js',
   'src/registry/plugins/bench-plugin.js',
@@ -42,10 +48,12 @@ const SOURCE_FILES = [
   'src/codegen/wasm-codegen.js',
   'src/codegen/base-codegen.js',
   'src/codegen/shared-codegen.js',
+  'src/codegen/form-codegen.js',
   'src/codegen/server-codegen.js',
   'src/codegen/browser-codegen.js',
   'src/codegen/security-codegen.js',
   'src/codegen/cli-codegen.js',
+  'src/codegen/edge-codegen.js',
   'src/codegen/codegen.js',
 ];
 
@@ -81,6 +89,7 @@ function buildCompilerBundle() {
       for (const astFile of [
         'src/parser/ast.js', 'src/parser/browser-ast.js', 'src/parser/server-ast.js',
         'src/parser/security-ast.js', 'src/parser/cli-ast.js',
+        'src/parser/edge-ast.js', 'src/parser/form-ast.js',
       ]) {
         const astCode = readFileSync(resolve(ROOT, astFile), 'utf-8');
         for (const m of astCode.matchAll(/^(?:export\s+)?class\s+(\w+)/gm)) {
@@ -96,6 +105,14 @@ function buildCompilerBundle() {
     const raw = readFileSync(filePath, 'utf-8');
     let stripped = stripModuleSyntax(raw);
 
+    // Patch edge-codegen.js: replace lazy-loaded SecurityCodegen with direct reference
+    if (entry === 'src/codegen/edge-codegen.js') {
+      stripped = stripped
+        .replace(/^let\s+_SecurityCodegen.*$/m, '')
+        .replace(/if\s*\(!_SecurityCodegen\)\s*_SecurityCodegen\s*=\s*_require.*$/m,
+          'const _SecurityCodegen = SecurityCodegen;');
+    }
+
     // Patch codegen.js: replace Node.js lazy-loading with direct references
     if (entry === 'src/codegen/codegen.js') {
       stripped = stripped
@@ -107,7 +124,9 @@ function buildCompilerBundle() {
         .replace(/function getSecurityCodegen\(\)\s*\{[^}]*\}/,
           'function getSecurityCodegen() { return SecurityCodegen; }')
         .replace(/function getCliCodegen\(\)\s*\{[^}]*\}/,
-          'function getCliCodegen() { return CliCodegen; }');
+          'function getCliCodegen() { return CliCodegen; }')
+        .replace(/function getEdgeCodegen\(\)\s*\{[^}]*\}/,
+          'function getEdgeCodegen() { return EdgeCodegen; }');
     }
 
     parts.push(`// ─── ${entry} ${'─'.repeat(Math.max(0, 50 - entry.length))}`);
@@ -730,6 +749,83 @@ browser {
       </div>
       <p class="hint">"(Click buttons to add time)"</p>
     </div>
+  }
+}
+` },
+
+    { category: 'Reactive UI', name: 'Form Validation', code: `// Declarative form with built-in validation
+// Forms are first-class — fields, groups, validators, submit handling
+browser {
+  component App() {
+    form signup {
+      field username: String = "" {
+        required("Username is required")
+        minLength(3, "At least 3 characters")
+        maxLength(20, "Max 20 characters")
+      }
+
+      field email: String = "" {
+        required("Email is required")
+        email("Must be a valid email")
+      }
+
+      field password: String = "" {
+        required("Password is required")
+        minLength(8, "At least 8 characters")
+      }
+
+      field confirmPassword: String = "" {
+        required("Please confirm")
+        matches(password, "Passwords don't match")
+      }
+
+      field age: Int = 0 {
+        min(18, "Must be 18 or older")
+      }
+
+      on submit {
+        print("Form submitted!")
+      }
+    }
+
+    <form bind:form={signup}>
+      <h2>"Sign Up"</h2>
+
+      <FormField field={signup.username}>
+        <label>"Username"</label>
+        <input />
+        <ErrorMessage />
+      </FormField>
+
+      <FormField field={signup.email}>
+        <label>"Email"</label>
+        <input type="email" />
+        <ErrorMessage />
+      </FormField>
+
+      <FormField field={signup.password}>
+        <label>"Password"</label>
+        <input type="password" />
+        <ErrorMessage />
+      </FormField>
+
+      <FormField field={signup.confirmPassword}>
+        <label>"Confirm Password"</label>
+        <input type="password" />
+        <ErrorMessage />
+      </FormField>
+
+      <FormField field={signup.age}>
+        <label>"Age"</label>
+        <input type="number" />
+        <ErrorMessage />
+      </FormField>
+
+      <button type="submit" disabled={!signup.isValid}>
+        "Create Account"
+      </button>
+      <ErrorMessage form={signup} />
+    </form>
   }
 }
 ` },

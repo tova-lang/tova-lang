@@ -679,6 +679,10 @@ const TokenType = {
   EFFECT: 'EFFECT',
   COMPONENT: 'COMPONENT',
   STORE: 'STORE',
+  FORM: 'FORM',
+  FIELD: 'FIELD',
+  GROUP: 'GROUP',
+  STEPS: 'STEPS',
   STYLE_BLOCK: 'STYLE_BLOCK',
 
   // HTTP methods (used in route declarations)
@@ -806,6 +810,10 @@ const Keywords = {
   'effect': TokenType.EFFECT,
   'component': TokenType.COMPONENT,
   'store': TokenType.STORE,
+  'form': TokenType.FORM,
+  'field': TokenType.FIELD,
+  'group': TokenType.GROUP,
+  'steps': TokenType.STEPS,
 };
 
 // Token class
@@ -2430,6 +2438,14 @@ class CliBlock {
     this.loc = loc;
   }
 }
+class EdgeBlock {
+  constructor(body, loc, name = null) {
+    this.type = 'EdgeBlock';
+    this.name = name;       // optional string name for named edge blocks
+    this.body = body;       // Array of edge statements (config, bindings, routes, functions, etc.)
+    this.loc = loc;
+  }
+}
 
 // ============================================================
 // Declarations
@@ -2498,11 +2514,12 @@ class TypeVariant {
   }
 }
 class TypeField {
-  constructor(name, typeAnnotation, loc) {
+  constructor(name, typeAnnotation, loc, validators) {
     this.type = 'TypeField';
     this.name = name;
     this.typeAnnotation = typeAnnotation;
     this.loc = loc;
+    this.validators = validators || [];
   }
 }
 
@@ -2989,6 +3006,14 @@ class RangePattern {
 // ============================================================
 // Security-specific nodes (lazy-loaded from security-ast.js, re-exported for backward compat)
 // ============================================================
+
+// ============================================================
+// Edge-specific nodes (lazy-loaded from edge-ast.js, re-exported for backward compat)
+// ============================================================
+
+// ============================================================
+// Form-specific nodes (lazy-loaded from form-ast.js, re-exported for backward compat)
+// ============================================================
 class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';
@@ -3357,9 +3382,162 @@ class CliParam {
   }
 }
 
+// ─── src/parser/edge-ast.js ────────────────────────────
+
+// Edge/serverless-specific AST Node definitions for the Tova language
+// Extracted for lazy loading — only loaded when edge { } blocks are used.
+class EdgeConfigField {
+  constructor(key, value, loc) {
+    this.type = 'EdgeConfigField';
+    this.key = key;       // string — "target", "name", etc.
+    this.value = value;   // Expression (StringLiteral, etc.)
+    this.loc = loc;
+  }
+}
+class EdgeKVDeclaration {
+  constructor(name, config, loc) {
+    this.type = 'EdgeKVDeclaration';
+    this.name = name;       // string — binding name (e.g., "CACHE")
+    this.config = config;   // object or null — { ttl: Expression } etc.
+    this.loc = loc;
+  }
+}
+class EdgeSQLDeclaration {
+  constructor(name, config, loc) {
+    this.type = 'EdgeSQLDeclaration';
+    this.name = name;       // string — binding name (e.g., "DB")
+    this.config = config;   // object or null
+    this.loc = loc;
+  }
+}
+class EdgeStorageDeclaration {
+  constructor(name, config, loc) {
+    this.type = 'EdgeStorageDeclaration';
+    this.name = name;       // string — binding name (e.g., "UPLOADS")
+    this.config = config;   // object or null
+    this.loc = loc;
+  }
+}
+class EdgeQueueDeclaration {
+  constructor(name, config, loc) {
+    this.type = 'EdgeQueueDeclaration';
+    this.name = name;       // string — binding name (e.g., "EMAILS")
+    this.config = config;   // object or null
+    this.loc = loc;
+  }
+}
+class EdgeEnvDeclaration {
+  constructor(name, defaultValue, loc) {
+    this.type = 'EdgeEnvDeclaration';
+    this.name = name;             // string — env var name
+    this.defaultValue = defaultValue; // Expression or null
+    this.loc = loc;
+  }
+}
+class EdgeSecretDeclaration {
+  constructor(name, loc) {
+    this.type = 'EdgeSecretDeclaration';
+    this.name = name;       // string — secret name
+    this.loc = loc;
+  }
+}
+class EdgeScheduleDeclaration {
+  constructor(name, cron, body, loc) {
+    this.type = 'EdgeScheduleDeclaration';
+    this.name = name;       // string — schedule name
+    this.cron = cron;       // string — cron expression
+    this.body = body;       // BlockStatement
+    this.loc = loc;
+  }
+}
+class EdgeConsumeDeclaration {
+  constructor(queue, handler, loc) {
+    this.type = 'EdgeConsumeDeclaration';
+    this.queue = queue;     // string — queue binding name
+    this.handler = handler; // FunctionDeclaration or LambdaExpression
+    this.loc = loc;
+  }
+}
+
+// ─── src/parser/form-ast.js ────────────────────────────
+
+// Form-specific AST Node definitions for the Tova language
+// Extracted for lazy loading — only loaded when form { } blocks are used.
+
+// ============================================================
+// Form-specific nodes
+// ============================================================
+class FormDeclaration {
+  constructor(name, typeAnnotation, fields, groups, arrays, computeds, steps, onSubmit, loc) {
+    this.type = 'FormDeclaration';
+    this.name = name;
+    this.typeAnnotation = typeAnnotation;
+    this.fields = fields;
+    this.groups = groups;
+    this.arrays = arrays;
+    this.computeds = computeds;
+    this.steps = steps;
+    this.onSubmit = onSubmit;
+    this.loc = loc;
+  }
+}
+class FormFieldDeclaration {
+  constructor(name, typeAnnotation, initialValue, validators, loc) {
+    this.type = 'FormFieldDeclaration';
+    this.name = name;
+    this.typeAnnotation = typeAnnotation;
+    this.initialValue = initialValue;
+    this.validators = validators;
+    this.loc = loc;
+  }
+}
+class FormGroupDeclaration {
+  constructor(name, condition, fields, groups, loc) {
+    this.type = 'FormGroupDeclaration';
+    this.name = name;
+    this.condition = condition;
+    this.fields = fields;
+    this.groups = groups;
+    this.loc = loc;
+  }
+}
+class FormArrayDeclaration {
+  constructor(name, fields, validators, loc) {
+    this.type = 'FormArrayDeclaration';
+    this.name = name;
+    this.fields = fields;
+    this.validators = validators;
+    this.loc = loc;
+  }
+}
+class FormValidator {
+  constructor(name, args, isAsync, loc) {
+    this.type = 'FormValidator';
+    this.name = name;
+    this.args = args;
+    this.isAsync = isAsync;
+    this.loc = loc;
+  }
+}
+class FormStepsDeclaration {
+  constructor(steps, loc) {
+    this.type = 'FormStepsDeclaration';
+    this.steps = steps;
+    this.loc = loc;
+  }
+}
+class FormStep {
+  constructor(label, members, loc) {
+    this.type = 'FormStep';
+    this.label = label;
+    this.members = members;
+    this.loc = loc;
+  }
+}
+
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep };
 
 // ─── src/diagnostics/error-codes.js ────────────────────
 
@@ -4282,6 +4460,208 @@ function installServerParser(ParserClass) {
   };
 }
 
+// ─── src/parser/form-parser.js ─────────────────────────
+
+// Form-specific parser methods for the Tova language
+// Extracted for lazy loading — only loaded when form { } blocks are encountered.
+function installFormParser(ParserClass) {
+  if (ParserClass.prototype._formParserInstalled) return;
+  ParserClass.prototype._formParserInstalled = true;
+
+  ParserClass.prototype.parseFormDeclaration = function() {
+    const l = this.loc();
+    this.expect(TokenType.FORM);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected form name").value;
+
+    let typeAnnotation = null;
+    if (this.match(TokenType.COLON)) {
+      typeAnnotation = this.parseTypeAnnotation();
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' after form name");
+
+    const fields = [];
+    const groups = [];
+    const arrays = [];
+    const computeds = [];
+    let steps = null;
+    let onSubmit = null;
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      if (this.check(TokenType.FIELD)) {
+        fields.push(this.parseFormField());
+      } else if (this.check(TokenType.GROUP)) {
+        groups.push(this.parseFormGroup());
+      } else if (this._checkFormContextual('array')) {
+        arrays.push(this.parseFormArray());
+      } else if (this.check(TokenType.COMPUTED)) {
+        computeds.push(this.parseComputed());
+      } else if (this.check(TokenType.STEPS)) {
+        steps = this.parseFormSteps();
+      } else if (this._checkFormContextual('on') && this._peekFormContextual(1, 'submit')) {
+        onSubmit = this.parseFormOnSubmit();
+      } else {
+        this.error("Expected 'field', 'group', 'array', 'computed', 'steps', or 'on submit' inside form block");
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close form block");
+    return new FormDeclaration(name, typeAnnotation, fields, groups, arrays, computeds, steps, onSubmit, l);
+  };
+
+  ParserClass.prototype.parseFormField = function() {
+    const l = this.loc();
+    this.expect(TokenType.FIELD);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected field name").value;
+
+    let typeAnnotation = null;
+    if (this.match(TokenType.COLON)) {
+      typeAnnotation = this.parseTypeAnnotation();
+    }
+
+    let initialValue = null;
+    if (this.match(TokenType.ASSIGN)) {
+      initialValue = this.parseExpression();
+    }
+
+    const validators = [];
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume {
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        validators.push(this.parseFormValidator());
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close validator block");
+    }
+
+    return new FormFieldDeclaration(name, typeAnnotation, initialValue, validators, l);
+  };
+
+  ParserClass.prototype.parseFormValidator = function() {
+    const l = this.loc();
+    let isAsync = false;
+    if (this.check(TokenType.ASYNC)) {
+      isAsync = true;
+      this.advance();
+    }
+    const name = this.expect(TokenType.IDENTIFIER, "Expected validator name").value;
+
+    const args = [];
+    if (this.match(TokenType.LPAREN)) {
+      if (!this.check(TokenType.RPAREN)) {
+        args.push(this.parseExpression());
+        while (this.match(TokenType.COMMA)) {
+          args.push(this.parseExpression());
+        }
+      }
+      this.expect(TokenType.RPAREN, "Expected ')' after validator arguments");
+    }
+
+    return new FormValidator(name, args, isAsync, l);
+  };
+
+  ParserClass.prototype.parseFormGroup = function() {
+    const l = this.loc();
+    this.expect(TokenType.GROUP);
+    const name = this.expect(TokenType.IDENTIFIER, "Expected group name").value;
+
+    let condition = null;
+    if (this.check(TokenType.WHEN)) {
+      this.advance(); // consume 'when'
+      condition = this.parseExpression();
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' after group name");
+
+    const fields = [];
+    const groups = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      if (this.check(TokenType.FIELD)) {
+        fields.push(this.parseFormField());
+      } else if (this.check(TokenType.GROUP)) {
+        groups.push(this.parseFormGroup());
+      } else {
+        this.error("Expected 'field' or 'group' inside form group");
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close group block");
+    return new FormGroupDeclaration(name, condition, fields, groups, l);
+  };
+
+  ParserClass.prototype.parseFormArray = function() {
+    const l = this.loc();
+    this.advance(); // consume 'array' (contextual keyword — it's an IDENTIFIER with value "array")
+    const name = this.expect(TokenType.IDENTIFIER, "Expected array name").value;
+
+    this.expect(TokenType.LBRACE, "Expected '{' after array name");
+
+    const fields = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      if (this.check(TokenType.FIELD)) {
+        fields.push(this.parseFormField());
+      } else {
+        this.error("Expected 'field' inside form array");
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close array block");
+    return new FormArrayDeclaration(name, fields, [], l);
+  };
+
+  ParserClass.prototype.parseFormSteps = function() {
+    const l = this.loc();
+    this.expect(TokenType.STEPS);
+    this.expect(TokenType.LBRACE, "Expected '{' after steps");
+
+    const stepsArr = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      stepsArr.push(this.parseFormStep());
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close steps block");
+    return new FormStepsDeclaration(stepsArr, l);
+  };
+
+  ParserClass.prototype.parseFormStep = function() {
+    const l = this.loc();
+    if (!this._checkFormContextual('step')) {
+      this.error("Expected 'step' inside steps block");
+    }
+    this.advance(); // consume 'step'
+    const label = this.expect(TokenType.STRING, "Expected step label string").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after step label");
+
+    const members = [];
+    members.push(this.expect(TokenType.IDENTIFIER, "Expected field/group/array name").value);
+    while (this.match(TokenType.COMMA)) {
+      members.push(this.expect(TokenType.IDENTIFIER, "Expected field/group/array name").value);
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close step");
+    return new FormStep(label, members, l);
+  };
+
+  ParserClass.prototype.parseFormOnSubmit = function() {
+    this.advance(); // consume 'on'
+    this.advance(); // consume 'submit'
+    return this.parseBlock();
+  };
+
+  // Helper: check if current token is an identifier with a specific value
+  if (!ParserClass.prototype._checkFormContextual) {
+    ParserClass.prototype._checkFormContextual = function(name) {
+      return this.check(TokenType.IDENTIFIER) && this.current().value === name;
+    };
+  }
+
+  if (!ParserClass.prototype._peekFormContextual) {
+    ParserClass.prototype._peekFormContextual = function(offset, name) {
+      const token = this.peek(offset);
+      return token && token.type === TokenType.IDENTIFIER && token.value === name;
+    };
+  }
+}
+
 // ─── src/parser/browser-parser.js ──────────────────────
 
 // Browser-specific parser methods for the Tova language
@@ -4289,6 +4669,8 @@ function installServerParser(ParserClass) {
 function installBrowserParser(ParserClass) {
   if (ParserClass.prototype._browserParserInstalled) return;
   ParserClass.prototype._browserParserInstalled = true;
+
+  installFormParser(ParserClass);
 
   ParserClass.prototype.parseBrowserBlock = function() {
     const l = this.loc();
@@ -4328,6 +4710,7 @@ function installBrowserParser(ParserClass) {
     if (this.check(TokenType.EFFECT)) return this.parseEffect();
     if (this.check(TokenType.COMPONENT)) return this.parseComponent();
     if (this.check(TokenType.STORE)) return this.parseStore();
+    if (this.check(TokenType.FORM)) return this.parseFormDeclaration();
     return this.parseStatement();
   };
 
@@ -4416,6 +4799,8 @@ function installBrowserParser(ParserClass) {
         body.push(this.parseEffect());
       } else if (this.check(TokenType.COMPONENT)) {
         body.push(this.parseComponent());
+      } else if (this.check(TokenType.FORM)) {
+        body.push(this.parseFormDeclaration());
       } else {
         body.push(this.parseStatement());
       }
@@ -4533,7 +4918,13 @@ function installBrowserParser(ParserClass) {
     const l = this.loc();
     this.expect(TokenType.LESS, "Expected '<'");
 
-    const tag = this.expect(TokenType.IDENTIFIER, "Expected tag name").value;
+    // Accept identifiers and keywords as JSX tag names (e.g., <form>, <label>)
+    let tag;
+    if (this.check(TokenType.IDENTIFIER) || (this.peek().value in Keywords)) {
+      tag = this.advance().value;
+    } else {
+      tag = this.expect(TokenType.IDENTIFIER, "Expected tag name").value;
+    }
 
     // Parse attributes (including spread: {...expr})
     const attributes = [];
@@ -4621,7 +5012,13 @@ function installBrowserParser(ParserClass) {
       if (this.check(TokenType.LESS) && this.peek(1).type === TokenType.SLASH) {
         this.advance(); // <
         this.advance(); // /
-        const closeTag = this.expect(TokenType.IDENTIFIER, "Expected closing tag name").value;
+        // Accept identifiers and keywords as JSX closing tag names (e.g., </form>)
+        let closeTag;
+        if (this.check(TokenType.IDENTIFIER) || (this.peek().value in Keywords)) {
+          closeTag = this.advance().value;
+        } else {
+          closeTag = this.expect(TokenType.IDENTIFIER, "Expected closing tag name").value;
+        }
         if (closeTag !== parentTag) {
           this.error(`Mismatched closing tag: expected </${parentTag}>, got </${closeTag}>`);
         }
@@ -5313,6 +5710,261 @@ function installCliParser(ParserClass) {
   };
 }
 
+// ─── src/parser/edge-parser.js ─────────────────────────
+
+// Edge/serverless-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when edge { } blocks are encountered.
+
+// Valid config keys inside edge blocks
+const EDGE_CONFIG_KEYS = new Set(['target']);
+
+// Valid edge targets
+const EDGE_TARGETS = new Set(['cloudflare', 'deno', 'vercel', 'lambda', 'bun']);
+
+// Edge binding keywords (contextual identifiers)
+const EDGE_BINDING_KEYWORDS = new Set(['kv', 'sql', 'storage', 'queue', 'env', 'secret']);
+function installEdgeParser(ParserClass) {
+  if (ParserClass.prototype._edgeParserInstalled) return;
+  ParserClass.prototype._edgeParserInstalled = true;
+
+  // Edge reuses parseRoute() and parseMiddleware() from the server parser
+  installServerParser(ParserClass);
+
+  ParserClass.prototype.parseEdgeBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'edge'
+
+    // Optional name: edge "api" { }
+    let name = null;
+    if (this.check(TokenType.STRING)) {
+      name = this.advance().value;
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' after 'edge'");
+    const body = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseEdgeStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close edge block");
+    return new AST.EdgeBlock(body, l, name);
+  };
+
+  ParserClass.prototype.parseEdgeStatement = function() {
+    // route keyword → reuse server route parser
+    if (this.check(TokenType.ROUTE)) {
+      // Ensure server parser is installed (for parseRoute)
+      return this.parseRoute();
+    }
+
+    // Contextual keywords in edge blocks
+    if (this.check(TokenType.IDENTIFIER)) {
+      const val = this.current().value;
+
+      // middleware fn name(req, next) { ... }
+      if (val === 'middleware' && this.peek(1).type === TokenType.FN) {
+        return this.parseMiddleware();
+      }
+
+      // kv BINDING_NAME or kv BINDING_NAME { config }
+      if (val === 'kv') {
+        return this.parseEdgeKV();
+      }
+
+      // sql BINDING_NAME
+      if (val === 'sql') {
+        return this.parseEdgeSQL();
+      }
+
+      // storage BINDING_NAME
+      if (val === 'storage') {
+        return this.parseEdgeStorage();
+      }
+
+      // queue BINDING_NAME
+      if (val === 'queue') {
+        return this.parseEdgeQueue();
+      }
+
+      // env VAR_NAME = default_value
+      if (val === 'env') {
+        return this.parseEdgeEnv();
+      }
+
+      // secret SECRET_NAME
+      if (val === 'secret') {
+        return this.parseEdgeSecret();
+      }
+
+      // schedule "name" cron("...") { body }
+      if (val === 'schedule') {
+        return this.parseEdgeSchedule();
+      }
+
+      // consume QUEUE_NAME fn(messages) { body }
+      if (val === 'consume') {
+        return this.parseEdgeConsume();
+      }
+
+      // health "/path"
+      if (val === 'health') {
+        return this.parseHealthCheck();
+      }
+
+      // cors { ... }
+      if (val === 'cors') {
+        return this.parseCorsConfig();
+      }
+
+      // on_error fn(err, req) { ... }
+      if (val === 'on_error') {
+        return this.parseErrorHandler();
+      }
+
+      // Config field: identifier: value (e.g., target: "cloudflare")
+      // Accept any identifier + colon pattern; analyzer validates the key
+      if (this.peek(1).type === TokenType.COLON && !EDGE_BINDING_KEYWORDS.has(val)) {
+        return this.parseEdgeConfigField();
+      }
+    }
+
+    // fn or async fn → regular function declaration
+    if (this.check(TokenType.FN) ||
+        (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FN)) {
+      return this.parseStatement();
+    }
+
+    // Fallback to regular statement
+    return this.parseStatement();
+  };
+
+  ParserClass.prototype.parseEdgeConfigField = function() {
+    const l = this.loc();
+    const key = this.advance().value; // consume identifier (e.g., 'target')
+    this.expect(TokenType.COLON, "Expected ':' after config key");
+    const value = this.parseExpression();
+    return new EdgeConfigField(key, value, l);
+  };
+
+  ParserClass.prototype.parseEdgeKV = function() {
+    const l = this.loc();
+    this.advance(); // consume 'kv'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected KV binding name").value;
+    let config = null;
+    if (this.check(TokenType.LBRACE)) {
+      config = this._parseEdgeBindingConfig();
+    }
+    return new EdgeKVDeclaration(name, config, l);
+  };
+
+  ParserClass.prototype.parseEdgeSQL = function() {
+    const l = this.loc();
+    this.advance(); // consume 'sql'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected SQL binding name").value;
+    let config = null;
+    if (this.check(TokenType.LBRACE)) {
+      config = this._parseEdgeBindingConfig();
+    }
+    return new EdgeSQLDeclaration(name, config, l);
+  };
+
+  ParserClass.prototype.parseEdgeStorage = function() {
+    const l = this.loc();
+    this.advance(); // consume 'storage'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected storage binding name").value;
+    let config = null;
+    if (this.check(TokenType.LBRACE)) {
+      config = this._parseEdgeBindingConfig();
+    }
+    return new EdgeStorageDeclaration(name, config, l);
+  };
+
+  ParserClass.prototype.parseEdgeQueue = function() {
+    const l = this.loc();
+    this.advance(); // consume 'queue'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected queue binding name").value;
+    let config = null;
+    if (this.check(TokenType.LBRACE)) {
+      config = this._parseEdgeBindingConfig();
+    }
+    return new EdgeQueueDeclaration(name, config, l);
+  };
+
+  ParserClass.prototype.parseEdgeEnv = function() {
+    const l = this.loc();
+    this.advance(); // consume 'env'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected env var name").value;
+    let defaultValue = null;
+    if (this.match(TokenType.ASSIGN)) {
+      defaultValue = this.parseExpression();
+    }
+    return new EdgeEnvDeclaration(name, defaultValue, l);
+  };
+
+  ParserClass.prototype.parseEdgeSecret = function() {
+    const l = this.loc();
+    this.advance(); // consume 'secret'
+    const name = this.expect(TokenType.IDENTIFIER, "Expected secret name").value;
+    return new EdgeSecretDeclaration(name, l);
+  };
+
+  ParserClass.prototype.parseEdgeSchedule = function() {
+    const l = this.loc();
+    this.advance(); // consume 'schedule'
+    const name = this.expect(TokenType.STRING, "Expected schedule name string").value;
+
+    // cron("expression")
+    const cronIdent = this.expect(TokenType.IDENTIFIER, "Expected 'cron' after schedule name");
+    if (cronIdent.value !== 'cron') {
+      this.error("Expected 'cron' keyword after schedule name");
+    }
+    this.expect(TokenType.LPAREN, "Expected '(' after 'cron'");
+    const cronExpr = this.expect(TokenType.STRING, "Expected cron expression string").value;
+    this.expect(TokenType.RPAREN, "Expected ')' after cron expression");
+
+    const body = this.parseBlock();
+    return new EdgeScheduleDeclaration(name, cronExpr, body, l);
+  };
+
+  ParserClass.prototype.parseEdgeConsume = function() {
+    const l = this.loc();
+    this.advance(); // consume 'consume'
+    const queue = this.expect(TokenType.IDENTIFIER, "Expected queue name").value;
+
+    // fn(messages) { ... } or a function reference
+    this.expect(TokenType.FN, "Expected 'fn' after queue name in consume");
+    this.expect(TokenType.LPAREN, "Expected '(' after 'fn'");
+    const params = this.parseParameterList();
+    this.expect(TokenType.RPAREN, "Expected ')' after consume parameters");
+    const body = this.parseBlock();
+
+    const handler = new AST.LambdaExpression(params, body, l);
+    return new EdgeConsumeDeclaration(queue, handler, l);
+  };
+
+  // Helper: parse { key: value, ... } config block for bindings
+  ParserClass.prototype._parseEdgeBindingConfig = function() {
+    this.expect(TokenType.LBRACE, "Expected '{' for binding config");
+    const config = {};
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected config key").value;
+      this.expect(TokenType.COLON, "Expected ':' after config key");
+      const value = this.parseExpression();
+      config[key] = value;
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close binding config");
+    return config;
+  };
+}
+
 // ─── src/parser/parser.js ──────────────────────────────
 
 class Parser {
@@ -5386,6 +6038,16 @@ class Parser {
       return this.advance();
     }
     this.error(message || `Expected ${type}, got ${this.current().type}`);
+  }
+
+  // Accept IDENTIFIER or any keyword token as a property name (e.g., obj.field, obj.state).
+  // Keywords are valid property names after '.' and '?.' just like in JavaScript.
+  expectPropertyName(message) {
+    const tok = this.current();
+    if (tok.type === TokenType.IDENTIFIER || (typeof tok.value === 'string' && tok.type !== TokenType.EOF && tok.type !== TokenType.NUMBER && tok.type !== TokenType.STRING && /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(tok.value))) {
+      return this.advance();
+    }
+    this.error(message || `Expected property name, got ${tok.type}`);
   }
 
   loc() {
@@ -5476,7 +6138,8 @@ class Parser {
     const next = this.peek(1);
     // Fragment: <>
     if (next.type === TokenType.GREATER) return true;
-    if (next.type !== TokenType.IDENTIFIER) return false;
+    // Accept identifiers and keywords as JSX tag names (e.g., <form>, <label>, <field>)
+    if (next.type !== TokenType.IDENTIFIER && !(next.value in Keywords)) return false;
     // Uppercase tag is always a component reference, never a comparison variable
     if (/^[A-Z]/.test(next.value)) return true;
     const afterIdent = this.peek(2);
@@ -6293,6 +6956,43 @@ class Parser {
     return new AST.TypeAnnotation(name, typeParams, l);
   }
 
+  // Parse inline validators for type fields: { required, email, min(18) }
+  // Uses comma-separated validator names, supports args in parens
+  _parseTypeFieldValidators() {
+    const validators = [];
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume {
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        validators.push(this._parseInlineValidator());
+        this.match(TokenType.COMMA); // optional comma separator
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close validator block");
+    }
+    return validators;
+  }
+
+  // Parse a single inline validator: name or name(args...)
+  _parseInlineValidator() {
+    const l = this.loc();
+    let isAsync = false;
+    if (this.check(TokenType.ASYNC)) {
+      isAsync = true;
+      this.advance();
+    }
+    const name = this.expect(TokenType.IDENTIFIER, "Expected validator name").value;
+    const args = [];
+    if (this.match(TokenType.LPAREN)) {
+      if (!this.check(TokenType.RPAREN)) {
+        args.push(this.parseExpression());
+        while (this.match(TokenType.COMMA)) {
+          args.push(this.parseExpression());
+        }
+      }
+      this.expect(TokenType.RPAREN, "Expected ')' after validator arguments");
+    }
+    return new FormValidator(name, args, isAsync, l);
+  }
+
   parseTypeDeclaration() {
     const l = this.loc();
     this.expect(TokenType.TYPE);
@@ -6379,9 +7079,10 @@ class Parser {
         this.expect(TokenType.RPAREN, "Expected ')' after variant fields");
         variants.push(new AST.TypeVariant(vname, fields, vl));
       } else if (this.match(TokenType.COLON)) {
-        // Simple field: name: String
+        // Simple field: name: String  or  name: String { required, email }
         const ftype = this.parseTypeAnnotation();
-        variants.push(new AST.TypeField(vname, ftype, vl));
+        const validators = this._parseTypeFieldValidators();
+        variants.push(new AST.TypeField(vname, ftype, vl, validators));
       } else {
         // Bare variant: None
         variants.push(new AST.TypeVariant(vname, [], vl));
@@ -7057,7 +7758,7 @@ class Parser {
           expr = new AST.MemberExpression(expr, new AST.NumberLiteral(idx, l), true, l);
           continue;
         }
-        const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '.'").value;
+        const prop = this.expectPropertyName("Expected property name after '.'").value;
         expr = new AST.MemberExpression(expr, prop, false, l);
         continue;
       }
@@ -7065,7 +7766,7 @@ class Parser {
       if (this.check(TokenType.QUESTION_DOT)) {
         const l = this.loc();
         this.advance();
-        const prop = this.expect(TokenType.IDENTIFIER, "Expected property name after '?.'").value;
+        const prop = this.expectPropertyName("Expected property name after '?.'").value;
         expr = new AST.OptionalChain(expr, prop, false, l);
         continue;
       }
@@ -8908,6 +9609,119 @@ function installServerAnalyzer(AnalyzerClass) {
   };
 }
 
+// ─── src/analyzer/form-analyzer.js ─────────────────────
+
+// Form-specific analyzer methods for the Tova language
+// Extracted for lazy loading — only loaded when form { } blocks are encountered.
+function installFormAnalyzer(AnalyzerClass) {
+  if (AnalyzerClass.prototype._formAnalyzerInstalled) return;
+  AnalyzerClass.prototype._formAnalyzerInstalled = true;
+
+  const KNOWN_VALIDATORS = new Set([
+    'required', 'minLength', 'maxLength', 'min', 'max',
+    'pattern', 'email', 'matches', 'oneOf', 'validate',
+  ]);
+
+  AnalyzerClass.prototype.visitFormDeclaration = function(node) {
+    const ctx = this.currentScope.getContext();
+    if (ctx !== 'browser') {
+      this.error(`'form' can only be used inside a browser block or component`, node.loc,
+        "move this inside a browser { } block", { code: 'E310' });
+    }
+
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'form', node.typeAnnotation, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('form');
+    try {
+      for (const field of node.fields) { this._visitFormField(field); }
+      for (const group of node.groups) { this._visitFormGroup(group); }
+      for (const arr of node.arrays) { this._visitFormArray(arr); }
+      for (const comp of node.computeds) { this.visitNode(comp); }
+      if (node.steps) { this._visitFormSteps(node, node.steps); }
+      if (node.onSubmit) { this.visitNode(node.onSubmit); }
+    } finally {
+      this.currentScope = prevScope;
+    }
+  };
+
+  AnalyzerClass.prototype._visitFormField = function(node) {
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'formField', node.typeAnnotation, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    if (node.initialValue) {
+      this.visitExpression(node.initialValue);
+    }
+    for (const v of node.validators) {
+      if (!KNOWN_VALIDATORS.has(v.name)) {
+        this.warn(`Unknown validator '${v.name}'`, v.loc, null, { code: 'W_UNKNOWN_VALIDATOR' });
+      }
+      for (const arg of v.args) {
+        this.visitExpression(arg);
+      }
+    }
+  };
+
+  AnalyzerClass.prototype._visitFormGroup = function(node) {
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'formGroup', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    if (node.condition) {
+      this.visitExpression(node.condition);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('block');
+    try {
+      for (const field of node.fields) { this._visitFormField(field); }
+      for (const group of node.groups) { this._visitFormGroup(group); }
+    } finally {
+      this.currentScope = prevScope;
+    }
+  };
+
+  AnalyzerClass.prototype._visitFormArray = function(node) {
+    try {
+      this.currentScope.define(node.name,
+        new Symbol(node.name, 'formArray', null, false, node.loc));
+    } catch (e) {
+      this.error(e.message);
+    }
+    const prevScope = this.currentScope;
+    this.currentScope = this.currentScope.child('block');
+    try {
+      for (const field of node.fields) { this._visitFormField(field); }
+    } finally {
+      this.currentScope = prevScope;
+    }
+  };
+
+  AnalyzerClass.prototype._visitFormSteps = function(formNode, stepsNode) {
+    const knownMembers = new Set();
+    for (const f of formNode.fields) knownMembers.add(f.name);
+    for (const g of formNode.groups) knownMembers.add(g.name);
+    for (const a of formNode.arrays) knownMembers.add(a.name);
+
+    for (const step of stepsNode.steps) {
+      for (const member of step.members) {
+        if (!knownMembers.has(member)) {
+          this.warn(`Step '${step.label}' references unknown member '${member}'`, step.loc, null, { code: 'W_STEP_UNKNOWN_MEMBER' });
+        }
+      }
+    }
+  };
+}
+
 // ─── src/analyzer/browser-analyzer.js ──────────────────
 
 // Browser-specific analyzer methods for the Tova language
@@ -8915,6 +9729,8 @@ function installServerAnalyzer(AnalyzerClass) {
 function installBrowserAnalyzer(AnalyzerClass) {
   if (AnalyzerClass.prototype._browserAnalyzerInstalled) return;
   AnalyzerClass.prototype._browserAnalyzerInstalled = true;
+
+  installFormAnalyzer(AnalyzerClass);
 
   AnalyzerClass.prototype.visitBrowserBlock = function(node) {
     const prevScope = this.currentScope;
@@ -10161,6 +10977,214 @@ class Analyzer {
         message: 'cli block has no name: field — consider adding name: "your-tool"',
         loc: cliBlocks[0].loc,
         code: 'W_CLI_MISSING_NAME',
+      });
+    }
+  }
+
+  visitEdgeBlock(node) {
+    const validTargets = new Set(['cloudflare', 'deno', 'vercel', 'lambda', 'bun']);
+    const validConfigKeys = new Set(['target']);
+    const bindingNames = new Set();
+
+    // Binding support matrix per target
+    const BINDING_SUPPORT = {
+      cloudflare: { kv: true, sql: true, storage: true, queue: true },
+      deno:       { kv: true, sql: false, storage: false, queue: false },
+      vercel:     { kv: false, sql: false, storage: false, queue: false },
+      lambda:     { kv: false, sql: false, storage: false, queue: false },
+      bun:        { kv: false, sql: true, storage: false, queue: false },
+    };
+
+    // Targets that support schedule/consume/middleware
+    const SCHEDULE_TARGETS = new Set(['cloudflare', 'deno']);
+    const CONSUME_TARGETS = new Set(['cloudflare']);
+
+    // Determine target from config fields
+    let target = 'cloudflare';
+    for (const stmt of node.body) {
+      if (stmt.type === 'EdgeConfigField' && stmt.key === 'target' && stmt.value.type === 'StringLiteral') {
+        target = stmt.value.value;
+      }
+    }
+
+    this.pushScope('edge');
+
+    let kvCount = 0;
+    const queueNames = new Set();
+    const consumers = [];
+
+    for (const stmt of node.body) {
+      // Validate config fields
+      if (stmt.type === 'EdgeConfigField') {
+        if (!validConfigKeys.has(stmt.key)) {
+          this.warnings.push({
+            message: `Unknown edge config key '${stmt.key}' — valid keys are: ${[...validConfigKeys].join(', ')}`,
+            loc: stmt.loc,
+            code: 'W_UNKNOWN_EDGE_CONFIG',
+          });
+        }
+        if (stmt.key === 'target' && stmt.value.type === 'StringLiteral') {
+          if (!validTargets.has(stmt.value.value)) {
+            this.warnings.push({
+              message: `Unknown edge target '${stmt.value.value}' — valid targets are: ${[...validTargets].join(', ')}`,
+              loc: stmt.loc,
+              code: 'W_UNKNOWN_EDGE_TARGET',
+            });
+          }
+        }
+        continue;
+      }
+
+      // Check for duplicate binding names
+      if (stmt.type === 'EdgeKVDeclaration' || stmt.type === 'EdgeSQLDeclaration' ||
+          stmt.type === 'EdgeStorageDeclaration' || stmt.type === 'EdgeQueueDeclaration') {
+        if (bindingNames.has(stmt.name)) {
+          this.warnings.push({
+            message: `Duplicate edge binding '${stmt.name}'`,
+            loc: stmt.loc,
+            code: 'W_DUPLICATE_EDGE_BINDING',
+          });
+        }
+        bindingNames.add(stmt.name);
+      }
+
+      // Track queue names for consume validation
+      if (stmt.type === 'EdgeQueueDeclaration') {
+        queueNames.add(stmt.name);
+      }
+
+      // Check for duplicate env/secret names
+      if (stmt.type === 'EdgeEnvDeclaration' || stmt.type === 'EdgeSecretDeclaration') {
+        if (bindingNames.has(stmt.name)) {
+          this.warnings.push({
+            message: `Duplicate edge binding '${stmt.name}'`,
+            loc: stmt.loc,
+            code: 'W_DUPLICATE_EDGE_BINDING',
+          });
+        }
+        bindingNames.add(stmt.name);
+      }
+
+      // Unsupported binding warnings (per target)
+      const support = BINDING_SUPPORT[target] || BINDING_SUPPORT.cloudflare;
+      if (stmt.type === 'EdgeKVDeclaration' && !support.kv) {
+        this.warnings.push({
+          message: `KV binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_KV',
+        });
+      }
+      if (stmt.type === 'EdgeSQLDeclaration' && !support.sql) {
+        this.warnings.push({
+          message: `SQL binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_SQL',
+        });
+      }
+      if (stmt.type === 'EdgeStorageDeclaration' && !support.storage) {
+        this.warnings.push({
+          message: `Storage binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_STORAGE',
+        });
+      }
+      if (stmt.type === 'EdgeQueueDeclaration' && !support.queue) {
+        this.warnings.push({
+          message: `Queue binding '${stmt.name}' is not supported on target '${target}' — it will be stubbed as null`,
+          loc: stmt.loc,
+          code: 'W_UNSUPPORTED_QUEUE',
+        });
+      }
+
+      // Deno multi-KV warning
+      if (stmt.type === 'EdgeKVDeclaration') {
+        kvCount++;
+        if (kvCount > 1 && target === 'deno') {
+          this.warnings.push({
+            message: `Deno Deploy supports only one KV store — '${stmt.name}' will share the same store as the first KV binding`,
+            loc: stmt.loc,
+            code: 'W_DENO_MULTI_KV',
+          });
+        }
+      }
+
+      // Validate schedule cron expressions + target support
+      if (stmt.type === 'EdgeScheduleDeclaration') {
+        const parts = stmt.cron.split(/\s+/);
+        if (parts.length < 5 || parts.length > 6) {
+          this.warnings.push({
+            message: `Invalid cron expression '${stmt.cron}' — expected 5 or 6 space-separated fields`,
+            loc: stmt.loc,
+            code: 'W_INVALID_CRON',
+          });
+        }
+        if (!SCHEDULE_TARGETS.has(target)) {
+          this.warnings.push({
+            message: `Scheduled tasks are not supported on target '${target}' — schedule '${stmt.name}' will be ignored. Supported targets: ${[...SCHEDULE_TARGETS].join(', ')}`,
+            loc: stmt.loc,
+            code: 'W_UNSUPPORTED_SCHEDULE',
+          });
+        }
+      }
+
+      // Collect consume declarations for post-loop validation
+      if (stmt.type === 'EdgeConsumeDeclaration') {
+        consumers.push(stmt);
+        if (!CONSUME_TARGETS.has(target)) {
+          this.warnings.push({
+            message: `Queue consumers are not supported on target '${target}' — consume '${stmt.queue}' will be ignored. Supported targets: ${[...CONSUME_TARGETS].join(', ')}`,
+            loc: stmt.loc,
+            code: 'W_UNSUPPORTED_CONSUME',
+          });
+        }
+      }
+
+      // Visit child nodes — edge-specific types are noop in the registry,
+      // so explicitly visit bodies that contain statements
+      if (stmt.type === 'EdgeScheduleDeclaration' && stmt.body) {
+        for (const s of stmt.body.body || []) this.visitNode(s);
+      } else if (stmt.type === 'FunctionDeclaration' || stmt.type === 'RouteDeclaration') {
+        this.visitNode(stmt);
+      }
+    }
+
+    // Post-loop: validate consume references a declared queue
+    for (const consumer of consumers) {
+      if (!queueNames.has(consumer.queue)) {
+        this.warnings.push({
+          message: `consume '${consumer.queue}' references undeclared queue binding — add 'queue ${consumer.queue}' to the edge block`,
+          loc: consumer.loc,
+          code: 'W_CONSUME_UNKNOWN_QUEUE',
+        });
+      }
+    }
+
+    // Warn if edge block has no route or schedule handlers
+    const hasRoutes = node.body.some(s => s.type === 'RouteDeclaration');
+    const hasSchedules = node.body.some(s => s.type === 'EdgeScheduleDeclaration');
+    const hasConsumers = consumers.length > 0;
+    if (!hasRoutes && !hasSchedules && !hasConsumers) {
+      this.warnings.push({
+        message: 'edge block has no routes, schedules, or consumers — it will produce no handlers',
+        loc: node.loc,
+        code: 'W_EDGE_NO_HANDLERS',
+      });
+    }
+
+    this.popScope();
+  }
+
+  _validateEdgeCrossBlock() {
+    const edgeBlocks = this.ast.body.filter(n => n.type === 'EdgeBlock');
+    if (edgeBlocks.length === 0) return;
+
+    // Warn if edge + cli coexist (cli takes over with earlyReturn)
+    const hasCli = this.ast.body.some(n => n.type === 'CliBlock');
+    if (hasCli) {
+      this.warnings.push({
+        message: 'edge {} and cli {} blocks in the same file — cli produces a standalone executable, edge block will be ignored',
+        loc: edgeBlocks[0].loc,
+        code: 'W_EDGE_WITH_CLI',
       });
     }
   }
@@ -13663,7 +14687,7 @@ const browserPlugin = {
     },
     childNodeTypes: [
       'StateDeclaration', 'ComputedDeclaration', 'EffectDeclaration',
-      'ComponentDeclaration', 'StoreDeclaration',
+      'ComponentDeclaration', 'StoreDeclaration', 'FormDeclaration',
     ],
   },
   codegen: {},
@@ -13720,6 +14744,38 @@ const cliPlugin = {
     earlyReturn: true,
     earlyReturnMethod: '_generateCli',
   },
+};
+
+// ─── src/registry/plugins/edge-plugin.js ───────────────
+
+const edgePlugin = {
+  name: 'edge',
+  astNodeType: 'EdgeBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'edge',
+    lookahead: (parser) => {
+      const next = parser.peek(1);
+      // edge {} or edge "name" {}
+      return next.type === TokenType.LBRACE || next.type === TokenType.STRING;
+    },
+  },
+  parser: {
+    install: installEdgeParser,
+    installedFlag: '_edgeParserInstalled',
+    method: 'parseEdgeBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitEdgeBlock(node),
+    childNodeTypes: [],
+    noopNodeTypes: [
+      'EdgeKVDeclaration', 'EdgeSQLDeclaration', 'EdgeStorageDeclaration',
+      'EdgeQueueDeclaration', 'EdgeEnvDeclaration', 'EdgeSecretDeclaration',
+      'EdgeScheduleDeclaration', 'EdgeConsumeDeclaration', 'EdgeConfigField',
+    ],
+    crossBlockValidate: (analyzer) => analyzer._validateEdgeCrossBlock(),
+  },
+  codegen: {},
 };
 
 // ─── src/registry/plugins/data-plugin.js ───────────────
@@ -13807,6 +14863,7 @@ const benchPlugin = {
 
 
 
+
 BlockRegistry.register(serverPlugin);
 BlockRegistry.register(browserPlugin);
 BlockRegistry.register(sharedPlugin);
@@ -13815,6 +14872,7 @@ BlockRegistry.register(cliPlugin);
 BlockRegistry.register(dataPlugin);
 BlockRegistry.register(testPlugin);
 BlockRegistry.register(benchPlugin);
+BlockRegistry.register(edgePlugin);
 
 // ─── src/codegen/wasm-codegen.js ───────────────────────
 
@@ -14715,6 +15773,7 @@ class BaseCodegen {
       case 'SourceDeclaration': result = ''; break;
       case 'PipelineDeclaration': result = ''; break;
       case 'ValidateBlock': result = ''; break;
+      case 'FormDeclaration': result = ''; break;
       case 'RefreshPolicy': result = ''; break;
       case 'RefinementType': result = this.genRefinementType(node); break;
       default:
@@ -17495,6 +18554,562 @@ class SharedCodegen extends BaseCodegen {
   }
 }
 
+// ─── src/codegen/form-codegen.js ───────────────────────
+
+// Form codegen helper functions for the Tova language
+// Generates the revealing-module IIFE pattern for form { } blocks.
+
+/**
+ * Generate the validator function body for a single field.
+ * @param {string} fieldName - The field name (e.g., "email")
+ * @param {Array} validators - Array of FormValidator AST nodes
+ * @param {Function} genExpression - The codegen's genExpression method (bound)
+ * @param {string} indent - Current indentation string
+ * @returns {string} The complete validator function source
+ */
+function generateValidatorFn(fieldName, validators, genExpression, indent) {
+  if (!validators || validators.length === 0) {
+    return `${indent}function __validate_${fieldName}(v) { return null; }\n`;
+  }
+
+  const lines = [];
+  lines.push(`${indent}function __validate_${fieldName}(v) {`);
+
+  for (const v of validators) {
+    const msg = v.args.length > 0 ? genExpression(v.args[v.args.length - 1]) : '"Validation failed"';
+
+    switch (v.name) {
+      case 'required':
+        lines.push(`${indent}  if (v === undefined || v === null || v === "") return ${msg};`);
+        break;
+
+      case 'minLength': {
+        const len = v.args.length >= 2 ? genExpression(v.args[0]) : '0';
+        lines.push(`${indent}  if (typeof v === "string" && v.length < ${len}) return ${msg};`);
+        break;
+      }
+
+      case 'maxLength': {
+        const len = v.args.length >= 2 ? genExpression(v.args[0]) : 'Infinity';
+        lines.push(`${indent}  if (typeof v === "string" && v.length > ${len}) return ${msg};`);
+        break;
+      }
+
+      case 'min': {
+        const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : '0';
+        lines.push(`${indent}  if (typeof v === "number" && v < ${threshold}) return ${msg};`);
+        break;
+      }
+
+      case 'max': {
+        const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : 'Infinity';
+        lines.push(`${indent}  if (typeof v === "number" && v > ${threshold}) return ${msg};`);
+        break;
+      }
+
+      case 'pattern': {
+        const regex = v.args.length >= 2 ? genExpression(v.args[0]) : '/./';
+        lines.push(`${indent}  if (typeof v === "string" && !${regex}.test(v)) return ${msg};`);
+        break;
+      }
+
+      case 'email':
+        lines.push(`${indent}  if (typeof v === "string" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v)) return ${msg};`);
+        break;
+
+      case 'matches': {
+        const siblingField = v.args[0];
+        const siblingName = siblingField && (siblingField.name || siblingField);
+        const matchMsg = v.args.length >= 2 ? genExpression(v.args[1]) : '"Fields do not match"';
+        if (siblingName) {
+          lines.push(`${indent}  if (v !== __${siblingName}_value()) return ${matchMsg};`);
+        }
+        break;
+      }
+
+      case 'validate': {
+        // Custom validator: validate(fn(v) ...) — the first arg is a lambda/function
+        const fn = v.args.length > 0 ? genExpression(v.args[0]) : '(() => null)';
+        if (v.isAsync) {
+          // Async validators are handled in a later task — emit a comment placeholder
+          lines.push(`${indent}  // async validate: ${fn} (deferred to async validation)`);
+        } else {
+          lines.push(`${indent}  { const __r = ${fn}(v); if (__r) return __r; }`);
+        }
+        break;
+      }
+
+      default:
+        // Unknown validator — emit as custom function call for extensibility
+        if (v.args.length > 0) {
+          const allArgs = v.args.map(a => genExpression(a)).join(', ');
+          lines.push(`${indent}  // custom validator: ${v.name}(${allArgs})`);
+        }
+        break;
+    }
+  }
+
+  lines.push(`${indent}  return null;`);
+  lines.push(`${indent}}`);
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Generate the three signal pairs + initial const for a field.
+ * @param {string} fieldName - The field name
+ * @param {string} initialExpr - The generated JS expression for the initial value
+ * @param {string} indent - Current indentation string
+ * @returns {string} The signal declarations
+ */
+function generateFieldSignals(fieldName, initialExpr, indent) {
+  const lines = [];
+  lines.push(`${indent}const __${fieldName}_initial = ${initialExpr};`);
+  lines.push(`${indent}const [__${fieldName}_value, __set_${fieldName}_value] = createSignal(${initialExpr});`);
+  lines.push(`${indent}const [__${fieldName}_error, __set_${fieldName}_error] = createSignal(null);`);
+  lines.push(`${indent}const [__${fieldName}_touched, __set_${fieldName}_touched] = createSignal(false);`);
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Generate the field accessor object for a single field.
+ * @param {string} fieldName - The field name (may include prefix, e.g., "shipping_street")
+ * @param {string} indent - Current indentation string
+ * @returns {string} The field accessor object source
+ */
+function generateFieldAccessor(fieldName, indent) {
+  const lines = [];
+  lines.push(`${indent}const ${fieldName} = {`);
+  lines.push(`${indent}  get value() { return __${fieldName}_value(); },`);
+  lines.push(`${indent}  get error() { return __${fieldName}_error(); },`);
+  lines.push(`${indent}  get touched() { return __${fieldName}_touched(); },`);
+  lines.push(`${indent}  set(v) { __set_${fieldName}_value(v); if (__${fieldName}_touched()) __set_${fieldName}_error(__validate_${fieldName}(v)); },`);
+  lines.push(`${indent}  blur() { __set_${fieldName}_touched(true); __set_${fieldName}_error(__validate_${fieldName}(__${fieldName}_value())); },`);
+  lines.push(`${indent}  validate() { const e = __validate_${fieldName}(__${fieldName}_value()); __set_${fieldName}_error(e); return e === null; },`);
+  lines.push(`${indent}  reset() { __set_${fieldName}_value(__${fieldName}_initial); __set_${fieldName}_error(null); __set_${fieldName}_touched(false); },`);
+  lines.push(`${indent}};`);
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Generate a conditional guard line for a validator function.
+ * When the group condition is false, skip validation (return null).
+ * @param {string|null} conditionGuardExpr - JS expression that, when true, means "skip validation"
+ * @param {string} indent - Current indentation string
+ * @returns {string} The guard line, or empty string if no condition
+ */
+function generateConditionGuard(conditionGuardExpr, indent) {
+  if (!conditionGuardExpr) return '';
+  return `${indent}  if (${conditionGuardExpr}) return null;\n`;
+}
+
+/**
+ * Generate the validator function with an optional condition guard for groups.
+ * @param {string} fieldName - The prefixed field name (e.g., "shipping_street")
+ * @param {Array} validators - Array of FormValidator AST nodes
+ * @param {Function} genExpression - The codegen's genExpression method (bound)
+ * @param {string} indent - Current indentation string
+ * @param {string|null} conditionGuardExpr - If non-null, JS expression to guard (skip when truthy)
+ * @returns {string} The complete validator function source
+ */
+function generateGuardedValidatorFn(fieldName, validators, genExpression, indent, conditionGuardExpr) {
+  if (!validators || validators.length === 0) {
+    if (conditionGuardExpr) {
+      const lines = [];
+      lines.push(`${indent}function __validate_${fieldName}(v) {`);
+      lines.push(`${indent}  if (${conditionGuardExpr}) return null;`);
+      lines.push(`${indent}  return null;`);
+      lines.push(`${indent}}`);
+      return lines.join('\n') + '\n';
+    }
+    return `${indent}function __validate_${fieldName}(v) { return null; }\n`;
+  }
+
+  const lines = [];
+  lines.push(`${indent}function __validate_${fieldName}(v) {`);
+
+  // Insert condition guard before validators
+  if (conditionGuardExpr) {
+    lines.push(`${indent}  if (${conditionGuardExpr}) return null;`);
+  }
+
+  for (const v of validators) {
+    const msg = v.args.length > 0 ? genExpression(v.args[v.args.length - 1]) : '"Validation failed"';
+
+    switch (v.name) {
+      case 'required':
+        lines.push(`${indent}  if (v === undefined || v === null || v === "") return ${msg};`);
+        break;
+
+      case 'minLength': {
+        const len = v.args.length >= 2 ? genExpression(v.args[0]) : '0';
+        lines.push(`${indent}  if (typeof v === "string" && v.length < ${len}) return ${msg};`);
+        break;
+      }
+
+      case 'maxLength': {
+        const len = v.args.length >= 2 ? genExpression(v.args[0]) : 'Infinity';
+        lines.push(`${indent}  if (typeof v === "string" && v.length > ${len}) return ${msg};`);
+        break;
+      }
+
+      case 'min': {
+        const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : '0';
+        lines.push(`${indent}  if (typeof v === "number" && v < ${threshold}) return ${msg};`);
+        break;
+      }
+
+      case 'max': {
+        const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : 'Infinity';
+        lines.push(`${indent}  if (typeof v === "number" && v > ${threshold}) return ${msg};`);
+        break;
+      }
+
+      case 'pattern': {
+        const regex = v.args.length >= 2 ? genExpression(v.args[0]) : '/./';
+        lines.push(`${indent}  if (typeof v === "string" && !${regex}.test(v)) return ${msg};`);
+        break;
+      }
+
+      case 'email':
+        lines.push(`${indent}  if (typeof v === "string" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v)) return ${msg};`);
+        break;
+
+      case 'matches': {
+        const siblingField = v.args[0];
+        const siblingName = siblingField && (siblingField.name || siblingField);
+        const matchMsg = v.args.length >= 2 ? genExpression(v.args[1]) : '"Fields do not match"';
+        if (siblingName) {
+          lines.push(`${indent}  if (v !== __${siblingName}_value()) return ${matchMsg};`);
+        }
+        break;
+      }
+
+      case 'validate': {
+        const fn = v.args.length > 0 ? genExpression(v.args[0]) : '(() => null)';
+        if (v.isAsync) {
+          lines.push(`${indent}  // async validate: ${fn} (deferred to async validation)`);
+        } else {
+          lines.push(`${indent}  { const __r = ${fn}(v); if (__r) return __r; }`);
+        }
+        break;
+      }
+
+      default:
+        if (v.args.length > 0) {
+          const allArgs = v.args.map(a => genExpression(a)).join(', ');
+          lines.push(`${indent}  // custom validator: ${v.name}(${allArgs})`);
+        }
+        break;
+    }
+  }
+
+  lines.push(`${indent}  return null;`);
+  lines.push(`${indent}}`);
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Generate the group accessor object.
+ * @param {string} groupName - The group name (e.g., "shipping")
+ * @param {Array<{name: string, prefixedName: string}>} childFields - Fields in this group with their prefixed signal names
+ * @param {Array<string>} childGroupNames - Names of nested sub-group accessors
+ * @param {string} indent - Current indentation string
+ * @returns {string} The group accessor object source
+ */
+function generateGroupAccessor(groupName, childFields, childGroupNames, indent) {
+  const lines = [];
+  lines.push(`${indent}const ${groupName} = {`);
+
+  // Named field accessors as properties
+  for (const f of childFields) {
+    lines.push(`${indent}  ${f.name}: ${f.prefixedName},`);
+  }
+
+  // Nested group accessors as properties (reference the group's local variable name)
+  for (const g of childGroupNames) {
+    lines.push(`${indent}  ${g.localName}: ${g.localName},`);
+  }
+
+  // get values() — returns object with field values
+  const valuesEntries = childFields.map(f => `${f.name}: __${f.prefixedName}_value()`).join(', ');
+  lines.push(`${indent}  get values() { return { ${valuesEntries} }; },`);
+
+  // get isValid() — true when all child fields have null errors
+  const isValidParts = childFields.map(f => `__${f.prefixedName}_error() === null`);
+  const isValidExpr = isValidParts.length > 0 ? isValidParts.join(' && ') : 'true';
+  lines.push(`${indent}  get isValid() { return ${isValidExpr}; },`);
+
+  // get isDirty() — true when any child field differs from initial
+  const isDirtyParts = childFields.map(f => `__${f.prefixedName}_value() !== __${f.prefixedName}_initial`);
+  const isDirtyExpr = isDirtyParts.length > 0 ? isDirtyParts.join(' || ') : 'false';
+  lines.push(`${indent}  get isDirty() { return ${isDirtyExpr}; },`);
+
+  // reset() — resets all child fields
+  const resetCalls = childFields.map(f => `${f.prefixedName}.reset()`).join('; ');
+  lines.push(`${indent}  reset() { ${resetCalls}; },`);
+
+  lines.push(`${indent}};`);
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Generate a condition expression where form field identifiers are replaced
+ * with their signal value calls (__fieldName_value()).
+ * @param {Object} condNode - The condition AST node
+ * @param {Function} genExpression - The codegen's genExpression method (bound)
+ * @param {Set<string>} formFieldNames - Set of all known form field names (top-level)
+ * @returns {string} The JS expression with field references replaced by signal calls
+ */
+function generateConditionExpr(condNode, genExpression, formFieldNames) {
+  if (!condNode) return 'true';
+
+  // For identifier nodes that reference form fields, generate signal value calls
+  if (condNode.type === 'Identifier' && formFieldNames.has(condNode.name)) {
+    return `__${condNode.name}_value()`;
+  }
+
+  // For unary not: recurse into the operand
+  if (condNode.type === 'UnaryExpression' && (condNode.operator === 'not' || condNode.operator === '!')) {
+    const operand = generateConditionExpr(condNode.operand, genExpression, formFieldNames);
+    return `(!${operand})`;
+  }
+
+  // For binary/logical expressions: recurse into both sides
+  if (condNode.type === 'BinaryExpression' || condNode.type === 'LogicalExpression') {
+    const left = generateConditionExpr(condNode.left, genExpression, formFieldNames);
+    const right = generateConditionExpr(condNode.right, genExpression, formFieldNames);
+    const op = condNode.operator === 'and' ? '&&' : condNode.operator === 'or' ? '||' : condNode.operator;
+    return `(${left} ${op} ${right})`;
+  }
+
+  // Fallback: use the standard genExpression
+  return genExpression(condNode);
+}
+
+/**
+ * Recursively generate all code for a form group (signals, validators, accessors, group accessor).
+ * Collects all prefixed field names into the provided allFields array for form-level computeds.
+ * @param {Object} group - FormGroupDeclaration AST node
+ * @param {string} prefix - Current prefix (e.g., "shipping_" or "billing_address_")
+ * @param {Function} genExpression - The codegen's genExpression method (bound)
+ * @param {string} indent - Current indentation string
+ * @param {Array<string>} allPrefixedNames - Accumulator for all prefixed field names (for form-level isValid/isDirty)
+ * @param {string|null} conditionGuardExpr - JS expression to guard validators (from conditional group)
+ * @param {Array<{groupName: string, condExpr: string|null}>} conditionalGroups - Accumulator for conditional group info
+ * @param {Set<string>} formFieldNames - Set of all top-level form field names (for condition expression resolution)
+ * @returns {string} The complete generated code for this group
+ */
+function generateGroupCode(group, prefix, genExpression, indent, allPrefixedNames, conditionGuardExpr, conditionalGroups, formFieldNames) {
+  const p = [];
+  const groupPrefix = prefix + group.name + '_';
+
+  // Determine condition guard for this group's validators
+  let guardExpr = conditionGuardExpr || null;
+  if (group.condition) {
+    // Generate the condition expression with field references resolved to signal value calls
+    const condExpr = generateConditionExpr(group.condition, genExpression, formFieldNames || new Set());
+    // Guard: when condition is false, skip validation
+    const thisGuard = `!(${condExpr})`;
+    // Combine with parent guard if any
+    guardExpr = conditionGuardExpr ? `${conditionGuardExpr} || ${thisGuard}` : thisGuard;
+
+    // Track this conditional group for form-level isValid
+    conditionalGroups.push({ groupPrefix, condExpr });
+  }
+
+  // Child field info for the group accessor
+  const childFields = [];
+
+  // Generate signals, validators, and accessors for each field
+  for (const field of group.fields) {
+    const prefixedName = groupPrefix + field.name;
+    const init = field.initialValue ? genExpression(field.initialValue) : 'null';
+
+    p.push(generateFieldSignals(prefixedName, init, indent));
+    p.push(generateGuardedValidatorFn(prefixedName, field.validators, genExpression, indent, guardExpr));
+    p.push(generateFieldAccessor(prefixedName, indent));
+
+    allPrefixedNames.push(prefixedName);
+    childFields.push({ name: field.name, prefixedName });
+  }
+
+  // Recurse into nested groups
+  const childGroupNames = [];
+  for (const subGroup of (group.groups || [])) {
+    p.push(generateGroupCode(subGroup, groupPrefix, genExpression, indent, allPrefixedNames, guardExpr, conditionalGroups, formFieldNames));
+    childGroupNames.push({ localName: subGroup.name, prefixedName: groupPrefix + subGroup.name });
+  }
+
+  // Generate the group accessor object
+  p.push(generateGroupAccessor(group.name, childFields, childGroupNames, indent));
+
+  return p.join('');
+}
+
+/**
+ * Generate the complete code for a form array declaration.
+ * Produces:
+ *   - Items list signal (createSignal([]))
+ *   - Auto-increment ID counter
+ *   - Item factory function (with signal-backed fields, validators, accessors)
+ *   - Array accessor object (items, length, add, remove, move)
+ *
+ * @param {Object} arrayDecl - FormArrayDeclaration AST node
+ * @param {Function} genExpression - The codegen's genExpression method (bound)
+ * @param {string} indent - Current indentation string
+ * @returns {string} The complete generated code for this array
+ */
+function generateArrayCode(arrayDecl, genExpression, indent) {
+  const name = arrayDecl.name;
+  const fields = arrayDecl.fields || [];
+  const p = [];
+
+  // Items list signal
+  p.push(`${indent}const [__${name}, __set_${name}] = createSignal([]);\n`);
+  p.push(`${indent}let __${name}_nextId = 0;\n\n`);
+
+  // Item factory function
+  p.push(`${indent}function __create${capitalize(name)}Item(defaults) {\n`);
+  const fi = indent + '  '; // factory indent
+
+  p.push(`${fi}const __id = __${name}_nextId++;\n`);
+
+  // For each field: initial value, signals, validator, accessor
+  for (const field of fields) {
+    const fname = field.name;
+    const defaultVal = field.initialValue ? genExpression(field.initialValue) : 'null';
+
+    // Initial value (from defaults param or field default)
+    p.push(`${fi}const __${fname}_initial = (defaults && defaults.${fname} !== undefined) ? defaults.${fname} : ${defaultVal};\n`);
+
+    // Signals
+    p.push(`${fi}const [__${fname}_value, __set_${fname}_value] = createSignal(__${fname}_initial);\n`);
+    p.push(`${fi}const [__${fname}_error, __set_${fname}_error] = createSignal(null);\n`);
+    p.push(`${fi}const [__${fname}_touched, __set_${fname}_touched] = createSignal(false);\n`);
+    p.push(`\n`);
+  }
+
+  // Validator functions for each field
+  for (const field of fields) {
+    p.push(generateValidatorFn(field.name, field.validators, genExpression, fi));
+  }
+
+  // Return the item object with field accessors
+  p.push(`${fi}return {\n`);
+  const ri = fi + '  '; // return indent
+
+  p.push(`${ri}__id,\n`);
+
+  for (const field of fields) {
+    const fname = field.name;
+    p.push(`${ri}${fname}: {\n`);
+    const ai = ri + '  '; // accessor indent
+    p.push(`${ai}get value() { return __${fname}_value(); },\n`);
+    p.push(`${ai}get error() { return __${fname}_error(); },\n`);
+    p.push(`${ai}get touched() { return __${fname}_touched(); },\n`);
+    p.push(`${ai}set(v) { __set_${fname}_value(v); if (__${fname}_touched()) __set_${fname}_error(__validate_${fname}(v)); },\n`);
+    p.push(`${ai}blur() { __set_${fname}_touched(true); __set_${fname}_error(__validate_${fname}(__${fname}_value())); },\n`);
+    p.push(`${ai}validate() { const e = __validate_${fname}(__${fname}_value()); __set_${fname}_error(e); return e === null; },\n`);
+    p.push(`${ai}reset() { __set_${fname}_value(__${fname}_initial); __set_${fname}_error(null); __set_${fname}_touched(false); },\n`);
+    p.push(`${ri}},\n`);
+  }
+
+  // Item-level values getter
+  const valuesEntries = fields.map(f => `${f.name}: __${f.name}_value()`).join(', ');
+  p.push(`${ri}get values() { return { ${valuesEntries} }; },\n`);
+
+  // Item-level isValid getter
+  const isValidParts = fields.map(f => `__${f.name}_error() === null`);
+  const isValidExpr = isValidParts.length > 0 ? isValidParts.join(' && ') : 'true';
+  p.push(`${ri}get isValid() { return ${isValidExpr}; },\n`);
+
+  p.push(`${fi}};\n`);
+  p.push(`${indent}}\n\n`);
+
+  // Array accessor object
+  p.push(`${indent}const ${name} = {\n`);
+  const oi = indent + '  '; // object indent
+
+  p.push(`${oi}get items() { return __${name}(); },\n`);
+  p.push(`${oi}get length() { return __${name}().length; },\n`);
+
+  // add(defaults)
+  p.push(`${oi}add(defaults) {\n`);
+  p.push(`${oi}  const item = __create${capitalize(name)}Item(defaults);\n`);
+  p.push(`${oi}  __set_${name}(prev => [...prev, item]);\n`);
+  p.push(`${oi}  return item;\n`);
+  p.push(`${oi}},\n`);
+
+  // remove(item)
+  p.push(`${oi}remove(item) {\n`);
+  p.push(`${oi}  __set_${name}(prev => prev.filter(i => i.__id !== item.__id));\n`);
+  p.push(`${oi}},\n`);
+
+  // move(from, to)
+  p.push(`${oi}move(from, to) {\n`);
+  p.push(`${oi}  __set_${name}(prev => {\n`);
+  p.push(`${oi}    const arr = [...prev];\n`);
+  p.push(`${oi}    const [moved] = arr.splice(from, 1);\n`);
+  p.push(`${oi}    arr.splice(to, 0, moved);\n`);
+  p.push(`${oi}    return arr;\n`);
+  p.push(`${oi}  });\n`);
+  p.push(`${oi}},\n`);
+
+  p.push(`${indent}};\n`);
+
+  return p.join('');
+}
+
+/**
+ * Generate a createEffect that debounces an async validator for a form field.
+ * The effect:
+ * 1. Watches the field's value signal
+ * 2. Debounces with setTimeout (300ms)
+ * 3. Runs the async validation function
+ * 4. Uses a version counter to discard stale results
+ * 5. Sets the error signal with the result
+ *
+ * @param {string} fieldName - The field name (e.g., "email")
+ * @param {Object} asyncValidator - The FormValidator AST node with isAsync: true
+ * @param {Function} genExpression - The codegen's genExpression method (bound)
+ * @param {string} indent - Current indentation string
+ * @returns {string} The complete async validator effect source
+ */
+function generateAsyncValidatorEffect(fieldName, asyncValidator, genExpression, indent = '  ') {
+  const fn = genExpression(asyncValidator.args[0]); // The async validation function
+  const lines = [];
+  lines.push(`${indent}let __${fieldName}_asyncVersion = 0;`);
+  lines.push(`${indent}let __${fieldName}_asyncTimer = null;`);
+  lines.push(`${indent}createEffect(() => {`);
+  lines.push(`${indent}  const v = __${fieldName}_value();`);
+  lines.push(`${indent}  if (__${fieldName}_asyncTimer) clearTimeout(__${fieldName}_asyncTimer);`);
+  lines.push(`${indent}  const version = ++__${fieldName}_asyncVersion;`);
+  lines.push(`${indent}  __${fieldName}_asyncTimer = setTimeout(async () => {`);
+  lines.push(`${indent}    try {`);
+  lines.push(`${indent}      const err = await (${fn})(v);`);
+  lines.push(`${indent}      if (version === __${fieldName}_asyncVersion) {`);
+  lines.push(`${indent}        __set_${fieldName}_error(err || null);`);
+  lines.push(`${indent}      }`);
+  lines.push(`${indent}    } catch(e) {`);
+  lines.push(`${indent}      if (version === __${fieldName}_asyncVersion) {`);
+  lines.push(`${indent}        __set_${fieldName}_error(e.message || "Validation error");`);
+  lines.push(`${indent}      }`);
+  lines.push(`${indent}    }`);
+  lines.push(`${indent}  }, 300);`);
+  lines.push(`${indent}});`);
+  return lines.join('\n');
+}
+
+/**
+ * Capitalize the first letter of a string.
+ * @param {string} str
+ * @returns {string}
+ */
+function capitalize(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 // ─── src/codegen/server-codegen.js ─────────────────────
 
 class ServerCodegen extends BaseCodegen {
@@ -17626,6 +19241,69 @@ class ServerCodegen extends BaseCodegen {
           case 'Bool':
             checks.push(`${indent}if (${fieldAccess} !== undefined && typeof ${fieldAccess} !== "boolean") __bodyTypeErrors.push("${fieldPath} must be a boolean");`);
             break;
+        }
+      }
+    }
+    return checks;
+  }
+
+  // Generate validation checks from type-level validators (Phase 3)
+  // Returns an array of JS code lines for inline validation
+  _genTypeValidatorCode(paramName, typeInfo, indent = '  ') {
+    const checks = [];
+    for (const field of typeInfo.fields) {
+      if (!field.validators || field.validators.length === 0) continue;
+      const accessor = `${paramName}.${field.name}`;
+      for (const v of field.validators) {
+        // The last argument is typically the error message
+        const msgArg = v.args.length > 0 ? this.genExpression(v.args[v.args.length - 1]) : null;
+        switch (v.name) {
+          case 'required': {
+            const msg = msgArg || `"${field.name} is required"`;
+            checks.push(`${indent}if (${accessor} === undefined || ${accessor} === null || ${accessor} === "") __validationErrors.push({ field: "${field.name}", message: ${msg} });`);
+            break;
+          }
+          case 'email': {
+            const msg = msgArg || `"${field.name} must be a valid email"`;
+            checks.push(`${indent}if (${accessor} && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(${accessor})) __validationErrors.push({ field: "${field.name}", message: ${msg} });`);
+            break;
+          }
+          case 'min': {
+            const minVal = this.genExpression(v.args[0]);
+            const minMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} must be at least ${v.args[0].value || v.args[0].name}"`;
+            checks.push(`${indent}if (typeof ${accessor} === "number" && ${accessor} < ${minVal}) __validationErrors.push({ field: "${field.name}", message: ${minMsg} });`);
+            break;
+          }
+          case 'max': {
+            const maxVal = this.genExpression(v.args[0]);
+            const maxMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} must be at most ${v.args[0].value || v.args[0].name}"`;
+            checks.push(`${indent}if (typeof ${accessor} === "number" && ${accessor} > ${maxVal}) __validationErrors.push({ field: "${field.name}", message: ${maxMsg} });`);
+            break;
+          }
+          case 'minLength': {
+            const minLen = this.genExpression(v.args[0]);
+            const minLenMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} is too short"`;
+            checks.push(`${indent}if (typeof ${accessor} === "string" && ${accessor}.length < ${minLen}) __validationErrors.push({ field: "${field.name}", message: ${minLenMsg} });`);
+            break;
+          }
+          case 'maxLength': {
+            const maxLen = this.genExpression(v.args[0]);
+            const maxLenMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} is too long"`;
+            checks.push(`${indent}if (typeof ${accessor} === "string" && ${accessor}.length > ${maxLen}) __validationErrors.push({ field: "${field.name}", message: ${maxLenMsg} });`);
+            break;
+          }
+          case 'pattern': {
+            const regex = this.genExpression(v.args[0]);
+            const patMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} has invalid format"`;
+            checks.push(`${indent}if (typeof ${accessor} === "string" && !${regex}.test(${accessor})) __validationErrors.push({ field: "${field.name}", message: ${patMsg} });`);
+            break;
+          }
+          case 'oneOf': {
+            const vals = this.genExpression(v.args[0]);
+            const oneOfMsg = v.args.length >= 2 ? this.genExpression(v.args[1]) : `"${field.name} has invalid value"`;
+            checks.push(`${indent}if (!${vals}.includes(${accessor})) __validationErrors.push({ field: "${field.name}", message: ${oneOfMsg} });`);
+            break;
+          }
         }
       }
     }
@@ -17800,14 +19478,19 @@ class ServerCodegen extends BaseCodegen {
     }
 
     // Collect type declarations from shared blocks for model/ORM generation
-    const sharedTypes = new Map(); // typeName -> { fields: [{ name, type }] }
+    const sharedTypes = new Map(); // typeName -> { fields: [{ name, type, validators? }] }
     const _collectTypes = (stmts) => {
       for (const stmt of stmts) {
         if (stmt.type === 'TypeDeclaration' && stmt.variants) {
           const fields = [];
           for (const v of stmt.variants) {
             if (v.type === 'TypeField' && v.typeAnnotation) {
-              fields.push({ name: v.name, type: v.typeAnnotation.name || (v.typeAnnotation.type === 'ArrayTypeAnnotation' ? 'Array' : 'Any') });
+              const fieldInfo = { name: v.name, type: v.typeAnnotation.name || (v.typeAnnotation.type === 'ArrayTypeAnnotation' ? 'Array' : 'Any') };
+              // Capture type-level validators (Phase 3) if present
+              if (v.validators && v.validators.length > 0) {
+                fieldInfo.validators = v.validators;
+              }
+              fields.push(fieldInfo);
             }
           }
           if (fields.length > 0) {
@@ -19662,9 +21345,19 @@ class ServerCodegen extends BaseCodegen {
             lines.push(`  const ${paramNames[pi]} = body.__args ? body.__args[${pi}] : body.${paramNames[pi]};`);
           }
           const validationChecks = this._genValidationCode(fn.params);
-          if (validationChecks.length > 0) {
+          // Phase 3: Also generate type-level validator checks for typed parameters
+          const typeValidatorChecks = [];
+          for (const p of fn.params) {
+            if (p.typeAnnotation && p.typeAnnotation.type === 'TypeAnnotation' && sharedTypes.has(p.typeAnnotation.name)) {
+              const typeInfo = sharedTypes.get(p.typeAnnotation.name);
+              const tvChecks = this._genTypeValidatorCode(p.name, typeInfo);
+              typeValidatorChecks.push(...tvChecks);
+            }
+          }
+          const allChecks = [...validationChecks, ...typeValidatorChecks];
+          if (allChecks.length > 0) {
             lines.push(`  const __validationErrors = [];`);
-            for (const check of validationChecks) {
+            for (const check of allChecks) {
               lines.push(check);
             }
             lines.push(`  if (__validationErrors.length > 0) return __errorResponse(400, "VALIDATION_FAILED", "Validation failed", __validationErrors);`);
@@ -20198,6 +21891,9 @@ class ServerCodegen extends BaseCodegen {
           lines.push('  responses: { "200": { description: "Success" } },');
         }
 
+        // Close the OpenAPI path entry object
+        lines.push('};');
+
         // Auto-generate error responses based on route context
         const routeHasAuth = (route.decorators || []).some(d => d.name === 'auth');
         const routeHasRateLimit = (route.decorators || []).some(d => d.name === 'rate_limit');
@@ -20205,7 +21901,8 @@ class ServerCodegen extends BaseCodegen {
         const routeHasTimeout = (route.decorators || []).some(d => d.name === 'timeout');
         const errRef = '{ "$ref": "#/components/schemas/ErrorResponse" }';
 
-        // Merge error responses into existing 200 response
+        // Merge error responses into existing 200 response (wrapped in block scope to avoid __r redeclaration)
+        lines.push('{');
         lines.push(`const __r = __openApiSpec.paths[${JSON.stringify(path)}][${JSON.stringify(method)}].responses;`);
         if (routeHasValidation || ['post', 'put', 'patch'].includes(method)) {
           lines.push(`__r["400"] = { description: "Validation Failed", content: { "application/json": { schema: ${errRef} } } };`);
@@ -20229,8 +21926,7 @@ class ServerCodegen extends BaseCodegen {
           lines.push(`__r["504"] = { description: "Gateway Timeout", content: { "application/json": { schema: ${errRef} } } };`);
         }
         lines.push(`__r["500"] = { description: "Internal Server Error", content: { "application/json": { schema: ${errRef} } } };`);
-
-        lines.push('};');
+        lines.push('}');
       }
 
       // Add the /docs endpoint
@@ -21333,6 +23029,7 @@ class BrowserCodegen extends BaseCodegen {
     this.computedNames = new Set(); // Track computed variable names for getter transforms
     this.componentNames = new Set(); // Track component names for JSX
     this.storeNames = new Set(); // Track store names
+    this.formNames = new Set(); // Track form names
     this._asyncContext = false; // When true, server.xxx() calls emit `await`
     this._rpcCache = new WeakMap(); // Memoize _containsRPC() results
     this._signalCache = new WeakMap(); // Memoize _exprReadsSignal() results
@@ -21509,8 +23206,9 @@ class BrowserCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
+    this._typeValidators = typeValidatorsMap || {};
     const lines = [];
 
     // Runtime imports
@@ -21578,6 +23276,7 @@ class BrowserCodegen extends BaseCodegen {
     const effects = [];
     const components = [];
     const stores = [];
+    const forms = [];
     const imports = [];
     const other = [];
 
@@ -21589,6 +23288,7 @@ class BrowserCodegen extends BaseCodegen {
           case 'EffectDeclaration': effects.push(stmt); break;
           case 'ComponentDeclaration': components.push(stmt); break;
           case 'StoreDeclaration': stores.push(stmt); break;
+          case 'FormDeclaration': forms.push(stmt); break;
           case 'ImportDeclaration': imports.push(stmt); break;
           case 'ImportDefault': imports.push(stmt); break;
           case 'ImportWildcard': imports.push(stmt); break;
@@ -21626,6 +23326,11 @@ class BrowserCodegen extends BaseCodegen {
       this.storeNames.add(store.name);
     }
 
+    // Register form names
+    for (const form of forms) {
+      this.formNames.add(form.name);
+    }
+
     // Generate state signals
     if (states.length > 0) {
       lines.push('// ── Reactive State ──');
@@ -21651,6 +23356,15 @@ class BrowserCodegen extends BaseCodegen {
       lines.push('// ── Stores ──');
       for (const store of stores) {
         lines.push(this.generateStore(store));
+        lines.push('');
+      }
+    }
+
+    // Generate forms
+    if (forms.length > 0) {
+      lines.push('// ── Forms ──');
+      for (const form of forms) {
+        lines.push(this.generateForm(form));
         lines.push('');
       }
     }
@@ -21924,6 +23638,12 @@ class BrowserCodegen extends BaseCodegen {
         const effectCode = this._generateEffect(node.body);
         this.indent--;
         p.push(`${this.i()}${effectCode}\n`);
+      } else if (node.type === 'FormDeclaration') {
+        this.formNames.add(node.name);
+        p.push(`${this.i()}${this.generateForm(node)}\n`);
+      } else if (node.type === 'StoreDeclaration') {
+        this.storeNames.add(node.name);
+        p.push(`${this.i()}${this.generateStore(node)}\n`);
       } else {
         p.push(this.generateStatement(node) + '\n');
       }
@@ -22017,6 +23737,312 @@ class BrowserCodegen extends BaseCodegen {
     // Restore state/computed names
     this.stateNames = savedState;
     this.computedNames = savedComputed;
+
+    return p.join('');
+  }
+
+  generateForm(form) {
+    // Save/restore state and computed names so form-internal names don't leak
+    const savedState = new Set(this.stateNames);
+    const savedComputed = new Set(this.computedNames);
+    const savedFormNames = new Set(this.formNames);
+
+    const genExpr = (node) => this.genExpression(node);
+    const fields = form.fields || [];
+    const groups = form.groups || [];
+    const arrays = form.arrays || [];
+    const fieldNames = fields.map(f => f.name);
+
+    // Build merged validators map: field name -> validators array
+    // If form has a type annotation, inherit validators from the type definition.
+    // Form-level validators override type-level for the same validator name;
+    // additional type validators (with different names) are appended.
+    const mergedValidatorsMap = {};
+    for (const field of fields) {
+      mergedValidatorsMap[field.name] = [...(field.validators || [])];
+    }
+    if (form.typeAnnotation && this._typeValidators) {
+      const typeName = form.typeAnnotation.name;
+      const typeInfo = this._typeValidators[typeName];
+      if (typeInfo) {
+        for (const typeField of typeInfo.fields) {
+          if (mergedValidatorsMap[typeField.name] !== undefined) {
+            const existingNames = new Set(mergedValidatorsMap[typeField.name].map(v => v.name));
+            for (const tv of typeField.validators) {
+              if (!existingNames.has(tv.name)) {
+                mergedValidatorsMap[typeField.name].push(tv);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const p = [];
+    p.push(`const ${form.name} = (() => {\n`);
+    this.indent++;
+
+    // Field signals (top-level fields)
+    for (const field of fields) {
+      const init = field.initialValue ? this.genExpression(field.initialValue) : 'null';
+      p.push(generateFieldSignals(field.name, init, this.i()));
+    }
+    if (fields.length > 0) p.push('\n');
+
+    // Validator functions (top-level fields) — use merged validators
+    for (const field of fields) {
+      p.push(generateValidatorFn(field.name, mergedValidatorsMap[field.name] || [], genExpr, this.i()));
+    }
+    if (fields.length > 0) p.push('\n');
+
+    // Field accessors (top-level fields)
+    for (const field of fields) {
+      p.push(generateFieldAccessor(field.name, this.i()));
+    }
+    if (fields.length > 0) p.push('\n');
+
+    // Generate groups (signals, validators, accessors, group accessors)
+    const allGroupPrefixedNames = []; // Collects ALL prefixed field names from groups
+    const conditionalGroups = []; // Tracks conditional groups for form-level isValid
+    const groupNames = [];
+    const formFieldNameSet = new Set(fieldNames); // For condition expression resolution
+    for (const group of groups) {
+      p.push(generateGroupCode(group, '', genExpr, this.i(), allGroupPrefixedNames, null, conditionalGroups, formFieldNameSet));
+      p.push('\n');
+      groupNames.push(group.name);
+    }
+
+    // Generate arrays (signal-backed item lists)
+    const arrayNames = [];
+    for (const arr of arrays) {
+      p.push(generateArrayCode(arr, genExpr, this.i()));
+      p.push('\n');
+      arrayNames.push({ name: arr.name, fields: (arr.fields || []).map(f => f.name) });
+    }
+
+    // Cross-field re-validation effects (e.g., matches() validator) — use merged validators
+    for (const field of fields) {
+      const validators = mergedValidatorsMap[field.name] || [];
+      for (const v of validators) {
+        if (v.name === 'matches') {
+          const sourceField = v.args[0] && (v.args[0].name || v.args[0]);
+          const depField = field.name;
+          if (sourceField) {
+            p.push(`${this.i()}createEffect(() => {\n`);
+            p.push(`${this.i()}  __${sourceField}_value();\n`);
+            p.push(`${this.i()}  if (__${depField}_touched()) {\n`);
+            p.push(`${this.i()}    const e = __validate_${depField}(__${depField}_value());\n`);
+            p.push(`${this.i()}    __set_${depField}_error(e);\n`);
+            p.push(`${this.i()}  }\n`);
+            p.push(`${this.i()}});\n`);
+          }
+        }
+      }
+    }
+
+    // Async validator effects (debounced, versioned) — use merged validators
+    for (const field of fields) {
+      const validators = mergedValidatorsMap[field.name] || [];
+      for (const v of validators) {
+        if (v.isAsync && v.name === 'validate') {
+          p.push(generateAsyncValidatorEffect(
+            field.name, v, (expr) => this.genExpression(expr), this.i()
+          ));
+          p.push('\n');
+        }
+      }
+    }
+
+    // Form-level signals — include both top-level fields and group-prefixed fields
+    const allFieldNamesForValid = [...fieldNames, ...allGroupPrefixedNames];
+    const isValidParts = allFieldNamesForValid.map(n => `__${n}_error() === null`);
+    // Include array items in isValid: every item in every array must be valid
+    const arrayIsValidParts = arrayNames.map(a => `__${a.name}().every(i => i.isValid)`);
+    const allIsValidParts = [...isValidParts, ...arrayIsValidParts];
+    const isValidExpr = allIsValidParts.length > 0 ? allIsValidParts.join(' && ') : 'true';
+    p.push(`${this.i()}const isValid = createComputed(() => ${isValidExpr});\n`);
+
+    const isDirtyParts = allFieldNamesForValid.map(n => `__${n}_value() !== __${n}_initial`);
+    // Include arrays in isDirty: any items added = dirty
+    const arrayIsDirtyParts = arrayNames.map(a => `__${a.name}().length > 0`);
+    const allIsDirtyParts = [...isDirtyParts, ...arrayIsDirtyParts];
+    const isDirtyExpr = allIsDirtyParts.length > 0 ? allIsDirtyParts.join(' || ') : 'false';
+    p.push(`${this.i()}const isDirty = createComputed(() => ${isDirtyExpr});\n`);
+
+    p.push(`${this.i()}const [__submitting, __set_submitting] = createSignal(false);\n`);
+    p.push(`${this.i()}const [__submitError, __set_submitError] = createSignal(null);\n`);
+    p.push(`${this.i()}const [__submitCount, __set_submitCount] = createSignal(0);\n`);
+    p.push('\n');
+
+    // Wizard steps (only when form has steps block)
+    const hasSteps = form.steps && form.steps.steps && form.steps.steps.length > 0;
+    if (hasSteps) {
+      const fieldNameSet = new Set(fieldNames);
+      const groupNameSet = new Set(groupNames);
+      const arrayNameSet = new Set(arrayNames.map(a => a.name));
+
+      p.push(`${this.i()}const [__currentStep, __set_currentStep] = createSignal(0);\n`);
+      p.push(`${this.i()}const __steps = [\n`);
+      this.indent++;
+      for (const step of form.steps.steps) {
+        const validateParts = step.members.map(member => {
+          if (fieldNameSet.has(member)) return `${member}.validate()`;
+          if (groupNameSet.has(member)) return `${member}.isValid`;
+          if (arrayNameSet.has(member)) return `${member}.items.every(i => i.isValid)`;
+          // Default to field validate
+          return `${member}.validate()`;
+        });
+        const validateExpr = validateParts.length === 1
+          ? validateParts[0]
+          : validateParts.join(' && ');
+        p.push(`${this.i()}{ label: ${JSON.stringify(step.label)}, validate: () => ${validateExpr} },\n`);
+      }
+      this.indent--;
+      p.push(`${this.i()}];\n`);
+
+      p.push(`${this.i()}const canNext = createComputed(() => {\n`);
+      this.indent++;
+      p.push(`${this.i()}const step = __steps[__currentStep()];\n`);
+      p.push(`${this.i()}return step ? step.validate() : false;\n`);
+      this.indent--;
+      p.push(`${this.i()}});\n`);
+
+      p.push(`${this.i()}const canPrev = createComputed(() => __currentStep() > 0);\n`);
+      p.push(`${this.i()}const progress = createComputed(() => (__currentStep() + 1) / __steps.length);\n`);
+      p.push('\n');
+
+      p.push(`${this.i()}function next() {\n`);
+      this.indent++;
+      p.push(`${this.i()}if (canNext()) __set_currentStep(__tova_p => __tova_p + 1);\n`);
+      this.indent--;
+      p.push(`${this.i()}}\n`);
+
+      p.push(`${this.i()}function prev() {\n`);
+      this.indent++;
+      p.push(`${this.i()}if (canPrev()) __set_currentStep(__tova_p => __tova_p - 1);\n`);
+      this.indent--;
+      p.push(`${this.i()}}\n`);
+      p.push('\n');
+    }
+
+    // Reset function — include both top-level and group-prefixed fields + arrays
+    p.push(`${this.i()}function reset() {\n`);
+    this.indent++;
+    for (const name of fieldNames) {
+      p.push(`${this.i()}${name}.reset();\n`);
+    }
+    for (const name of allGroupPrefixedNames) {
+      p.push(`${this.i()}${name}.reset();\n`);
+    }
+    for (const arr of arrayNames) {
+      p.push(`${this.i()}__set_${arr.name}([]); __${arr.name}_nextId = 0;\n`);
+    }
+    p.push(`${this.i()}__set_submitError(null);\n`);
+    this.indent--;
+    p.push(`${this.i()}}\n\n`);
+
+    // Submit function
+    p.push(`${this.i()}async function submit(e) {\n`);
+    this.indent++;
+    p.push(`${this.i()}if (e && e.preventDefault) e.preventDefault();\n`);
+
+    // Touch all fields to show errors (top-level + group fields)
+    for (const name of fieldNames) {
+      p.push(`${this.i()}${name}.blur();\n`);
+    }
+    for (const name of allGroupPrefixedNames) {
+      p.push(`${this.i()}${name}.blur();\n`);
+    }
+    // Touch all array item fields to show errors
+    for (const arr of arrayNames) {
+      const blurCalls = arr.fields.map(f => `i.${f}.blur()`).join('; ');
+      p.push(`${this.i()}__${arr.name}().forEach(i => { ${blurCalls}; });\n`);
+    }
+
+    p.push(`${this.i()}if (!(isValid())) return;\n`);
+    p.push(`${this.i()}__set_submitting(true);\n`);
+    p.push(`${this.i()}__set_submitError(null);\n`);
+    p.push(`${this.i()}__set_submitCount(__tova_p => __tova_p + 1);\n`);
+    p.push(`${this.i()}try {\n`);
+    this.indent++;
+
+    // Generate the on submit body
+    if (form.onSubmit) {
+      p.push(this.genBlockStatements(form.onSubmit));
+      p.push('\n');
+    }
+
+    this.indent--;
+    p.push(`${this.i()}} catch (err) {\n`);
+    this.indent++;
+    p.push(`${this.i()}__set_submitError(err.message || String(err));\n`);
+    this.indent--;
+    p.push(`${this.i()}} finally {\n`);
+    this.indent++;
+    p.push(`${this.i()}__set_submitting(false);\n`);
+    this.indent--;
+    p.push(`${this.i()}}\n`);
+    this.indent--;
+    p.push(`${this.i()}}\n\n`);
+
+    // Return object
+    p.push(`${this.i()}return {\n`);
+    this.indent++;
+
+    // Top-level field accessors
+    for (const name of fieldNames) {
+      p.push(`${this.i()}${name},\n`);
+    }
+
+    // Group accessors
+    for (const name of groupNames) {
+      p.push(`${this.i()}${name},\n`);
+    }
+
+    // Array accessors
+    for (const arr of arrayNames) {
+      p.push(`${this.i()}${arr.name},\n`);
+    }
+
+    // Values getter — includes top-level fields, group values, and array values
+    const topLevelValuesEntries = fieldNames.map(n => `${n}: __${n}_value()`);
+    const groupValuesEntries = groupNames.map(n => `${n}: ${n}.values`);
+    const arrayValuesEntries = arrayNames.map(a => `${a.name}: __${a.name}().map(i => i.values)`);
+    const allValuesEntries = [...topLevelValuesEntries, ...groupValuesEntries, ...arrayValuesEntries];
+    const valuesObj = allValuesEntries.join(', ');
+    p.push(`${this.i()}get values() { return { ${valuesObj} }; },\n`);
+
+    // Form-level getters
+    p.push(`${this.i()}get isValid() { return isValid(); },\n`);
+    p.push(`${this.i()}get isDirty() { return isDirty(); },\n`);
+    p.push(`${this.i()}submit,\n`);
+    p.push(`${this.i()}reset,\n`);
+    p.push(`${this.i()}get submitting() { return __submitting(); },\n`);
+    p.push(`${this.i()}get submitError() { return __submitError(); },\n`);
+    p.push(`${this.i()}get submitCount() { return __submitCount(); },\n`);
+    p.push(`${this.i()}setError: (msg) => __set_submitError(msg),\n`);
+
+    // Wizard step properties in return object
+    if (hasSteps) {
+      p.push(`${this.i()}get currentStep() { return __currentStep(); },\n`);
+      p.push(`${this.i()}next,\n`);
+      p.push(`${this.i()}prev,\n`);
+      p.push(`${this.i()}get canNext() { return canNext(); },\n`);
+      p.push(`${this.i()}get canPrev() { return canPrev(); },\n`);
+      p.push(`${this.i()}get progress() { return progress(); },\n`);
+      p.push(`${this.i()}get steps() { return __steps; },\n`);
+    }
+
+    this.indent--;
+    p.push(`${this.i()}};\n`);
+
+    this.indent--;
+    p.push(`${this.i()}})();`);
+
+    // Restore state/computed/form names
+    this.stateNames = savedState;
+    this.computedNames = savedComputed;
+    this.formNames = savedFormNames;
 
     return p.join('');
   }
@@ -22123,6 +24149,16 @@ class BrowserCodegen extends BaseCodegen {
       return `(__props.children || '')`;
     }
 
+    // ── <ErrorMessage /> built-in component (compiler-time transform) ──
+    if (node.tag === 'ErrorMessage') {
+      return this._genErrorMessage(node, null);
+    }
+
+    // ── <FormField field={expr}> built-in component (compiler-time transform) ──
+    if (node.tag === 'FormField') {
+      return this._genFormField(node);
+    }
+
     const isComponent = node.tag[0] === node.tag[0].toUpperCase() && /^[A-Z]/.test(node.tag);
 
     // Attributes
@@ -22152,6 +24188,10 @@ class BrowserCodegen extends BaseCodegen {
           const valueExpr = isNumeric ? 'Number(e.target.value)' : 'e.target.value';
           events[eventName] = `(e) => { set${capitalize(exprName)}(${valueExpr}); }`;
         }
+      } else if (attr.name === 'bind:form') {
+        // Form binding: bind:form={login} → onSubmit wires to form controller's submit()
+        const formName = this.genExpression(attr.value);
+        events.submit = `(e) => ${formName}.submit(e)`;
       } else if (attr.name === 'bind:checked') {
         // Two-way binding: bind:checked={flag} → reactive checked + onChange
         const expr = this.genExpression(attr.value);
@@ -22441,6 +24481,100 @@ class BrowserCodegen extends BaseCodegen {
     }
 
     return result;
+  }
+
+  // ── <ErrorMessage /> compiler transform ──
+  // Standalone: <ErrorMessage field={form.email} /> or <ErrorMessage form={login} />
+  // Inside FormField: <ErrorMessage /> (inherits parent field expression)
+  _genErrorMessage(node, parentFieldExpr) {
+    const fieldAttr = node.attributes.find(a => a.name === 'field');
+    const formAttr = node.attributes.find(a => a.name === 'form');
+
+    if (formAttr) {
+      // Form-level error: show form.submitError
+      const formExpr = this.genExpression(formAttr.value);
+      return `() => ${formExpr}.submitError ? tova_el("span", {className: "form-error"}, [() => ${formExpr}.submitError]) : null`;
+    }
+
+    // Determine field expression: explicit attr or inherited from parent FormField
+    let fieldExpr;
+    if (fieldAttr) {
+      fieldExpr = this.genExpression(fieldAttr.value);
+    } else if (parentFieldExpr) {
+      fieldExpr = parentFieldExpr;
+    } else {
+      // No field info — render nothing
+      return 'null';
+    }
+
+    return `() => ${fieldExpr}.touched && ${fieldExpr}.error ? tova_el("span", {className: "form-error"}, [() => ${fieldExpr}.error]) : null`;
+  }
+
+  // ── <FormField field={expr}> compiler transform ──
+  // Generates a wrapper div.form-field with auto-wired input/select/textarea children
+  _genFormField(node) {
+    const fieldAttr = node.attributes.find(a => a.name === 'field');
+    if (!fieldAttr) {
+      // No field attribute — fall through to normal div
+      const children = (node.children || []).map(c => this.genJSX(c)).join(', ');
+      return `tova_el("div", {className: "form-field"}, [${children}])`;
+    }
+
+    const fieldExpr = this.genExpression(fieldAttr.value);
+    const inputTags = new Set(['input', 'select', 'textarea']);
+
+    const childParts = [];
+    for (const child of (node.children || [])) {
+      if (child.type === 'JSXElement' && inputTags.has(child.tag)) {
+        // Auto-wire input/select/textarea to the field
+        childParts.push(this._genFormFieldInput(child, fieldExpr));
+      } else if (child.type === 'JSXElement' && child.tag === 'ErrorMessage') {
+        // Replace <ErrorMessage /> with conditional error display using parent field
+        childParts.push(this._genErrorMessage(child, fieldExpr));
+      } else {
+        // Other children: generate normally
+        childParts.push(this.genJSX(child));
+      }
+    }
+
+    return `tova_el("div", {className: "form-field"}, [${childParts.join(', ')}])`;
+  }
+
+  // Generate an input/select/textarea element with field bindings injected
+  _genFormFieldInput(node, fieldExpr) {
+    // Process existing attributes normally, then inject field bindings
+    const attrs = {};
+    const events = {};
+
+    for (const attr of node.attributes) {
+      if (attr.name === 'class') {
+        attrs.className = this.genExpression(attr.value);
+      } else if (attr.name.startsWith('on:')) {
+        events[attr.name.slice(3)] = this.genExpression(attr.value);
+      } else {
+        attrs[attr.name] = this.genExpression(attr.value);
+      }
+    }
+
+    // Inject field bindings
+    attrs.value = `() => ${fieldExpr}.value`;
+    events.input = `(e) => ${fieldExpr}.set(e.target.value)`;
+    events.blur = `() => ${fieldExpr}.blur()`;
+
+    const propParts = [];
+    for (const [key, val] of Object.entries(attrs)) {
+      propParts.push(`${key}: ${val}`);
+    }
+    for (const [event, handler] of Object.entries(events)) {
+      propParts.push(`on${event[0].toUpperCase() + event.slice(1)}: ${handler}`);
+    }
+
+    const tag = JSON.stringify(node.tag);
+    if (node.selfClosing || !node.children || node.children.length === 0) {
+      return `tova_el(${tag}, {${propParts.join(', ')}})`;
+    }
+    const children = node.children.map(c => this.genJSX(c)).join(', ');
+    return `tova_el(${tag}, {${propParts.join(', ')}}, [${children}])`;
   }
 
   genJSXText(node) {
@@ -23421,6 +25555,1355 @@ class CliCodegen extends BaseCodegen {
   }
 }
 
+// ─── src/codegen/edge-codegen.js ───────────────────────
+
+// Edge/serverless code generator for the Tova language
+// Produces deployment-ready code for Cloudflare Workers, Deno Deploy, Vercel Edge, AWS Lambda, or Bun.
+
+
+
+const DEFAULT_TARGET = 'cloudflare';
+class EdgeCodegen extends BaseCodegen {
+
+  /**
+   * Merge all EdgeBlock nodes with the same name into a single config.
+   */
+  static mergeEdgeBlocks(edgeBlocks) {
+    let target = DEFAULT_TARGET;
+    const routes = [];
+    const functions = [];
+    const middlewares = [];
+    const bindings = { kv: [], sql: [], storage: [], queue: [] };
+    const envVars = [];
+    const secrets = [];
+    const schedules = [];
+    const consumers = [];
+    const miscStatements = [];
+    let healthPath = null;
+    let healthChecks = null;
+    let corsConfig = null;
+    let errorHandler = null;
+
+    for (const block of edgeBlocks) {
+      for (const stmt of block.body) {
+        switch (stmt.type) {
+          case 'EdgeConfigField':
+            if (stmt.key === 'target' && stmt.value.type === 'StringLiteral') {
+              target = stmt.value.value;
+            }
+            break;
+          case 'EdgeKVDeclaration':
+            bindings.kv.push(stmt);
+            break;
+          case 'EdgeSQLDeclaration':
+            bindings.sql.push(stmt);
+            break;
+          case 'EdgeStorageDeclaration':
+            bindings.storage.push(stmt);
+            break;
+          case 'EdgeQueueDeclaration':
+            bindings.queue.push(stmt);
+            break;
+          case 'EdgeEnvDeclaration':
+            envVars.push(stmt);
+            break;
+          case 'EdgeSecretDeclaration':
+            secrets.push(stmt);
+            break;
+          case 'EdgeScheduleDeclaration':
+            schedules.push(stmt);
+            break;
+          case 'EdgeConsumeDeclaration':
+            consumers.push(stmt);
+            break;
+          case 'RouteDeclaration':
+            routes.push(stmt);
+            break;
+          case 'MiddlewareDeclaration':
+            middlewares.push(stmt);
+            break;
+          case 'FunctionDeclaration':
+            functions.push(stmt);
+            break;
+          case 'HealthCheckDeclaration':
+            healthPath = stmt.path;
+            if (stmt.checks && stmt.checks.length > 0) {
+              if (!healthChecks) healthChecks = [];
+              healthChecks.push(...stmt.checks);
+            }
+            break;
+          case 'CorsDeclaration':
+            corsConfig = stmt.config;
+            break;
+          case 'ErrorHandlerDeclaration':
+            errorHandler = stmt;
+            break;
+          default:
+            miscStatements.push(stmt);
+            break;
+        }
+      }
+    }
+
+    return { target, routes, functions, middlewares, bindings, envVars, secrets, schedules, consumers, miscStatements, healthPath, healthChecks, corsConfig, errorHandler };
+  }
+
+  /**
+   * Generate edge function code for the given target.
+   * @param {Object} config — merged config from mergeEdgeBlocks
+   * @param {string} sharedCode — shared/top-level compiled code
+   * @returns {string} — complete edge function JS
+   */
+  generate(config, sharedCode, securityConfig = null) {
+    const { target } = config;
+    switch (target) {
+      case 'cloudflare': return this._generateCloudflare(config, sharedCode, securityConfig);
+      case 'deno': return this._generateDeno(config, sharedCode, securityConfig);
+      case 'vercel': return this._generateVercel(config, sharedCode, securityConfig);
+      case 'lambda': return this._generateLambda(config, sharedCode, securityConfig);
+      case 'bun': return this._generateBun(config, sharedCode, securityConfig);
+      default: return this._generateCloudflare(config, sharedCode, securityConfig);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // CORS, Health Check, Error Handler helpers
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * Emit CORS helper function. Two modes:
+   * - With explicit config: origin-checking __getCorsHeaders(req)
+   * - Without config (empty cors {}): wildcard __getCorsHeaders()
+   */
+  _emitEdgeCors(lines, corsConfig) {
+    if (!corsConfig) return;
+
+    lines.push('// ── CORS ──');
+
+    // Check if config has any meaningful keys
+    const hasOrigins = corsConfig.origins;
+    const hasCredentials = corsConfig.credentials;
+    const hasMethods = corsConfig.methods;
+    const hasHeaders = corsConfig.headers;
+    const hasMaxAge = corsConfig.max_age;
+    const hasExplicitConfig = hasOrigins || hasCredentials || hasMethods || hasHeaders || hasMaxAge;
+
+    if (hasExplicitConfig) {
+      const origins = hasOrigins ? this.genExpression(corsConfig.origins) : '["*"]';
+      const methods = hasMethods ? this.genExpression(corsConfig.methods) + '.join(", ")' : '"GET, POST, PUT, DELETE, PATCH, OPTIONS"';
+      const headers = hasHeaders ? this.genExpression(corsConfig.headers) + '.join(", ")' : '"Content-Type, Authorization"';
+      const credentials = hasCredentials ? this.genExpression(corsConfig.credentials) : 'false';
+      const maxAge = hasMaxAge ? 'String(' + this.genExpression(corsConfig.max_age) + ')' : '"86400"';
+
+      lines.push(`const __corsOrigins = ${origins};`);
+      lines.push('function __getCorsHeaders(req) {');
+      lines.push('  const origin = (req && req.headers && req.headers.get) ? req.headers.get("Origin") : "*";');
+      lines.push('  const allowed = __corsOrigins.includes("*") || __corsOrigins.includes(origin);');
+      lines.push('  return {');
+      lines.push(`    "Access-Control-Allow-Origin": allowed ? origin : "",`);
+      lines.push(`    "Access-Control-Allow-Methods": ${methods},`);
+      lines.push(`    "Access-Control-Allow-Headers": ${headers},`);
+      lines.push(`    "Access-Control-Allow-Credentials": String(${credentials}),`);
+      lines.push(`    "Access-Control-Max-Age": ${maxAge},`);
+      lines.push('  };');
+      lines.push('}');
+    } else {
+      // Empty cors {} — open wildcard
+      lines.push('const __corsHeaders = {');
+      lines.push('  "Access-Control-Allow-Origin": "*",');
+      lines.push('  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",');
+      lines.push('  "Access-Control-Allow-Headers": "Content-Type, Authorization",');
+      lines.push('  "Access-Control-Max-Age": "86400",');
+      lines.push('};');
+      lines.push('function __getCorsHeaders() { return __corsHeaders; }');
+    }
+    lines.push('');
+  }
+
+  /**
+   * Emit health check route registration.
+   * @param {string[]} lines — output lines
+   * @param {Object} config — merged edge config (needs healthPath, healthChecks)
+   * @param {string} format — 'response' or 'lambda'
+   */
+  _emitEdgeHealthCheck(lines, config, format) {
+    if (!config.healthPath) return;
+
+    lines.push('// ── Health Check ──');
+    const path = config.healthPath;
+    const regexStr = '^' + path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$';
+
+    lines.push(`__routes.push({ method: "GET", pattern: new RegExp(${JSON.stringify(regexStr)}), paramNames: [], handler: async () => {`);
+
+    if (config.healthChecks && config.healthChecks.length > 0) {
+      lines.push('  const checks = {};');
+      lines.push('  let status = "healthy";');
+      if (config.healthChecks.includes('check_memory')) {
+        lines.push('  const mem = process.memoryUsage ? process.memoryUsage() : { heapUsed: 0, heapTotal: 1 };');
+        lines.push('  const heapPct = mem.heapUsed / mem.heapTotal;');
+        lines.push('  checks.memory = { status: heapPct > 0.9 ? "degraded" : "healthy", heapUsed: mem.heapUsed, heapTotal: mem.heapTotal };');
+        lines.push('  if (heapPct > 0.9) status = "degraded";');
+      }
+      if (format === 'lambda') {
+        lines.push('  return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, checks, timestamp: new Date().toISOString() }) };');
+      } else {
+        lines.push('  return Response.json({ status, checks, timestamp: new Date().toISOString() });');
+      }
+    } else {
+      if (format === 'lambda') {
+        lines.push('  return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ok" }) };');
+      } else {
+        lines.push('  return Response.json({ status: "ok" });');
+      }
+    }
+
+    lines.push('}});');
+    lines.push('');
+  }
+
+  /**
+   * Emit error handler function from ErrorHandlerDeclaration.
+   */
+  _emitEdgeErrorHandler(lines, errorHandler) {
+    if (!errorHandler) return;
+
+    const params = errorHandler.params.map(p => p.name || this.genExpression(p)).join(', ');
+    this.pushScope();
+    for (const p of errorHandler.params) this.declareVar(p.name);
+    const body = this.genBlockBody(errorHandler.body);
+    this.popScope();
+
+    lines.push('// ── Error Handler ──');
+    lines.push(`async function __errorHandler(${params}) {`);
+    lines.push(body);
+    lines.push('}');
+    lines.push('');
+  }
+
+  /**
+   * Generate catch block with optional error handler.
+   * @param {string[]} lines — output lines
+   * @param {boolean} hasErrorHandler — whether __errorHandler is defined
+   * @param {boolean} hasCors — whether CORS headers should be merged
+   * @param {string} format — 'response' or 'lambda'
+   * @param {string} indent — indentation prefix
+   * @param {string} reqVar — name of the request variable
+   */
+  _emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, format, indent, reqVar) {
+    lines.push(`${indent}} catch (e) {`);
+
+    if (hasErrorHandler) {
+      lines.push(`${indent}  if (typeof __errorHandler === "function") {`);
+      lines.push(`${indent}    try {`);
+      lines.push(`${indent}      const __errResult = await __errorHandler(e, ${reqVar});`);
+
+      if (format === 'lambda') {
+        lines.push(`${indent}      if (__errResult && __errResult.statusCode) return __errResult;`);
+        const lambdaHeaders = hasCors
+          ? `{ "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`
+          : '{ "Content-Type": "application/json" }';
+        lines.push(`${indent}      return { statusCode: 500, headers: ${lambdaHeaders}, body: JSON.stringify(__errResult) };`);
+      } else {
+        lines.push(`${indent}      if (__errResult instanceof Response) return __errResult;`);
+        const respHeaders = hasCors
+          ? `{ "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`
+          : '{ "Content-Type": "application/json" }';
+        lines.push(`${indent}      return new Response(JSON.stringify(__errResult), { status: 500, headers: ${respHeaders} });`);
+      }
+      lines.push(`${indent}    } catch (_) {}`);
+      lines.push(`${indent}  }`);
+    }
+
+    if (format === 'lambda') {
+      const fallbackHeaders = hasCors
+        ? `{ "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`
+        : '{ "Content-Type": "application/json" }';
+      lines.push(`${indent}  return { statusCode: 500, headers: ${fallbackHeaders}, body: JSON.stringify({ error: e.message }) };`);
+    } else {
+      if (hasCors) {
+        lines.push(`${indent}  return new Response(JSON.stringify({ error: e.message }), {`);
+        lines.push(`${indent}    status: 500,`);
+        lines.push(`${indent}    headers: { "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`);
+        lines.push(`${indent}  });`);
+      } else {
+        lines.push(`${indent}  return new Response(JSON.stringify({ error: e.message }), {`);
+        lines.push(`${indent}    status: 500,`);
+        lines.push(`${indent}    headers: { "Content-Type": "application/json" }`);
+        lines.push(`${indent}  });`);
+      }
+    }
+    lines.push(`${indent}}`);
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Security helpers
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * Emit security code (roles, auth, protection, sanitization) from security block config.
+   * Returns { hasAuth, hasProtect, hasAutoSanitize } flags.
+   */
+  _emitEdgeSecurity(lines, securityConfig) {
+    const noSec = { hasAuth: false, hasProtect: false, hasAutoSanitize: false };
+    if (!securityConfig) return noSec;
+
+    const _SecurityCodegen = SecurityCodegen;
+    const secGen = new _SecurityCodegen();
+    const fragments = secGen.generateServerSecurity(securityConfig);
+
+    if (fragments.roleDefinitions) {
+      lines.push(fragments.roleDefinitions);
+      lines.push('');
+    }
+    if (fragments.protectCode) {
+      lines.push(fragments.protectCode);
+      lines.push('');
+    }
+    if (fragments.sensitiveCode) {
+      lines.push(fragments.sensitiveCode);
+      lines.push('');
+    }
+    if (fragments.cspCode) {
+      lines.push(fragments.cspCode);
+      lines.push('');
+    }
+    if (fragments.auditCode) {
+      lines.push(fragments.auditCode);
+      lines.push('');
+    }
+
+    const hasAuth = this._emitEdgeAuth(lines, securityConfig);
+
+    return {
+      hasAuth,
+      hasProtect: !!fragments.protectCode,
+      hasAutoSanitize: fragments.hasAutoSanitize,
+    };
+  }
+
+  /**
+   * Emit JWT auth verification function for edge runtimes.
+   * Uses Web Crypto API (available on all edge targets).
+   */
+  _emitEdgeAuth(lines, securityConfig) {
+    if (!securityConfig.auth) return false;
+
+    const authType = securityConfig.auth.authType;
+    if (authType !== 'jwt') return false;
+
+    const secret = securityConfig.auth.config.secret
+      ? this.genExpression(securityConfig.auth.config.secret)
+      : 'undefined';
+
+    lines.push('// ── Edge Auth (JWT) ──');
+    lines.push(`const __authSecret = ${secret};`);
+    lines.push('async function __authenticate(request) {');
+    lines.push('  const __authHdr = (request.headers && request.headers.get) ? request.headers.get("authorization") : (request.headers && (request.headers["Authorization"] || request.headers["authorization"]));');
+    lines.push('  if (!__authHdr || !__authHdr.startsWith("Bearer ")) return null;');
+    lines.push('  const __token = __authHdr.slice(7);');
+    lines.push('  try {');
+    lines.push('    const [__hB64, __pB64, __sB64] = __token.split(".");');
+    lines.push('    if (!__hB64 || !__pB64 || !__sB64) return null;');
+    lines.push('    const __b64d = (s) => atob(s.replace(/-/g, "+").replace(/_/g, "/"));');
+    lines.push('    const __hdr = JSON.parse(__b64d(__hB64));');
+    lines.push('    if (__hdr.alg !== "HS256") return null;');
+    lines.push('    const __payload = JSON.parse(__b64d(__pB64));');
+    lines.push('    if (__payload.exp && __payload.exp < Date.now() / 1000) return null;');
+    lines.push('    const __enc = new TextEncoder();');
+    lines.push('    const __key = await crypto.subtle.importKey("raw", __enc.encode(__authSecret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);');
+    lines.push('    const __sigBytes = Uint8Array.from(__b64d(__sB64), c => c.charCodeAt(0));');
+    lines.push('    const __valid = await crypto.subtle.verify("HMAC", __key, __sigBytes, __enc.encode(__hB64 + "." + __pB64));');
+    lines.push('    if (!__valid) return null;');
+    lines.push('    return __payload;');
+    lines.push('  } catch (_) { return null; }');
+    lines.push('}');
+    lines.push('');
+    return true;
+  }
+
+  /**
+   * Emit inline security check (auth + protection) in request handler.
+   * @returns {string} The user variable name ('__user' or 'null')
+   */
+  _emitEdgeSecurityCheck(lines, secFlags, format, indent, reqVar, hasCors) {
+    if (!secFlags.hasAuth && !secFlags.hasProtect) return 'null';
+
+    const userVar = secFlags.hasAuth ? '__user' : 'null';
+
+    if (secFlags.hasAuth) {
+      lines.push(`${indent}const __user = await __authenticate(${reqVar});`);
+    }
+
+    if (secFlags.hasProtect) {
+      lines.push(`${indent}const __prot = __checkProtection(pathname, ${userVar});`);
+      lines.push(`${indent}if (!__prot.allowed) {`);
+      if (format === 'lambda') {
+        const hdr = hasCors
+          ? `{ "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`
+          : '{ "Content-Type": "application/json" }';
+        lines.push(`${indent}  return { statusCode: ${secFlags.hasAuth ? '(__user ? 403 : 401)' : '403'}, headers: ${hdr}, body: JSON.stringify({ error: __prot.reason }) };`);
+      } else {
+        const hdr = hasCors
+          ? `{ "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`
+          : '{ "Content-Type": "application/json" }';
+        lines.push(`${indent}  return new Response(JSON.stringify({ error: __prot.reason }), { status: ${secFlags.hasAuth ? '(__user ? 403 : 401)' : '403'}, headers: ${hdr} });`);
+      }
+      lines.push(`${indent}}`);
+      lines.push('');
+    }
+
+    return userVar;
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Binding helpers
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * Generate the ` ?? defaultExpr` suffix for an env declaration.
+   */
+  _genDefaultSuffix(envDecl) {
+    if (envDecl.defaultValue) {
+      return ' ?? ' + this.genExpression(envDecl.defaultValue);
+    }
+    return '';
+  }
+
+  /**
+   * Cloudflare bindings: module-level `let` declarations + init lines for fetch/scheduled/queue.
+   * Returns { moduleLines: string[], fetchInitLines: string[] }
+   */
+  _emitCloudflareBindings(config) {
+    const moduleLines = [];
+    const fetchInitLines = [];
+    const allBindings = [
+      ...config.bindings.kv,
+      ...config.bindings.sql,
+      ...config.bindings.storage,
+      ...config.bindings.queue,
+    ];
+    const allEnvSecrets = [...config.envVars, ...config.secrets];
+
+    if (allBindings.length === 0 && allEnvSecrets.length === 0) {
+      return { moduleLines, fetchInitLines };
+    }
+
+    // Module-level let declarations
+    const names = [
+      ...allBindings.map(b => b.name),
+      ...allEnvSecrets.map(b => b.name),
+    ];
+    moduleLines.push('// ── Bindings ──');
+    moduleLines.push('let ' + names.join(', ') + ';');
+    moduleLines.push('');
+
+    // Fetch init lines (inside fetch/scheduled/queue handlers)
+    for (const b of allBindings) {
+      fetchInitLines.push(`    ${b.name} = env.${b.name};`);
+    }
+    for (const e of config.envVars) {
+      fetchInitLines.push(`    ${e.name} = env.${e.name}${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      fetchInitLines.push(`    ${s.name} = env.${s.name};`);
+    }
+
+    return { moduleLines, fetchInitLines };
+  }
+
+  /**
+   * Deno bindings: top-level const declarations.
+   */
+  _emitDenoBindings(lines, config) {
+    const hasKv = config.bindings.kv.length > 0;
+    const hasAnything = hasKv || config.bindings.sql.length > 0 ||
+      config.bindings.storage.length > 0 || config.bindings.queue.length > 0 ||
+      config.envVars.length > 0 || config.secrets.length > 0;
+
+    if (!hasAnything) return;
+
+    lines.push('// ── Bindings ──');
+
+    // KV — first one opens the store, rest share
+    if (hasKv) {
+      lines.push(`const ${config.bindings.kv[0].name} = await Deno.openKv();`);
+      for (let i = 1; i < config.bindings.kv.length; i++) {
+        lines.push(`const ${config.bindings.kv[i].name} = ${config.bindings.kv[0].name}; // shared Deno KV store`);
+      }
+    }
+
+    // Unsupported stubs
+    for (const b of config.bindings.sql) {
+      lines.push(`const ${b.name} = null; // SQL not natively supported on Deno Deploy — use a third-party driver`);
+    }
+    for (const b of config.bindings.storage) {
+      lines.push(`const ${b.name} = null; // Object storage not natively supported on Deno Deploy`);
+    }
+    for (const b of config.bindings.queue) {
+      lines.push(`const ${b.name} = null; // Queues not natively supported on Deno Deploy`);
+    }
+
+    // Env/Secret
+    for (const e of config.envVars) {
+      lines.push(`const ${e.name} = Deno.env.get(${JSON.stringify(e.name)})${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      lines.push(`const ${s.name} = Deno.env.get(${JSON.stringify(s.name)});`);
+    }
+
+    lines.push('');
+  }
+
+  /**
+   * Process.env-based bindings (Vercel, Lambda).
+   * Only env/secret are supported; others become stubs.
+   */
+  _emitProcessEnvBindings(lines, config, targetName) {
+    const hasAnything = config.bindings.kv.length > 0 || config.bindings.sql.length > 0 ||
+      config.bindings.storage.length > 0 || config.bindings.queue.length > 0 ||
+      config.envVars.length > 0 || config.secrets.length > 0;
+
+    if (!hasAnything) return;
+
+    lines.push('// ── Bindings ──');
+
+    // Unsupported stubs
+    for (const b of config.bindings.kv) {
+      lines.push(`const ${b.name} = null; // KV not supported on ${targetName}`);
+    }
+    for (const b of config.bindings.sql) {
+      lines.push(`const ${b.name} = null; // SQL not supported on ${targetName}`);
+    }
+    for (const b of config.bindings.storage) {
+      lines.push(`const ${b.name} = null; // Object storage not supported on ${targetName}`);
+    }
+    for (const b of config.bindings.queue) {
+      lines.push(`const ${b.name} = null; // Queues not supported on ${targetName}`);
+    }
+
+    // Env/Secret via process.env
+    for (const e of config.envVars) {
+      lines.push(`const ${e.name} = process.env.${e.name}${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      lines.push(`const ${s.name} = process.env.${s.name};`);
+    }
+
+    lines.push('');
+  }
+
+  /**
+   * Bun bindings: SQL via bun:sqlite, env via process.env, others stub.
+   * Returns { imports: string[], bindings: string[] }
+   */
+  _emitBunBindings(config) {
+    const imports = [];
+    const bindings = [];
+    const hasAnything = config.bindings.kv.length > 0 || config.bindings.sql.length > 0 ||
+      config.bindings.storage.length > 0 || config.bindings.queue.length > 0 ||
+      config.envVars.length > 0 || config.secrets.length > 0;
+
+    if (!hasAnything) return { imports, bindings };
+
+    bindings.push('// ── Bindings ──');
+
+    // KV stub
+    for (const b of config.bindings.kv) {
+      bindings.push(`const ${b.name} = null; // KV not natively supported on Bun — use a third-party store`);
+    }
+
+    // SQL via bun:sqlite
+    if (config.bindings.sql.length > 0) {
+      imports.push('import { Database } from "bun:sqlite";');
+      for (const b of config.bindings.sql) {
+        bindings.push(`const ${b.name} = new Database("${b.name}.sqlite");`);
+      }
+    }
+
+    // Storage/Queue stubs
+    for (const b of config.bindings.storage) {
+      bindings.push(`const ${b.name} = null; // Object storage not natively supported on Bun`);
+    }
+    for (const b of config.bindings.queue) {
+      bindings.push(`const ${b.name} = null; // Queues not natively supported on Bun`);
+    }
+
+    // Env/Secret via process.env
+    for (const e of config.envVars) {
+      bindings.push(`const ${e.name} = process.env.${e.name}${this._genDefaultSuffix(e)};`);
+    }
+    for (const s of config.secrets) {
+      bindings.push(`const ${s.name} = process.env.${s.name};`);
+    }
+
+    bindings.push('');
+    return { imports, bindings };
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Cloudflare Workers target
+  // ════════════════════════════════════════════════════════════
+
+  _generateCloudflare(config, sharedCode, securityConfig) {
+    const lines = [];
+    const hasCors = !!config.corsConfig;
+    const hasErrorHandler = !!config.errorHandler;
+
+    lines.push('// Generated by Tova — Cloudflare Workers target');
+    lines.push('');
+
+    // Shared code
+    if (sharedCode && sharedCode.trim()) {
+      lines.push(sharedCode);
+      lines.push('');
+    }
+
+    // Binding declarations (module-level let + fetch init lines)
+    const { moduleLines, fetchInitLines } = this._emitCloudflareBindings(config);
+    for (const l of moduleLines) lines.push(l);
+
+    // User functions
+    this._emitFunctions(lines, config.functions);
+
+    // Misc statements (assignments, etc.)
+    this._emitMiscStatements(lines, config.miscStatements);
+
+    // CORS
+    this._emitEdgeCors(lines, config.corsConfig);
+
+    // Error handler
+    this._emitEdgeErrorHandler(lines, config.errorHandler);
+
+    // Security (roles, auth, protection, sanitization)
+    const secFlags = this._emitEdgeSecurity(lines, securityConfig);
+
+    // Middleware chain
+    this._emitMiddlewareFunctions(lines, config.middlewares);
+
+    // Route matching helper
+    this._emitRouteMatchHelper(lines);
+
+    // Build route table
+    lines.push('// ── Route Table ──');
+    lines.push('const __routes = [];');
+    this._emitRouteRegistrations(lines, config.routes);
+
+    // Health check route
+    this._emitEdgeHealthCheck(lines, config, 'response');
+    lines.push('');
+
+    // Fetch handler
+    lines.push('export default {');
+    lines.push('  async fetch(request, env, ctx) {');
+
+    // Init bindings from env
+    for (const l of fetchInitLines) lines.push(l);
+
+    lines.push('    const url = new URL(request.url);');
+    lines.push('    const method = request.method;');
+    lines.push('    const pathname = url.pathname;');
+    lines.push('');
+
+    // OPTIONS preflight
+    if (hasCors) {
+      lines.push('    if (request.method === "OPTIONS") {');
+      lines.push('      return new Response(null, { status: 204, headers: __getCorsHeaders(request) });');
+      lines.push('    }');
+      lines.push('');
+    }
+
+    // Security check (auth + protection)
+    const userVar = this._emitEdgeSecurityCheck(lines, secFlags, 'response', '    ', 'request', hasCors);
+    const sanitize = secFlags.hasAutoSanitize;
+
+    // Middleware wrapping
+    if (config.middlewares.length > 0) {
+      lines.push('    // Apply middleware chain');
+      lines.push('    const __handler = async (req) => {');
+      lines.push('      const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('      if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('      return __match.handler(req, __match.params, env);');
+      lines.push('    };');
+      let chain = '__handler';
+      for (let i = config.middlewares.length - 1; i >= 0; i--) {
+        const mw = config.middlewares[i];
+        chain = `(req) => __mw_${mw.name}(req, ${chain})`;
+      }
+      lines.push('    try {');
+      lines.push(`      const __result = await (${chain})(request);`);
+      lines.push('      if (__result instanceof Response) return __result;');
+      const mwVal = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`      return new Response(JSON.stringify(${mwVal}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`      return Response.json(${mwVal});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '    ', 'request');
+    } else {
+      lines.push('    const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('    if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('');
+      lines.push('    try {');
+      lines.push('      const __result = await __match.handler(request, __match.params, env);');
+      lines.push('      if (__result instanceof Response) return __result;');
+      const val = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`      return new Response(JSON.stringify(${val}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`      return Response.json(${val});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '    ', 'request');
+    }
+    lines.push('  },');
+
+    // Scheduled handler
+    if (config.schedules.length > 0) {
+      lines.push('');
+      lines.push('  async scheduled(event, env, ctx) {');
+      // Init bindings in scheduled handler too
+      for (const l of fetchInitLines) lines.push(l);
+      for (let si = 0; si < config.schedules.length; si++) {
+        const sched = config.schedules[si];
+        const kw = si === 0 ? 'if' : 'else if';
+        lines.push(`    ${kw} (event.cron === ${JSON.stringify(sched.cron)}) {`);
+        lines.push(`      // ${sched.name}`);
+        const body = this.genBlockStatements(sched.body);
+        for (const line of body.split('\n')) {
+          lines.push('      ' + line);
+        }
+        lines.push('    }');
+      }
+      lines.push('  },');
+    }
+
+    // Queue consumer
+    if (config.consumers.length > 0) {
+      lines.push('');
+      lines.push('  async queue(batch, env, ctx) {');
+      // Init bindings in queue handler too
+      for (const l of fetchInitLines) lines.push(l);
+      for (const consumer of config.consumers) {
+        lines.push(`    // consume ${consumer.queue}`);
+        const handlerCode = this.genExpression(consumer.handler);
+        lines.push(`    await (${handlerCode})(batch.messages);`);
+      }
+      lines.push('  },');
+    }
+
+    lines.push('};');
+
+    return lines.join('\n');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Deno Deploy target
+  // ════════════════════════════════════════════════════════════
+
+  _generateDeno(config, sharedCode, securityConfig) {
+    const lines = [];
+    const hasCors = !!config.corsConfig;
+    const hasErrorHandler = !!config.errorHandler;
+
+    lines.push('// Generated by Tova — Deno Deploy target');
+    lines.push('');
+
+    // Shared code
+    if (sharedCode && sharedCode.trim()) {
+      lines.push(sharedCode);
+      lines.push('');
+    }
+
+    // Bindings
+    this._emitDenoBindings(lines, config);
+
+    // User functions
+    this._emitFunctions(lines, config.functions);
+
+    // Misc statements
+    this._emitMiscStatements(lines, config.miscStatements);
+
+    // CORS
+    this._emitEdgeCors(lines, config.corsConfig);
+
+    // Error handler
+    this._emitEdgeErrorHandler(lines, config.errorHandler);
+
+    // Security
+    const secFlags = this._emitEdgeSecurity(lines, securityConfig);
+
+    // Middleware
+    this._emitMiddlewareFunctions(lines, config.middlewares);
+
+    // Route matching helper
+    this._emitRouteMatchHelper(lines);
+
+    // Build route table
+    lines.push('// ── Route Table ──');
+    lines.push('const __routes = [];');
+    this._emitRouteRegistrations(lines, config.routes);
+
+    // Health check route
+    this._emitEdgeHealthCheck(lines, config, 'response');
+    lines.push('');
+
+    // Cron schedules
+    for (const sched of config.schedules) {
+      lines.push(`Deno.cron(${JSON.stringify(sched.name)}, ${JSON.stringify(sched.cron)}, async () => {`);
+      const body = this.genBlockStatements(sched.body);
+      for (const line of body.split('\n')) {
+        lines.push('  ' + line);
+      }
+      lines.push('});');
+      lines.push('');
+    }
+
+    // Server
+    lines.push('Deno.serve(async (request) => {');
+    lines.push('  const url = new URL(request.url);');
+    lines.push('  const method = request.method;');
+    lines.push('  const pathname = url.pathname;');
+    lines.push('');
+
+    // OPTIONS preflight
+    if (hasCors) {
+      lines.push('  if (request.method === "OPTIONS") {');
+      lines.push('    return new Response(null, { status: 204, headers: __getCorsHeaders(request) });');
+      lines.push('  }');
+      lines.push('');
+    }
+
+    // Security check
+    const userVar = this._emitEdgeSecurityCheck(lines, secFlags, 'response', '  ', 'request', hasCors);
+    const sanitize = secFlags.hasAutoSanitize;
+
+    if (config.middlewares.length > 0) {
+      lines.push('  const __handler = async (req) => {');
+      lines.push('    const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('    if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('    return __match.handler(req, __match.params);');
+      lines.push('  };');
+      let chain = '__handler';
+      for (let i = config.middlewares.length - 1; i >= 0; i--) {
+        const mw = config.middlewares[i];
+        chain = `(req) => __mw_${mw.name}(req, ${chain})`;
+      }
+      lines.push('  try {');
+      lines.push(`    const __result = await (${chain})(request);`);
+      lines.push('    if (__result instanceof Response) return __result;');
+      const mwVal = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`    return new Response(JSON.stringify(${mwVal}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`    return Response.json(${mwVal});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '  ', 'request');
+    } else {
+      lines.push('  const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('  if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('');
+      lines.push('  try {');
+      lines.push('    const __result = await __match.handler(request, __match.params);');
+      lines.push('    if (__result instanceof Response) return __result;');
+      const val = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`    return new Response(JSON.stringify(${val}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`    return Response.json(${val});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '  ', 'request');
+    }
+    lines.push('});');
+
+    return lines.join('\n');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Vercel Edge target
+  // ════════════════════════════════════════════════════════════
+
+  _generateVercel(config, sharedCode, securityConfig) {
+    const lines = [];
+    const hasCors = !!config.corsConfig;
+    const hasErrorHandler = !!config.errorHandler;
+
+    lines.push('// Generated by Tova — Vercel Edge target');
+    lines.push('');
+    lines.push('export const config = { runtime: "edge" };');
+    lines.push('');
+
+    if (sharedCode && sharedCode.trim()) {
+      lines.push(sharedCode);
+      lines.push('');
+    }
+
+    // Bindings
+    this._emitProcessEnvBindings(lines, config, 'Vercel Edge');
+
+    this._emitFunctions(lines, config.functions);
+    this._emitMiscStatements(lines, config.miscStatements);
+
+    // CORS
+    this._emitEdgeCors(lines, config.corsConfig);
+
+    // Error handler
+    this._emitEdgeErrorHandler(lines, config.errorHandler);
+
+    // Security
+    const secFlags = this._emitEdgeSecurity(lines, securityConfig);
+
+    this._emitMiddlewareFunctions(lines, config.middlewares);
+
+    this._emitRouteMatchHelper(lines);
+
+    lines.push('const __routes = [];');
+    this._emitRouteRegistrations(lines, config.routes);
+
+    // Health check route
+    this._emitEdgeHealthCheck(lines, config, 'response');
+    lines.push('');
+
+    lines.push('export default async function handler(request) {');
+    lines.push('  const url = new URL(request.url);');
+    lines.push('  const method = request.method;');
+    lines.push('  const pathname = url.pathname;');
+
+    // OPTIONS preflight
+    if (hasCors) {
+      lines.push('  if (request.method === "OPTIONS") {');
+      lines.push('    return new Response(null, { status: 204, headers: __getCorsHeaders(request) });');
+      lines.push('  }');
+    }
+
+    // Security check
+    const userVar = this._emitEdgeSecurityCheck(lines, secFlags, 'response', '  ', 'request', hasCors);
+    const sanitize = secFlags.hasAutoSanitize;
+
+    if (config.middlewares.length > 0) {
+      lines.push('  // Apply middleware chain');
+      lines.push('  const __handler = async (req) => {');
+      lines.push('    const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('    if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('    return __match.handler(req, __match.params);');
+      lines.push('  };');
+      let chain = '__handler';
+      for (let i = config.middlewares.length - 1; i >= 0; i--) {
+        const mw = config.middlewares[i];
+        chain = `(req) => __mw_${mw.name}(req, ${chain})`;
+      }
+      lines.push('  try {');
+      lines.push(`    const __result = await (${chain})(request);`);
+      lines.push('    if (__result instanceof Response) return __result;');
+      const mwVal = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`    return new Response(JSON.stringify(${mwVal}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`    return Response.json(${mwVal});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '  ', 'request');
+    } else {
+      lines.push('  const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('  if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('  try {');
+      lines.push('    const __result = await __match.handler(request, __match.params);');
+      lines.push('    if (__result instanceof Response) return __result;');
+      const val = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`    return new Response(JSON.stringify(${val}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`    return Response.json(${val});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '  ', 'request');
+    }
+    lines.push('}');
+
+    return lines.join('\n');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // AWS Lambda target
+  // ════════════════════════════════════════════════════════════
+
+  _generateLambda(config, sharedCode, securityConfig) {
+    const lines = [];
+    const hasCors = !!config.corsConfig;
+    const hasErrorHandler = !!config.errorHandler;
+
+    lines.push('// Generated by Tova — AWS Lambda target');
+    lines.push('');
+
+    if (sharedCode && sharedCode.trim()) {
+      lines.push(sharedCode);
+      lines.push('');
+    }
+
+    // Bindings
+    this._emitProcessEnvBindings(lines, config, 'AWS Lambda');
+
+    this._emitFunctions(lines, config.functions);
+    this._emitMiscStatements(lines, config.miscStatements);
+
+    // CORS
+    this._emitEdgeCors(lines, config.corsConfig);
+
+    // Error handler
+    this._emitEdgeErrorHandler(lines, config.errorHandler);
+
+    // Security
+    const secFlags = this._emitEdgeSecurity(lines, securityConfig);
+
+    this._emitMiddlewareFunctions(lines, config.middlewares);
+
+    this._emitRouteMatchHelper(lines);
+
+    lines.push('const __routes = [];');
+    this._emitRouteRegistrations(lines, config.routes);
+
+    // Health check route
+    this._emitEdgeHealthCheck(lines, config, 'lambda');
+    lines.push('');
+
+    // Lambda handler — translate API Gateway event to Request-like object
+    lines.push('export const handler = async (event, context) => {');
+    lines.push('  const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || "GET";');
+    lines.push('  const pathname = event.path || event.rawPath || "/";');
+    lines.push('  const __rawHeaders = event.headers || {};');
+    lines.push('  const headers = { ...__rawHeaders, get: (k) => __rawHeaders[k] || __rawHeaders[k.toLowerCase()] || __rawHeaders[k.charAt(0).toUpperCase() + k.slice(1).toLowerCase()] || null };');
+    lines.push('  const body = event.body ? (event.isBase64Encoded ? Buffer.from(event.body, "base64").toString() : event.body) : null;');
+    lines.push('  const request = { method, path: pathname, headers, body, json: () => JSON.parse(body || "{}"), url: "https://lambda.local" + pathname };');
+    lines.push('');
+
+    // OPTIONS preflight
+    if (hasCors) {
+      lines.push('  if (method === "OPTIONS") {');
+      lines.push('    return { statusCode: 204, headers: __getCorsHeaders(request) };');
+      lines.push('  }');
+      lines.push('');
+    }
+
+    // Security check
+    const userVar = this._emitEdgeSecurityCheck(lines, secFlags, 'lambda', '  ', 'request', hasCors);
+    const sanitize = secFlags.hasAutoSanitize;
+
+    if (config.middlewares.length > 0) {
+      lines.push('  // Apply middleware chain');
+      lines.push('  const __handler = async (req) => {');
+      lines.push('    const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('    if (!__match) return { statusCode: 404, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Not Found" }) };');
+      lines.push('    const __r = await __match.handler(req, __match.params);');
+      lines.push('    if (__r && __r.statusCode) return __r;');
+      const mwValInner = sanitize ? `__autoSanitize(__r, ${userVar})` : '__r';
+      if (hasCors) {
+        lines.push(`    return { statusCode: 200, headers: { "Content-Type": "application/json", ...__getCorsHeaders(req) }, body: JSON.stringify(${mwValInner}) };`);
+      } else {
+        lines.push(`    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(${mwValInner}) };`);
+      }
+      lines.push('  };');
+      let chain = '__handler';
+      for (let i = config.middlewares.length - 1; i >= 0; i--) {
+        const mw = config.middlewares[i];
+        chain = `(req) => __mw_${mw.name}(req, ${chain})`;
+      }
+      lines.push('  try {');
+      lines.push(`    const __result = await (${chain})(request);`);
+      lines.push('    if (__result && __result.statusCode) return __result;');
+      const mwVal = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`    return { statusCode: 200, headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) }, body: JSON.stringify(${mwVal}) };`);
+      } else {
+        lines.push(`    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(${mwVal}) };`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'lambda', '  ', 'request');
+    } else {
+      lines.push('  const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('  if (!__match) return { statusCode: 404, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Not Found" }) };');
+      lines.push('');
+      lines.push('  try {');
+      lines.push('    const __result = await __match.handler(request, __match.params);');
+      lines.push('    if (__result && __result.statusCode) return __result;');
+      const val = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`    return { statusCode: 200, headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) }, body: JSON.stringify(${val}) };`);
+      } else {
+        lines.push(`    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(${val}) };`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'lambda', '  ', 'request');
+    }
+    lines.push('};');
+
+    return lines.join('\n');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Bun target (similar to existing server but edge-optimized)
+  // ════════════════════════════════════════════════════════════
+
+  _generateBun(config, sharedCode, securityConfig) {
+    const lines = [];
+    const hasCors = !!config.corsConfig;
+    const hasErrorHandler = !!config.errorHandler;
+
+    lines.push('// Generated by Tova — Bun edge target');
+    lines.push('');
+
+    // Bun bindings (imports go first)
+    const { imports: bunImports, bindings: bunBindings } = this._emitBunBindings(config);
+    for (const imp of bunImports) lines.push(imp);
+    if (bunImports.length > 0) lines.push('');
+
+    if (sharedCode && sharedCode.trim()) {
+      lines.push(sharedCode);
+      lines.push('');
+    }
+
+    // Binding declarations
+    for (const l of bunBindings) lines.push(l);
+
+    this._emitFunctions(lines, config.functions);
+    this._emitMiscStatements(lines, config.miscStatements);
+
+    // CORS
+    this._emitEdgeCors(lines, config.corsConfig);
+
+    // Error handler
+    this._emitEdgeErrorHandler(lines, config.errorHandler);
+
+    // Security
+    const secFlags = this._emitEdgeSecurity(lines, securityConfig);
+
+    this._emitMiddlewareFunctions(lines, config.middlewares);
+
+    this._emitRouteMatchHelper(lines);
+
+    lines.push('const __routes = [];');
+    this._emitRouteRegistrations(lines, config.routes);
+
+    // Health check route
+    this._emitEdgeHealthCheck(lines, config, 'response');
+    lines.push('');
+
+    lines.push('Bun.serve({');
+    lines.push('  port: process.env.PORT || 3000,');
+    lines.push('  async fetch(request) {');
+    lines.push('    const url = new URL(request.url);');
+    lines.push('    const method = request.method;');
+    lines.push('    const pathname = url.pathname;');
+
+    // OPTIONS preflight
+    if (hasCors) {
+      lines.push('    if (request.method === "OPTIONS") {');
+      lines.push('      return new Response(null, { status: 204, headers: __getCorsHeaders(request) });');
+      lines.push('    }');
+    }
+
+    // Security check
+    const userVar = this._emitEdgeSecurityCheck(lines, secFlags, 'response', '    ', 'request', hasCors);
+    const sanitize = secFlags.hasAutoSanitize;
+
+    if (config.middlewares.length > 0) {
+      lines.push('    const __handler = async (req) => {');
+      lines.push('      const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('      if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('      return __match.handler(req, __match.params);');
+      lines.push('    };');
+      let chain = '__handler';
+      for (let i = config.middlewares.length - 1; i >= 0; i--) {
+        const mw = config.middlewares[i];
+        chain = `(req) => __mw_${mw.name}(req, ${chain})`;
+      }
+      lines.push('    try {');
+      lines.push(`      const __result = await (${chain})(request);`);
+      lines.push('      if (__result instanceof Response) return __result;');
+      const mwVal = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`      return new Response(JSON.stringify(${mwVal}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`      return Response.json(${mwVal});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '    ', 'request');
+    } else {
+      lines.push('    const __match = __matchRoute(method, pathname, __routes);');
+      lines.push('    if (!__match) return new Response("Not Found", { status: 404 });');
+      lines.push('    try {');
+      lines.push('      const __result = await __match.handler(request, __match.params);');
+      lines.push('      if (__result instanceof Response) return __result;');
+      const val = sanitize ? `__autoSanitize(__result, ${userVar})` : '__result';
+      if (hasCors) {
+        lines.push(`      return new Response(JSON.stringify(${val}), { headers: { "Content-Type": "application/json", ...__getCorsHeaders(request) } });`);
+      } else {
+        lines.push(`      return Response.json(${val});`);
+      }
+      this._emitEdgeCatchBlock(lines, hasErrorHandler, hasCors, 'response', '    ', 'request');
+    }
+    lines.push('  }');
+    lines.push('});');
+
+    return lines.join('\n');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Shared helpers
+  // ════════════════════════════════════════════════════════════
+
+  _emitRouteMatchHelper(lines) {
+    lines.push('// ── Route Matching ──');
+    lines.push('function __matchRoute(method, pathname, routes) {');
+    lines.push('  for (const route of routes) {');
+    lines.push('    if (route.method !== method && route.method !== "*") continue;');
+    lines.push('    const match = route.pattern.exec(pathname);');
+    lines.push('    if (match) {');
+    lines.push('      const params = {};');
+    lines.push('      for (let i = 0; i < route.paramNames.length; i++) {');
+    lines.push('        params[route.paramNames[i]] = match[i + 1];');
+    lines.push('      }');
+    lines.push('      return { handler: route.handler, params };');
+    lines.push('    }');
+    lines.push('  }');
+    lines.push('  return null;');
+    lines.push('}');
+    lines.push('');
+  }
+
+  _emitFunctions(lines, functions) {
+    if (functions.length === 0) return;
+    lines.push('// ── Functions ──');
+    for (const fn of functions) {
+      const code = this.generateStatement(fn);
+      lines.push(code);
+      lines.push('');
+    }
+  }
+
+  _emitMiscStatements(lines, stmts) {
+    for (const stmt of stmts) {
+      const code = this.generateStatement(stmt);
+      if (code && code.trim()) {
+        lines.push(code);
+      }
+    }
+  }
+
+  _emitMiddlewareFunctions(lines, middlewares) {
+    if (middlewares.length === 0) return;
+    lines.push('// ── Middleware ──');
+    for (const mw of middlewares) {
+      const params = mw.params.map(p => p.name || this.genExpression(p)).join(', ');
+      const body = this.genBlockStatements(mw.body);
+      lines.push(`async function __mw_${mw.name}(${params}) {`);
+      lines.push(body);
+      lines.push('}');
+      lines.push('');
+    }
+  }
+
+  /**
+   * Convert route path pattern (e.g., "/api/users/:id") to a regex
+   * and emit __routes.push({ method, pattern, paramNames, handler })
+   */
+  _emitRouteRegistrations(lines, routes) {
+    for (const route of routes) {
+      const method = route.method.toUpperCase();
+      const path = route.path;
+
+      // Extract param names and build regex
+      const paramNames = [];
+      const regexParts = path.split('/').map(seg => {
+        if (seg.startsWith(':')) {
+          paramNames.push(seg.slice(1));
+          return '([^/]+)';
+        }
+        if (seg.startsWith('*')) {
+          paramNames.push(seg.slice(1) || 'wild');
+          return '(.*)';
+        }
+        return seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      });
+      const regexStr = '^' + regexParts.join('/') + '$';
+
+      const handler = this.genExpression(route.handler);
+      lines.push(`__routes.push({ method: ${JSON.stringify(method)}, pattern: new RegExp(${JSON.stringify(regexStr)}), paramNames: ${JSON.stringify(paramNames)}, handler: ${handler} });`);
+    }
+  }
+
+  /**
+   * Generate a wrangler.toml config string for Cloudflare deployments.
+   */
+  static generateWranglerToml(config, name, blockName) {
+    const appName = name || 'app';
+    const today = new Date().toISOString().slice(0, 10);
+    const mainFile = blockName
+      ? '.tova-out/' + appName + '.edge.' + blockName + '.js'
+      : '.tova-out/' + appName + '.edge.js';
+    const lines = [];
+    lines.push('name = "' + appName + '"');
+    lines.push('main = "' + mainFile + '"');
+    lines.push('compatibility_date = "' + today + '"');
+    lines.push('');
+
+    // KV namespaces
+    for (const kv of config.bindings.kv) {
+      lines.push('[[kv_namespaces]]');
+      lines.push('binding = "' + kv.name + '"');
+      lines.push('id = "TODO_' + kv.name + '_ID"');
+      lines.push('');
+    }
+
+    // D1 databases
+    for (const db of config.bindings.sql) {
+      lines.push('[[d1_databases]]');
+      lines.push('binding = "' + db.name + '"');
+      lines.push('database_name = "' + db.name.toLowerCase() + '"');
+      lines.push('database_id = "TODO_' + db.name + '_ID"');
+      lines.push('');
+    }
+
+    // R2 buckets
+    for (const bucket of config.bindings.storage) {
+      lines.push('[[r2_buckets]]');
+      lines.push('binding = "' + bucket.name + '"');
+      lines.push('bucket_name = "' + bucket.name.toLowerCase() + '"');
+      lines.push('');
+    }
+
+    // Queue producers
+    for (const q of config.bindings.queue) {
+      lines.push('[[queues.producers]]');
+      lines.push('binding = "' + q.name + '"');
+      lines.push('queue = "' + q.name.toLowerCase() + '"');
+      lines.push('');
+    }
+
+    // Queue consumers
+    for (const c of config.consumers) {
+      lines.push('[[queues.consumers]]');
+      lines.push('queue = "' + c.queue.toLowerCase() + '"');
+      lines.push('max_batch_size = 10');
+      lines.push('max_batch_timeout = 30');
+      lines.push('');
+    }
+
+    // Cron triggers
+    if (config.schedules.length > 0) {
+      lines.push('[triggers]');
+      const crons = config.schedules.map(s => '"' + s.cron + '"').join(', ');
+      lines.push('crons = [' + crons + ']');
+      lines.push('');
+    }
+
+    // Env vars
+    if (config.envVars.length > 0) {
+      lines.push('[vars]');
+      for (const env of config.envVars) {
+        if (env.defaultValue && env.defaultValue.type === 'StringLiteral') {
+          lines.push(env.name + ' = "' + env.defaultValue.value + '"');
+        }
+      }
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+}
+
 // ─── src/codegen/codegen.js ────────────────────────────
 
 // Main code generator — orchestrates shared/server/browser codegen
@@ -23441,6 +26924,8 @@ function getBrowserCodegen() { return BrowserCodegen; }
 function getSecurityCodegen() { return SecurityCodegen; }
 
 function getCliCodegen() { return CliCodegen; }
+
+function getEdgeCodegen() { return EdgeCodegen; }
 class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
@@ -23491,6 +26976,7 @@ class CodeGenerator {
     const benchBlocks = getBlocks('bench');
     const dataBlocks = getBlocks('data');
     const securityBlocks = getBlocks('security');
+    const edgeBlocks = getBlocks('edge');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -23527,7 +27013,7 @@ class CodeGenerator {
       : '';
 
     // Pre-scan server/browser blocks for builtin usage so shared stdlib includes them
-    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks], sharedGen._usedBuiltins);
+    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks, ...edgeBlocks], sharedGen._usedBuiltins);
 
     const helpers = sharedGen.generateHelpers();
 
@@ -23584,8 +27070,34 @@ class CodeGenerator {
           }
         }
       }
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, sharedBlocks, securityConfig);
+      // Include top-level statements so _collectTypes finds top-level type declarations
+      const allSharedBlocks = topLevel.length > 0
+        ? [...sharedBlocks, { type: 'BlockStatement', body: topLevel }]
+        : sharedBlocks;
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, allSharedBlocks, securityConfig);
     }
+
+    // Collect type validators from shared blocks and top-level for form type inheritance
+    const typeValidatorsMap = {};
+    const _collectTypeValidators = (stmts) => {
+      for (const stmt of stmts) {
+        if (stmt.type === 'TypeDeclaration' && stmt.variants) {
+          const fields = [];
+          for (const v of stmt.variants) {
+            if (v.type === 'TypeField' && v.validators && v.validators.length > 0) {
+              fields.push({ name: v.name, validators: v.validators });
+            }
+          }
+          if (fields.length > 0) {
+            typeValidatorsMap[stmt.name] = { fields };
+          }
+        }
+      }
+    };
+    for (const sb of sharedBlocks) {
+      _collectTypeValidators(sb.body);
+    }
+    _collectTypeValidators(topLevel);
 
     // Generate browser outputs (one per named group)
     const browsers = {};
@@ -23593,7 +27105,21 @@ class CodeGenerator {
       const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap);
+    }
+
+    // Generate edge outputs (one per named group)
+    const edges = {};
+    if (edgeBlocks.length > 0) {
+      const edgeGroups = this._groupByName(edgeBlocks);
+      for (const [name, blocks] of edgeGroups) {
+        const Edge = getEdgeCodegen();
+        const gen = new Edge();
+        gen._sourceMapsEnabled = this._sourceMaps;
+        const key = name || 'default';
+        const edgeConfig = Edge.mergeEdgeBlocks(blocks);
+        edges[key] = gen.generate(edgeConfig, combinedShared, securityConfig);
+      }
     }
 
     // Generate tests if test blocks exist
@@ -23617,7 +27143,8 @@ class CodeGenerator {
     }
 
     // Backward-compatible: if only unnamed blocks, return flat structure
-    const hasNamedBlocks = [...serverGroups.keys(), ...browserGroups.keys()].some(k => k !== null);
+    const edgeGroupKeys = edgeBlocks.length > 0 ? [...this._groupByName(edgeBlocks).keys()] : [];
+    const hasNamedBlocks = [...serverGroups.keys(), ...browserGroups.keys(), ...edgeGroupKeys].some(k => k !== null);
 
     // Collect source mappings from all codegens
     const sourceMappings = sharedGen.getSourceMappings();
@@ -23629,6 +27156,7 @@ class CodeGenerator {
         server: servers['default'] || '',
         browser: browserCode,
         client: browserCode,  // deprecated alias for backward compat
+        edge: edges['default'] || '',
         sourceMappings,
         _sourceFile: this.filename,
       };
@@ -23644,9 +27172,11 @@ class CodeGenerator {
       server: servers['default'] || '',
       browser: browserDefault,
       client: browserDefault,  // deprecated alias for backward compat
+      edge: edges['default'] || '',
       servers,   // { "api": code, "ws": code, ... }
       browsers,  // { "admin": code, "dashboard": code, ... }
       clients: browsers,   // deprecated alias for backward compat
+      edges,     // { "api": code, "assets": code, ... }
       multiBlock: true,
       sourceMappings,
       _sourceFile: this.filename,
@@ -24139,6 +27669,11 @@ const EXAMPLES = [
     "category": "Reactive UI",
     "name": "Stopwatch",
     "code": "// Interactive stopwatch with reactive state\nbrowser {\n  state elapsed = 0\n\n  fn reset_timer() {\n    elapsed = 0\n  }\n\n  computed minutes = elapsed / 60\n  computed seconds = elapsed % 60\n\n  computed display = match elapsed {\n    0 => \"0s\"\n    t if t < 60 => \"{t}s\"\n    _ => \"{minutes}m {seconds}s\"\n  }\n\n  component App {\n    <div class=\"stopwatch\">\n      <h1>\"Stopwatch\"</h1>\n      <p class=\"time\">\"{display}\"</p>\n      <div class=\"controls\">\n        <button on:click={fn() elapsed += 1}>\"+1s\"</button>\n        <button on:click={fn() elapsed += 10}>\"+10s\"</button>\n        <button on:click={fn() elapsed += 60}>\"+1m\"</button>\n        <button on:click={reset_timer}>\"Reset\"</button>\n      </div>\n      <p class=\"hint\">\"(Click buttons to add time)\"</p>\n    </div>\n  }\n}\n"
+  },
+  {
+    "category": "Reactive UI",
+    "name": "Form Validation",
+    "code": "// Declarative form with built-in validation\n// Forms are first-class — fields, groups, validators, submit handling\nbrowser {\n  component App() {\n    form signup {\n      field username: String = \"\" {\n        required(\"Username is required\")\n        minLength(3, \"At least 3 characters\")\n        maxLength(20, \"Max 20 characters\")\n      }\n\n      field email: String = \"\" {\n        required(\"Email is required\")\n        email(\"Must be a valid email\")\n      }\n\n      field password: String = \"\" {\n        required(\"Password is required\")\n        minLength(8, \"At least 8 characters\")\n      }\n\n      field confirmPassword: String = \"\" {\n        required(\"Please confirm\")\n        matches(password, \"Passwords don't match\")\n      }\n\n      field age: Int = 0 {\n        min(18, \"Must be 18 or older\")\n      }\n\n      on submit {\n        print(\"Form submitted!\")\n      }\n    }\n\n    <form bind:form={signup}>\n      <h2>\"Sign Up\"</h2>\n\n      <FormField field={signup.username}>\n        <label>\"Username\"</label>\n        <input />\n        <ErrorMessage />\n      </FormField>\n\n      <FormField field={signup.email}>\n        <label>\"Email\"</label>\n        <input type=\"email\" />\n        <ErrorMessage />\n      </FormField>\n\n      <FormField field={signup.password}>\n        <label>\"Password\"</label>\n        <input type=\"password\" />\n        <ErrorMessage />\n      </FormField>\n\n      <FormField field={signup.confirmPassword}>\n        <label>\"Confirm Password\"</label>\n        <input type=\"password\" />\n        <ErrorMessage />\n      </FormField>\n\n      <FormField field={signup.age}>\n        <label>\"Age\"</label>\n        <input type=\"number\" />\n        <ErrorMessage />\n      </FormField>\n\n      <button type=\"submit\" disabled={!signup.isValid}>\n        \"Create Account\"\n      </button>\n      <ErrorMessage form={signup} />\n    </form>\n  }\n}\n"
   },
   {
     "category": "Algorithms",
