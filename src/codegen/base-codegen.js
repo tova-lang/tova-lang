@@ -984,13 +984,22 @@ export class BaseCodegen {
       }
     }
 
+    // Pre-scan for scalar-replaceable Result/Option variables
+    const scalarMap = this._preAnalyzeScalarResults(regularStmts);
+    const prevScalar = this._scalarReplacements;
+    this._scalarReplacements = scalarMap.size > 0 ? new Map([...(prevScalar || new Map()), ...scalarMap]) : prevScalar;
+
     for (let idx = 0; idx < regularStmts.length; idx++) {
       if (bodySkipSet.has(idx)) continue;
       const stmt = regularStmts[idx];
       const isLast = idx === regularStmts.length - 1;
+      // Scalar replacement: emit boolean+value pair instead of Result/Option allocation
+      if (stmt.type === 'Assignment' && stmt.targets.length === 1 && typeof stmt.targets[0] === 'string' &&
+          scalarMap.has(stmt.targets[0]) && scalarMap.get(stmt.targets[0]).assignIdx === idx) {
+        lines.push(this._genScalarAssignment(stmt, scalarMap.get(stmt.targets[0])));
       // Implicit return: last expression in function body
       // Skip implicit return for known void/side-effect-only calls (print, assert, etc.)
-      if (isLast && stmt.type === 'ExpressionStatement' && !this._isVoidCall(stmt.expression)) {
+      } else if (isLast && stmt.type === 'ExpressionStatement' && !this._isVoidCall(stmt.expression)) {
         // IIFE elimination: match/if as last expression in function body → direct returns
         const expr = stmt.expression;
         if (expr.type === 'MatchExpression' && !this._isSimpleMatch(expr)) {
@@ -1008,6 +1017,8 @@ export class BaseCodegen {
         lines.push(this.generateStatement(stmt));
       }
     }
+
+    this._scalarReplacements = prevScalar;
 
     if (deferBodies.length > 0) {
       this.indent--;
@@ -1133,13 +1144,24 @@ export class BaseCodegen {
         lines.push(fillResult);
       }
     }
+    // Pre-scan for scalar-replaceable Result/Option variables
+    const scalarMap = this._preAnalyzeScalarResults(stmts);
+    const prevScalar = this._scalarReplacements;
+    this._scalarReplacements = scalarMap.size > 0 ? new Map([...(prevScalar || new Map()), ...scalarMap]) : prevScalar;
     for (let i = 0; i < stmts.length; i++) {
       if (skipSet.has(i)) continue;
       const s = stmts[i];
-      lines.push(this.generateStatement(s));
+      // Scalar replacement: emit boolean+value pair instead of Result/Option allocation
+      if (s.type === 'Assignment' && s.targets.length === 1 && typeof s.targets[0] === 'string' &&
+          scalarMap.has(s.targets[0]) && scalarMap.get(s.targets[0]).assignIdx === i) {
+        lines.push(this._genScalarAssignment(s, scalarMap.get(s.targets[0])));
+      } else {
+        lines.push(this.generateStatement(s));
+      }
       // Dead code elimination: stop after unconditional return/break/continue
       if (s.type === 'ReturnStatement' || s.type === 'BreakStatement' || s.type === 'ContinueStatement') break;
     }
+    this._scalarReplacements = prevScalar;
     return lines.join('\n');
   }
 
@@ -1439,6 +1461,37 @@ export class BaseCodegen {
     // Compile-time devirtualization: Ok(x).unwrap() → x, Err(e).isOk() → false, etc.
     const devirt = this._tryDevirtualizeResultOption(node);
     if (devirt !== null) return devirt;
+
+    // Scalar replacement: intercept method calls on scalar-replaced Result/Option variables
+    if (this._scalarReplacements && this._scalarReplacements.size > 0 &&
+        node.callee.type === 'MemberExpression' && !node.callee.computed &&
+        node.callee.object && node.callee.object.type === 'Identifier') {
+      const varName = node.callee.object.name;
+      const scalarInfo = this._scalarReplacements.get(varName);
+      if (scalarInfo) {
+        const okVar = `${varName}__ok`;
+        const vVar = `${varName}__v`;
+        const method = node.callee.property;
+
+        if (scalarInfo.kind === 'result') {
+          switch (method) {
+            case 'isOk': return okVar;
+            case 'isErr': return `!${okVar}`;
+            case 'unwrap': return vVar;
+            case 'unwrapOr': return node.arguments.length > 0 ? `(${okVar} ? ${vVar} : ${this.genExpression(node.arguments[0])})` : vVar;
+            case 'expect': return vVar;
+          }
+        } else if (scalarInfo.kind === 'option') {
+          switch (method) {
+            case 'isSome': return okVar;
+            case 'isNone': return `!${okVar}`;
+            case 'unwrap': return vVar;
+            case 'unwrapOr': return node.arguments.length > 0 ? `(${okVar} ? ${vVar} : ${this.genExpression(node.arguments[0])})` : vVar;
+            case 'expect': return vVar;
+          }
+        }
+      }
+    }
 
     // Transform Foo.new(...) → new Foo(...)
     if (node.callee.type === 'MemberExpression' && !node.callee.computed && node.callee.property === 'new') {
@@ -3467,6 +3520,92 @@ export class BaseCodegen {
     }
     this._yieldCache.set(node, result);
     return result;
+  }
+
+  // ─── Scalar replacement codegen for Result/Option ───────────
+  // Generates boolean+value pairs instead of allocating Result/Option objects.
+
+  /**
+   * Generates scalar-replaced code for an assignment like:
+   *   r = if cond { Ok(val) } else { Err(err) }
+   * Output: let r__ok, r__v; if (cond) { r__ok = true; r__v = val; } else { ... }
+   */
+  _genScalarAssignment(node, info) {
+    const varName = node.targets[0];
+    const okVar = `${varName}__ok`;
+    const vVar = `${varName}__v`;
+    const ifExpr = node.values[0];
+
+    // Mark all three names as declared so later code doesn't redeclare
+    this.declareVar(varName);
+    this.declareVar(okVar);
+    this.declareVar(vVar);
+
+    const parts = [];
+    parts.push(`${this.i()}let ${okVar}, ${vVar};`);
+
+    // Build if/else chain
+    let ifCode = `${this.i()}if (${this.genExpression(ifExpr.condition)}) {\n`;
+    this.indent++;
+    ifCode += this._genScalarBranch(ifExpr.consequent, okVar, vVar, info.kind);
+    this.indent--;
+    ifCode += `\n${this.i()}}`;
+
+    if (ifExpr.alternates) {
+      for (const alt of ifExpr.alternates) {
+        ifCode += ` else if (${this.genExpression(alt.condition)}) {\n`;
+        this.indent++;
+        ifCode += this._genScalarBranch(alt.body, okVar, vVar, info.kind);
+        this.indent--;
+        ifCode += `\n${this.i()}}`;
+      }
+    }
+
+    if (ifExpr.elseBody) {
+      ifCode += ` else {\n`;
+      this.indent++;
+      ifCode += this._genScalarBranch(ifExpr.elseBody, okVar, vVar, info.kind);
+      this.indent--;
+      ifCode += `\n${this.i()}}`;
+    }
+
+    parts.push(ifCode);
+    return parts.join('\n');
+  }
+
+  /**
+   * Generates scalar assignments for one branch of an if expression.
+   * Extracts the Ok/Err/Some/None constructor call from the last expression
+   * and emits okVar = true/false; vVar = value;
+   */
+  _genScalarBranch(block, okVar, vVar, kind) {
+    if (!block) return '';
+    const stmts = block.type === 'BlockStatement' ? block.body : [block];
+    const lines = [];
+
+    // Generate any statements before the last one (side effects)
+    for (let i = 0; i < stmts.length - 1; i++) {
+      lines.push(this.generateStatement(stmts[i]));
+    }
+
+    // Last statement has the constructor
+    const last = stmts[stmts.length - 1];
+    let expr = last;
+    if (last.type === 'ExpressionStatement') expr = last.expression;
+    if (last.type === 'ReturnStatement' && last.value) expr = last.value;
+
+    if (expr.type === 'CallExpression' && expr.callee && expr.callee.type === 'Identifier') {
+      const name = expr.callee.name;
+      if (name === 'Ok' || name === 'Some') {
+        lines.push(`${this.i()}${okVar} = true; ${vVar} = ${this.genExpression(expr.arguments[0])};`);
+      } else if (name === 'Err') {
+        lines.push(`${this.i()}${okVar} = false; ${vVar} = ${this.genExpression(expr.arguments[0])};`);
+      }
+    } else if (expr.type === 'Identifier' && expr.name === 'None') {
+      lines.push(`${this.i()}${okVar} = false; ${vVar} = undefined;`);
+    }
+
+    return lines.join('\n');
   }
 
   // ─── Scalar replacement analysis for Result/Option ──────────
