@@ -3045,7 +3045,9 @@ export class BaseCodegen {
     }
 
     // Generate Promise.all with Result wrapping
-    const tempVars = tasks.map((_, i) => `__c${i}`);
+    // Use monotonic counter to avoid duplicate names in nested concurrent blocks
+    const base = this._concurrentCounter = (this._concurrentCounter || 0) + 1;
+    const tempVars = tasks.map((_, i) => `__c${base}_${i}`);
     const taskExprs = tasks.map(call =>
       `(async () => { try { return new Ok(await ${call}); } catch(__e) { return new Err(__e); } })()`
     );

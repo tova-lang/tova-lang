@@ -1041,6 +1041,13 @@ export class Analyzer {
       });
     }
 
+    // Warn on unimplemented modes (Phase 2 only supports 'all' and 'timeout')
+    if (node.mode === 'cancel_on_error' || node.mode === 'first') {
+      this.warn(`concurrent '${node.mode}' mode is not yet implemented — block will behave as 'all'`, node.loc, null, {
+        code: 'W_UNIMPLEMENTED_CONCURRENT_MODE',
+      });
+    }
+
     // Validate timeout
     if (node.mode === 'timeout' && !node.timeout) {
       this.warn("concurrent timeout mode requires a timeout value", node.loc, null, {
