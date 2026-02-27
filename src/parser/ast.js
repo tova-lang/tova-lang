@@ -73,6 +73,16 @@ export class EdgeBlock {
   }
 }
 
+export class ConcurrentBlock {
+  constructor(mode, timeout, body, loc) {
+    this.type = 'ConcurrentBlock';
+    this.mode = mode;           // "all" | "cancel_on_error" | "first"
+    this.timeout = timeout;     // Expression | null
+    this.body = body;           // Array of statements
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Declarations
 // ============================================================
