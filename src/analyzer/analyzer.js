@@ -900,6 +900,19 @@ export class Analyzer {
         }
         this.visitExpression(node.argument);
         return;
+      case 'SpawnExpression':
+        if (!this._concurrentDepth) {
+          this.warn("'spawn' should be used inside a 'concurrent' block", node.loc, null, {
+            code: 'W_SPAWN_OUTSIDE_CONCURRENT',
+          });
+        }
+        if (node.callee) this.visitExpression(node.callee);
+        if (node.arguments) {
+          for (const arg of node.arguments) {
+            this.visitExpression(arg);
+          }
+        }
+        return;
       case 'YieldExpression':
         if (node.argument) this.visitExpression(node.argument);
         return;
@@ -1017,6 +1030,41 @@ export class Analyzer {
       this.visitNode(cmd.body);
       this.popScope();
     }
+  }
+
+  visitConcurrentBlock(node) {
+    // Validate mode
+    const validModes = new Set(['all', 'cancel_on_error', 'first', 'timeout']);
+    if (!validModes.has(node.mode)) {
+      this.warn(`Unknown concurrent block mode '${node.mode}'`, node.loc, null, {
+        code: 'W_UNKNOWN_CONCURRENT_MODE',
+      });
+    }
+
+    // Validate timeout
+    if (node.mode === 'timeout' && !node.timeout) {
+      this.warn("concurrent timeout mode requires a timeout value", node.loc, null, {
+        code: 'W_MISSING_TIMEOUT',
+      });
+    }
+
+    // Warn on empty block
+    if (node.body.length === 0) {
+      this.warn("Empty concurrent block", node.loc, null, {
+        code: 'W_EMPTY_CONCURRENT',
+      });
+    }
+
+    // Track concurrent depth for spawn validation
+    this._concurrentDepth = (this._concurrentDepth || 0) + 1;
+
+    // Visit body statements (concurrent block does NOT create a new scope —
+    // variables assigned inside should be visible after the block)
+    for (const stmt of node.body) {
+      this.visitNode(stmt);
+    }
+
+    this._concurrentDepth--;
   }
 
   _validateCliCrossBlock() {

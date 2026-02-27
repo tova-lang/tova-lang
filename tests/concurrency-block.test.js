@@ -4,6 +4,7 @@ import { SpawnExpression } from '../src/parser/concurrency-ast.js';
 import { BlockRegistry } from '../src/registry/register-all.js';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
+import { Analyzer } from '../src/analyzer/analyzer.js';
 
 function parse(code) {
     const lexer = new Lexer(code);
@@ -17,6 +18,22 @@ function findNode(ast, type) {
         if (node.type === type) return node;
     }
     return null;
+}
+
+function analyze(code) {
+    const ast = parse(code);
+    const analyzer = new Analyzer(ast, 'test.tova');
+    return analyzer.analyze();
+}
+
+function getWarnings(code) {
+    try {
+        const result = analyze(code);
+        return result.warnings || [];
+    } catch (e) {
+        // If analyzer throws (errors present), warnings are on the error object
+        return e.warnings || [];
+    }
 }
 
 describe('concurrency AST nodes', () => {
@@ -159,5 +176,51 @@ describe('concurrency parser', () => {
         expect(fn).not.toBeNull();
         const block = fn.body.body[0];
         expect(block.type).toBe('ConcurrentBlock');
+    });
+});
+
+describe('concurrency analyzer', () => {
+    test('concurrent block with spawns analyzes without errors', () => {
+        expect(() => analyze(`
+            fn foo() -> Int { 42 }
+            concurrent {
+                a = spawn foo()
+            }
+        `)).not.toThrow();
+    });
+
+    test('spawn outside concurrent block warns', () => {
+        const warnings = getWarnings(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                a = spawn foo()
+            }
+        `);
+        const spawnWarning = warnings.find(w => w.code === 'W_SPAWN_OUTSIDE_CONCURRENT');
+        expect(spawnWarning).toBeDefined();
+    });
+
+    test('concurrent block variables are in scope after block', () => {
+        // This should not produce "undefined identifier" warnings for a and b
+        const warnings = getWarnings(`
+            fn foo() -> Int { 42 }
+            fn main() {
+                concurrent {
+                    a = spawn foo()
+                    b = spawn foo()
+                }
+                print(a)
+                print(b)
+            }
+        `);
+        // a and b should not be flagged as undefined
+        const flagged = warnings.filter(w => w.message && (w.message.includes("'a'") || w.message.includes("'b'")));
+        expect(flagged.length).toBe(0);
+    });
+
+    test('empty concurrent block warns', () => {
+        const warnings = getWarnings('concurrent { }');
+        const emptyWarning = warnings.find(w => w.code === 'W_EMPTY_CONCURRENT');
+        expect(emptyWarning).toBeDefined();
     });
 });
