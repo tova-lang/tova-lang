@@ -54,5 +54,5 @@ export function cleanUnusedVersions(modulePath, keepVersions, cacheDir) {
       removed.push(entry.slice(1));
     }
   }
-  return removed;
+  return removed.sort((a, b) => compareSemver(a, b));
 }
