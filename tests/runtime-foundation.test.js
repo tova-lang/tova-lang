@@ -171,6 +171,57 @@ describe.skipIf(!hasRuntime)('WASM host imports — channels', () => {
     });
 });
 
+describe.skipIf(!hasRuntime)('concurrent WASM modes', () => {
+    test('concurrentWasmFirst returns first result', async () => {
+        const wasmBytes = Buffer.from(generateAddModule());
+        const tasks = [
+            { wasm: wasmBytes, func: 'add', args: [1, 2] },
+            { wasm: wasmBytes, func: 'add', args: [10, 20] },
+        ];
+        const result = await runtime.concurrentWasmFirst(tasks);
+        // Should return one of the results (both are valid)
+        expect(result === 3 || result === 30).toBe(true);
+    });
+
+    test('concurrentWasmTimeout returns results within deadline', async () => {
+        const wasmBytes = Buffer.from(generateAddModule());
+        const tasks = [
+            { wasm: wasmBytes, func: 'add', args: [1, 2] },
+            { wasm: wasmBytes, func: 'add', args: [10, 20] },
+        ];
+        const results = await runtime.concurrentWasmTimeout(tasks, 5000);
+        expect(results).toEqual([3, 30]);
+    });
+
+    test('concurrentWasmCancelOnError succeeds when all tasks succeed', async () => {
+        const wasmBytes = Buffer.from(generateAddModule());
+        const tasks = [
+            { wasm: wasmBytes, func: 'add', args: [1, 2] },
+            { wasm: wasmBytes, func: 'add', args: [10, 20] },
+            { wasm: wasmBytes, func: 'add', args: [100, 200] },
+        ];
+        const results = await runtime.concurrentWasmCancelOnError(tasks);
+        expect(results).toEqual([3, 30, 300]);
+    });
+});
+
+describe.skipIf(!hasRuntime)('runtime bridge new modes', () => {
+    test('bridge exposes concurrentWasmFirst', () => {
+        const bridge = require('../src/stdlib/runtime-bridge.js');
+        expect(typeof bridge.concurrentWasmFirst).toBe('function');
+    });
+
+    test('bridge exposes concurrentWasmTimeout', () => {
+        const bridge = require('../src/stdlib/runtime-bridge.js');
+        expect(typeof bridge.concurrentWasmTimeout).toBe('function');
+    });
+
+    test('bridge exposes concurrentWasmCancelOnError', () => {
+        const bridge = require('../src/stdlib/runtime-bridge.js');
+        expect(typeof bridge.concurrentWasmCancelOnError).toBe('function');
+    });
+});
+
 describe.skipIf(!hasRuntime)('runtime bridge', () => {
     test('loads runtime via bridge', () => {
         const bridge = require('../src/stdlib/runtime-bridge.js');

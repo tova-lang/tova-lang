@@ -124,6 +124,8 @@ match result {
 }
 ```
 
+> In `first` mode, **all** named variables receive the winner's result (there is only one winning value). Use a single variable for clarity.
+
 ### timeout
 
 Cancel all tasks if the block exceeds a time limit:
@@ -136,6 +138,8 @@ concurrent timeout(5000) {
 // If 5 seconds elapse, all tasks are cancelled
 // and the block throws a timeout error.
 ```
+
+> **Cancellation is cooperative, not preemptive.** Tova uses `AbortController` for cancellation, which signals at the next async yield point. CPU-bound synchronous code will not be interrupted mid-execution. For compute-heavy tasks, consider using `@wasm` functions, which will support fuel-based preemptive cancellation in a future release.
 
 ## Channels
 
@@ -155,7 +159,7 @@ concurrent {
 
     // Consumer
     spawn fn() {
-        for await msg in ch {
+        async for msg in ch {
             print("Got: {msg}")
         }
     }
@@ -170,6 +174,8 @@ concurrent {
 | `await ch.send(value)` | Send a value. Blocks if buffer is full |
 | `await ch.receive()` | Receive a value. Returns `Option` -- `Some(val)` or `None` if closed |
 | `ch.close()` | Close the channel. Pending values can still be drained |
+
+> **Important:** `send()` and `receive()` are async operations — always use `await` when calling them. Without `await`, the operation returns a promise instead of blocking until the value is sent or received.
 
 ### Buffered vs Unbuffered
 
@@ -262,7 +268,7 @@ Distribute work across multiple consumers sharing a single channel:
 
 ```tova
 async fn worker(id, tasks) {
-    for await task in tasks {
+    async for task in tasks {
         result = process(task)
         print("Worker {id} finished: {result}")
     }
@@ -293,7 +299,7 @@ Chain channels together for multi-stage processing:
 
 ```tova
 async fn stage(name, input, output, transform) {
-    for await item in input {
+    async for item in input {
         await output.send(transform(item))
     }
     output.close()
@@ -317,7 +323,7 @@ concurrent {
 
     // Collect results
     spawn fn() {
-        for await result in final {
+        async for result in final {
             save(result)
         }
     }
@@ -356,20 +362,19 @@ Tova offers several ways to run things concurrently. Here's when to use each:
 | `await Promise.all([...])` | JS interop, simple promise collection |
 | `parallel_map(arr, fn)` | CPU-bound work on large arrays across worker threads |
 
-## Async For
+## Compiler Diagnostics
 
-Iterate over async iterables (like channels) with `async for`:
+The Tova analyzer produces warnings for common concurrency mistakes:
 
-```tova
-async fn process_stream(ch) {
-    async for msg in ch {
-        print("Processing: {msg}")
-    }
-    print("Channel closed, done")
-}
-```
-
-This compiles to JavaScript's `for await...of` and works with any object that implements `Symbol.asyncIterator`, including channels.
+| Warning Code | Description |
+|-------------|-------------|
+| `W_SPAWN_OUTSIDE_CONCURRENT` | `spawn` used outside a `concurrent` block |
+| `W_EMPTY_CONCURRENT` | `concurrent` block with no statements |
+| `W_EMPTY_SELECT` | `select` block with no cases |
+| `W_DUPLICATE_SELECT_DEFAULT` | Multiple `default` cases in a `select` |
+| `W_DUPLICATE_SELECT_TIMEOUT` | Multiple `timeout` cases in a `select` |
+| `W_SELECT_DEFAULT_TIMEOUT` | Both `default` and `timeout` in a `select` (default makes timeout unreachable) |
+| `W_MISSING_TIMEOUT` | `concurrent timeout` mode without a timeout value |
 
 ## Error Handling Summary
 

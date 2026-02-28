@@ -29,6 +29,8 @@ ch = Channel.new(10)
 
 ## Sending and Receiving
 
+> **Important:** `send()` and `receive()` are async operations — always use `await`. Without `await`, you get a promise instead of the actual send/receive behavior.
+
 ### send
 
 ```tova
@@ -89,7 +91,7 @@ await ch.receive()    // None
 
 ## Async Iteration
 
-Channels support async iteration with `for await`:
+Channels support async iteration with `async for` (compiles to JavaScript's `for await...of`):
 
 ```tova
 ch = Channel.new(10)
@@ -103,11 +105,13 @@ async fn produce(ch) {
 }
 
 // Consumer
-for await msg in ch {
+async for msg in ch {
   print("Received: {msg}")
 }
 // Prints: 0, 1, 2, 3, 4
 ```
+
+> `async for` works with any object implementing `Symbol.asyncIterator`, including channels.
 
 ---
 
@@ -124,7 +128,7 @@ async fn producer(ch, items) {
 }
 
 async fn consumer(ch) {
-  for await item in ch {
+  async for item in ch {
     result = process(item)
     print("Processed: {result}")
   }
@@ -143,7 +147,7 @@ Distribute work across multiple consumers:
 
 ```tova
 async fn worker(id, ch) {
-  for await task in ch {
+  async for task in ch {
     print("Worker {id} processing: {task}")
     await do_work(task)
   }
@@ -169,14 +173,14 @@ Chain channels together for multi-stage processing:
 
 ```tova
 async fn stage1(input, output) {
-  for await raw in input {
+  async for raw in input {
     await output.send(parse(raw))
   }
   output.close()
 }
 
 async fn stage2(input, output) {
-  for await parsed in input {
+  async for parsed in input {
     await output.send(transform(parsed))
   }
   output.close()

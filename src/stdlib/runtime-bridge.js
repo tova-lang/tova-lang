@@ -119,6 +119,21 @@ function concurrentWasmShared(tasks) {
     return _runtime.concurrentWasmShared(tasks);
 }
 
+function concurrentWasmFirst(tasks) {
+    if (!_init()) return Promise.reject(new Error('tova_runtime not available'));
+    return _runtime.concurrentWasmFirst(tasks);
+}
+
+function concurrentWasmTimeout(tasks, timeoutMs) {
+    if (!_init()) return Promise.reject(new Error('tova_runtime not available'));
+    return _runtime.concurrentWasmTimeout(tasks, timeoutMs);
+}
+
+function concurrentWasmCancelOnError(tasks) {
+    if (!_init()) return Promise.reject(new Error('tova_runtime not available'));
+    return _runtime.concurrentWasmCancelOnError(tasks);
+}
+
 module.exports = {
     isRuntimeAvailable,
     healthCheck,
@@ -131,4 +146,7 @@ module.exports = {
     concurrentWasm,
     concurrentWasmWithChannels,
     concurrentWasmShared,
+    concurrentWasmFirst,
+    concurrentWasmTimeout,
+    concurrentWasmCancelOnError,
 };

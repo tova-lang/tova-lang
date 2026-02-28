@@ -1,10 +1,10 @@
 // Counter App in Tova — demonstrates reactive UI
 
 browser {
-  state count = 0
+  state counter = 0
 
-  computed doubled = count * 2
-  computed message = match count {
+  computed doubled = counter * 2
+  computed message = match counter {
     0 => "Click the button!"
     1..5 => "Keep going..."
     n if n >= 10 => "You're on fire! 🔥"
@@ -14,13 +14,13 @@ browser {
   component App {
     <div class="counter-app">
       <h1>"Tova Counter"</h1>
-      <p class="count">"{count}"</p>
+      <p class="count">"{counter}"</p>
       <p class="doubled">"Doubled: {doubled}"</p>
       <p class="message">"{message}"</p>
       <div class="buttons">
-        <button on:click={fn() count -= 1}>"-"</button>
-        <button on:click={fn() count += 1}>"+"</button>
-        <button on:click={fn() count = 0}>"Reset"</button>
+        <button on:click={fn() counter -= 1}>"-"</button>
+        <button on:click={fn() counter += 1}>"+"</button>
+        <button on:click={fn() counter = 0}>"Reset"</button>
       </div>
     </div>
   }

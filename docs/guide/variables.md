@@ -19,8 +19,8 @@ let { name, age } = person
 print("{name} is {age} years old")
 
 items = [1, 2, 3, 4, 5]
-let [first, ...rest] = items
-print("first={first}, rest={rest}")`
+let [head, ...rest] = items
+print("head={head}, rest={rest}")`
 </script>
 
 # Variables

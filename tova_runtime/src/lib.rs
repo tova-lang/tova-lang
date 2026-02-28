@@ -143,6 +143,126 @@ pub async fn concurrent_wasm_shared(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
     Ok(all_results)
 }
 
+// --- Block mode variants for concurrent WASM ---
+
+/// Race mode: return the first successful result, cancel others
+#[napi]
+pub async fn concurrent_wasm_first(tasks: Vec<WasmTask>) -> Result<i64> {
+    use tokio::sync::oneshot;
+
+    if tasks.is_empty() {
+        return Err(Error::from_reason("no tasks provided".to_string()));
+    }
+
+    let (tx, rx) = oneshot::channel::<std::result::Result<i64, String>>();
+    let tx = Arc::new(tokio::sync::Mutex::new(Some(tx)));
+
+    let mut handles = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        let wasm_bytes = task.wasm.to_vec();
+        let func = task.func;
+        let args = task.args;
+        let tx = Arc::clone(&tx);
+        handles.push(scheduler::TOKIO_RT.spawn(async move {
+            let result = executor::exec_wasm_sync(&wasm_bytes, &func, &args);
+            if let Ok(v) = &result {
+                if let Some(sender) = tx.lock().await.take() {
+                    let _ = sender.send(Ok(*v));
+                }
+            }
+            result
+        }));
+    }
+
+    // Wait for first Ok, or collect all errors
+    match rx.await {
+        Ok(Ok(v)) => {
+            // Abort remaining tasks
+            for h in &handles { h.abort(); }
+            Ok(v)
+        }
+        _ => {
+            // All tasks failed or channel dropped — collect errors
+            let mut last_err = "all tasks failed".to_string();
+            for handle in handles {
+                match handle.await {
+                    Ok(Err(e)) => last_err = e,
+                    Err(e) => last_err = format!("join: {}", e),
+                    _ => {}
+                }
+            }
+            Err(Error::from_reason(last_err))
+        }
+    }
+}
+
+/// Timeout mode: cancel all tasks after deadline
+#[napi]
+pub async fn concurrent_wasm_timeout(tasks: Vec<WasmTask>, timeout_ms: u32) -> Result<Vec<i64>> {
+    let duration = std::time::Duration::from_millis(timeout_ms as u64);
+
+    let mut handles = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        let wasm_bytes = task.wasm.to_vec();
+        let func = task.func;
+        let args = task.args;
+        handles.push(scheduler::TOKIO_RT.spawn(async move {
+            executor::exec_wasm_sync(&wasm_bytes, &func, &args)
+        }));
+    }
+
+    match tokio::time::timeout(duration, async {
+        let mut results = Vec::with_capacity(handles.len());
+        for handle in handles.iter_mut() {
+            let r = handle
+                .await
+                .map_err(|e| format!("join: {}", e))?
+                .map_err(|e| e)?;
+            results.push(r);
+        }
+        Ok::<Vec<i64>, String>(results)
+    }).await {
+        Ok(Ok(results)) => Ok(results),
+        Ok(Err(e)) => Err(Error::from_reason(e)),
+        Err(_) => {
+            for h in &handles { h.abort(); }
+            Err(Error::from_reason("concurrent timeout".to_string()))
+        }
+    }
+}
+
+/// Cancel-on-error mode: abort all tasks on first error
+#[napi]
+pub async fn concurrent_wasm_cancel_on_error(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
+    let mut handles = Vec::with_capacity(tasks.len());
+
+    for task in tasks {
+        let wasm_bytes = task.wasm.to_vec();
+        let func = task.func;
+        let args = task.args;
+        handles.push(scheduler::TOKIO_RT.spawn(async move {
+            executor::exec_wasm_sync(&wasm_bytes, &func, &args)
+        }));
+    }
+
+    let mut results = Vec::with_capacity(handles.len());
+    for (i, handle) in handles.iter_mut().enumerate() {
+        match handle.await {
+            Ok(Ok(v)) => results.push(v),
+            Ok(Err(e)) => {
+                // Abort remaining tasks
+                for h in handles.iter().skip(i + 1) { h.abort(); }
+                return Err(Error::from_reason(e));
+            }
+            Err(e) => {
+                for h in handles.iter().skip(i + 1) { h.abort(); }
+                return Err(Error::from_reason(format!("join: {}", e)));
+            }
+        }
+    }
+    Ok(results)
+}
+
 // --- WASM with channel host imports ---
 
 #[napi]

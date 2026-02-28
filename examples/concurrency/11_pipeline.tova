@@ -1,0 +1,34 @@
+// Example: Multi-stage pipeline with channels
+
+async fn stage(name: String, input, output, transform) {
+    async for item in input {
+        await output.send(transform(item))
+    }
+    output.close()
+}
+
+async fn main() {
+    raw = Channel.new(10)
+    doubled = Channel.new(10)
+    final_ch = Channel.new(10)
+
+    concurrent {
+        spawn stage("double", raw, doubled, fn(x) x * 2)
+        spawn stage("add10", doubled, final_ch, fn(x) x + 10)
+
+        // Feed raw data
+        spawn fn() {
+            for i in range(5) {
+                await raw.send(i)
+            }
+            raw.close()
+        }
+
+        // Collect results
+        spawn fn() {
+            async for result in final_ch {
+                print("Pipeline output: {result}")
+            }
+        }
+    }
+}

@@ -409,16 +409,16 @@ print("Combined: {combined}")
 
 // Object literals
 config = {
-  color: "blue",
+  theme: "blue",
   size: "medium",
-  bold: false,
-  count: 42
+  enabled: false,
+  level: 42
 }
 print("Config: {config}")
 
 // Destructuring objects
-let {color, size, bold} = config
-print("Color: {color}")
+let {theme, size, enabled} = config
+print("Theme: {theme}")
 print("Size: {size}")
 
 // Destructuring arrays
@@ -572,33 +572,16 @@ fn to_hex(c) {
 print(to_hex(Red))
 print(to_hex(Custom(255, 128, 0)))
 
-// Option type pattern
-type Option {
-  Some(value: Any),
-  None
-}
-
+// Option — built-in type: Some(value) or None
 fn safe_divide(a, b) {
   if b == 0 { None }
   else { Some(a / b) }
 }
 
-fn unwrap(opt, default_val) {
-  match opt {
-    Some(v) => v
-    None => default_val
-  }
-}
+print(safe_divide(10, 3).unwrapOr(0))
+print(safe_divide(10, 0).unwrapOr(0))
 
-print(unwrap(safe_divide(10, 3), 0))
-print(unwrap(safe_divide(10, 0), 0))
-
-// Result type
-type Result {
-  Ok(value: Any),
-  Err(message: String)
-}
-
+// Result — built-in type: Ok(value) or Err(error)
 fn parse_age(input) {
   if input > 0 and input < 150 {
     Ok(input)
@@ -607,8 +590,14 @@ fn parse_age(input) {
   }
 }
 
-print(parse_age(25))
-print(parse_age(-5))
+match parse_age(25) {
+  Ok(v) => print("Valid: {v}")
+  Err(e) => print("Error: {e}")
+}
+match parse_age(-5) {
+  Ok(v) => print("Valid: {v}")
+  Err(e) => print("Error: {e}")
+}
 ` },
     { category: 'Types', name: 'Struct Types', code: `// Struct-like types with named fields
 type Point {
@@ -849,7 +838,7 @@ fn fib(n) {
   if n <= 1 { return n }
   var a = 0
   var b = 1
-  for i in range(2, n + 1) {
+  for _i in range(2, n + 1) {
     var temp = b
     b = a + b
     a = temp
@@ -869,14 +858,14 @@ print("\\nFirst 20: {fibs}")
 print("Sum: {sum(fibs)}")
 ` },
     { category: 'Algorithms', name: 'Binary Search', code: `// Binary search on sorted array
-fn binary_search(arr, target) {
+fn binary_search(items, target) {
   var lo = 0
-  var hi = len(arr) - 1
+  var hi = len(items) - 1
   while lo <= hi {
-    mid = (lo + hi) / 2
-    if arr[mid] == target {
+    mid = Math.floor((lo + hi) / 2)
+    if items[mid] == target {
       return mid
-    } elif arr[mid] < target {
+    } elif items[mid] < target {
       lo = mid + 1
     } else {
       hi = mid - 1
@@ -962,7 +951,7 @@ print("Squared: {list_to_array(squared)}")
     { category: 'Algorithms', name: 'Game of Life', code: `// Conway's Game of Life — one generation step
 
 fn make_grid(rows, cols) {
-  [[0 for c in range(cols)] for r in range(rows)]
+  [[0 for _c in range(cols)] for _r in range(rows)]
 }
 
 fn count_neighbors(grid, r, c) {
@@ -1006,7 +995,7 @@ fn display(grid) {
 }
 
 // Glider pattern
-grid = make_grid(8, 8)
+var grid = make_grid(8, 8)
 grid[1][2] = 1
 grid[2][3] = 1
 grid[3][1] = 1
@@ -1098,8 +1087,8 @@ function getReference() {
       { syntax: 'type_of(value)', desc: 'Runtime type name' },
     ]},
     { title: 'Reactive (browser)', items: [
-      { syntax: 'state count = 0', desc: 'Reactive variable (signal)' },
-      { syntax: 'computed doubled = count * 2', desc: 'Derived value' },
+      { syntax: 'state counter = 0', desc: 'Reactive variable (signal)' },
+      { syntax: 'computed doubled = counter * 2', desc: 'Derived value' },
       { syntax: 'effect { ... }', desc: 'Side effect (auto-tracks deps)' },
       { syntax: 'component App { <div>...</div> }', desc: 'UI component' },
       { syntax: 'on:click={fn() ...}', desc: 'Event handler' },
@@ -2093,7 +2082,7 @@ const tovaSnippets = [
   { label: 'for', detail: 'for-in loop', apply: 'for item in items {\\n  \\n}', boost: -1 },
   { label: 'match', detail: 'match expression', apply: 'match value {\\n  _ => \\n}', boost: -1 },
   { label: 'type', detail: 'type definition', apply: 'type Name {\\n  \\n}', boost: -1 },
-  { label: 'browser', detail: 'browser block', apply: 'browser {\\n  state count = 0\\n\\n  component App {\\n    <div>\\n      \\n    </div>\\n  }\\n}', boost: -1 },
+  { label: 'browser', detail: 'browser block', apply: 'browser {\\n  state counter = 0\\n\\n  component App {\\n    <div>\\n      \\n    </div>\\n  }\\n}', boost: -1 },
   { label: 'component', detail: 'component', apply: 'component App {\\n  <div>\\n    \\n  </div>\\n}', boost: -1 },
   { label: 'server', detail: 'server block', apply: 'server {\\n  \\n}', boost: -1 },
   { label: 'effect', detail: 'side effect', apply: 'effect {\\n  \\n}', boost: -1 },
@@ -2317,7 +2306,6 @@ EXAMPLES.forEach((ex, i) => {
 exSelect.addEventListener('change', () => {
   const code = EXAMPLES[+exSelect.value].code;
   setEditorCode(code);
-  exSelect.value = '';
 });
 
 function setEditorCode(code) {

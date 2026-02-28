@@ -1,0 +1,55 @@
+// Example: select in a while loop (event loop pattern)
+
+async fn main() {
+    commands = Channel.new(10)
+    events = Channel.new(10)
+    quit = Channel.new(1)
+
+    concurrent {
+        // Simulated command producer
+        spawn fn() {
+            await commands.send("start")
+            await commands.send("process")
+            await commands.send("stop")
+            commands.close()
+        }
+
+        // Simulated event producer
+        spawn fn() {
+            await events.send("click")
+            await events.send("scroll")
+            events.close()
+        }
+
+        // Signal quit after a delay
+        spawn fn() {
+            await sleep(500)
+            await quit.send("quit")
+            quit.close()
+        }
+
+        // Event loop
+        spawn fn() {
+            running = true
+            while running {
+                select {
+                    cmd from commands => {
+                        print("Command: {cmd}")
+                    }
+                    evt from events => {
+                        print("Event: {evt}")
+                    }
+                    _ from quit => {
+                        print("Quit signal received")
+                        running = false
+                    }
+                    timeout(2000) => {
+                        print("Idle timeout")
+                        running = false
+                    }
+                }
+            }
+            print("Event loop ended")
+        }
+    }
+}

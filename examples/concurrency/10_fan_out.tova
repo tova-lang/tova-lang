@@ -1,0 +1,42 @@
+// Example: Fan-out pattern with channels
+// Multiple workers consume from a shared channel
+
+async fn worker(id: Int, tasks, results) {
+    async for task in tasks {
+        result = task * task
+        await results.send(result)
+    }
+}
+
+async fn main() {
+    tasks = Channel.new(100)
+    results = Channel.new(100)
+
+    concurrent {
+        // Start 4 workers
+        spawn worker(1, tasks, results)
+        spawn worker(2, tasks, results)
+        spawn worker(3, tasks, results)
+        spawn worker(4, tasks, results)
+
+        // Feed work
+        spawn fn() {
+            for i in range(20) {
+                await tasks.send(i)
+            }
+            tasks.close()
+        }
+
+        // Collect results
+        spawn fn() {
+            count = 0
+            async for result in results {
+                print("Result: {result}")
+                count = count + 1
+                if count >= 20 { results.close() }
+            }
+        }
+    }
+
+    print("All work complete")
+}

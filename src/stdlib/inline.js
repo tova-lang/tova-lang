@@ -117,7 +117,7 @@ export const BUILTIN_FUNCTIONS = {
   if (!parallel_map._pool) {
     const { Worker } = await import("worker_threads");
     const wc = 'const{parentPort}=require("worker_threads");parentPort.on("message",m=>{const fn=(0,eval)("("+m.f+")");try{const r=m.c.map(fn);parentPort.postMessage({i:m.i,r})}catch(e){parentPort.postMessage({i:m.i,e:e.message})}})';
-    parallel_map._pool = Array.from({length: n}, () => { const w = new Worker(wc, {eval: true}); w.unref(); return w; });
+    parallel_map._pool = Array.from({length: n}, () => new Worker(wc, {eval: true}));
     parallel_map._cid = 0;
   }
   const pool = parallel_map._pool;
@@ -125,17 +125,20 @@ export const BUILTIN_FUNCTIONS = {
   const fnStr = fn.toString();
   const cid = ++parallel_map._cid;
   const promises = [];
+  const usedWorkers = [];
   for (let ci = 0; ci < pool.length && ci * cs < arr.length; ci++) {
     const chunk = arr.slice(ci * cs, (ci + 1) * cs);
     const mid = cid * 1000 + ci;
+    const w = pool[ci];
+    w.ref();
+    usedWorkers.push(w);
     promises.push(new Promise((resolve, reject) => {
-      const w = pool[ci];
       const h = (msg) => { if (msg.i === mid) { w.removeListener("message", h); if (msg.e) reject(new Error(msg.e)); else resolve(msg.r); } };
       w.on("message", h);
       w.postMessage({i: mid, c: chunk, f: fnStr});
     }));
   }
-  return (await Promise.all(promises)).flat();
+  try { return (await Promise.all(promises)).flat(); } finally { for (const w of usedWorkers) w.unref(); }
 }`,
   upper: `function upper(s) { return s.toUpperCase(); }`,
   lower: `function lower(s) { return s.toLowerCase(); }`,

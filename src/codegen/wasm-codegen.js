@@ -602,6 +602,12 @@ export function generateWasmGlue(funcNode, wasmBytes) {
   return `const ${name} = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([${bytesStr}]))).exports.${name};`;
 }
 
+// Generate a module-level constant holding the raw WASM bytes for runtime use
+export function generateWasmBytesExport(funcName, wasmBytes) {
+  const bytesStr = Array.from(wasmBytes).join(',');
+  return `const __wasm_bytes_${funcName} = new Uint8Array([${bytesStr}]);`;
+}
+
 // Generate JS glue code for a multi-function WASM module
 export function generateMultiWasmGlue(funcNodes, wasmBytes) {
   const bytesStr = Array.from(wasmBytes).join(',');

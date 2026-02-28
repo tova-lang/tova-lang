@@ -1064,6 +1064,36 @@ export class Analyzer {
       this.visitNode(stmt);
     }
 
+    // Check spawned functions for WASM compatibility — warn if mixed WASM/non-WASM
+    let hasWasm = false;
+    let hasNonWasm = false;
+    for (const stmt of node.body) {
+      const spawn = (stmt.type === 'Assignment' && stmt.values && stmt.values[0] && stmt.values[0].type === 'SpawnExpression')
+        ? stmt.values[0]
+        : (stmt.type === 'ExpressionStatement' && stmt.expression && stmt.expression.type === 'SpawnExpression')
+          ? stmt.expression
+          : null;
+      if (!spawn) continue;
+      const calleeName = spawn.callee && spawn.callee.type === 'Identifier' ? spawn.callee.name : null;
+      if (calleeName) {
+        const sym = this.currentScope.lookup(calleeName);
+        if (sym && sym.isWasm) {
+          hasWasm = true;
+        } else {
+          hasNonWasm = true;
+        }
+      } else {
+        // Lambda or complex expression — always non-WASM
+        hasNonWasm = true;
+      }
+    }
+    if (hasWasm && hasNonWasm) {
+      this.warn(
+        "concurrent block mixes @wasm and non-WASM tasks — non-WASM tasks will fall back to async JS execution",
+        node.loc, null, { code: 'W_SPAWN_WASM_FALLBACK' }
+      );
+    }
+
     this._concurrentDepth--;
   }
 
@@ -1714,9 +1744,10 @@ export class Analyzer {
     } else if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
       for (const el of node.pattern.elements) {
         if (el) {
+          const varName = el.startsWith('...') ? el.slice(3) : el;
           try {
-            this.currentScope.define(el,
-              new Symbol(el, 'variable', null, false, node.loc));
+            this.currentScope.define(varName,
+              new Symbol(varName, 'variable', null, false, node.loc));
           } catch (e) {
             this.error(e.message);
           }
@@ -1734,6 +1765,7 @@ export class Analyzer {
       sym._paramTypes = node.params.map(p => p.typeAnnotation || null);
       sym._typeParams = node.typeParams || [];
       sym.isPublic = node.isPublic || false;
+      sym.isWasm = !!(node.decorators && node.decorators.some(d => d.name === 'wasm'));
       this.currentScope.define(node.name, sym);
     } catch (e) {
       this.error(e.message);

@@ -11,7 +11,16 @@ pub fn exec_wasm_sync(wasm_bytes: &[u8], func_name: &str, args: &[i64]) -> Resul
     let func = instance
         .get_func(&mut store, func_name)
         .ok_or_else(|| format!("function '{}' not found", func_name))?;
-    let wasm_args: Vec<Val> = args.iter().map(|&v| Val::I64(v)).collect();
+    let func_ty = func.ty(&store);
+    let wasm_args: Vec<Val> = args
+        .iter()
+        .zip(func_ty.params())
+        .map(|(&v, ty)| match ty {
+            ValType::I32 => Val::I32(v as i32),
+            ValType::I64 => Val::I64(v),
+            _ => Val::I64(v),
+        })
+        .collect();
     let mut results = vec![Val::I64(0)];
     func.call(&mut store, &wasm_args, &mut results)
         .map_err(|e| format!("WASM execution error: {}", e))?;
@@ -43,7 +52,16 @@ pub fn exec_many_shared(
             let func = instance
                 .get_func(&mut store, &func_name)
                 .ok_or_else(|| format!("func '{}' not found", func_name))?;
-            let wasm_args: Vec<Val> = args.iter().map(|&v| Val::I64(v)).collect();
+            let func_ty = func.ty(&store);
+            let wasm_args: Vec<Val> = args
+                .iter()
+                .zip(func_ty.params())
+                .map(|(&v, ty)| match ty {
+                    ValType::I32 => Val::I32(v as i32),
+                    ValType::I64 => Val::I64(v),
+                    _ => Val::I64(v),
+                })
+                .collect();
             let mut results = vec![Val::I64(0)];
             func.call(&mut store, &wasm_args, &mut results)
                 .map_err(|e| format!("exec: {}", e))?;

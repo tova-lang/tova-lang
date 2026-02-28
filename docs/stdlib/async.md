@@ -162,6 +162,32 @@ loop {
 }
 ```
 
+### parallel_map
+
+```tova
+parallel_map(arr, fn, numWorkers?) -> Promise[List]
+```
+
+Distributes an array across worker threads and applies `fn` to each element in parallel. Returns a promise resolving to the mapped results.
+
+- **`arr`**: The input array to process
+- **`fn`**: A mapping function applied to each element. Must be serializable (no closures over external state)
+- **`numWorkers`** (optional): Number of worker threads. Defaults to `navigator.hardwareConcurrency` (browser) or 4 (server)
+
+The worker pool is persistent — workers are created once and reused across calls, avoiding thread creation overhead.
+
+```tova
+// Map in parallel across all CPU cores
+results = await parallel_map(items, fn(item) {
+    expensive_transform(item)
+})
+
+// Limit to 2 workers
+results = await parallel_map(items, fn(x) x * 2, 2)
+```
+
+For small arrays (< 4 elements) or a single worker, `parallel_map` falls back to synchronous `map` to avoid overhead.
+
 ---
 
 ## Date & Time

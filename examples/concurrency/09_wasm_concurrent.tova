@@ -1,0 +1,25 @@
+// Example: @wasm functions in a concurrent block
+// When the Tokio runtime is available, these run on native threads
+// Otherwise, they fall back to async JS execution
+
+@wasm
+fn fib(n: Int) -> Int {
+    if n <= 1 { n }
+    else { fib(n - 1) + fib(n - 2) }
+}
+
+async fn main() {
+    concurrent {
+        a = spawn fib(30)
+        b = spawn fib(35)
+    }
+
+    match a {
+        Ok(v) => print("fib(30) = {v}")
+        Err(e) => print("Error: {e}")
+    }
+    match b {
+        Ok(v) => print("fib(35) = {v}")
+        Err(e) => print("Error: {e}")
+    }
+}

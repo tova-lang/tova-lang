@@ -888,3 +888,201 @@ describe('select and cancellation E2E', () => {
         expect(output).toContain('1');
     });
 });
+
+describe('WASM concurrent codegen', () => {
+    test('@wasm spawn generates __wasm_bytes_ reference', () => {
+        const code = compileCode(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+
+            fn main() {
+                concurrent {
+                    r = spawn add(1, 2)
+                }
+            }
+        `);
+        expect(code).toContain('__wasm_bytes_add');
+    });
+
+    test('@wasm spawn generates concurrentWasm call', () => {
+        const code = compileCode(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+
+            fn main() {
+                concurrent {
+                    a = spawn add(1, 2)
+                    b = spawn add(3, 4)
+                }
+            }
+        `);
+        expect(code).toContain('concurrentWasm');
+        expect(code).toContain('isRuntimeAvailable');
+    });
+
+    test('same-function @wasm spawns use concurrentWasmShared', () => {
+        const code = compileCode(`
+            @wasm
+            fn fib(n: Int) -> Int {
+                if n <= 1 { n }
+                else { fib(n - 1) + fib(n - 2) }
+            }
+
+            fn main() {
+                concurrent {
+                    a = spawn fib(10)
+                    b = spawn fib(20)
+                }
+            }
+        `);
+        expect(code).toContain('concurrentWasmShared');
+    });
+
+    test('mixed @wasm and JS spawns use individual execWasm', () => {
+        const code = compileCode(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+            fn greet() -> String { "hello" }
+
+            fn main() {
+                concurrent {
+                    a = spawn add(1, 2)
+                    b = spawn greet()
+                }
+            }
+        `);
+        // Mixed block should route individual WASM tasks through execWasm
+        expect(code).toContain('execWasm');
+        expect(code).toContain('Promise.all');
+    });
+
+    test('@wasm concurrent includes fallback path', () => {
+        const code = compileCode(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+
+            fn main() {
+                concurrent {
+                    r = spawn add(1, 2)
+                }
+            }
+        `);
+        // Must have both WASM path and fallback
+        expect(code).toContain('isRuntimeAvailable()');
+        expect(code).toContain('Promise.all');
+    });
+
+    test('@wasm first mode generates concurrentWasmFirst', () => {
+        const code = compileCode(`
+            @wasm
+            fn compute(n: Int) -> Int { n * n }
+
+            fn main() {
+                concurrent first {
+                    r = spawn compute(10)
+                    spawn compute(20)
+                }
+            }
+        `);
+        expect(code).toContain('concurrentWasmFirst');
+    });
+
+    test('@wasm cancel_on_error mode generates concurrentWasmCancelOnError', () => {
+        const code = compileCode(`
+            @wasm
+            fn compute(n: Int) -> Int { n * n }
+
+            fn main() {
+                concurrent cancel_on_error {
+                    a = spawn compute(10)
+                    b = spawn compute(20)
+                }
+            }
+        `);
+        expect(code).toContain('concurrentWasmCancelOnError');
+    });
+
+    test('@wasm timeout mode generates concurrentWasmTimeout', () => {
+        const code = compileCode(`
+            @wasm
+            fn compute(n: Int) -> Int { n * n }
+
+            fn main() {
+                concurrent timeout(5000) {
+                    a = spawn compute(10)
+                    b = spawn compute(20)
+                }
+            }
+        `);
+        expect(code).toContain('concurrentWasmTimeout');
+        expect(code).toContain('5000');
+    });
+
+    test('runtime bridge require emitted in helpers', () => {
+        const code = compileCode(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+
+            fn main() {
+                concurrent {
+                    r = spawn add(1, 2)
+                }
+            }
+        `);
+        expect(code).toContain('__tova_rt');
+        expect(code).toContain('runtime-bridge');
+    });
+});
+
+describe('WASM fallback analyzer warning', () => {
+    test('mixed @wasm and non-@wasm warns W_SPAWN_WASM_FALLBACK', () => {
+        const warnings = getWarnings(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+            fn greet() -> String { "hello" }
+
+            fn main() {
+                concurrent {
+                    a = spawn add(1, 2)
+                    b = spawn greet()
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_SPAWN_WASM_FALLBACK');
+        expect(w).toBeDefined();
+    });
+
+    test('all @wasm does NOT warn W_SPAWN_WASM_FALLBACK', () => {
+        const warnings = getWarnings(`
+            @wasm
+            fn add(a: Int, b: Int) -> Int { a + b }
+            @wasm
+            fn mul(a: Int, b: Int) -> Int { a * b }
+
+            fn main() {
+                concurrent {
+                    a = spawn add(1, 2)
+                    b = spawn mul(3, 4)
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_SPAWN_WASM_FALLBACK');
+        expect(w).toBeUndefined();
+    });
+
+    test('all non-@wasm does NOT warn W_SPAWN_WASM_FALLBACK', () => {
+        const warnings = getWarnings(`
+            fn foo() -> Int { 42 }
+            fn bar() -> Int { 99 }
+
+            fn main() {
+                concurrent {
+                    a = spawn foo()
+                    b = spawn bar()
+                }
+            }
+        `);
+        const w = warnings.find(w => w.code === 'W_SPAWN_WASM_FALLBACK');
+        expect(w).toBeUndefined();
+    });
+});

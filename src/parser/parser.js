@@ -131,13 +131,15 @@ export class Parser {
   _isContextualKeyword() {
     const t = this.current().type;
     return t === TokenType.ROUTE || t === TokenType.STATE || t === TokenType.COMPUTED ||
-           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE;
+           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE ||
+           t === TokenType.FORM || t === TokenType.FIELD || t === TokenType.GROUP || t === TokenType.STEPS;
   }
 
   _isContextualKeywordToken(token) {
     const t = token.type;
     return t === TokenType.ROUTE || t === TokenType.STATE || t === TokenType.COMPUTED ||
-           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE;
+           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE ||
+           t === TokenType.FORM || t === TokenType.FIELD || t === TokenType.GROUP || t === TokenType.STEPS;
   }
 
   _synchronizeBlock() {
@@ -1225,7 +1227,12 @@ export class Parser {
     const elements = [];
 
     while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
-      if (this.check(TokenType.IDENTIFIER) && this.current().value === '_') {
+      if (this.check(TokenType.SPREAD)) {
+        this.advance(); // consume ...
+        const restName = this.expect(TokenType.IDENTIFIER, "Expected identifier after '...'").value;
+        elements.push('...' + restName);
+        break; // rest must be last
+      } else if (this.check(TokenType.IDENTIFIER) && this.current().value === '_') {
         elements.push(null); // skip placeholder
         this.advance();
       } else {
@@ -2010,6 +2017,10 @@ export class Parser {
       case TokenType.BROWSER:
       case TokenType.SHARED:
       case TokenType.DERIVE:
+      case TokenType.FORM:
+      case TokenType.FIELD:
+      case TokenType.GROUP:
+      case TokenType.STEPS:
         return new AST.Identifier(this.advance().value, l);
 
       case TokenType.IDENTIFIER: {

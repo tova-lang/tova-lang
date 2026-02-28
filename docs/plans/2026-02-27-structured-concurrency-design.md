@@ -3,6 +3,19 @@
 **Date:** 2026-02-27
 **Status:** Approved
 
+## Implementation Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Rust Runtime Foundation | COMPLETE | Tokio scheduler, Wasmtime executor, crossbeam channels, napi-rs bridge |
+| Phase 2 — Parser/Codegen | COMPLETE | `concurrent`, `spawn`, `select`, channels — Promise-based JS execution |
+| Phase 3 — Select + Cancellation | PARTIAL | `select` via `Promise.race`, block modes via `AbortController`. Not yet using Tokio `select!` |
+| Phase 4 — Extended WASM Codegen | PLANNED | Strings, arrays, structs in WASM |
+| Phase 5 — I/O Host Imports | PLANNED | HTTP, file I/O via Tokio |
+| Phase 6 — Analyzer + Polish | PLANNED | Full warnings, LSP integration |
+
+> **WASM-Tokio wiring** bridges Phase 1 → Phase 2: `spawn` of `@wasm` functions routes through the Tokio runtime instead of `Promise.all`, with automatic fallback for non-WASM tasks.
+
 ## Overview
 
 Tova gains Go-level concurrency with structured scoping, Result-based error propagation, and data-race safety by construction. Concurrent task bodies compile to WebAssembly and execute on a Rust/Tokio runtime embedded as a native addon (napi-rs, targeting Bun). Channels are lock-free crossbeam queues. Select multiplexes across channels via Tokio's select.
@@ -179,11 +192,11 @@ concurrent timeout(5000) {
 }
 // If 5s elapses: all tasks cancelled, block returns Err(Timeout)
 
-// Timeout individual task
+// Timeout individual task using stdlib timeout()
 concurrent {
-    a = spawn with_timeout(3000, fn() {
-        fetch_from_slow_api()
-    })
+    a = spawn fn() {
+        await timeout(fetch_from_slow_api(), 3000)
+    }
 }
 ```
 

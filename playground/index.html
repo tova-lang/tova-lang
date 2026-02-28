@@ -6404,13 +6404,15 @@ class Parser {
   _isContextualKeyword() {
     const t = this.current().type;
     return t === TokenType.ROUTE || t === TokenType.STATE || t === TokenType.COMPUTED ||
-           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE;
+           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE ||
+           t === TokenType.FORM || t === TokenType.FIELD || t === TokenType.GROUP || t === TokenType.STEPS;
   }
 
   _isContextualKeywordToken(token) {
     const t = token.type;
     return t === TokenType.ROUTE || t === TokenType.STATE || t === TokenType.COMPUTED ||
-           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE;
+           t === TokenType.EFFECT || t === TokenType.COMPONENT || t === TokenType.STORE ||
+           t === TokenType.FORM || t === TokenType.FIELD || t === TokenType.GROUP || t === TokenType.STEPS;
   }
 
   _synchronizeBlock() {
@@ -7498,7 +7500,12 @@ class Parser {
     const elements = [];
 
     while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
-      if (this.check(TokenType.IDENTIFIER) && this.current().value === '_') {
+      if (this.check(TokenType.SPREAD)) {
+        this.advance(); // consume ...
+        const restName = this.expect(TokenType.IDENTIFIER, "Expected identifier after '...'").value;
+        elements.push('...' + restName);
+        break; // rest must be last
+      } else if (this.check(TokenType.IDENTIFIER) && this.current().value === '_') {
         elements.push(null); // skip placeholder
         this.advance();
       } else {
@@ -8283,6 +8290,10 @@ class Parser {
       case TokenType.BROWSER:
       case TokenType.SHARED:
       case TokenType.DERIVE:
+      case TokenType.FORM:
+      case TokenType.FIELD:
+      case TokenType.GROUP:
+      case TokenType.STEPS:
         return new AST.Identifier(this.advance().value, l);
 
       case TokenType.IDENTIFIER: {
@@ -11312,6 +11323,36 @@ class Analyzer {
       this.visitNode(stmt);
     }
 
+    // Check spawned functions for WASM compatibility — warn if mixed WASM/non-WASM
+    let hasWasm = false;
+    let hasNonWasm = false;
+    for (const stmt of node.body) {
+      const spawn = (stmt.type === 'Assignment' && stmt.values && stmt.values[0] && stmt.values[0].type === 'SpawnExpression')
+        ? stmt.values[0]
+        : (stmt.type === 'ExpressionStatement' && stmt.expression && stmt.expression.type === 'SpawnExpression')
+          ? stmt.expression
+          : null;
+      if (!spawn) continue;
+      const calleeName = spawn.callee && spawn.callee.type === 'Identifier' ? spawn.callee.name : null;
+      if (calleeName) {
+        const sym = this.currentScope.lookup(calleeName);
+        if (sym && sym.isWasm) {
+          hasWasm = true;
+        } else {
+          hasNonWasm = true;
+        }
+      } else {
+        // Lambda or complex expression — always non-WASM
+        hasNonWasm = true;
+      }
+    }
+    if (hasWasm && hasNonWasm) {
+      this.warn(
+        "concurrent block mixes @wasm and non-WASM tasks — non-WASM tasks will fall back to async JS execution",
+        node.loc, null, { code: 'W_SPAWN_WASM_FALLBACK' }
+      );
+    }
+
     this._concurrentDepth--;
   }
 
@@ -11962,9 +12003,10 @@ class Analyzer {
     } else if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
       for (const el of node.pattern.elements) {
         if (el) {
+          const varName = el.startsWith('...') ? el.slice(3) : el;
           try {
-            this.currentScope.define(el,
-              new Symbol(el, 'variable', null, false, node.loc));
+            this.currentScope.define(varName,
+              new Symbol(varName, 'variable', null, false, node.loc));
           } catch (e) {
             this.error(e.message);
           }
@@ -11982,6 +12024,7 @@ class Analyzer {
       sym._paramTypes = node.params.map(p => p.typeAnnotation || null);
       sym._typeParams = node.typeParams || [];
       sym.isPublic = node.isPublic || false;
+      sym.isWasm = !!(node.decorators && node.decorators.some(d => d.name === 'wasm'));
       this.currentScope.define(node.name, sym);
     } catch (e) {
       this.error(e.message);
@@ -13664,7 +13707,7 @@ const BUILTIN_FUNCTIONS = {
   if (!parallel_map._pool) {
     const { Worker } = await import("worker_threads");
     const wc = 'const{parentPort}=require("worker_threads");parentPort.on("message",m=>{const fn=(0,eval)("("+m.f+")");try{const r=m.c.map(fn);parentPort.postMessage({i:m.i,r})}catch(e){parentPort.postMessage({i:m.i,e:e.message})}})';
-    parallel_map._pool = Array.from({length: n}, () => { const w = new Worker(wc, {eval: true}); w.unref(); return w; });
+    parallel_map._pool = Array.from({length: n}, () => new Worker(wc, {eval: true}));
     parallel_map._cid = 0;
   }
   const pool = parallel_map._pool;
@@ -13672,17 +13715,20 @@ const BUILTIN_FUNCTIONS = {
   const fnStr = fn.toString();
   const cid = ++parallel_map._cid;
   const promises = [];
+  const usedWorkers = [];
   for (let ci = 0; ci < pool.length && ci * cs < arr.length; ci++) {
     const chunk = arr.slice(ci * cs, (ci + 1) * cs);
     const mid = cid * 1000 + ci;
+    const w = pool[ci];
+    w.ref();
+    usedWorkers.push(w);
     promises.push(new Promise((resolve, reject) => {
-      const w = pool[ci];
       const h = (msg) => { if (msg.i === mid) { w.removeListener("message", h); if (msg.e) reject(new Error(msg.e)); else resolve(msg.r); } };
       w.on("message", h);
       w.postMessage({i: mid, c: chunk, f: fnStr});
     }));
   }
-  return (await Promise.all(promises)).flat();
+  try { return (await Promise.all(promises)).flat(); } finally { for (const w of usedWorkers) w.unref(); }
 }`,
   upper: `function upper(s) { return s.toUpperCase(); }`,
   lower: `function lower(s) { return s.toLowerCase(); }`,
@@ -15959,6 +16005,12 @@ function generateWasmGlue(funcNode, wasmBytes) {
   return `const ${name} = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([${bytesStr}]))).exports.${name};`;
 }
 
+// Generate a module-level constant holding the raw WASM bytes for runtime use
+function generateWasmBytesExport(funcName, wasmBytes) {
+  const bytesStr = Array.from(wasmBytes).join(',');
+  return `const __wasm_bytes_${funcName} = new Uint8Array([${bytesStr}]);`;
+}
+
 // Generate JS glue code for a multi-function WASM module
 function generateMultiWasmGlue(funcNodes, wasmBytes) {
   const bytesStr = Array.from(wasmBytes).join(',');
@@ -15991,6 +16043,9 @@ class BaseCodegen {
     this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol, sourceFile?}
     this._outputLineCount = 0;
     this._sourceFile = null; // current source file for multi-file source maps
+    // @wasm function tracking for concurrent block WASM routing
+    this._wasmFunctions = new Map(); // funcName -> { node, wasmBytes }
+    this._needsRuntimeBridge = false; // set true when concurrent block uses WASM tasks
     // @fast mode for TypedArray optimization
     this._fastMode = false;
     this._typedArrayParams = new Map(); // paramName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
@@ -16460,7 +16515,9 @@ class BaseCodegen {
       return `${this.i()}const { ${props} } = ${this.genExpression(node.value)};`;
     }
     if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
-      for (const e of node.pattern.elements) if (e) this.declareVar(e);
+      for (const e of node.pattern.elements) {
+        if (e) this.declareVar(e.startsWith('...') ? e.slice(3) : e);
+      }
       const els = node.pattern.elements.map(e => e || '').join(', ');
       return `${this.i()}const [${els}] = ${this.genExpression(node.value)};`;
     }
@@ -16541,9 +16598,14 @@ class BaseCodegen {
       // Track as user-defined to suppress stdlib version
       if (BUILTIN_NAMES.has(node.name)) this._userDefinedNames.add(node.name);
       const wasmBytes = compileWasmFunction(node);
-      const glue = generateWasmGlue(node, wasmBytes);
+      // Track this WASM function for concurrent block routing
+      this._wasmFunctions.set(node.name, { node, wasmBytes });
       const exportPrefix = node.isPublic ? 'export ' : '';
-      return `${this.i()}${exportPrefix}${glue}`;
+      // Emit bytes constant first, then glue that references it (avoids duplication)
+      const bytesExport = generateWasmBytesExport(node.name, wasmBytes);
+      const name = node.name;
+      const glue = `const ${name} = new WebAssembly.Instance(new WebAssembly.Module(__wasm_bytes_${name})).exports.${name};`;
+      return `${this.i()}${bytesExport}\n${this.i()}${exportPrefix}${glue}`;
     } catch (e) {
       // Fall back to JS if WASM compilation fails
       console.error(`Warning: @wasm compilation failed for '${node.name}': ${e.message}. Falling back to JS.`);
@@ -18412,14 +18474,22 @@ class BaseCodegen {
 
       if (arm.pattern.type === 'WildcardPattern' || arm.pattern.type === 'BindingPattern') {
         if (idx === node.arms.length - 1 && !arm.guard) {
-          // Default case
+          // Default case — wrap in else block if preceded by if/else-if arms
+          if (idx > 0) {
+            p.push(`${this.i()}else {\n`);
+            this.indent++;
+          }
           if (arm.pattern.type === 'BindingPattern') {
             p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
           }
           if (arm.body.type === 'BlockStatement') {
-            p.push(this.genBlockBody(arm.body) + '\n');
+            p.push(this._genBlockBodyReturns(arm.body) + '\n');
           } else {
             p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+          }
+          if (idx > 0) {
+            this.indent--;
+            p.push(`${this.i()}}\n`);
           }
           break;
         }
@@ -18433,7 +18503,7 @@ class BaseCodegen {
       p.push(this.genPatternBindings(arm.pattern, tempVar));
 
       if (arm.body.type === 'BlockStatement') {
-        p.push(this.genBlockBody(arm.body) + '\n');
+        p.push(this._genBlockBodyReturns(arm.body) + '\n');
       } else {
         p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
       }
@@ -18840,11 +18910,51 @@ class BaseCodegen {
       if (pattern.type === 'BindingPattern') {
         cond = `((${pattern.name}) => ${this.genExpression(guard)})(${subject})`;
       } else {
-        cond = `(${cond}) && (${this.genExpression(guard)})`;
+        // Collect bindings from sub-patterns (e.g. [1, n] if n < 2)
+        const bindings = this._collectPatternBindings(pattern, subject);
+        if (bindings.length > 0) {
+          const params = bindings.map(b => b.name).join(', ');
+          const args = bindings.map(b => b.accessor).join(', ');
+          cond = `(${cond}) && ((${params}) => ${this.genExpression(guard)})(${args})`;
+        } else {
+          cond = `(${cond}) && (${this.genExpression(guard)})`;
+        }
       }
     }
 
     return cond;
+  }
+
+  _collectPatternBindings(pattern, subject) {
+    const bindings = [];
+    switch (pattern.type) {
+      case 'BindingPattern':
+        bindings.push({ name: pattern.name, accessor: subject });
+        break;
+      case 'ArrayPattern':
+      case 'TuplePattern':
+        for (let i = 0; i < pattern.elements.length; i++) {
+          const el = pattern.elements[i];
+          if (el) bindings.push(...this._collectPatternBindings(el, `${subject}[${i}]`));
+        }
+        break;
+      case 'VariantPattern': {
+        const declaredFields = this._variantFields[pattern.name] || [];
+        for (let i = 0; i < pattern.fields.length; i++) {
+          const f = pattern.fields[i];
+          const fieldName = typeof f === 'string' ? f : (f.type === 'BindingPattern' ? f.name : null);
+          const propName = declaredFields[i] || fieldName || 'value';
+          const accessor = `${subject}.${propName}`;
+          if (typeof f === 'string') {
+            bindings.push({ name: f, accessor });
+          } else {
+            bindings.push(...this._collectPatternBindings(f, accessor));
+          }
+        }
+        break;
+      }
+    }
+    return bindings;
   }
 
   genPatternBindings(pattern, subject) {
@@ -19242,20 +19352,24 @@ class BaseCodegen {
 
   genConcurrentBlock(node) {
     const lines = [];
-    const tasks = [];
+    const tasks = [];       // { callCode, calleeName, spawn, isWasm }
     const assignments = [];
 
-    // Collect spawn tasks from body
+    // Collect spawn tasks from body, preserving spawn node info
     for (const stmt of node.body) {
       if (stmt.type === 'Assignment' && stmt.values && stmt.values[0] && stmt.values[0].type === 'SpawnExpression') {
         const spawn = stmt.values[0];
+        const calleeName = spawn.callee && spawn.callee.type === 'Identifier' ? spawn.callee.name : null;
         const callCode = `${this.genExpression(spawn.callee)}(${spawn.arguments.map(a => this.genExpression(a)).join(', ')})`;
-        tasks.push(callCode);
+        const isWasm = calleeName && this._wasmFunctions.has(calleeName);
+        tasks.push({ callCode, calleeName, spawn, isWasm });
         assignments.push(stmt.targets[0]); // string variable name
       } else if (stmt.type === 'ExpressionStatement' && stmt.expression && stmt.expression.type === 'SpawnExpression') {
         const spawn = stmt.expression;
+        const calleeName = spawn.callee && spawn.callee.type === 'Identifier' ? spawn.callee.name : null;
         const callCode = `${this.genExpression(spawn.callee)}(${spawn.arguments.map(a => this.genExpression(a)).join(', ')})`;
-        tasks.push(callCode);
+        const isWasm = calleeName && this._wasmFunctions.has(calleeName);
+        tasks.push({ callCode, calleeName, spawn, isWasm });
         assignments.push(null); // fire-and-forget
       } else {
         // Non-spawn statement — generate normally
@@ -19269,61 +19383,183 @@ class BaseCodegen {
       return lines.join('\n');
     }
 
-    // Generate Promise.all with Result wrapping
-    // Use monotonic counter to avoid duplicate names in nested concurrent blocks
     const base = this._concurrentCounter = (this._concurrentCounter || 0) + 1;
     const tempVars = tasks.map((_, i) => `__c${base}_${i}`);
-    const taskExprs = tasks.map(call =>
-      `(async () => { try { return new Ok(await ${call}); } catch(__e) { return new Err(__e); } })()`
-    );
 
-    if (node.mode === 'timeout' && node.timeout) {
-      const timeoutMs = this.genExpression(node.timeout);
-      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
-      lines.push(`${this.i()}  Promise.all([`);
-      for (let i = 0; i < taskExprs.length; i++) {
-        lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+    // Classify tasks
+    const wasmTasks = tasks.filter(t => t.isWasm);
+    const allWasm = wasmTasks.length === tasks.length;
+    const hasWasm = wasmTasks.length > 0;
+
+    // Check if all WASM tasks share the same function (shared module optimization)
+    const allSameWasm = allWasm && wasmTasks.every(t => t.calleeName === wasmTasks[0].calleeName);
+
+    // --- WASM path: all tasks are @wasm functions ---
+    if (allWasm && (node.mode === 'all' || node.mode === 'first' || node.mode === 'cancel_on_error' || (node.mode === 'timeout' && node.timeout))) {
+      this._needsRuntimeBridge = true;
+      const rtVar = `__tova_rt`;
+      // Build task descriptors
+      const taskDescs = tasks.map(t => {
+        const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+        return `{ wasm: __wasm_bytes_${t.calleeName}, func: ${JSON.stringify(t.calleeName)}, args: [${argsCode}] }`;
+      });
+      const taskArrayCode = `[${taskDescs.join(', ')}]`;
+
+      // Choose runtime function based on mode
+      let rtFunc;
+      let rtCallSuffix = '';
+      if (node.mode === 'first') {
+        rtFunc = 'concurrentWasmFirst';
+      } else if (node.mode === 'cancel_on_error') {
+        rtFunc = 'concurrentWasmCancelOnError';
+      } else if (node.mode === 'timeout' && node.timeout) {
+        rtFunc = 'concurrentWasmTimeout';
+        rtCallSuffix = `, ${this.genExpression(node.timeout)}`;
+      } else {
+        rtFunc = allSameWasm ? 'concurrentWasmShared' : 'concurrentWasm';
       }
-      lines.push(`${this.i()}  ]),`);
-      lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
-      lines.push(`${this.i()}]);`);
-    } else if (node.mode === 'cancel_on_error') {
-      const acVar = `__ac${base}`;
-      lines.push(`${this.i()}const ${acVar} = new AbortController();`);
-      const taskExprsAbort = tasks.map(call =>
-        `(async () => { try { return new Ok(await ${call}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
-      );
-      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
-      for (let i = 0; i < taskExprsAbort.length; i++) {
-        lines.push(`${this.i()}  ${taskExprsAbort[i]}${i < taskExprsAbort.length - 1 ? ',' : ''}`);
-      }
-      lines.push(`${this.i()}]);`);
-    } else if (node.mode === 'first') {
-      const acVar = `__ac${base}`;
-      const firstVar = `__first${base}`;
-      lines.push(`${this.i()}const ${acVar} = new AbortController();`);
-      const taskExprsFirst = tasks.map((call, i) =>
-        `(async () => { try { const __r = await ${call}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`
-      );
-      lines.push(`${this.i()}const ${firstVar} = await Promise.race([`);
-      for (let i = 0; i < taskExprsFirst.length; i++) {
-        lines.push(`${this.i()}  ${taskExprsFirst[i]}${i < taskExprsFirst.length - 1 ? ',' : ''}`);
-      }
-      lines.push(`${this.i()}]);`);
-      // For first mode, assign the winner's result to all named variables
-      for (let i = 0; i < assignments.length; i++) {
-        if (assignments[i]) {
-          this.declareVar(assignments[i]);
-          lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+
+      if (node.mode === 'first') {
+        // First mode: single result from WASM, fallback to Promise.race
+        const firstVar = `__first${base}`;
+        lines.push(`${this.i()}let ${firstVar};`);
+        lines.push(`${this.i()}if (typeof ${rtVar} !== 'undefined' && ${rtVar} && ${rtVar}.isRuntimeAvailable()) {`);
+        lines.push(`${this.i()}  ${firstVar} = { __result: new Ok(await ${rtVar}.${rtFunc}(${taskArrayCode})) };`);
+        lines.push(`${this.i()}} else {`);
+        // Fallback: Promise.race
+        const acVar = `__ac${base}`;
+        lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        const fallbackFirst = tasks.map((t, i) =>
+          `(async () => { try { const __r = await ${t.callCode}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`
+        );
+        lines.push(`${this.i()}  ${firstVar} = await Promise.race([`);
+        for (let i = 0; i < fallbackFirst.length; i++) {
+          lines.push(`${this.i()}    ${fallbackFirst[i]}${i < fallbackFirst.length - 1 ? ',' : ''}`);
         }
+        lines.push(`${this.i()}  ]);`);
+        lines.push(`${this.i()}}`);
+        // Assign winner to all named variables
+        for (let i = 0; i < assignments.length; i++) {
+          if (assignments[i]) {
+            this.declareVar(assignments[i]);
+            lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+          }
+        }
+        return lines.join('\n');
       }
-      return lines.join('\n'); // early return — skip the normal assignment loop
+
+      // All other WASM modes: array result
+      lines.push(`${this.i()}let ${tempVars.join(', ')};`);
+      lines.push(`${this.i()}if (typeof ${rtVar} !== 'undefined' && ${rtVar} && ${rtVar}.isRuntimeAvailable()) {`);
+      lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
+      lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+      lines.push(`${this.i()}} else {`);
+      // Fallback: standard Promise.all path
+      if (node.mode === 'cancel_on_error') {
+        const acVar = `__ac${base}`;
+        lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        const fallbackExprs = tasks.map(t =>
+          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
+        );
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < fallbackExprs.length; i++) {
+          lines.push(`${this.i()}    ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}  ]);`);
+      } else if (node.mode === 'timeout' && node.timeout) {
+        const timeoutMs = this.genExpression(node.timeout);
+        const fallbackExprs = tasks.map(t =>
+          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
+        );
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.race([`);
+        lines.push(`${this.i()}    Promise.all([`);
+        for (let i = 0; i < fallbackExprs.length; i++) {
+          lines.push(`${this.i()}      ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}    ]),`);
+        lines.push(`${this.i()}    new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
+        lines.push(`${this.i()}  ]);`);
+      } else {
+        const fallbackExprs = tasks.map(t =>
+          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
+        );
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < fallbackExprs.length; i++) {
+          lines.push(`${this.i()}    ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}  ]);`);
+      }
+      lines.push(`${this.i()}}`);
     } else {
-      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
-      for (let i = 0; i < taskExprs.length; i++) {
-        lines.push(`${this.i()}  ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+      // --- JS path (with per-task WASM routing for mixed blocks) ---
+      const taskExprs = tasks.map(t => {
+        if (t.isWasm && hasWasm) {
+          // Route individual WASM task through runtime with fallback
+          this._needsRuntimeBridge = true;
+          const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+          return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}])); } return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`;
+        }
+        return `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`;
+      });
+
+      if (node.mode === 'timeout' && node.timeout) {
+        const timeoutMs = this.genExpression(node.timeout);
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
+        lines.push(`${this.i()}  Promise.all([`);
+        for (let i = 0; i < taskExprs.length; i++) {
+          lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}  ]),`);
+        lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
+        lines.push(`${this.i()}]);`);
+      } else if (node.mode === 'cancel_on_error') {
+        const acVar = `__ac${base}`;
+        lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        const taskExprsAbort = tasks.map(t => {
+          if (t.isWasm && hasWasm) {
+            this._needsRuntimeBridge = true;
+            const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}])); } return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+          }
+          return `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+        });
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < taskExprsAbort.length; i++) {
+          lines.push(`${this.i()}  ${taskExprsAbort[i]}${i < taskExprsAbort.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}]);`);
+      } else if (node.mode === 'first') {
+        const acVar = `__ac${base}`;
+        const firstVar = `__first${base}`;
+        lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        const taskExprsFirst = tasks.map((t, i) => {
+          if (t.isWasm && hasWasm) {
+            this._needsRuntimeBridge = true;
+            const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+            return `(async () => { try { let __r; if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { __r = await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}]); } else { __r = await ${t.callCode}; } ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`;
+          }
+          return `(async () => { try { const __r = await ${t.callCode}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`;
+        });
+        lines.push(`${this.i()}const ${firstVar} = await Promise.race([`);
+        for (let i = 0; i < taskExprsFirst.length; i++) {
+          lines.push(`${this.i()}  ${taskExprsFirst[i]}${i < taskExprsFirst.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}]);`);
+        // For first mode, assign the winner's result to all named variables
+        for (let i = 0; i < assignments.length; i++) {
+          if (assignments[i]) {
+            this.declareVar(assignments[i]);
+            lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+          }
+        }
+        return lines.join('\n'); // early return — skip the normal assignment loop
+      } else {
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < taskExprs.length; i++) {
+          lines.push(`${this.i()}  ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}]);`);
       }
-      lines.push(`${this.i()}]);`);
     }
 
     // Assign results to named variables
@@ -19941,6 +20177,11 @@ class SharedCodegen extends BaseCodegen {
   // Generate any needed helpers (called after all code is generated)
   generateHelpers() {
     const helpers = [];
+    // Runtime bridge for WASM-Tokio concurrent execution
+    if (this._needsRuntimeBridge) {
+      // Try multiple paths: relative to script, package require, absolute from process.cwd()
+      helpers.push(`let __tova_rt = null; try { const __p = require('path'); const __d = __p.dirname(typeof __filename !== 'undefined' ? __filename : process.argv[1] || ''); const __candidates = [__p.join(__d, '..', 'src', 'stdlib', 'runtime-bridge.js'), __p.join(process.cwd(), 'src', 'stdlib', 'runtime-bridge.js')]; for (const __c of __candidates) { try { __tova_rt = require(__c); break; } catch(_) {} } } catch(_) {}`);
+    }
     helpers.push(this.getStringProtoHelper());
     // Only include Result/Option if Ok/Err/Some/None are used
     if (this._needsResultOption) {
@@ -28875,7 +29116,7 @@ const tovaSnippets = [
   { label: 'for', detail: 'for-in loop', apply: 'for item in items {\n  \n}', boost: -1 },
   { label: 'match', detail: 'match expression', apply: 'match value {\n  _ => \n}', boost: -1 },
   { label: 'type', detail: 'type definition', apply: 'type Name {\n  \n}', boost: -1 },
-  { label: 'browser', detail: 'browser block', apply: 'browser {\n  state count = 0\n\n  component App {\n    <div>\n      \n    </div>\n  }\n}', boost: -1 },
+  { label: 'browser', detail: 'browser block', apply: 'browser {\n  state counter = 0\n\n  component App {\n    <div>\n      \n    </div>\n  }\n}', boost: -1 },
   { label: 'component', detail: 'component', apply: 'component App {\n  <div>\n    \n  </div>\n}', boost: -1 },
   { label: 'server', detail: 'server block', apply: 'server {\n  \n}', boost: -1 },
   { label: 'effect', detail: 'side effect', apply: 'effect {\n  \n}', boost: -1 },
@@ -29023,7 +29264,7 @@ const EXAMPLES = [
   {
     "category": "Data Structures",
     "name": "Spread & Destructuring",
-    "code": "// Array spread\nlist_a = [1, 2, 3]\nlist_b = [4, 5, 6]\ncombined = [...list_a, ...list_b]\nprint(\"Combined: {combined}\")\n\n// Object literals\nconfig = {\n  color: \"blue\",\n  size: \"medium\",\n  bold: false,\n  count: 42\n}\nprint(\"Config: {config}\")\n\n// Destructuring objects\nlet {color, size, bold} = config\nprint(\"Color: {color}\")\nprint(\"Size: {size}\")\n\n// Destructuring arrays\nlet [a, b, c] = [10, 20, 30]\nprint(\"a={a}, b={b}, c={c}\")\n\n// Membership testing\nfruits = [\"apple\", \"banana\", \"cherry\"]\nif \"banana\" in fruits {\n  print(\"We have bananas!\")\n}\nif \"grape\" not in fruits {\n  print(\"No grapes available\")\n}\n"
+    "code": "// Array spread\nlist_a = [1, 2, 3]\nlist_b = [4, 5, 6]\ncombined = [...list_a, ...list_b]\nprint(\"Combined: {combined}\")\n\n// Object literals\nconfig = {\n  theme: \"blue\",\n  size: \"medium\",\n  enabled: false,\n  level: 42\n}\nprint(\"Config: {config}\")\n\n// Destructuring objects\nlet {theme, size, enabled} = config\nprint(\"Theme: {theme}\")\nprint(\"Size: {size}\")\n\n// Destructuring arrays\nlet [a, b, c] = [10, 20, 30]\nprint(\"a={a}, b={b}, c={c}\")\n\n// Membership testing\nfruits = [\"apple\", \"banana\", \"cherry\"]\nif \"banana\" in fruits {\n  print(\"We have bananas!\")\n}\nif \"grape\" not in fruits {\n  print(\"No grapes available\")\n}\n"
   },
   {
     "category": "Control Flow",
@@ -29043,7 +29284,7 @@ const EXAMPLES = [
   {
     "category": "Types",
     "name": "Algebraic Data Types",
-    "code": "// Algebraic Data Types (tagged unions / sum types)\ntype Color {\n  Red,\n  Green,\n  Blue,\n  Custom(r: Int, g: Int, b: Int)\n}\n\nfn to_hex(c) {\n  match c {\n    Red => \"#FF0000\"\n    Green => \"#00FF00\"\n    Blue => \"#0000FF\"\n    Custom(r, g, b) => \"rgb({r},{g},{b})\"\n  }\n}\n\nprint(to_hex(Red))\nprint(to_hex(Custom(255, 128, 0)))\n\n// Option type pattern\ntype Option {\n  Some(value: Any),\n  None\n}\n\nfn safe_divide(a, b) {\n  if b == 0 { None }\n  else { Some(a / b) }\n}\n\nfn unwrap(opt, default_val) {\n  match opt {\n    Some(v) => v\n    None => default_val\n  }\n}\n\nprint(unwrap(safe_divide(10, 3), 0))\nprint(unwrap(safe_divide(10, 0), 0))\n\n// Result type\ntype Result {\n  Ok(value: Any),\n  Err(message: String)\n}\n\nfn parse_age(input) {\n  if input > 0 and input < 150 {\n    Ok(input)\n  } else {\n    Err(\"Invalid age: {input}\")\n  }\n}\n\nprint(parse_age(25))\nprint(parse_age(-5))\n"
+    "code": "// Algebraic Data Types (tagged unions / sum types)\ntype Color {\n  Red,\n  Green,\n  Blue,\n  Custom(r: Int, g: Int, b: Int)\n}\n\nfn to_hex(c) {\n  match c {\n    Red => \"#FF0000\"\n    Green => \"#00FF00\"\n    Blue => \"#0000FF\"\n    Custom(r, g, b) => \"rgb({r},{g},{b})\"\n  }\n}\n\nprint(to_hex(Red))\nprint(to_hex(Custom(255, 128, 0)))\n\n// Option — built-in type: Some(value) or None\nfn safe_divide(a, b) {\n  if b == 0 { None }\n  else { Some(a / b) }\n}\n\nprint(safe_divide(10, 3).unwrapOr(0))\nprint(safe_divide(10, 0).unwrapOr(0))\n\n// Result — built-in type: Ok(value) or Err(error)\nfn parse_age(input) {\n  if input > 0 and input < 150 {\n    Ok(input)\n  } else {\n    Err(\"Invalid age: {input}\")\n  }\n}\n\nmatch parse_age(25) {\n  Ok(v) => print(\"Valid: {v}\")\n  Err(e) => print(\"Error: {e}\")\n}\nmatch parse_age(-5) {\n  Ok(v) => print(\"Valid: {v}\")\n  Err(e) => print(\"Error: {e}\")\n}\n"
   },
   {
     "category": "Types",
@@ -29058,7 +29299,7 @@ const EXAMPLES = [
   {
     "category": "Reactive UI",
     "name": "Counter App",
-    "code": "// Counter App in Tova — demonstrates reactive UI\n\nbrowser {\n  state count = 0\n\n  computed doubled = count * 2\n  computed message = match count {\n    0 => \"Click the button!\"\n    1..5 => \"Keep going...\"\n    n if n >= 10 => \"You're on fire! 🔥\"\n    _ => \"Nice!\"\n  }\n\n  component App {\n    <div class=\"counter-app\">\n      <h1>\"Tova Counter\"</h1>\n      <p class=\"count\">\"{count}\"</p>\n      <p class=\"doubled\">\"Doubled: {doubled}\"</p>\n      <p class=\"message\">\"{message}\"</p>\n      <div class=\"buttons\">\n        <button on:click={fn() count -= 1}>\"-\"</button>\n        <button on:click={fn() count += 1}>\"+\"</button>\n        <button on:click={fn() count = 0}>\"Reset\"</button>\n      </div>\n    </div>\n  }\n}"
+    "code": "// Counter App in Tova — demonstrates reactive UI\n\nbrowser {\n  state counter = 0\n\n  computed doubled = counter * 2\n  computed message = match counter {\n    0 => \"Click the button!\"\n    1..5 => \"Keep going...\"\n    n if n >= 10 => \"You're on fire! 🔥\"\n    _ => \"Nice!\"\n  }\n\n  component App {\n    <div class=\"counter-app\">\n      <h1>\"Tova Counter\"</h1>\n      <p class=\"count\">\"{counter}\"</p>\n      <p class=\"doubled\">\"Doubled: {doubled}\"</p>\n      <p class=\"message\">\"{message}\"</p>\n      <div class=\"buttons\">\n        <button on:click={fn() counter -= 1}>\"-\"</button>\n        <button on:click={fn() counter += 1}>\"+\"</button>\n        <button on:click={fn() counter = 0}>\"Reset\"</button>\n      </div>\n    </div>\n  }\n}"
   },
   {
     "category": "Reactive UI",
@@ -29083,12 +29324,12 @@ const EXAMPLES = [
   {
     "category": "Algorithms",
     "name": "Fibonacci",
-    "code": "// Fibonacci sequence — multiple approaches\n\n// Recursive (simple but slow)\nfn fib_recursive(n) {\n  if n <= 1 { n }\n  else { fib_recursive(n - 1) + fib_recursive(n - 2) }\n}\n\n// Iterative (fast)\nfn fib(n) {\n  if n <= 1 { return n }\n  var a = 0\n  var b = 1\n  for i in range(2, n + 1) {\n    var temp = b\n    b = a + b\n    a = temp\n  }\n  b\n}\n\n// Print first 15 Fibonacci numbers\nprint(\"Fibonacci sequence:\")\nfor i in range(15) {\n  print(\"  fib({i}) = {fib(i)}\")\n}\n\n// Using list comprehension\nfibs = [fib(i) for i in range(20)]\nprint(\"\\nFirst 20: {fibs}\")\nprint(\"Sum: {sum(fibs)}\")\n"
+    "code": "// Fibonacci sequence — multiple approaches\n\n// Recursive (simple but slow)\nfn fib_recursive(n) {\n  if n <= 1 { n }\n  else { fib_recursive(n - 1) + fib_recursive(n - 2) }\n}\n\n// Iterative (fast)\nfn fib(n) {\n  if n <= 1 { return n }\n  var a = 0\n  var b = 1\n  for _i in range(2, n + 1) {\n    var temp = b\n    b = a + b\n    a = temp\n  }\n  b\n}\n\n// Print first 15 Fibonacci numbers\nprint(\"Fibonacci sequence:\")\nfor i in range(15) {\n  print(\"  fib({i}) = {fib(i)}\")\n}\n\n// Using list comprehension\nfibs = [fib(i) for i in range(20)]\nprint(\"\\nFirst 20: {fibs}\")\nprint(\"Sum: {sum(fibs)}\")\n"
   },
   {
     "category": "Algorithms",
     "name": "Binary Search",
-    "code": "// Binary search on sorted array\nfn binary_search(arr, target) {\n  var lo = 0\n  var hi = len(arr) - 1\n  while lo <= hi {\n    mid = (lo + hi) / 2\n    if arr[mid] == target {\n      return mid\n    } elif arr[mid] < target {\n      lo = mid + 1\n    } else {\n      hi = mid - 1\n    }\n  }\n  -1\n}\n\n// Test it\nnums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]\nprint(\"Array: {nums}\")\n\nfor target in [23, 72, 15, 2, 91] {\n  idx = binary_search(nums, target)\n  if idx >= 0 {\n    print(\"Found {target} at index {idx}\")\n  } else {\n    print(\"{target} not found\")\n  }\n}\n\n// Sorting + searching\nword_list = [\"banana\", \"apple\", \"cherry\", \"date\", \"elderberry\", \"fig\"]\nsorted_words = sorted(word_list)\nprint(\"\\nSorted: {sorted_words}\")\nprint(\"Index of 'cherry': {binary_search(sorted_words, \"cherry\")}\")\n"
+    "code": "// Binary search on sorted array\nfn binary_search(items, target) {\n  var lo = 0\n  var hi = len(items) - 1\n  while lo <= hi {\n    mid = Math.floor((lo + hi) / 2)\n    if items[mid] == target {\n      return mid\n    } elif items[mid] < target {\n      lo = mid + 1\n    } else {\n      hi = mid - 1\n    }\n  }\n  -1\n}\n\n// Test it\nnums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]\nprint(\"Array: {nums}\")\n\nfor target in [23, 72, 15, 2, 91] {\n  idx = binary_search(nums, target)\n  if idx >= 0 {\n    print(\"Found {target} at index {idx}\")\n  } else {\n    print(\"{target} not found\")\n  }\n}\n\n// Sorting + searching\nword_list = [\"banana\", \"apple\", \"cherry\", \"date\", \"elderberry\", \"fig\"]\nsorted_words = sorted(word_list)\nprint(\"\\nSorted: {sorted_words}\")\nprint(\"Index of 'cherry': {binary_search(sorted_words, \"cherry\")}\")\n"
   },
   {
     "category": "Algorithms",
@@ -29098,7 +29339,7 @@ const EXAMPLES = [
   {
     "category": "Algorithms",
     "name": "Game of Life",
-    "code": "// Conway's Game of Life — one generation step\n\nfn make_grid(rows, cols) {\n  [[0 for c in range(cols)] for r in range(rows)]\n}\n\nfn count_neighbors(grid, r, c) {\n  rows = len(grid)\n  cols = len(grid[0])\n  var total = 0\n  for dr in [-1, 0, 1] {\n    for dc in [-1, 0, 1] {\n      if dr == 0 and dc == 0 { }\n      else {\n        nr = (r + dr + rows) % rows\n        nc = (c + dc + cols) % cols\n        total = total + grid[nr][nc]\n      }\n    }\n  }\n  total\n}\n\nfn step(grid) {\n  rows = len(grid)\n  cols = len(grid[0])\n  [\n    [\n      match [grid[r][c], count_neighbors(grid, r, c)] {\n        [1, n] if n < 2 => 0\n        [1, n] if n > 3 => 0\n        [1, _] => 1\n        [0, 3] => 1\n        _ => grid[r][c]\n      }\n    for c in range(cols)]\n  for r in range(rows)]\n}\n\nfn display(grid) {\n  for row in grid {\n    line = [match cell { 0 => \".\" _ => \"#\" } for cell in row]\n    print(line)\n  }\n}\n\n// Glider pattern\ngrid = make_grid(8, 8)\ngrid[1][2] = 1\ngrid[2][3] = 1\ngrid[3][1] = 1\ngrid[3][2] = 1\ngrid[3][3] = 1\n\nprint(\"Generation 0:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 1:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 2:\")\ndisplay(grid)\n"
+    "code": "// Conway's Game of Life — one generation step\n\nfn make_grid(rows, cols) {\n  [[0 for _c in range(cols)] for _r in range(rows)]\n}\n\nfn count_neighbors(grid, r, c) {\n  rows = len(grid)\n  cols = len(grid[0])\n  var total = 0\n  for dr in [-1, 0, 1] {\n    for dc in [-1, 0, 1] {\n      if dr == 0 and dc == 0 { }\n      else {\n        nr = (r + dr + rows) % rows\n        nc = (c + dc + cols) % cols\n        total = total + grid[nr][nc]\n      }\n    }\n  }\n  total\n}\n\nfn step(grid) {\n  rows = len(grid)\n  cols = len(grid[0])\n  [\n    [\n      match [grid[r][c], count_neighbors(grid, r, c)] {\n        [1, n] if n < 2 => 0\n        [1, n] if n > 3 => 0\n        [1, _] => 1\n        [0, 3] => 1\n        _ => grid[r][c]\n      }\n    for c in range(cols)]\n  for r in range(rows)]\n}\n\nfn display(grid) {\n  for row in grid {\n    line = [match cell { 0 => \".\" _ => \"#\" } for cell in row]\n    print(line)\n  }\n}\n\n// Glider pattern\nvar grid = make_grid(8, 8)\ngrid[1][2] = 1\ngrid[2][3] = 1\ngrid[3][1] = 1\ngrid[3][2] = 1\ngrid[3][3] = 1\n\nprint(\"Generation 0:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 1:\")\ndisplay(grid)\nprint(\"\")\n\ngrid = step(grid)\nprint(\"Generation 2:\")\ndisplay(grid)\n"
   }
 ];
 const REFERENCE = [
@@ -29339,11 +29580,11 @@ const REFERENCE = [
     "title": "Reactive (browser)",
     "items": [
       {
-        "syntax": "state count = 0",
+        "syntax": "state counter = 0",
         "desc": "Reactive variable (signal)"
       },
       {
-        "syntax": "computed doubled = count * 2",
+        "syntax": "computed doubled = counter * 2",
         "desc": "Derived value"
       },
       {
@@ -29550,7 +29791,6 @@ EXAMPLES.forEach((ex, i) => {
 exSelect.addEventListener('change', () => {
   const code = EXAMPLES[+exSelect.value].code;
   setEditorCode(code);
-  exSelect.value = '';
 });
 
 function setEditorCode(code) {

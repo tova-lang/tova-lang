@@ -1,7 +1,7 @@
 // Base code generation utilities shared across all codegen targets
 import { RESULT_OPTION, PROPAGATE, BUILTIN_NAMES, STDLIB_DEPS } from '../stdlib/inline.js';
 import { PIPE_TARGET } from '../parser/ast.js';
-import { compileWasmFunction, compileWasmModule, generateWasmGlue, generateMultiWasmGlue } from './wasm-codegen.js';
+import { compileWasmFunction, compileWasmModule, generateWasmGlue, generateMultiWasmGlue, generateWasmBytesExport } from './wasm-codegen.js';
 
 export class BaseCodegen {
   constructor() {
@@ -25,6 +25,9 @@ export class BaseCodegen {
     this._sourceMappings = []; // {sourceLine, sourceCol, outputLine, outputCol, sourceFile?}
     this._outputLineCount = 0;
     this._sourceFile = null; // current source file for multi-file source maps
+    // @wasm function tracking for concurrent block WASM routing
+    this._wasmFunctions = new Map(); // funcName -> { node, wasmBytes }
+    this._needsRuntimeBridge = false; // set true when concurrent block uses WASM tasks
     // @fast mode for TypedArray optimization
     this._fastMode = false;
     this._typedArrayParams = new Map(); // paramName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
@@ -494,7 +497,9 @@ export class BaseCodegen {
       return `${this.i()}const { ${props} } = ${this.genExpression(node.value)};`;
     }
     if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
-      for (const e of node.pattern.elements) if (e) this.declareVar(e);
+      for (const e of node.pattern.elements) {
+        if (e) this.declareVar(e.startsWith('...') ? e.slice(3) : e);
+      }
       const els = node.pattern.elements.map(e => e || '').join(', ');
       return `${this.i()}const [${els}] = ${this.genExpression(node.value)};`;
     }
@@ -575,9 +580,14 @@ export class BaseCodegen {
       // Track as user-defined to suppress stdlib version
       if (BUILTIN_NAMES.has(node.name)) this._userDefinedNames.add(node.name);
       const wasmBytes = compileWasmFunction(node);
-      const glue = generateWasmGlue(node, wasmBytes);
+      // Track this WASM function for concurrent block routing
+      this._wasmFunctions.set(node.name, { node, wasmBytes });
       const exportPrefix = node.isPublic ? 'export ' : '';
-      return `${this.i()}${exportPrefix}${glue}`;
+      // Emit bytes constant first, then glue that references it (avoids duplication)
+      const bytesExport = generateWasmBytesExport(node.name, wasmBytes);
+      const name = node.name;
+      const glue = `const ${name} = new WebAssembly.Instance(new WebAssembly.Module(__wasm_bytes_${name})).exports.${name};`;
+      return `${this.i()}${bytesExport}\n${this.i()}${exportPrefix}${glue}`;
     } catch (e) {
       // Fall back to JS if WASM compilation fails
       console.error(`Warning: @wasm compilation failed for '${node.name}': ${e.message}. Falling back to JS.`);
@@ -2446,14 +2456,22 @@ export class BaseCodegen {
 
       if (arm.pattern.type === 'WildcardPattern' || arm.pattern.type === 'BindingPattern') {
         if (idx === node.arms.length - 1 && !arm.guard) {
-          // Default case
+          // Default case — wrap in else block if preceded by if/else-if arms
+          if (idx > 0) {
+            p.push(`${this.i()}else {\n`);
+            this.indent++;
+          }
           if (arm.pattern.type === 'BindingPattern') {
             p.push(`${this.i()}const ${arm.pattern.name} = ${tempVar};\n`);
           }
           if (arm.body.type === 'BlockStatement') {
-            p.push(this.genBlockBody(arm.body) + '\n');
+            p.push(this._genBlockBodyReturns(arm.body) + '\n');
           } else {
             p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
+          }
+          if (idx > 0) {
+            this.indent--;
+            p.push(`${this.i()}}\n`);
           }
           break;
         }
@@ -2467,7 +2485,7 @@ export class BaseCodegen {
       p.push(this.genPatternBindings(arm.pattern, tempVar));
 
       if (arm.body.type === 'BlockStatement') {
-        p.push(this.genBlockBody(arm.body) + '\n');
+        p.push(this._genBlockBodyReturns(arm.body) + '\n');
       } else {
         p.push(`${this.i()}return ${this.genExpression(arm.body)};\n`);
       }
@@ -2874,11 +2892,51 @@ export class BaseCodegen {
       if (pattern.type === 'BindingPattern') {
         cond = `((${pattern.name}) => ${this.genExpression(guard)})(${subject})`;
       } else {
-        cond = `(${cond}) && (${this.genExpression(guard)})`;
+        // Collect bindings from sub-patterns (e.g. [1, n] if n < 2)
+        const bindings = this._collectPatternBindings(pattern, subject);
+        if (bindings.length > 0) {
+          const params = bindings.map(b => b.name).join(', ');
+          const args = bindings.map(b => b.accessor).join(', ');
+          cond = `(${cond}) && ((${params}) => ${this.genExpression(guard)})(${args})`;
+        } else {
+          cond = `(${cond}) && (${this.genExpression(guard)})`;
+        }
       }
     }
 
     return cond;
+  }
+
+  _collectPatternBindings(pattern, subject) {
+    const bindings = [];
+    switch (pattern.type) {
+      case 'BindingPattern':
+        bindings.push({ name: pattern.name, accessor: subject });
+        break;
+      case 'ArrayPattern':
+      case 'TuplePattern':
+        for (let i = 0; i < pattern.elements.length; i++) {
+          const el = pattern.elements[i];
+          if (el) bindings.push(...this._collectPatternBindings(el, `${subject}[${i}]`));
+        }
+        break;
+      case 'VariantPattern': {
+        const declaredFields = this._variantFields[pattern.name] || [];
+        for (let i = 0; i < pattern.fields.length; i++) {
+          const f = pattern.fields[i];
+          const fieldName = typeof f === 'string' ? f : (f.type === 'BindingPattern' ? f.name : null);
+          const propName = declaredFields[i] || fieldName || 'value';
+          const accessor = `${subject}.${propName}`;
+          if (typeof f === 'string') {
+            bindings.push({ name: f, accessor });
+          } else {
+            bindings.push(...this._collectPatternBindings(f, accessor));
+          }
+        }
+        break;
+      }
+    }
+    return bindings;
   }
 
   genPatternBindings(pattern, subject) {
@@ -3276,20 +3334,24 @@ export class BaseCodegen {
 
   genConcurrentBlock(node) {
     const lines = [];
-    const tasks = [];
+    const tasks = [];       // { callCode, calleeName, spawn, isWasm }
     const assignments = [];
 
-    // Collect spawn tasks from body
+    // Collect spawn tasks from body, preserving spawn node info
     for (const stmt of node.body) {
       if (stmt.type === 'Assignment' && stmt.values && stmt.values[0] && stmt.values[0].type === 'SpawnExpression') {
         const spawn = stmt.values[0];
+        const calleeName = spawn.callee && spawn.callee.type === 'Identifier' ? spawn.callee.name : null;
         const callCode = `${this.genExpression(spawn.callee)}(${spawn.arguments.map(a => this.genExpression(a)).join(', ')})`;
-        tasks.push(callCode);
+        const isWasm = calleeName && this._wasmFunctions.has(calleeName);
+        tasks.push({ callCode, calleeName, spawn, isWasm });
         assignments.push(stmt.targets[0]); // string variable name
       } else if (stmt.type === 'ExpressionStatement' && stmt.expression && stmt.expression.type === 'SpawnExpression') {
         const spawn = stmt.expression;
+        const calleeName = spawn.callee && spawn.callee.type === 'Identifier' ? spawn.callee.name : null;
         const callCode = `${this.genExpression(spawn.callee)}(${spawn.arguments.map(a => this.genExpression(a)).join(', ')})`;
-        tasks.push(callCode);
+        const isWasm = calleeName && this._wasmFunctions.has(calleeName);
+        tasks.push({ callCode, calleeName, spawn, isWasm });
         assignments.push(null); // fire-and-forget
       } else {
         // Non-spawn statement — generate normally
@@ -3303,61 +3365,183 @@ export class BaseCodegen {
       return lines.join('\n');
     }
 
-    // Generate Promise.all with Result wrapping
-    // Use monotonic counter to avoid duplicate names in nested concurrent blocks
     const base = this._concurrentCounter = (this._concurrentCounter || 0) + 1;
     const tempVars = tasks.map((_, i) => `__c${base}_${i}`);
-    const taskExprs = tasks.map(call =>
-      `(async () => { try { return new Ok(await ${call}); } catch(__e) { return new Err(__e); } })()`
-    );
 
-    if (node.mode === 'timeout' && node.timeout) {
-      const timeoutMs = this.genExpression(node.timeout);
-      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
-      lines.push(`${this.i()}  Promise.all([`);
-      for (let i = 0; i < taskExprs.length; i++) {
-        lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+    // Classify tasks
+    const wasmTasks = tasks.filter(t => t.isWasm);
+    const allWasm = wasmTasks.length === tasks.length;
+    const hasWasm = wasmTasks.length > 0;
+
+    // Check if all WASM tasks share the same function (shared module optimization)
+    const allSameWasm = allWasm && wasmTasks.every(t => t.calleeName === wasmTasks[0].calleeName);
+
+    // --- WASM path: all tasks are @wasm functions ---
+    if (allWasm && (node.mode === 'all' || node.mode === 'first' || node.mode === 'cancel_on_error' || (node.mode === 'timeout' && node.timeout))) {
+      this._needsRuntimeBridge = true;
+      const rtVar = `__tova_rt`;
+      // Build task descriptors
+      const taskDescs = tasks.map(t => {
+        const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+        return `{ wasm: __wasm_bytes_${t.calleeName}, func: ${JSON.stringify(t.calleeName)}, args: [${argsCode}] }`;
+      });
+      const taskArrayCode = `[${taskDescs.join(', ')}]`;
+
+      // Choose runtime function based on mode
+      let rtFunc;
+      let rtCallSuffix = '';
+      if (node.mode === 'first') {
+        rtFunc = 'concurrentWasmFirst';
+      } else if (node.mode === 'cancel_on_error') {
+        rtFunc = 'concurrentWasmCancelOnError';
+      } else if (node.mode === 'timeout' && node.timeout) {
+        rtFunc = 'concurrentWasmTimeout';
+        rtCallSuffix = `, ${this.genExpression(node.timeout)}`;
+      } else {
+        rtFunc = allSameWasm ? 'concurrentWasmShared' : 'concurrentWasm';
       }
-      lines.push(`${this.i()}  ]),`);
-      lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
-      lines.push(`${this.i()}]);`);
-    } else if (node.mode === 'cancel_on_error') {
-      const acVar = `__ac${base}`;
-      lines.push(`${this.i()}const ${acVar} = new AbortController();`);
-      const taskExprsAbort = tasks.map(call =>
-        `(async () => { try { return new Ok(await ${call}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
-      );
-      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
-      for (let i = 0; i < taskExprsAbort.length; i++) {
-        lines.push(`${this.i()}  ${taskExprsAbort[i]}${i < taskExprsAbort.length - 1 ? ',' : ''}`);
-      }
-      lines.push(`${this.i()}]);`);
-    } else if (node.mode === 'first') {
-      const acVar = `__ac${base}`;
-      const firstVar = `__first${base}`;
-      lines.push(`${this.i()}const ${acVar} = new AbortController();`);
-      const taskExprsFirst = tasks.map((call, i) =>
-        `(async () => { try { const __r = await ${call}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`
-      );
-      lines.push(`${this.i()}const ${firstVar} = await Promise.race([`);
-      for (let i = 0; i < taskExprsFirst.length; i++) {
-        lines.push(`${this.i()}  ${taskExprsFirst[i]}${i < taskExprsFirst.length - 1 ? ',' : ''}`);
-      }
-      lines.push(`${this.i()}]);`);
-      // For first mode, assign the winner's result to all named variables
-      for (let i = 0; i < assignments.length; i++) {
-        if (assignments[i]) {
-          this.declareVar(assignments[i]);
-          lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+
+      if (node.mode === 'first') {
+        // First mode: single result from WASM, fallback to Promise.race
+        const firstVar = `__first${base}`;
+        lines.push(`${this.i()}let ${firstVar};`);
+        lines.push(`${this.i()}if (typeof ${rtVar} !== 'undefined' && ${rtVar} && ${rtVar}.isRuntimeAvailable()) {`);
+        lines.push(`${this.i()}  ${firstVar} = { __result: new Ok(await ${rtVar}.${rtFunc}(${taskArrayCode})) };`);
+        lines.push(`${this.i()}} else {`);
+        // Fallback: Promise.race
+        const acVar = `__ac${base}`;
+        lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        const fallbackFirst = tasks.map((t, i) =>
+          `(async () => { try { const __r = await ${t.callCode}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`
+        );
+        lines.push(`${this.i()}  ${firstVar} = await Promise.race([`);
+        for (let i = 0; i < fallbackFirst.length; i++) {
+          lines.push(`${this.i()}    ${fallbackFirst[i]}${i < fallbackFirst.length - 1 ? ',' : ''}`);
         }
+        lines.push(`${this.i()}  ]);`);
+        lines.push(`${this.i()}}`);
+        // Assign winner to all named variables
+        for (let i = 0; i < assignments.length; i++) {
+          if (assignments[i]) {
+            this.declareVar(assignments[i]);
+            lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+          }
+        }
+        return lines.join('\n');
       }
-      return lines.join('\n'); // early return — skip the normal assignment loop
+
+      // All other WASM modes: array result
+      lines.push(`${this.i()}let ${tempVars.join(', ')};`);
+      lines.push(`${this.i()}if (typeof ${rtVar} !== 'undefined' && ${rtVar} && ${rtVar}.isRuntimeAvailable()) {`);
+      lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
+      lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+      lines.push(`${this.i()}} else {`);
+      // Fallback: standard Promise.all path
+      if (node.mode === 'cancel_on_error') {
+        const acVar = `__ac${base}`;
+        lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        const fallbackExprs = tasks.map(t =>
+          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
+        );
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < fallbackExprs.length; i++) {
+          lines.push(`${this.i()}    ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}  ]);`);
+      } else if (node.mode === 'timeout' && node.timeout) {
+        const timeoutMs = this.genExpression(node.timeout);
+        const fallbackExprs = tasks.map(t =>
+          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
+        );
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.race([`);
+        lines.push(`${this.i()}    Promise.all([`);
+        for (let i = 0; i < fallbackExprs.length; i++) {
+          lines.push(`${this.i()}      ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}    ]),`);
+        lines.push(`${this.i()}    new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
+        lines.push(`${this.i()}  ]);`);
+      } else {
+        const fallbackExprs = tasks.map(t =>
+          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
+        );
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < fallbackExprs.length; i++) {
+          lines.push(`${this.i()}    ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}  ]);`);
+      }
+      lines.push(`${this.i()}}`);
     } else {
-      lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
-      for (let i = 0; i < taskExprs.length; i++) {
-        lines.push(`${this.i()}  ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+      // --- JS path (with per-task WASM routing for mixed blocks) ---
+      const taskExprs = tasks.map(t => {
+        if (t.isWasm && hasWasm) {
+          // Route individual WASM task through runtime with fallback
+          this._needsRuntimeBridge = true;
+          const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+          return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}])); } return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`;
+        }
+        return `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`;
+      });
+
+      if (node.mode === 'timeout' && node.timeout) {
+        const timeoutMs = this.genExpression(node.timeout);
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
+        lines.push(`${this.i()}  Promise.all([`);
+        for (let i = 0; i < taskExprs.length; i++) {
+          lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}  ]),`);
+        lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
+        lines.push(`${this.i()}]);`);
+      } else if (node.mode === 'cancel_on_error') {
+        const acVar = `__ac${base}`;
+        lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        const taskExprsAbort = tasks.map(t => {
+          if (t.isWasm && hasWasm) {
+            this._needsRuntimeBridge = true;
+            const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}])); } return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+          }
+          return `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+        });
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < taskExprsAbort.length; i++) {
+          lines.push(`${this.i()}  ${taskExprsAbort[i]}${i < taskExprsAbort.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}]);`);
+      } else if (node.mode === 'first') {
+        const acVar = `__ac${base}`;
+        const firstVar = `__first${base}`;
+        lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        const taskExprsFirst = tasks.map((t, i) => {
+          if (t.isWasm && hasWasm) {
+            this._needsRuntimeBridge = true;
+            const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+            return `(async () => { try { let __r; if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { __r = await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}]); } else { __r = await ${t.callCode}; } ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`;
+          }
+          return `(async () => { try { const __r = await ${t.callCode}; ${acVar}.abort(); return { __idx: ${i}, __result: new Ok(__r) }; } catch(__e) { return { __idx: ${i}, __result: new Err(__e) }; } })()`;
+        });
+        lines.push(`${this.i()}const ${firstVar} = await Promise.race([`);
+        for (let i = 0; i < taskExprsFirst.length; i++) {
+          lines.push(`${this.i()}  ${taskExprsFirst[i]}${i < taskExprsFirst.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}]);`);
+        // For first mode, assign the winner's result to all named variables
+        for (let i = 0; i < assignments.length; i++) {
+          if (assignments[i]) {
+            this.declareVar(assignments[i]);
+            lines.push(`${this.i()}const ${assignments[i]} = ${firstVar}.__result;`);
+          }
+        }
+        return lines.join('\n'); // early return — skip the normal assignment loop
+      } else {
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < taskExprs.length; i++) {
+          lines.push(`${this.i()}  ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+        }
+        lines.push(`${this.i()}]);`);
       }
-      lines.push(`${this.i()}]);`);
     }
 
     // Assign results to named variables
