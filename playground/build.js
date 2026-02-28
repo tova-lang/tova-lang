@@ -1843,6 +1843,8 @@ select.examples-select option { background: var(--bg); color: var(--text); }
   <button class="btn btn-icon hide-mobile" id="btn-layout" title="Toggle layout (Cmd+J)">&#9707;</button>
   <button class="btn btn-icon hide-mobile" id="btn-shortcuts" title="Keyboard shortcuts">&#9000;</button>
   <button class="btn btn-icon hide-mobile" id="btn-settings" title="Settings">&#9881;</button>
+  <button class="btn btn-icon hide-mobile" id="btn-reset" title="Reset to default code">&#8634;</button>
+  <div class="sep hide-mobile"></div>
   <button class="btn" id="btn-export" title="Export as standalone HTML">Export</button>
   <button class="btn" id="btn-download" title="Download .tova file">&#8615;</button>
   <button class="btn" id="btn-share" title="Copy shareable URL">Share</button>
@@ -2383,6 +2385,17 @@ function downloadCode() {
 }
 document.getElementById('btn-download').addEventListener('click', downloadCode);
 
+// ─── Reset to Default ───────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  const defaultCode = EXAMPLES[0].code;
+  if (editor.state.doc.toString() === defaultCode) return;
+  setEditorCode(defaultCode);
+  try { localStorage.setItem('tova-playground-code', defaultCode); } catch(e) {}
+  const statusEl = document.getElementById('status-compile');
+  statusEl.className = 'success';
+  statusEl.textContent = 'Reset to default';
+});
+
 // ─── Load from URL hash ─────────────────────────────
 function loadFromHash() {
   const hash = location.hash.slice(1);
@@ -2403,13 +2416,13 @@ document.getElementById('btn-run').addEventListener('click', compile);
 // ─── Debounced Compile ──────────────────────────────
 function scheduleCompile() {
   clearTimeout(compileTimer);
-  compileTimer = setTimeout(compile, 350);
+  compileTimer = setTimeout(() => compile(false), 350);
 }
 
 // ─── Compiler ───────────────────────────────────────
 let lastJsText = '';
 
-function compile() {
+function compile(isManual = true) {
   const source = editor.state.doc.toString();
   const statusEl = document.getElementById('status-compile');
   const statusSize = document.getElementById('status-size');
@@ -2514,11 +2527,13 @@ function compile() {
     if (lineMatch) {
       const lineNum = parseInt(lineMatch[1]);
       editor.dispatch({ effects: setErrorEffect.of([lineNum]) });
-      // Scroll to error line
-      try {
-        const lineInfo = editor.state.doc.line(lineNum);
-        editor.dispatch({ selection: { anchor: lineInfo.from } });
-      } catch(e) {}
+      // Scroll to error line only on manual compile to avoid cursor jumping during typing
+      if (isManual) {
+        try {
+          const lineInfo = editor.state.doc.line(lineNum);
+          editor.dispatch({ selection: { anchor: lineInfo.from } });
+        } catch(e) {}
+      }
     }
   }
 }
@@ -2934,6 +2949,7 @@ function getCommandItems(query) {
     { icon: '\\u25B6', label: 'Run Code', category: 'Action', shortcut: '\\u2318Enter', action: () => compile() },
     { icon: '\\u2197', label: 'Share URL', category: 'Action', action: () => document.getElementById('btn-share').click() },
     { icon: '\\u2913', label: 'Download .tova', category: 'Action', shortcut: '\\u2318\\u21E7S', action: () => downloadCode() },
+    { icon: '\\u21BA', label: 'Reset to Default Code', category: 'Action', action: () => document.getElementById('btn-reset').click() },
     { icon: '\\uD83D\\uDCE4', label: 'Export as HTML', category: 'Action', action: () => exportAsHTML() },
     { icon: '\\uD83D\\uDCD6', label: 'Toggle Reference', category: 'Action', shortcut: '\\u2318\\u21E7R', action: () => toggleSidebar('reference') },
     { icon: '\\uD83C\\uDF93', label: 'Start Tutorial', category: 'Action', action: () => toggleSidebar('tutorial') },
