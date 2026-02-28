@@ -36,6 +36,12 @@ function getEdgeCodegen() {
   return _EdgeCodegen;
 }
 
+let _DeployCodegen;
+function getDeployCodegen() {
+  if (!_DeployCodegen) _DeployCodegen = _require('./deploy-codegen.js').DeployCodegen;
+  return _DeployCodegen;
+}
+
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
@@ -87,6 +93,7 @@ export class CodeGenerator {
     const dataBlocks = getBlocks('data');
     const securityBlocks = getBlocks('security');
     const edgeBlocks = getBlocks('edge');
+    const deployBlocks = getBlocks('deploy');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -232,6 +239,17 @@ export class CodeGenerator {
       }
     }
 
+    // Generate deploy configs (one per named block)
+    const deploys = {};
+    if (deployBlocks.length > 0) {
+      const Deploy = getDeployCodegen();
+      const deployGroups = this._groupByName(deployBlocks);
+      for (const [name, blocks] of deployGroups) {
+        const key = name || 'default';
+        deploys[key] = Deploy.mergeDeployBlocks(blocks);
+      }
+    }
+
     // Generate tests if test blocks exist
     let testCode = '';
     if (testBlocks.length > 0) {
@@ -267,6 +285,7 @@ export class CodeGenerator {
         browser: browserCode,
         client: browserCode,  // deprecated alias for backward compat
         edge: edges['default'] || '',
+        deploy: Object.keys(deploys).length > 0 ? deploys : undefined,
         sourceMappings,
         _sourceFile: this.filename,
       };
@@ -287,6 +306,7 @@ export class CodeGenerator {
       browsers,  // { "admin": code, "dashboard": code, ... }
       clients: browsers,   // deprecated alias for backward compat
       edges,     // { "api": code, "assets": code, ... }
+      deploy: Object.keys(deploys).length > 0 ? deploys : undefined,
       multiBlock: true,
       sourceMappings,
       _sourceFile: this.filename,

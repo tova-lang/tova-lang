@@ -1,4 +1,15 @@
 import { describe, test, expect } from 'bun:test';
+import { Lexer } from '../src/lexer/lexer.js';
+import { Parser } from '../src/parser/parser.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
+
+function compile(code) {
+  const lexer = new Lexer(code);
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens);
+  const ast = parser.parse();
+  return new CodeGenerator(ast).generate();
+}
 
 describe('Deploy Codegen', () => {
   test('mergeDeployBlocks extracts config fields', () => {
@@ -65,5 +76,64 @@ describe('Deploy Codegen', () => {
     expect(config.health_interval).toBe(30);
     expect(config.keep_releases).toBe(5);
     expect(config.restart_on_failure).toBe(true);
+  });
+});
+
+describe('Deploy Codegen Integration', () => {
+  test('deploy blocks do not affect server output', () => {
+    const result = compile(`
+      server {
+        route GET "/hello" => fn() { "hello" }
+      }
+      deploy "prod" {
+        server: "root@example.com"
+        domain: "myapp.com"
+      }
+    `);
+    expect(result.server).toContain('hello');
+    expect(result.server).not.toContain('root@example.com');
+  });
+
+  test('deploy blocks are available in output', () => {
+    const result = compile(`
+      server {
+        route GET "/hello" => fn() { "hello" }
+      }
+      deploy "prod" {
+        server: "root@example.com"
+        domain: "myapp.com"
+      }
+    `);
+    expect(result.deploy).toBeDefined();
+    expect(result.deploy.prod).toBeDefined();
+    expect(result.deploy.prod.server).toBe('root@example.com');
+    expect(result.deploy.prod.domain).toBe('myapp.com');
+  });
+
+  test('multiple deploy blocks produce separate configs', () => {
+    const result = compile(`
+      deploy "prod" {
+        server: "root@prod.example.com"
+        domain: "myapp.com"
+      }
+      deploy "staging" {
+        server: "root@staging.example.com"
+        domain: "staging.myapp.com"
+      }
+    `);
+    expect(result.deploy.prod.server).toBe('root@prod.example.com');
+    expect(result.deploy.staging.server).toBe('root@staging.example.com');
+  });
+
+  test('deploy defaults are applied in codegen output', () => {
+    const result = compile(`
+      deploy "prod" {
+        server: "root@example.com"
+        domain: "myapp.com"
+      }
+    `);
+    expect(result.deploy.prod.instances).toBe(1);
+    expect(result.deploy.prod.memory).toBe('512mb');
+    expect(result.deploy.prod.health).toBe('/healthz');
   });
 });

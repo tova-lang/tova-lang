@@ -70,6 +70,8 @@ Commands:
   info             Show Tova version, Bun version, project config, and installed dependencies
   doctor           Check your development environment
   completions <sh> Generate shell completions (bash, zsh, fish)
+  deploy <env>     Deploy to a server (--plan, --rollback, --logs, --status)
+  env <env> <cmd>  Manage secrets (list, set KEY=value)
   explain <code>   Show detailed explanation for an error/warning code (e.g., tova explain E202)
 
 Options:
@@ -240,6 +242,9 @@ async function main() {
       break;
     case 'migrate:status':
       await migrateStatus(args.slice(1));
+      break;
+    case 'deploy':
+      await deployCommand(args.slice(1));
       break;
     case 'explain': {
       const code = args[1];
@@ -612,6 +617,22 @@ function findTovaFiles(dir) {
     }
   }
   return files;
+}
+
+// ─── Deploy ──────────────────────────────────────────────────
+
+async function deployCommand(args) {
+  const { parseDeployArgs } = await import('../src/deploy/deploy.js');
+  const deployArgs = parseDeployArgs(args);
+
+  if (!deployArgs.envName && !deployArgs.list) {
+    console.error(color.red('Error: deploy requires an environment name (e.g., tova deploy prod)'));
+    process.exit(1);
+  }
+
+  // For now, just parse and build — full SSH deployment is wired in integration
+  console.log(color.cyan('Deploy feature is being implemented...'));
+  console.log('Parsed args:', deployArgs);
 }
 
 // ─── Run ────────────────────────────────────────────────────
