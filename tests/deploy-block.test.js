@@ -215,3 +215,71 @@ describe('Deploy Block Analyzer', () => {
     expect(errors.some(e => e.message?.includes("domain"))).toBe(true);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// End-to-End
+// ═══════════════════════════════════════════════════════════════
+
+describe('Deploy Block E2E', () => {
+  test('full round-trip: parse → analyze → codegen', () => {
+    const { CodeGenerator } = require('../src/codegen/codegen.js');
+
+    const code = `
+      shared {
+        type User {
+          id: Int
+          name: String
+        }
+      }
+
+      server {
+        route GET "/api/users" => fn() { [] }
+      }
+
+      browser {
+        state users = []
+      }
+
+      deploy "prod" {
+        server: "root@prod.example.com"
+        domain: "myapp.com"
+        instances: 2
+        memory: "1gb"
+        health: "/healthz"
+      }
+
+      deploy "staging" {
+        server: "root@staging.example.com"
+        domain: "staging.myapp.com"
+      }
+    `;
+
+    const ast = parse(code);
+
+    // Parser produced correct blocks
+    const deployBlocks = ast.body.filter(n => n.type === 'DeployBlock');
+    expect(deployBlocks).toHaveLength(2);
+
+    // Analyzer passes (no errors for valid deploy blocks)
+    const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
+    const result = analyzer.analyze();
+    const errors = result.errors || [];
+    const deployErrors = errors.filter(e => e.message?.includes('deploy') || e.message?.includes('Deploy'));
+    expect(deployErrors).toHaveLength(0);
+
+    // Codegen includes deploy config
+    const gen = new CodeGenerator(ast);
+    const output = gen.generate();
+    expect(output.deploy).toBeDefined();
+    expect(output.deploy.prod.server).toBe('root@prod.example.com');
+    expect(output.deploy.prod.domain).toBe('myapp.com');
+    expect(output.deploy.prod.instances).toBe(2);
+    expect(output.deploy.staging.server).toBe('root@staging.example.com');
+    expect(output.deploy.staging.domain).toBe('staging.myapp.com');
+    expect(output.deploy.staging.instances).toBe(1); // default
+
+    // Server and browser output still work
+    expect(output.server).toContain('/api/users');
+    expect(output.browser).toBeTruthy();
+  });
+});

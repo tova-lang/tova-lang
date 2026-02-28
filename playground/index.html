@@ -3023,6 +3023,10 @@ class RangePattern {
 // ============================================================
 
 // ============================================================
+// Deploy-specific nodes (lazy-loaded from deploy-ast.js, re-exported for backward compat)
+// ============================================================
+
+// ============================================================
 // Form-specific nodes (lazy-loaded from form-ast.js, re-exported for backward compat)
 // ============================================================
 
@@ -3610,9 +3614,45 @@ class SelectCase {
   }
 }
 
+// ─── src/parser/deploy-ast.js ──────────────────────────
+
+// Deploy-specific AST Node definitions for the Tova language
+// Extracted for lazy loading — only loaded when deploy { } blocks are used.
+class DeployBlock {
+  constructor(body, loc, name = null) {
+    this.type = 'DeployBlock';
+    this.name = name;
+    this.body = body;
+    this.loc = loc;
+  }
+}
+class DeployConfigField {
+  constructor(key, value, loc) {
+    this.type = 'DeployConfigField';
+    this.key = key;
+    this.value = value;
+    this.loc = loc;
+  }
+}
+class DeployEnvBlock {
+  constructor(entries, loc) {
+    this.type = 'DeployEnvBlock';
+    this.entries = entries;
+    this.loc = loc;
+  }
+}
+class DeployDbBlock {
+  constructor(engine, config, loc) {
+    this.type = 'DeployDbBlock';
+    this.engine = engine;
+    this.config = config;
+    this.loc = loc;
+  }
+}
+
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase, DeployBlock, DeployConfigField, DeployEnvBlock, DeployDbBlock };
 
 // ─── src/diagnostics/error-codes.js ────────────────────
 
@@ -6273,6 +6313,135 @@ function installConcurrencyParser(ParserClass) {
     // Single statement
     const stmt = this.parseStatement();
     return stmt ? [stmt] : [];
+  };
+}
+
+// ─── src/parser/deploy-parser.js ───────────────────────
+
+// Deploy-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when deploy { } blocks are encountered.
+
+// Keywords that start sub-blocks (not config fields)
+const DEPLOY_SUB_BLOCK_KEYWORDS = new Set(['env', 'db']);
+function installDeployParser(ParserClass) {
+  if (ParserClass.prototype._deployParserInstalled) return;
+  ParserClass.prototype._deployParserInstalled = true;
+
+  ParserClass.prototype.parseDeployBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'deploy'
+
+    // Deploy blocks REQUIRE a name
+    if (!this.check(TokenType.STRING)) {
+      throw this.error("Deploy block requires a name (e.g., deploy \"prod\" { })");
+    }
+    const name = this.advance().value;
+
+    this.expect(TokenType.LBRACE, "Expected '{' after deploy name");
+    const body = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseDeployStatement();
+        if (stmt) {
+          if (Array.isArray(stmt)) {
+            body.push(...stmt);
+          } else {
+            body.push(stmt);
+          }
+        }
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close deploy block");
+    return new DeployBlock(body, l, name);
+  };
+
+  ParserClass.prototype.parseDeployStatement = function() {
+    if (this.check(TokenType.IDENTIFIER)) {
+      const val = this.current().value;
+
+      // env { KEY: "value" }
+      if (val === 'env') {
+        return this.parseDeployEnvBlock();
+      }
+
+      // db { postgres { } redis { } }
+      if (val === 'db') {
+        return this.parseDeployDbBlock();
+      }
+
+      // Config field: identifier: value (e.g., domain: "myapp.com")
+      if (this.peek(1).type === TokenType.COLON && !DEPLOY_SUB_BLOCK_KEYWORDS.has(val)) {
+        return this.parseDeployConfigField();
+      }
+    }
+
+    // Handle keyword tokens used as config keys (e.g., server: "root@example.com")
+    // In deploy blocks, 'server' is lexed as TokenType.SERVER, not IDENTIFIER
+    if (this.check(TokenType.SERVER) && this.peek(1).type === TokenType.COLON) {
+      return this.parseDeployConfigField();
+    }
+
+    // Deploy blocks only contain config fields, env, and db sub-blocks
+    throw this.error(`Unexpected token in deploy block: "${this.current().value || this.current().type}"`);
+  };
+
+  ParserClass.prototype.parseDeployConfigField = function() {
+    const l = this.loc();
+    const key = this.advance().value; // consume identifier (e.g., 'server')
+    this.expect(TokenType.COLON, "Expected ':' after config key");
+    const value = this.parseExpression();
+    return new DeployConfigField(key, value, l);
+  };
+
+  ParserClass.prototype.parseDeployEnvBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'env'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'env'");
+    const entries = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected env variable name").value;
+      this.expect(TokenType.COLON, "Expected ':' after env key");
+      const value = this.parseExpression();
+      entries.push({ key, value });
+      this.match(TokenType.COMMA);
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close env block");
+    return new DeployEnvBlock(entries, l);
+  };
+
+  ParserClass.prototype.parseDeployDbBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'db'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'db'");
+    const blocks = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const engineLoc = this.loc();
+      const engine = this.expect(TokenType.IDENTIFIER, "Expected database engine name (e.g., postgres, redis)").value;
+      this.expect(TokenType.LBRACE, `Expected '{' after '${engine}'`);
+      const config = {};
+
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        const key = this.expect(TokenType.IDENTIFIER, "Expected config key").value;
+        this.expect(TokenType.COLON, "Expected ':' after config key");
+        const value = this.parseExpression();
+        config[key] = value;
+        this.match(TokenType.COMMA);
+      }
+
+      this.expect(TokenType.RBRACE, `Expected '}' to close ${engine} config`);
+      blocks.push(new DeployDbBlock(engine, config, engineLoc));
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close db block");
+    return blocks;
   };
 }
 
@@ -15375,10 +15544,43 @@ const concurrencyPlugin = {
   codegen: {},
 };
 
+// ─── src/registry/plugins/deploy-plugin.js ─────────────
+
+const deployPlugin = {
+  name: 'deploy',
+  astNodeType: 'DeployBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'deploy',
+    lookahead: (parser) => {
+      const next = parser.peek(1);
+      // deploy "name" {} — name is required
+      return next.type === TokenType.STRING;
+    },
+  },
+  parser: {
+    install: installDeployParser,
+    installedFlag: '_deployParserInstalled',
+    method: 'parseDeployBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => {
+      installDeployAnalyzer(analyzer.constructor);
+      analyzer.visitDeployBlock(node);
+    },
+    childNodeTypes: [],
+    noopNodeTypes: [
+      'DeployConfigField', 'DeployEnvBlock', 'DeployDbBlock',
+    ],
+  },
+  codegen: {},
+};
+
 // ─── src/registry/register-all.js ──────────────────────
 
 // Registers all built-in block plugins and re-exports BlockRegistry.
 // Import this module (instead of block-registry.js directly) to ensure all plugins are loaded.
+
 
 
 
@@ -15400,6 +15602,7 @@ BlockRegistry.register(testPlugin);
 BlockRegistry.register(benchPlugin);
 BlockRegistry.register(edgePlugin);
 BlockRegistry.register(concurrencyPlugin);
+BlockRegistry.register(deployPlugin);
 
 // ─── src/codegen/wasm-codegen.js ───────────────────────
 
@@ -19453,15 +19656,36 @@ class BaseCodegen {
       // All other WASM modes: array result
       lines.push(`${this.i()}let ${tempVars.join(', ')};`);
       lines.push(`${this.i()}if (typeof ${rtVar} !== 'undefined' && ${rtVar} && ${rtVar}.isRuntimeAvailable()) {`);
-      lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
-      lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+      if (node.mode === 'cancel_on_error') {
+        // cancel_on_error: WASM function throws on first task error — wrap with try/catch
+        // to provide per-task Err results consistent with JS fallback path
+        lines.push(`${this.i()}  try {`);
+        lines.push(`${this.i()}    const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode});`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+        lines.push(`${this.i()}  } catch (__wasm_err) {`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = Array(${tasks.length}).fill(new Err(__wasm_err));`);
+        lines.push(`${this.i()}  }`);
+      } else if (node.mode === 'timeout' && node.timeout) {
+        // timeout: WASM function throws on timeout — wrap with try/catch
+        lines.push(`${this.i()}  try {`);
+        lines.push(`${this.i()}    const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+        lines.push(`${this.i()}  } catch (__wasm_err) {`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = Array(${tasks.length}).fill(new Err(__wasm_err));`);
+        lines.push(`${this.i()}  }`);
+      } else {
+        lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+      }
       lines.push(`${this.i()}} else {`);
       // Fallback: standard Promise.all path
       if (node.mode === 'cancel_on_error') {
         const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
         lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}  const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }); });`);
         const fallbackExprs = tasks.map(t =>
-          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
+          `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { if (!${acVar}.signal.aborted) ${acVar}.abort(); return new Err(__e); } })()`
         );
         lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
         for (let i = 0; i < fallbackExprs.length; i++) {
@@ -19470,17 +19694,21 @@ class BaseCodegen {
         lines.push(`${this.i()}  ]);`);
       } else if (node.mode === 'timeout' && node.timeout) {
         const timeoutMs = this.genExpression(node.timeout);
+        const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
+        const timerVar = `__timer${base}`;
+        lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}  const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('concurrent timeout')), { once: true }); });`);
+        lines.push(`${this.i()}  const ${timerVar} = setTimeout(() => ${acVar}.abort(), ${timeoutMs});`);
         const fallbackExprs = tasks.map(t =>
-          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
+          `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { return new Err(__e); } })()`
         );
-        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.race([`);
-        lines.push(`${this.i()}    Promise.all([`);
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
         for (let i = 0; i < fallbackExprs.length; i++) {
-          lines.push(`${this.i()}      ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+          lines.push(`${this.i()}    ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
         }
-        lines.push(`${this.i()}    ]),`);
-        lines.push(`${this.i()}    new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
         lines.push(`${this.i()}  ]);`);
+        lines.push(`${this.i()}  clearTimeout(${timerVar});`);
       } else {
         const fallbackExprs = tasks.map(t =>
           `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
@@ -19506,24 +19734,38 @@ class BaseCodegen {
 
       if (node.mode === 'timeout' && node.timeout) {
         const timeoutMs = this.genExpression(node.timeout);
-        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
-        lines.push(`${this.i()}  Promise.all([`);
-        for (let i = 0; i < taskExprs.length; i++) {
-          lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+        const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
+        const timerVar = `__timer${base}`;
+        lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('concurrent timeout')), { once: true }); });`);
+        lines.push(`${this.i()}const ${timerVar} = setTimeout(() => ${acVar}.abort(), ${timeoutMs});`);
+        const taskExprsTimeout = tasks.map(t => {
+          if (t.isWasm && hasWasm) {
+            this._needsRuntimeBridge = true;
+            const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await Promise.race([__tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}]), ${abortedVar}])); } return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { return new Err(__e); } })()`;
+          }
+          return `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { return new Err(__e); } })()`;
+        });
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < taskExprsTimeout.length; i++) {
+          lines.push(`${this.i()}  ${taskExprsTimeout[i]}${i < taskExprsTimeout.length - 1 ? ',' : ''}`);
         }
-        lines.push(`${this.i()}  ]),`);
-        lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
         lines.push(`${this.i()}]);`);
+        lines.push(`${this.i()}clearTimeout(${timerVar});`);
       } else if (node.mode === 'cancel_on_error') {
         const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
         lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }); });`);
         const taskExprsAbort = tasks.map(t => {
           if (t.isWasm && hasWasm) {
             this._needsRuntimeBridge = true;
             const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
-            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}])); } return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await Promise.race([__tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}]), ${abortedVar}])); } return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { if (!${acVar}.signal.aborted) ${acVar}.abort(); return new Err(__e); } })()`;
           }
-          return `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+          return `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { if (!${acVar}.signal.aborted) ${acVar}.abort(); return new Err(__e); } })()`;
         });
         lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
         for (let i = 0; i < taskExprsAbort.length; i++) {
@@ -28552,6 +28794,57 @@ class EdgeCodegen extends BaseCodegen {
   }
 }
 
+// ─── src/codegen/deploy-codegen.js ─────────────────────
+
+// Deploy-specific codegen for the Tova language
+// Produces a configuration manifest (plain JS object) from deploy block AST nodes.
+
+const DEFAULTS = {
+  instances: 1,
+  memory: '512mb',
+  branch: 'main',
+  health: '/healthz',
+  health_interval: 30,
+  health_timeout: 5,
+  restart_on_failure: true,
+  keep_releases: 5,
+};
+class DeployCodegen {
+  static mergeDeployBlocks(blocks) {
+    const config = { ...DEFAULTS, env: {}, databases: [] };
+    for (const block of blocks) {
+      config.name = block.name;
+      for (const stmt of block.body) {
+        switch (stmt.type) {
+          case 'DeployConfigField': {
+            // Extract literal value from AST expression
+            const val = stmt.value;
+            config[stmt.key] = val.value !== undefined ? val.value : val;
+            break;
+          }
+          case 'DeployEnvBlock': {
+            for (const entry of stmt.entries) {
+              config.env[entry.key] = entry.value.value !== undefined ? entry.value.value : entry.value;
+            }
+            break;
+          }
+          case 'DeployDbBlock': {
+            const dbConfig = {};
+            if (stmt.config && typeof stmt.config === 'object') {
+              for (const [k, v] of Object.entries(stmt.config)) {
+                dbConfig[k] = v.value !== undefined ? v.value : v;
+              }
+            }
+            config.databases.push({ engine: stmt.engine, config: dbConfig });
+            break;
+          }
+        }
+      }
+    }
+    return config;
+  }
+}
+
 // ─── src/codegen/codegen.js ────────────────────────────
 
 // Main code generator — orchestrates shared/server/browser codegen
@@ -28574,6 +28867,12 @@ function getSecurityCodegen() { return SecurityCodegen; }
 function getCliCodegen() { return CliCodegen; }
 
 function getEdgeCodegen() { return EdgeCodegen; }
+
+let _DeployCodegen;
+function getDeployCodegen() {
+  if (!_DeployCodegen) _DeployCodegen = _require('./deploy-codegen.js').DeployCodegen;
+  return _DeployCodegen;
+}
 class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
@@ -28625,6 +28924,7 @@ class CodeGenerator {
     const dataBlocks = getBlocks('data');
     const securityBlocks = getBlocks('security');
     const edgeBlocks = getBlocks('edge');
+    const deployBlocks = getBlocks('deploy');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -28770,6 +29070,17 @@ class CodeGenerator {
       }
     }
 
+    // Generate deploy configs (one per named block)
+    const deploys = {};
+    if (deployBlocks.length > 0) {
+      const Deploy = getDeployCodegen();
+      const deployGroups = this._groupByName(deployBlocks);
+      for (const [name, blocks] of deployGroups) {
+        const key = name || 'default';
+        deploys[key] = Deploy.mergeDeployBlocks(blocks);
+      }
+    }
+
     // Generate tests if test blocks exist
     let testCode = '';
     if (testBlocks.length > 0) {
@@ -28805,6 +29116,7 @@ class CodeGenerator {
         browser: browserCode,
         client: browserCode,  // deprecated alias for backward compat
         edge: edges['default'] || '',
+        deploy: Object.keys(deploys).length > 0 ? deploys : undefined,
         sourceMappings,
         _sourceFile: this.filename,
       };
@@ -28825,6 +29137,7 @@ class CodeGenerator {
       browsers,  // { "admin": code, "dashboard": code, ... }
       clients: browsers,   // deprecated alias for backward compat
       edges,     // { "api": code, "assets": code, ... }
+      deploy: Object.keys(deploys).length > 0 ? deploys : undefined,
       multiBlock: true,
       sourceMappings,
       _sourceFile: this.filename,

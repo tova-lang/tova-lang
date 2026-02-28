@@ -55,6 +55,7 @@ function getAstFiles() {
     'src/parser/form-ast.js',
     'src/parser/concurrency-ast.js',
     'src/parser/select-ast.js',
+    'src/parser/deploy-ast.js',
   ];
   return candidates.filter(f => {
     try { readFileSync(resolve(ROOT, f)); return true; } catch { return false; }

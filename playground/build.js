@@ -20,6 +20,7 @@ const SOURCE_FILES = [
   'src/parser/form-ast.js',
   'src/parser/concurrency-ast.js',
   'src/parser/select-ast.js',
+  'src/parser/deploy-ast.js',
   '__AST_SHIM__',
   'src/diagnostics/error-codes.js',
   'src/registry/block-registry.js',
@@ -30,6 +31,7 @@ const SOURCE_FILES = [
   'src/parser/cli-parser.js',
   'src/parser/edge-parser.js',
   'src/parser/concurrency-parser.js',
+  'src/parser/deploy-parser.js',
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/types.js',
@@ -48,6 +50,7 @@ const SOURCE_FILES = [
   'src/registry/plugins/test-plugin.js',
   'src/registry/plugins/bench-plugin.js',
   'src/registry/plugins/concurrency-plugin.js',
+  'src/registry/plugins/deploy-plugin.js',
   'src/registry/register-all.js',
   'src/codegen/wasm-codegen.js',
   'src/codegen/base-codegen.js',
@@ -58,6 +61,7 @@ const SOURCE_FILES = [
   'src/codegen/security-codegen.js',
   'src/codegen/cli-codegen.js',
   'src/codegen/edge-codegen.js',
+  'src/codegen/deploy-codegen.js',
   'src/codegen/codegen.js',
 ];
 
@@ -95,6 +99,7 @@ function buildCompilerBundle() {
         'src/parser/security-ast.js', 'src/parser/cli-ast.js',
         'src/parser/edge-ast.js', 'src/parser/form-ast.js',
         'src/parser/concurrency-ast.js', 'src/parser/select-ast.js',
+        'src/parser/deploy-ast.js',
       ]) {
         const astCode = readFileSync(resolve(ROOT, astFile), 'utf-8');
         for (const m of astCode.matchAll(/^(?:export\s+)?class\s+(\w+)/gm)) {
