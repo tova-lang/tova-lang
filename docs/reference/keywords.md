@@ -17,6 +17,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`browser`](#browser) | Define a browser block |
 | [`component`](#component) | Declare a reactive UI component |
 | [`computed`](#computed) | Declare a derived reactive value |
+| [`concurrent`](#concurrent) | Define a structured concurrency block |
 | [`continue`](#continue) | Skip to the next loop iteration |
 | [`data`](#data) | Define a data block for sources, pipelines, and validation |
 | [`defer`](#defer) | Schedule code to run at scope exit |
@@ -32,7 +33,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`fn`](#fn) | Declare a function |
 | [`for`](#for) | Iterate over a collection or range |
 | [`form`](#form) | Declare a reactive form inside a browser/component scope |
-| [`from`](#from) | Specify the module source in an import |
+| [`from`](#from) | Specify the module source in an import; receive from a channel in `select` |
 | [`group`](#group) | Declare a field group inside a form block |
 | [`guard`](#guard) | Assert a condition or execute an else block |
 | [`if`](#if) | Conditional branch |
@@ -53,9 +54,11 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`refresh`](#refresh) | Set a refresh policy for a data source |
 | [`return`](#return) | Explicit early return from a function |
 | [`route`](#route) | Define an HTTP route in a server block |
+| [`select`](#select) | Multiplex across channel operations |
 | [`server`](#server) | Define a server-side block |
 | [`shared`](#shared) | Define a block shared between server and browser |
 | [`source`](#source) | Declare a data source in a data block |
+| [`spawn`](#spawn) | Launch a concurrent task inside a `concurrent` block |
 | [`state`](#state) | Declare a reactive state variable |
 | [`steps`](#steps) | Declare wizard steps inside a form block |
 | [`store`](#store) | Declare a reactive store |
@@ -228,6 +231,29 @@ for i in 0..100 {
   print(i)
 }
 ```
+
+### `concurrent`
+
+Defines a structured concurrency block. All spawned tasks within the block must complete (or be cancelled) before execution continues past it. Supports mode modifiers: `cancel_on_error`, `first`, and `timeout(ms)`.
+
+```tova
+concurrent {
+    users = spawn fetch_users()
+    posts = spawn fetch_posts()
+}
+// users and posts are Result values
+
+concurrent cancel_on_error {
+    a = spawn validate(input)
+    b = spawn check_permissions(user)
+}
+
+concurrent timeout(5000) {
+    data = spawn slow_operation()
+}
+```
+
+See the [Concurrency guide](/guide/concurrency) for full details.
 
 ### `data`
 
@@ -666,6 +692,21 @@ server {
 }
 ```
 
+### `select`
+
+Multiplexes across multiple channel operations. Waits until one case is ready, then executes its body. Supports receive, send, timeout, and default cases.
+
+```tova
+select {
+    msg from ch1     => print("Got: {msg}")
+    ch2.send(value)  => print("Sent")
+    timeout(5000)    => print("Timed out")
+    _                => print("Nothing ready")
+}
+```
+
+See the [Concurrency guide](/guide/concurrency#select) for full details.
+
 ### `server`
 
 Opens a server-side block. Code inside is compiled only for the server.
@@ -689,6 +730,19 @@ shared {
   }
 }
 ```
+
+### `spawn`
+
+Launches a concurrent task inside a `concurrent` block. The spawned call returns `Result<T, Error>` -- success wraps in `Ok`, exceptions wrap in `Err`.
+
+```tova
+concurrent {
+    result = spawn compute(data)
+    spawn log_event("started")   // fire-and-forget
+}
+```
+
+See the [Concurrency guide](/guide/concurrency#spawn) for full details.
 
 ### `source`
 

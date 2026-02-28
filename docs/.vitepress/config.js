@@ -80,6 +80,7 @@ export default defineConfig({
             { text: 'Collections', link: '/guide/collections' },
             { text: 'Strings', link: '/guide/strings' },
             { text: 'Async', link: '/guide/async' },
+            { text: 'Concurrency', link: '/guide/concurrency' },
             { text: 'Pipes', link: '/guide/pipes' },
           ],
         },

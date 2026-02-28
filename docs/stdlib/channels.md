@@ -2,6 +2,8 @@
 
 Channels provide a way for concurrent tasks to communicate by sending and receiving messages. They are inspired by Go channels and work with Tova's async/await system.
 
+For `concurrent` blocks, `spawn`, and `select` multiplexing over channels, see the [Concurrency guide](../guide/concurrency).
+
 ## Creating Channels
 
 ### Channel.new

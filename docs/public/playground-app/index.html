@@ -3548,9 +3548,69 @@ class FormStep {
   }
 }
 
+// ─── src/parser/concurrency-ast.js ─────────────────────
+
+// Concurrency-specific AST Node definitions for the Tova language
+// Extracted for lazy loading -- only loaded when concurrent { } blocks are used.
+
+/**
+ * spawn foo(args)
+ * spawn fn() { ... }
+ */
+class SpawnExpression {
+  constructor(callee, args, loc) {
+    this.type = 'SpawnExpression';
+    this.callee = callee;       // Expression (function name or lambda)
+    this.arguments = args;      // Array of Expression
+    this.loc = loc;
+  }
+}
+
+// ─── src/parser/select-ast.js ──────────────────────────
+
+// Select-specific AST Node definitions for the Tova language
+// Extracted for lazy loading -- only loaded when select { } blocks are used.
+
+/**
+ * select {
+ *   msg from ch => { ... }
+ *   ch.send(val) => { ... }
+ *   timeout(5000) => { ... }
+ *   _ => { ... }
+ * }
+ */
+class SelectStatement {
+  constructor(cases, loc) {
+    this.type = 'SelectStatement';
+    this.cases = cases;   // Array of SelectCase
+    this.loc = loc;
+  }
+}
+
+/**
+ * A single case arm inside a select block.
+ *
+ * kind: "receive" | "send" | "timeout" | "default"
+ * channel: Expression | null   (identifier for the channel; null for timeout/default)
+ * binding: string | null        (variable name bound on receive; null otherwise)
+ * value: Expression | null      (value to send, or timeout duration; null for receive/default)
+ * body: [Statement]             (statements executed when this case fires)
+ */
+class SelectCase {
+  constructor(kind, channel, binding, value, body, loc) {
+    this.type = 'SelectCase';
+    this.kind = kind;        // "receive" | "send" | "timeout" | "default"
+    this.channel = channel;  // Expression | null
+    this.binding = binding;  // string | null
+    this.value = value;      // Expression | null
+    this.body = body;        // [Statement]
+    this.loc = loc;
+  }
+}
+
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase };
 
 // ─── src/diagnostics/error-codes.js ────────────────────
 
@@ -5975,6 +6035,242 @@ function installEdgeParser(ParserClass) {
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close binding config");
     return config;
+  };
+}
+
+// ─── src/parser/concurrency-parser.js ──────────────────
+
+// Concurrency-specific parser methods for the Tova language
+// Extracted for lazy loading — only loaded when concurrent { } blocks are used.
+
+
+
+
+const CONCURRENT_MODES = new Set(['cancel_on_error', 'first', 'timeout']);
+function installConcurrencyParser(ParserClass) {
+  if (ParserClass.prototype._concurrencyParserInstalled) return;
+  ParserClass.prototype._concurrencyParserInstalled = true;
+
+  /**
+   * Parse: concurrent [mode] { body }
+   *
+   * Modes:
+   *   concurrent { ... }                  — mode "all" (default)
+   *   concurrent cancel_on_error { ... }  — cancel siblings on first error
+   *   concurrent first { ... }            — return first result, cancel rest
+   *   concurrent timeout(ms) { ... }      — timeout after ms milliseconds
+   */
+  ParserClass.prototype.parseConcurrentBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'concurrent'
+
+    let mode = 'all';
+    let timeout = null;
+
+    // Check for mode modifier
+    if (this.check(TokenType.IDENTIFIER) && CONCURRENT_MODES.has(this.current().value)) {
+      const modeName = this.advance().value;
+      if (modeName === 'timeout') {
+        this.expect(TokenType.LPAREN, "Expected '(' after 'timeout'");
+        timeout = this.parseExpression();
+        this.expect(TokenType.RPAREN, "Expected ')' after timeout value");
+        mode = 'timeout';
+      } else {
+        mode = modeName;
+      }
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' after 'concurrent'");
+
+    const body = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseStatement();
+        if (stmt) body.push(stmt);
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close concurrent block");
+    return new AST.ConcurrentBlock(mode, timeout, body, l);
+  };
+
+  // Save the original parseUnary method to extend it with spawn support
+  const _originalParseUnary = ParserClass.prototype.parseUnary;
+
+  /**
+   * Extend parseUnary to handle `spawn` as a prefix expression.
+   * spawn foo(args) → SpawnExpression
+   * Works like `await` but for concurrent task spawning.
+   */
+  ParserClass.prototype.parseUnary = function() {
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'spawn') {
+      // Distinguish concurrency `spawn foo()` from stdlib function call `spawn("cmd", args)`.
+      // If `spawn` is followed by `(`, it's a regular function call, not a concurrency keyword.
+      const next = this.peek(1);
+      if (next && next.type === TokenType.LPAREN) {
+        return _originalParseUnary.call(this);
+      }
+
+      const l = this.loc();
+      this.advance(); // consume 'spawn'
+
+      // Parse the expression after spawn (function call, lambda, etc.)
+      const expr = this.parseUnary();
+
+      // If it's a call expression, split into callee + args
+      if (expr.type === 'CallExpression') {
+        return new SpawnExpression(expr.callee, expr.arguments, l);
+      }
+
+      // Otherwise treat the whole expression as the callee with no args
+      return new SpawnExpression(expr, [], l);
+    }
+
+    return _originalParseUnary.call(this);
+  };
+
+  // Also support concurrent as a statement inside function bodies
+  const _originalParseStatement = ParserClass.prototype.parseStatement;
+
+  ParserClass.prototype.parseStatement = function() {
+    // Check for 'concurrent' at statement level (inside function bodies)
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'concurrent') {
+      return this.parseConcurrentBlock();
+    }
+    // Check for 'select {' at statement level (disambiguate from select() function call)
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'select'
+        && this.peek(1).type === TokenType.LBRACE) {
+      return this.parseSelectStatement();
+    }
+    return _originalParseStatement.call(this);
+  };
+
+  /**
+   * Parse: select { case1  case2  ... }
+   *
+   * Each case is one of:
+   *   binding from channel => body
+   *   _ from channel => body
+   *   channel.send(value) => body
+   *   timeout(ms) => body
+   *   _ => body
+   */
+  ParserClass.prototype.parseSelectStatement = function() {
+    const l = this.loc();
+    this.advance(); // consume 'select'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'select'");
+
+    const cases = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      try {
+        cases.push(this.parseSelectCase());
+      } catch (e) {
+        this.errors.push(e);
+        this._synchronizeBlock();
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close select block");
+    return new SelectStatement(cases, l);
+  };
+
+  ParserClass.prototype.parseSelectCase = function() {
+    const l = this.loc();
+
+    // timeout(ms) => body
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === 'timeout'
+        && this.peek(1).type === TokenType.LPAREN) {
+      this.advance(); // consume 'timeout'
+      this.expect(TokenType.LPAREN, "Expected '(' after 'timeout'");
+      const ms = this.parseExpression();
+      this.expect(TokenType.RPAREN, "Expected ')' after timeout value");
+      this.expect(TokenType.ARROW, "Expected '=>' after timeout");
+      const body = this.parseSelectCaseBody();
+      return new SelectCase('timeout', null, null, ms, body, l);
+    }
+
+    // _ => body (default case) — must check before _ from channel
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === '_'
+        && this.peek(1).type === TokenType.ARROW) {
+      this.advance(); // consume '_'
+      this.expect(TokenType.ARROW, "Expected '=>' after '_'");
+      const body = this.parseSelectCaseBody();
+      return new SelectCase('default', null, null, null, body, l);
+    }
+
+    // _ from channel => body (wildcard receive)
+    if (this.check(TokenType.IDENTIFIER) && this.current().value === '_'
+        && this.peek(1).type === TokenType.FROM) {
+      this.advance(); // consume '_'
+      this.advance(); // consume 'from'
+      const channel = this._parseSelectChannel();
+      this.expect(TokenType.ARROW, "Expected '=>' after channel");
+      const body = this.parseSelectCaseBody();
+      return new SelectCase('receive', channel, null, null, body, l);
+    }
+
+    // binding from channel => body (named receive)
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.FROM) {
+      const binding = this.advance().value; // consume binding name
+      this.advance(); // consume 'from'
+      const channel = this._parseSelectChannel();
+      this.expect(TokenType.ARROW, "Expected '=>' after channel");
+      const body = this.parseSelectCaseBody();
+      return new SelectCase('receive', channel, binding, null, body, l);
+    }
+
+    // channel.send(value) => body (send case)
+    // Parse as expression, then check if it's a send call
+    const expr = this.parseExpression();
+    if (expr.type === 'CallExpression' && expr.callee.type === 'MemberExpression'
+        && expr.callee.property === 'send') {
+      this.expect(TokenType.ARROW, "Expected '=>' after send");
+      const body = this.parseSelectCaseBody();
+      return new SelectCase('send', expr.callee.object, null, expr.arguments[0], body, l);
+    }
+
+    throw this.error("Expected select case: 'binding from channel =>', 'timeout(ms) =>', 'channel.send(val) =>', or '_ =>'", l);
+  };
+
+  /**
+   * Parse a channel expression in a select receive case.
+   * Handles identifiers and member access chains (e.g., ch, obj.ch)
+   * without consuming '=>' as a lambda arrow.
+   */
+  ParserClass.prototype._parseSelectChannel = function() {
+    const l = this.loc();
+    let expr = new AST.Identifier(this.advance().value, l);
+    // Follow member access chains: ch.sub, obj.channels, etc.
+    while (this.check(TokenType.DOT)) {
+      this.advance(); // consume '.'
+      const prop = this.advance().value;
+      expr = new AST.MemberExpression(expr, prop, false, this.loc());
+    }
+    return expr;
+  };
+
+  ParserClass.prototype.parseSelectCaseBody = function() {
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume '{'
+      const body = [];
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        try {
+          const stmt = this.parseStatement();
+          if (stmt) body.push(stmt);
+        } catch (e) {
+          this.errors.push(e);
+          this._synchronizeBlock();
+        }
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close select case body");
+      return body;
+    }
+    // Single statement
+    const stmt = this.parseStatement();
+    return stmt ? [stmt] : [];
   };
 }
 
@@ -14995,6 +15291,38 @@ const benchPlugin = {
   },
   analyzer: {
     visit: (analyzer, node) => analyzer.visitTestBlock(node), // reuses test visitor
+  },
+  codegen: {},
+};
+
+// ─── src/registry/plugins/concurrency-plugin.js ────────
+
+const concurrencyPlugin = {
+  name: 'concurrency',
+  astNodeType: 'ConcurrentBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'concurrent',
+    lookahead: (parser) => {
+      const next = parser.peek(1);
+      // concurrent {} or concurrent mode {}
+      return next.type === TokenType.LBRACE ||
+             (next.type === TokenType.IDENTIFIER &&
+              ['cancel_on_error', 'first', 'timeout'].includes(next.value));
+    },
+  },
+  parser: {
+    install: installConcurrencyParser,
+    installedFlag: '_concurrencyParserInstalled',
+    method: 'parseConcurrentBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => {
+      if (node.type === 'SelectStatement') return analyzer.visitSelectStatement(node);
+      return analyzer.visitConcurrentBlock(node);
+    },
+    childNodeTypes: ['SelectStatement'],
+    noopNodeTypes: ['SpawnExpression', 'SelectCase'],
   },
   codegen: {},
 };
