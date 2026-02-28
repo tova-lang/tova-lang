@@ -385,17 +385,45 @@ fn error(msg) {
 }
 ```
 
+## Tova Package Imports
+
+Tova has its own decentralized package system based on git repositories. Import from Tova packages using domain-qualified module paths:
+
+```tova
+import { serve, router } from "github.com/alice/tova-http"
+import { encode } from "github.com/bob/tova-jwt"
+```
+
+Sub-packages use path segments after the repo name:
+
+```tova
+import { Pool } from "github.com/alice/tova-db/postgres"
+import { Redis } from "github.com/alice/tova-db/redis"
+```
+
+Add packages to your project with:
+
+```bash
+tova add github.com/alice/tova-http
+```
+
+For the full guide on packages -- finding, using, creating, and publishing -- see the [Package Management](/packages/) section.
+
 ## Import Conventions
 
 Tova follows these conventions for resolving imports:
 
 | Import Path | Resolution |
 |-------------|-----------|
+| `"github.com/alice/tova-http"` | Tova package from global cache (`~/.tova/pkg/`) |
+| `"github.com/alice/tova-db/postgres"` | Tova sub-package |
 | `"./file"` | Relative `.tova` file in same directory |
 | `"../file"` | Relative `.tova` file in parent directory |
 | `"./dir/file"` | Relative `.tova` file in subdirectory |
 | `"package"` | npm package from `node_modules` |
 | `"builtin"` | Built-in Tova module |
+
+An import is a Tova package if its first path segment contains a dot (e.g., `github.com`). Everything else follows the rules above.
 
 ## Practical Tips
 

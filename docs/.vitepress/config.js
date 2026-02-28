@@ -34,6 +34,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/syntax' },
       { text: 'Stdlib', link: '/stdlib/' },
       { text: 'Examples', link: '/examples/' },
+      { text: 'Packages', link: '/packages/' },
       { text: 'Tooling', link: '/tooling/cli' },
       {
         text: 'App Models',
@@ -208,6 +209,21 @@ export default defineConfig({
             { text: 'Scripting I/O', link: '/stdlib/io' },
             { text: 'Tables', link: '/stdlib/tables' },
             { text: 'Testing', link: '/stdlib/testing' },
+          ],
+        },
+      ],
+
+      '/packages/': [
+        {
+          text: 'Package Management',
+          items: [
+            { text: 'Overview', link: '/packages/' },
+            { text: 'Using Packages', link: '/packages/using-packages' },
+            { text: 'Creating Packages', link: '/packages/creating-packages' },
+            { text: 'tova.toml Reference', link: '/packages/tova-toml' },
+            { text: 'CLI Reference', link: '/packages/cli-reference' },
+            { text: 'Resolution & Caching', link: '/packages/resolution' },
+            { text: 'Security & Integrity', link: '/packages/security' },
           ],
         },
       ],
