@@ -1,12 +1,20 @@
 import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
+import { Analyzer } from '../src/analyzer/analyzer.js';
 
 function parse(source) {
   const lexer = new Lexer(source);
   const tokens = lexer.tokenize();
   const parser = new Parser(tokens);
   return parser.parse();
+}
+
+function analyze(code) {
+  const ast = parse(code);
+  const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
+  const result = analyzer.analyze();
+  return result.errors || [];
 }
 
 describe('Deploy Block AST', () => {
@@ -170,5 +178,40 @@ describe('Deploy Block - parsing', () => {
     // Verify server keyword-as-config produces correct key string
     expect(body[0].key).toBe('server');
     expect(body[0].value.value).toBe('root@example.com');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Analyzer
+// ═══════════════════════════════════════════════════════════════
+
+describe('Deploy Block Analyzer', () => {
+  test('accepts valid deploy block with server and domain', () => {
+    const errors = analyze(`
+      deploy "prod" {
+        server: "root@example.com"
+        domain: "myapp.com"
+      }
+    `);
+    const deployErrors = errors.filter(e => e.message?.includes('deploy') || e.message?.includes('Deploy'));
+    expect(deployErrors).toHaveLength(0);
+  });
+
+  test('rejects deploy block missing server', () => {
+    const errors = analyze(`
+      deploy "prod" {
+        domain: "myapp.com"
+      }
+    `);
+    expect(errors.some(e => e.message?.includes("server"))).toBe(true);
+  });
+
+  test('rejects deploy block missing domain', () => {
+    const errors = analyze(`
+      deploy "prod" {
+        server: "root@example.com"
+      }
+    `);
+    expect(errors.some(e => e.message?.includes("domain"))).toBe(true);
   });
 });

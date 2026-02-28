@@ -1,4 +1,5 @@
 import { installDeployParser } from '../../parser/deploy-parser.js';
+import { installDeployAnalyzer } from '../../analyzer/deploy-analyzer.js';
 import { TokenType } from '../../lexer/tokens.js';
 
 export const deployPlugin = {
@@ -19,7 +20,10 @@ export const deployPlugin = {
     method: 'parseDeployBlock',
   },
   analyzer: {
-    visit: (analyzer, node) => { /* validated in Task 5 */ },
+    visit: (analyzer, node) => {
+      installDeployAnalyzer(analyzer.constructor);
+      analyzer.visitDeployBlock(node);
+    },
     childNodeTypes: [],
     noopNodeTypes: [
       'DeployConfigField', 'DeployEnvBlock', 'DeployDbBlock',
