@@ -6,6 +6,7 @@
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#numbers" },
+    { "include": "#decorators" },
     { "include": "#keywords" },
     { "include": "#types" },
     { "include": "#functions" },
@@ -70,15 +71,34 @@
       "patterns": [
         {
           "name": "constant.numeric.float.tova",
-          "match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b"
+          "match": "\\b\\d[\\d_]*\\.\\d[\\d_]*([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.binary.tova",
+          "match": "\\b0[bB][01_]+\\b"
+        },
+        {
+          "name": "constant.numeric.octal.tova",
+          "match": "\\b0[oO][0-7_]+\\b"
         },
         {
           "name": "constant.numeric.hex.tova",
-          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+          "match": "\\b0[xX][0-9a-fA-F_]+\\b"
         },
         {
           "name": "constant.numeric.integer.tova",
-          "match": "\\b\\d+\\b"
+          "match": "\\b\\d[\\d_]*\\b"
+        }
+      ]
+    },
+    "decorators": {
+      "patterns": [
+        {
+          "name": "meta.decorator.tova",
+          "match": "@([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "entity.name.function.decorator.tova" }
+          }
         }
       ]
     },
@@ -90,11 +110,19 @@
         },
         {
           "name": "keyword.declaration.tova",
-          "match": "\\b(fn|let|type|interface|import|from|pub|mut|async|await|derive)\\b"
+          "match": "\\b(fn|let|var|type|interface|import|from|export|pub|mut|async|await|derive|impl|trait|defer|yield|extern|with|as)\\b"
         },
         {
           "name": "keyword.block.tova",
-          "match": "\\b(server|client|browser|shared|test|model|db|route|sse)\\b"
+          "match": "\\b(server|client|browser|shared|test|model|db|route|sse|state|computed|effect|component|store|form|field|group|steps|concurrent|edge|data|bench|cli|spawn|select)\\b"
+        },
+        {
+          "name": "keyword.other.server-config.tova",
+          "match": "\\b(middleware|cors|auth|rate_limit|ws|health|schedule|background|on_start|on_stop|session|upload|tls|compression|cache|discover|subscribe|on_error|on_open|on_message|on_close|static|max_body|routes)\\b"
+        },
+        {
+          "name": "keyword.other.http-method.tova",
+          "match": "\\b(GET|POST|PUT|DELETE|PATCH)\\b"
         },
         {
           "name": "keyword.operator.tova",
@@ -105,19 +133,19 @@
     "types": {
       "patterns": [
         {
-          "name": "entity.name.type.tova",
-          "match": "\\b[A-Z][a-zA-Z0-9]*\\b"
-        },
-        {
           "name": "storage.type.tova",
           "match": "\\b(Int|Float|String|Bool|List|Map|Set|Nil|Void|Self|Any)\\b"
+        },
+        {
+          "name": "entity.name.type.tova",
+          "match": "\\b[A-Z][a-zA-Z0-9]*\\b"
         }
       ]
     },
     "functions": {
       "patterns": [
         {
-          "name": "entity.name.function.tova",
+          "name": "meta.function.declaration.tova",
           "match": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.tova" },
@@ -126,7 +154,7 @@
         },
         {
           "name": "support.function.builtin.tova",
-          "match": "\\b(print|len|range|enumerate|sum|sorted|reversed|zip|min|max|type_of|filter|map)\\b"
+          "match": "\\b(print|len|range|enumerate|type_of|filter|map|find|find_index|any|all|flat_map|reduce|sum|min|max|sorted|reversed|zip|unique|group_by|chunk|flatten|take|drop|first|last|count|partition|includes|compact|rotate|insert_at|remove_at|update_at|abs|floor|ceil|round|clamp|sqrt|pow|random|random_int|random_float|sign|trunc|gcd|lcm|factorial|hypot|lerp|divmod|avg|is_nan|is_finite|is_close|sin|cos|tan|asin|acos|atan|atan2|to_radians|to_degrees|log|log2|log10|exp|trim|trim_start|trim_end|split|join|replace|replace_first|repeat|upper|lower|contains|starts_with|ends_with|chars|words|lines|capitalize|title_case|snake_case|camel_case|kebab_case|pad_start|pad_end|char_at|index_of|last_index_of|count_of|reverse_str|substr|center|slugify|truncate|escape_html|unescape_html|dedent|indent_str|word_wrap|fmt|is_empty|keys|values|entries|merge|freeze|clone|has_key|get|pick|omit|map_values|from_entries|to_int|to_float|to_string|to_bool|assert|assert_eq|assert_ne|sleep|parallel|timeout|retry|compose|pipe_fn|identity|memoize|debounce|throttle|once|negate|partial|curry|flip|try_fn|try_async|filter_ok|filter_err|choice|sample|shuffle|json_parse|json_stringify|json_pretty|base64_encode|base64_decode|url_encode|url_decode|hex_encode|hex_decode|format_number|to_hex|to_binary|to_octal|to_fixed|pairwise|combinations|permutations|intersperse|interleave|repeat_value|sliding_window|zip_with|frequencies|scan|min_by|max_by|sum_by|product|binary_search|is_sorted|intersection|difference|symmetric_difference|is_subset|is_superset|mean|median|mode|stdev|variance|percentile|is_email|is_url|is_numeric|is_alpha|is_alphanumeric|is_uuid|is_hex|uuid|parse_url|build_url|parse_query|build_query|regex_test|regex_match|regex_find_all|regex_replace|regex_split|regex_capture|now|now_iso|date_parse|date_format|date_add|date_diff|date_from|date_part|time_ago|read|write|env|args|exit|exists|read_text|write_text|mkdir|ls|cwd|read_stdin|read_lines|script_path|script_dir|parse_args|color|bold|dim|on_signal|file_stat|file_size|path_join|path_dirname|path_basename|path_resolve|path_ext|path_relative|symlink|readlink|is_symlink|spawn)\\b"
         }
       ]
     },
@@ -137,16 +165,36 @@
           "match": "\\|>"
         },
         {
-          "name": "keyword.operator.arrow.tova",
+          "name": "keyword.operator.arrow.fat.tova",
           "match": "=>"
+        },
+        {
+          "name": "keyword.operator.arrow.thin.tova",
+          "match": "->"
         },
         {
           "name": "keyword.operator.spread.tova",
           "match": "\\.\\.\\."
         },
         {
+          "name": "keyword.operator.range.inclusive.tova",
+          "match": "\\.\\.="
+        },
+        {
           "name": "keyword.operator.range.tova",
           "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.namespace.tova",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.null-coalescing.tova",
+          "match": "\\?\\?"
+        },
+        {
+          "name": "keyword.operator.optional-chaining.tova",
+          "match": "\\?\\."
         },
         {
           "name": "keyword.operator.propagate.tova",
@@ -179,6 +227,10 @@
         {
           "name": "variable.language.result.tova",
           "match": "\\b(Ok|Err|Some|None)\\b"
+        },
+        {
+          "name": "support.constant.math.tova",
+          "match": "\\b(PI|E|INF)\\b"
         }
       ]
     },
@@ -212,6 +264,42 @@
     },
     "tag-attributes": {
       "patterns": [
+        {
+          "name": "meta.directive.event.tova",
+          "match": "(on)(:)([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*=)",
+          "captures": {
+            "1": { "name": "keyword.other.directive.tova" },
+            "2": { "name": "punctuation.separator.tova" },
+            "3": { "name": "entity.other.attribute-name.tova" }
+          }
+        },
+        {
+          "name": "meta.directive.bind.tova",
+          "match": "(bind)(:)([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*=)",
+          "captures": {
+            "1": { "name": "keyword.other.directive.tova" },
+            "2": { "name": "punctuation.separator.tova" },
+            "3": { "name": "entity.other.attribute-name.tova" }
+          }
+        },
+        {
+          "name": "meta.directive.class.tova",
+          "match": "(class)(:)([a-zA-Z_][a-zA-Z0-9_-]*)(?=\\s*=)",
+          "captures": {
+            "1": { "name": "keyword.other.directive.tova" },
+            "2": { "name": "punctuation.separator.tova" },
+            "3": { "name": "entity.other.attribute-name.tova" }
+          }
+        },
+        {
+          "name": "meta.directive.style.tova",
+          "match": "(style)(:)([a-zA-Z_][a-zA-Z0-9_-]*)(?=\\s*=)",
+          "captures": {
+            "1": { "name": "keyword.other.directive.tova" },
+            "2": { "name": "punctuation.separator.tova" },
+            "3": { "name": "entity.other.attribute-name.tova" }
+          }
+        },
         {
           "name": "entity.other.attribute-name.tova",
           "match": "\\b([a-zA-Z_:][a-zA-Z0-9_:-]*)(?=\\s*=)"

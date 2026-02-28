@@ -57,6 +57,25 @@
         "path": "./syntaxes/tova.tmLanguage.json"
       }
     ],
+    "semanticTokenScopes": [
+      {
+        "language": "tova",
+        "scopes": {
+          "namespace": ["entity.name.namespace.tova"],
+          "type": ["entity.name.type.tova"],
+          "interface": ["entity.name.type.interface.tova"],
+          "parameter": ["variable.parameter.tova"],
+          "variable": ["variable.other.tova"],
+          "property": ["variable.other.property.tova"],
+          "enumMember": ["variable.other.enummember.tova"],
+          "function": ["entity.name.function.tova"],
+          "method": ["entity.name.function.method.tova"],
+          "decorator": ["meta.decorator.tova"],
+          "variable.readonly": ["variable.other.constant.tova"],
+          "function.defaultLibrary": ["support.function.builtin.tova"]
+        }
+      }
+    ],
     "snippets": [
       {
         "language": "tova",
@@ -73,7 +92,8 @@
     "configurationDefaults": {
       "[tova]": {
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "tova-lang.tova-lang"
+        "editor.defaultFormatter": "tova-lang.tova-lang",
+        "editor.semanticHighlighting.enabled": true
       }
     },
     "debuggers": [

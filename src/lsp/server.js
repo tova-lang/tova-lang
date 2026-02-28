@@ -121,6 +121,7 @@ class TovaLanguageServer {
         case 'textDocument/codeAction': return this._onCodeAction(msg);
         case 'textDocument/references': return this._onReferences(msg);
         case 'textDocument/inlayHint': return this._onInlayHint(msg);
+        case 'textDocument/semanticTokens/full': return this._onSemanticTokensFull(msg);
         case 'workspace/symbol': return this._onWorkspaceSymbol(msg);
         default: return this._respondError(msg.id, -32601, `Method not found: ${method}`);
       }
@@ -165,6 +166,48 @@ class TovaLanguageServer {
         referencesProvider: true,
         inlayHintProvider: true,
         workspaceSymbolProvider: true,
+        semanticTokensProvider: {
+          legend: {
+            tokenTypes: [
+              'namespace',      // 0
+              'type',           // 1
+              'class',          // 2
+              'enum',           // 3
+              'interface',      // 4
+              'struct',         // 5
+              'typeParameter',  // 6
+              'parameter',      // 7
+              'variable',       // 8
+              'property',       // 9
+              'enumMember',     // 10
+              'event',          // 11
+              'function',       // 12
+              'method',         // 13
+              'macro',          // 14
+              'keyword',        // 15
+              'modifier',       // 16
+              'comment',        // 17
+              'string',         // 18
+              'number',         // 19
+              'regexp',         // 20
+              'decorator',      // 21
+            ],
+            tokenModifiers: [
+              'declaration',    // 0
+              'definition',     // 1
+              'readonly',       // 2
+              'static',         // 3
+              'deprecated',     // 4
+              'abstract',       // 5
+              'async',          // 6
+              'modification',   // 7
+              'documentation',  // 8
+              'defaultLibrary', // 9
+            ],
+          },
+          full: true,
+          range: false,
+        },
       },
     });
   }
@@ -1899,6 +1942,445 @@ class TovaLanguageServer {
     }
 
     return positions;
+  }
+
+  // ─── Semantic Tokens ─────────────────────────────────────
+
+  _onSemanticTokensFull(msg) {
+    const { textDocument } = msg.params;
+    const cached = this._diagnosticsCache.get(textDocument.uri);
+    if (!cached?.ast || !cached?.analyzer) {
+      return this._respond(msg.id, { data: [] });
+    }
+
+    const tokens = [];
+    try {
+      this._walkASTForSemanticTokens(cached.ast, cached.analyzer, tokens);
+    } catch (e) {
+      this._logError(`Semantic tokens error: ${e.message}`);
+    }
+
+    // Sort by position (line first, then character)
+    tokens.sort((a, b) => a.line - b.line || a.char - b.char);
+
+    // Delta-encode into flat array [deltaLine, deltaChar, length, tokenType, tokenModifiers]
+    const data = [];
+    let prevLine = 0;
+    let prevChar = 0;
+
+    for (const tok of tokens) {
+      const deltaLine = tok.line - prevLine;
+      const deltaChar = deltaLine === 0 ? tok.char - prevChar : tok.char;
+      data.push(deltaLine, deltaChar, tok.length, tok.tokenType, tok.modifiers);
+      prevLine = tok.line;
+      prevChar = tok.char;
+    }
+
+    this._respond(msg.id, { data });
+  }
+
+  _walkASTForSemanticTokens(node, analyzer, tokens) {
+    if (!node || typeof node !== 'object') return;
+
+    // Token type indices (must match legend in capabilities)
+    const TT_NAMESPACE = 0;
+    const TT_TYPE = 1;
+    const TT_INTERFACE = 4;
+    const TT_PARAMETER = 7;
+    const TT_VARIABLE = 8;
+    const TT_PROPERTY = 9;
+    const TT_ENUM_MEMBER = 10;
+    const TT_FUNCTION = 12;
+    const TT_DECORATOR = 21;
+
+    // Token modifier bitmasks
+    const TM_DECLARATION = 1 << 0;
+    const TM_READONLY = 1 << 2;
+    const TM_ASYNC = 1 << 6;
+    const TM_DEFAULT_LIBRARY = 1 << 9;
+
+    const loc = node.loc || node.location;
+
+    switch (node.type) {
+      case 'FunctionDeclaration': {
+        // Emit function name
+        if (node.name && loc) {
+          const nameOffset = node.async ? 'async fn '.length : 'fn '.length;
+          let modifiers = TM_DECLARATION;
+          if (node.async) modifiers |= TM_ASYNC;
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1 + nameOffset,
+            length: node.name.length,
+            tokenType: TT_FUNCTION,
+            modifiers,
+          });
+        }
+        // Walk parameters
+        if (node.params) {
+          for (const param of node.params) {
+            this._walkASTForSemanticTokens(param, analyzer, tokens);
+          }
+        }
+        // Walk return type
+        if (node.returnType) {
+          this._walkTypeAnnotation(node.returnType, tokens);
+        }
+        // Walk body
+        if (node.body) {
+          this._walkASTForSemanticTokens(node.body, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'Parameter': {
+        if (node.name && loc) {
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1,
+            length: node.name.length,
+            tokenType: TT_PARAMETER,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.typeAnnotation) {
+          this._walkTypeAnnotation(node.typeAnnotation, tokens);
+        }
+        if (node.default) {
+          this._walkASTForSemanticTokens(node.default, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'TypeDeclaration': {
+        if (node.name && loc) {
+          const nameOffset = 'type '.length;
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1 + nameOffset,
+            length: node.name.length,
+            tokenType: TT_TYPE,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.variants) {
+          for (const v of node.variants) {
+            this._walkASTForSemanticTokens(v, analyzer, tokens);
+          }
+        }
+        if (node.fields) {
+          for (const f of node.fields) {
+            this._walkASTForSemanticTokens(f, analyzer, tokens);
+          }
+        }
+        return;
+      }
+
+      case 'TypeVariant': {
+        if (node.name && loc) {
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1,
+            length: node.name.length,
+            tokenType: TT_ENUM_MEMBER,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.fields) {
+          for (const f of node.fields) {
+            this._walkASTForSemanticTokens(f, analyzer, tokens);
+          }
+        }
+        return;
+      }
+
+      case 'TypeField': {
+        if (node.name && loc) {
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1,
+            length: node.name.length,
+            tokenType: TT_PROPERTY,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.typeAnnotation) {
+          this._walkTypeAnnotation(node.typeAnnotation, tokens);
+        }
+        return;
+      }
+
+      case 'InterfaceDeclaration':
+      case 'TraitDeclaration': {
+        if (node.name && loc) {
+          const keyword = node.type === 'InterfaceDeclaration' ? 'interface ' : 'trait ';
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1 + keyword.length,
+            length: node.name.length,
+            tokenType: TT_INTERFACE,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.methods) {
+          for (const m of node.methods) {
+            this._walkASTForSemanticTokens(m, analyzer, tokens);
+          }
+        }
+        if (node.body) {
+          this._walkASTForSemanticTokens(node.body, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'ComponentDeclaration': {
+        if (node.name && loc) {
+          const nameOffset = 'component '.length;
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1 + nameOffset,
+            length: node.name.length,
+            tokenType: TT_TYPE,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.body) {
+          this._walkASTForSemanticTokens(node.body, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'StateDeclaration':
+      case 'ComputedDeclaration': {
+        if (node.name && loc) {
+          const keyword = node.type === 'StateDeclaration' ? 'state ' : 'computed ';
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1 + keyword.length,
+            length: node.name.length,
+            tokenType: TT_VARIABLE,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.value) {
+          this._walkASTForSemanticTokens(node.value, analyzer, tokens);
+        }
+        if (node.body) {
+          this._walkASTForSemanticTokens(node.body, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'Assignment': {
+        if (node.name && loc) {
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1,
+            length: node.name.length,
+            tokenType: TT_VARIABLE,
+            modifiers: TM_DECLARATION | TM_READONLY,
+          });
+        }
+        if (node.typeAnnotation) {
+          this._walkTypeAnnotation(node.typeAnnotation, tokens);
+        }
+        if (node.value) {
+          this._walkASTForSemanticTokens(node.value, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'VarDeclaration': {
+        if (node.name && loc) {
+          const nameOffset = 'var '.length;
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1 + nameOffset,
+            length: node.name.length,
+            tokenType: TT_VARIABLE,
+            modifiers: TM_DECLARATION,
+          });
+        }
+        if (node.typeAnnotation) {
+          this._walkTypeAnnotation(node.typeAnnotation, tokens);
+        }
+        if (node.value) {
+          this._walkASTForSemanticTokens(node.value, analyzer, tokens);
+        }
+        return;
+      }
+
+      case 'CallExpression': {
+        // Emit callee as function
+        if (node.callee) {
+          if (node.callee.type === 'Identifier' && node.callee.name) {
+            const calleeLoc = node.callee.loc || node.callee.location;
+            if (calleeLoc) {
+              let modifiers = 0;
+              if (BUILTIN_NAMES.has(node.callee.name)) {
+                modifiers |= TM_DEFAULT_LIBRARY;
+              }
+              tokens.push({
+                line: (calleeLoc.line || 1) - 1,
+                char: (calleeLoc.column || 1) - 1,
+                length: node.callee.name.length,
+                tokenType: TT_FUNCTION,
+                modifiers,
+              });
+            }
+          } else {
+            this._walkASTForSemanticTokens(node.callee, analyzer, tokens);
+          }
+        }
+        // Walk arguments
+        if (node.args) {
+          for (const arg of node.args) {
+            this._walkASTForSemanticTokens(arg, analyzer, tokens);
+          }
+        }
+        if (node.arguments) {
+          for (const arg of node.arguments) {
+            this._walkASTForSemanticTokens(arg, analyzer, tokens);
+          }
+        }
+        return;
+      }
+
+      case 'MemberExpression': {
+        // Walk object
+        if (node.object) {
+          this._walkASTForSemanticTokens(node.object, analyzer, tokens);
+        }
+        // Emit property
+        if (node.property && typeof node.property === 'object' && node.property.name) {
+          const propLoc = node.property.loc || node.property.location;
+          if (propLoc) {
+            tokens.push({
+              line: (propLoc.line || 1) - 1,
+              char: (propLoc.column || 1) - 1,
+              length: node.property.name.length,
+              tokenType: TT_PROPERTY,
+              modifiers: 0,
+            });
+          }
+        }
+        return;
+      }
+
+      case 'ServerBlock':
+      case 'BrowserBlock':
+      case 'SharedBlock':
+      case 'ClientBlock': {
+        if (loc) {
+          const keyword = node.type.replace('Block', '').toLowerCase();
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1,
+            length: keyword.length,
+            tokenType: TT_NAMESPACE,
+            modifiers: 0,
+          });
+        }
+        if (node.body) {
+          if (Array.isArray(node.body)) {
+            for (const child of node.body) {
+              this._walkASTForSemanticTokens(child, analyzer, tokens);
+            }
+          } else {
+            this._walkASTForSemanticTokens(node.body, analyzer, tokens);
+          }
+        }
+        return;
+      }
+
+      case 'Identifier': {
+        if (node.name && loc) {
+          const sym = this._findSymbolInScopes(analyzer, node.name);
+          if (sym) {
+            let tokenType = TT_VARIABLE;
+            let modifiers = 0;
+
+            if (sym.kind === 'function') tokenType = TT_FUNCTION;
+            else if (sym.kind === 'type') tokenType = TT_TYPE;
+            else if (sym.kind === 'parameter') tokenType = TT_PARAMETER;
+
+            if (BUILTIN_NAMES.has(node.name)) {
+              modifiers |= TM_DEFAULT_LIBRARY;
+            }
+
+            tokens.push({
+              line: (loc.line || 1) - 1,
+              char: (loc.column || 1) - 1,
+              length: node.name.length,
+              tokenType,
+              modifiers,
+            });
+          }
+        }
+        return;
+      }
+
+      case 'Decorator': {
+        if (node.name && loc) {
+          tokens.push({
+            line: (loc.line || 1) - 1,
+            char: (loc.column || 1) - 1,
+            length: node.name.length + 1, // include @
+            tokenType: TT_DECORATOR,
+            modifiers: 0,
+          });
+        }
+        return;
+      }
+    }
+
+    // Default: recursively walk all children that have .type (AST nodes)
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'location' || key === 'type') continue;
+      const child = node[key];
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          if (item && typeof item === 'object' && item.type) {
+            this._walkASTForSemanticTokens(item, analyzer, tokens);
+          }
+        }
+      } else if (child && typeof child === 'object' && child.type) {
+        this._walkASTForSemanticTokens(child, analyzer, tokens);
+      }
+    }
+  }
+
+  _walkTypeAnnotation(typeNode, tokens) {
+    if (!typeNode || typeof typeNode !== 'object') return;
+    const loc = typeNode.loc || typeNode.location;
+
+    // Named type reference
+    if (typeNode.name && loc) {
+      tokens.push({
+        line: (loc.line || 1) - 1,
+        char: (loc.column || 1) - 1,
+        length: typeNode.name.length,
+        tokenType: 1, // TT_TYPE
+        modifiers: 0,
+      });
+    }
+
+    // Generic type parameters: e.g. List<Int>
+    if (typeNode.typeArgs) {
+      for (const arg of typeNode.typeArgs) {
+        this._walkTypeAnnotation(arg, tokens);
+      }
+    }
+    if (typeNode.params) {
+      for (const p of typeNode.params) {
+        this._walkTypeAnnotation(p, tokens);
+      }
+    }
+    // Union types, function types, etc.
+    if (typeNode.left) this._walkTypeAnnotation(typeNode.left, tokens);
+    if (typeNode.right) this._walkTypeAnnotation(typeNode.right, tokens);
+    if (typeNode.returnType) this._walkTypeAnnotation(typeNode.returnType, tokens);
+    if (typeNode.elementType) this._walkTypeAnnotation(typeNode.elementType, tokens);
   }
 
   // ─── Utilities ────────────────────────────────────────────
