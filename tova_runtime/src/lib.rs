@@ -70,7 +70,7 @@ pub struct WasmTask {
 pub async fn exec_wasm(wasm: Buffer, func: String, args: Vec<i64>) -> Result<i64> {
     let wasm_bytes = wasm.to_vec();
     let result = scheduler::TOKIO_RT
-        .spawn(async move {
+        .spawn_blocking(move || {
             executor::exec_wasm_sync(&wasm_bytes, &func, &args)
         })
         .await
@@ -87,7 +87,7 @@ pub async fn concurrent_wasm(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
         let wasm_bytes = task.wasm.to_vec();
         let func = task.func;
         let args = task.args;
-        handles.push(scheduler::TOKIO_RT.spawn(async move {
+        handles.push(scheduler::TOKIO_RT.spawn_blocking(move || {
             executor::exec_wasm_sync(&wasm_bytes, &func, &args)
         }));
     }
@@ -164,7 +164,9 @@ pub async fn concurrent_wasm_first(tasks: Vec<WasmTask>) -> Result<i64> {
         let args = task.args;
         let tx = Arc::clone(&tx);
         handles.push(scheduler::TOKIO_RT.spawn(async move {
-            let result = executor::exec_wasm_sync(&wasm_bytes, &func, &args);
+            let result = tokio::task::spawn_blocking(move || {
+                executor::exec_wasm_sync(&wasm_bytes, &func, &args)
+            }).await.unwrap_or_else(|e| Err(format!("join: {}", e)));
             if let Ok(v) = &result {
                 if let Some(sender) = tx.lock().await.take() {
                     let _ = sender.send(Ok(*v));
@@ -206,7 +208,7 @@ pub async fn concurrent_wasm_timeout(tasks: Vec<WasmTask>, timeout_ms: u32) -> R
         let wasm_bytes = task.wasm.to_vec();
         let func = task.func;
         let args = task.args;
-        handles.push(scheduler::TOKIO_RT.spawn(async move {
+        handles.push(scheduler::TOKIO_RT.spawn_blocking(move || {
             executor::exec_wasm_sync(&wasm_bytes, &func, &args)
         }));
     }
@@ -231,36 +233,34 @@ pub async fn concurrent_wasm_timeout(tasks: Vec<WasmTask>, timeout_ms: u32) -> R
     }
 }
 
-/// Cancel-on-error mode: abort all tasks on first error
+/// Cancel-on-error mode: abort all tasks on first error.
+/// Uses try_join_all to poll all tasks concurrently — detects the first error
+/// immediately rather than waiting sequentially for earlier tasks to complete.
 #[napi]
 pub async fn concurrent_wasm_cancel_on_error(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
-    let mut handles = Vec::with_capacity(tasks.len());
-
-    for task in tasks {
+    // Spawn all tasks on the blocking thread pool
+    let handles: Vec<_> = tasks.into_iter().map(|task| {
         let wasm_bytes = task.wasm.to_vec();
         let func = task.func;
         let args = task.args;
-        handles.push(scheduler::TOKIO_RT.spawn(async move {
+        scheduler::TOKIO_RT.spawn_blocking(move || {
             executor::exec_wasm_sync(&wasm_bytes, &func, &args)
-        }));
-    }
+        })
+    }).collect();
 
-    let mut results = Vec::with_capacity(handles.len());
-    for (i, handle) in handles.iter_mut().enumerate() {
-        match handle.await {
-            Ok(Ok(v)) => results.push(v),
-            Ok(Err(e)) => {
-                // Abort remaining tasks
-                for h in handles.iter().skip(i + 1) { h.abort(); }
-                return Err(Error::from_reason(e));
-            }
-            Err(e) => {
-                for h in handles.iter().skip(i + 1) { h.abort(); }
-                return Err(Error::from_reason(format!("join: {}", e)));
-            }
+    // Wrap each handle in a future that flattens the nested Results
+    let futures: Vec<_> = handles.into_iter().map(|h| {
+        async move {
+            let inner = h.await
+                .map_err(|e| Error::from_reason(format!("join: {}", e)))?;
+            inner.map_err(|e| Error::from_reason(e))
         }
-    }
-    Ok(results)
+    }).collect();
+
+    // try_join_all polls all futures concurrently and short-circuits on first error,
+    // dropping remaining futures (which detaches the underlying blocking tasks).
+    // Results are returned in original order.
+    futures::future::try_join_all(futures).await
 }
 
 // --- WASM with channel host imports ---
@@ -269,7 +269,7 @@ pub async fn concurrent_wasm_cancel_on_error(tasks: Vec<WasmTask>) -> Result<Vec
 pub async fn exec_wasm_with_channels(wasm: Buffer, func: String, args: Vec<i64>) -> Result<i64> {
     let wasm_bytes = wasm.to_vec();
     let result = scheduler::TOKIO_RT
-        .spawn(async move {
+        .spawn_blocking(move || {
             executor::exec_wasm_with_channels(&wasm_bytes, &func, &args)
         })
         .await
@@ -286,7 +286,7 @@ pub async fn concurrent_wasm_with_channels(tasks: Vec<WasmTask>) -> Result<Vec<i
         let wasm_bytes = task.wasm.to_vec();
         let func = task.func;
         let args = task.args;
-        handles.push(scheduler::TOKIO_RT.spawn(async move {
+        handles.push(scheduler::TOKIO_RT.spawn_blocking(move || {
             executor::exec_wasm_with_channels(&wasm_bytes, &func, &args)
         }));
     }

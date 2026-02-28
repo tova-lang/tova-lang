@@ -1,11 +1,16 @@
 use wasmtime::*;
+use once_cell::sync::Lazy;
 use crate::host_imports;
 
+// Global cached Engine — Wasmtime's JIT pipeline initialization is expensive,
+// reuse the engine across all WASM executions.
+static WASM_ENGINE: Lazy<Engine> = Lazy::new(|| Engine::default());
+
 pub fn exec_wasm_sync(wasm_bytes: &[u8], func_name: &str, args: &[i64]) -> Result<i64, String> {
-    let engine = Engine::default();
-    let module = Module::new(&engine, wasm_bytes)
+    let engine = &*WASM_ENGINE;
+    let module = Module::new(engine, wasm_bytes)
         .map_err(|e| format!("WASM compile error: {}", e))?;
-    let mut store = Store::new(&engine, ());
+    let mut store = Store::new(engine, ());
     let instance = Instance::new(&mut store, &module, &[])
         .map_err(|e| format!("WASM instantiation error: {}", e))?;
     let func = instance
@@ -35,8 +40,8 @@ pub fn exec_many_shared(
     wasm_bytes: &[u8],
     tasks: Vec<(String, Vec<i64>)>,
 ) -> Vec<Result<i64, String>> {
-    let engine = Engine::default();
-    let module = match Module::new(&engine, wasm_bytes) {
+    let engine = &*WASM_ENGINE;
+    let module = match Module::new(engine, wasm_bytes) {
         Ok(m) => m,
         Err(e) => {
             let err = format!("compile: {}", e);
@@ -46,7 +51,7 @@ pub fn exec_many_shared(
     tasks
         .into_iter()
         .map(|(func_name, args)| {
-            let mut store = Store::new(&engine, ());
+            let mut store = Store::new(engine, ());
             let instance = Instance::new(&mut store, &module, &[])
                 .map_err(|e| format!("instantiate: {}", e))?;
             let func = instance
@@ -75,12 +80,12 @@ pub fn exec_many_shared(
 }
 
 pub fn exec_wasm_with_channels(wasm_bytes: &[u8], func_name: &str, args: &[i64]) -> Result<i64, String> {
-    let engine = Engine::default();
-    let module = Module::new(&engine, wasm_bytes)
+    let engine = &*WASM_ENGINE;
+    let module = Module::new(engine, wasm_bytes)
         .map_err(|e| format!("WASM compile error: {}", e))?;
-    let mut linker = Linker::new(&engine);
+    let mut linker = Linker::new(engine);
     host_imports::add_channel_imports(&mut linker)?;
-    let mut store = Store::new(&engine, ());
+    let mut store = Store::new(engine, ());
     let instance = linker
         .instantiate(&mut store, &module)
         .map_err(|e| format!("WASM instantiation error: {}", e))?;

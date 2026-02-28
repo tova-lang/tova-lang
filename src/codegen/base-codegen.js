@@ -3433,15 +3433,28 @@ export class BaseCodegen {
       // All other WASM modes: array result
       lines.push(`${this.i()}let ${tempVars.join(', ')};`);
       lines.push(`${this.i()}if (typeof ${rtVar} !== 'undefined' && ${rtVar} && ${rtVar}.isRuntimeAvailable()) {`);
-      lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
-      lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+      if (node.mode === 'cancel_on_error') {
+        // cancel_on_error: WASM function throws on first task error — wrap with try/catch
+        // to provide per-task Err results consistent with JS fallback path
+        lines.push(`${this.i()}  try {`);
+        lines.push(`${this.i()}    const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode});`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+        lines.push(`${this.i()}  } catch (__wasm_err) {`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = Array(${tasks.length}).fill(new Err(__wasm_err));`);
+        lines.push(`${this.i()}  }`);
+      } else {
+        lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+      }
       lines.push(`${this.i()}} else {`);
       // Fallback: standard Promise.all path
       if (node.mode === 'cancel_on_error') {
         const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
         lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}  const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }); });`);
         const fallbackExprs = tasks.map(t =>
-          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`
+          `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { if (!${acVar}.signal.aborted) ${acVar}.abort(); return new Err(__e); } })()`
         );
         lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
         for (let i = 0; i < fallbackExprs.length; i++) {
@@ -3496,14 +3509,16 @@ export class BaseCodegen {
         lines.push(`${this.i()}]);`);
       } else if (node.mode === 'cancel_on_error') {
         const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
         lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }); });`);
         const taskExprsAbort = tasks.map(t => {
           if (t.isWasm && hasWasm) {
             this._needsRuntimeBridge = true;
             const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
-            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await __tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}])); } return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await Promise.race([__tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}]), ${abortedVar}])); } return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { if (!${acVar}.signal.aborted) ${acVar}.abort(); return new Err(__e); } })()`;
           }
-          return `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { ${acVar}.abort(); return new Err(__e); } })()`;
+          return `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { if (!${acVar}.signal.aborted) ${acVar}.abort(); return new Err(__e); } })()`;
         });
         lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
         for (let i = 0; i < taskExprsAbort.length; i++) {

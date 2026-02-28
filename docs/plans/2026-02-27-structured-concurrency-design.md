@@ -26,7 +26,7 @@ Non-concurrent Tova code continues to compile to JS unchanged. The concurrent ru
 
 - **Millions of lightweight tasks** — each WASM task is ~64 bytes of state on Tokio's scheduler (like goroutines)
 - **M:N scheduling** — Tokio multiplexes tasks onto a small OS thread pool (like Go's GMP scheduler)
-- **No shared mutable state** — each task gets its own WASM linear memory. Communication only through channels. Data races are impossible.
+- **No shared mutable state** — each WASM task gets its own linear memory. Communication only through channels. Data races are impossible in the WASM execution path. Tasks falling back to JS async execution share the JS heap and should avoid capturing mutable variables from enclosing scopes.
 - **Structured scoping** — all tasks must complete (or be cancelled) before a `concurrent {}` block exits. No leaked tasks.
 - **Result propagation** — every spawned task returns `Result<T, Error>`. No panics, no crashes.
 
@@ -113,14 +113,14 @@ concurrent {
     // Producer
     spawn fn() {
         for i in range(100) {
-            ch.send(i)
+            await ch.send(i)
         }
         ch.close()
     }
 
     // Consumer
     spawn fn() {
-        for msg in ch {
+        async for msg in ch {
             print(msg)
         }
     }
@@ -129,14 +129,14 @@ concurrent {
 
 API:
 - `Channel.new(capacity)` — bounded channel. `0` = unbuffered (rendezvous)
-- `ch.send(value)` — blocks (yields to scheduler) if full
-- `ch.receive()` — returns `Option<T>`: `Some(val)` or `None` if closed
+- `await ch.send(value)` — blocks (yields to scheduler) if full
+- `await ch.receive()` — returns `Option<T>`: `Some(val)` or `None` if closed
 - `ch.close()` — signals no more values
-- `for msg in ch { ... }` — iterates until closed
+- `async for msg in ch { ... }` — iterates until closed
 
 ### `select` statement
 
-Multiplexes across multiple channel operations. Compiles to Tokio's `tokio::select!`.
+Multiplexes across multiple channel operations. Currently compiles to `Promise.race` (JS path), with Tokio `select!` planned for a future phase.
 
 ```tova
 select {
@@ -156,7 +156,7 @@ Cases:
 - `timeout(ms)` — fires after N milliseconds
 - `_` — default (non-blocking, runs if nothing else ready)
 
-If multiple cases are ready, one is chosen randomly (like Go).
+If multiple cases are ready, one is chosen based on resolution order. Random fairness (like Go) is planned for a future phase.
 
 ### Cancellation & Block Modes
 
