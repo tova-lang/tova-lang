@@ -72,8 +72,8 @@ export function installDeployParser(ParserClass) {
       return this.parseDeployConfigField();
     }
 
-    // Fallback to regular statement
-    return this.parseStatement();
+    // Deploy blocks only contain config fields, env, and db sub-blocks
+    throw this.error(`Unexpected token in deploy block: "${this.current().value || this.current().type}"`);
   };
 
   ParserClass.prototype.parseDeployConfigField = function() {

@@ -145,4 +145,30 @@ describe('Deploy Block - parsing', () => {
     expect(body[0].key).toBe('restart_on_failure');
     expect(body[0].value.value).toBe(true);
   });
+
+  test('parses all spec config fields', () => {
+    const ast = parse(`deploy "prod" {
+      server: "root@example.com"
+      domain: "myapp.com"
+      instances: 2
+      memory: "1gb"
+      branch: "main"
+      health: "/healthz"
+      health_interval: 30
+      health_timeout: 5
+      restart_on_failure: true
+      keep_releases: 5
+    }`);
+    const body = ast.body[0].body;
+    expect(body).toHaveLength(10);
+    const keys = body.map(n => n.key);
+    expect(keys).toEqual([
+      'server', 'domain', 'instances', 'memory', 'branch',
+      'health', 'health_interval', 'health_timeout',
+      'restart_on_failure', 'keep_releases',
+    ]);
+    // Verify server keyword-as-config produces correct key string
+    expect(body[0].key).toBe('server');
+    expect(body[0].value.value).toBe('root@example.com');
+  });
 });
