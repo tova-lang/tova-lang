@@ -143,6 +143,74 @@ async function main() {
     case 'remove':
       await removeDep(args[1]);
       break;
+    case 'update': {
+      const updatePkg = args[1] || null;
+      const updateConfig = resolveConfig(process.cwd());
+      const updateDeps = updatePkg
+        ? { [updatePkg]: updateConfig.dependencies?.[updatePkg] || '*' }
+        : updateConfig.dependencies || {};
+
+      if (Object.keys(updateDeps).length === 0) {
+        console.log('  No Tova dependencies to update.');
+        break;
+      }
+
+      console.log('  Checking for updates...');
+      // Delete lock file to force fresh resolution
+      const lockPath = join(process.cwd(), 'tova.lock');
+      if (existsSync(lockPath)) {
+        rmSync(lockPath);
+      }
+      await installDeps();
+      break;
+    }
+    case 'cache': {
+      const subCmd = args[1] || 'list';
+      const { getCacheDir } = await import('../src/config/module-cache.js');
+      const cacheDir = getCacheDir();
+
+      if (subCmd === 'path') {
+        console.log(cacheDir);
+      } else if (subCmd === 'list') {
+        console.log(`  Cache: ${cacheDir}\n`);
+        if (existsSync(cacheDir)) {
+          try {
+            const hosts = readdirSync(cacheDir).filter(h => !h.startsWith('.'));
+            let found = false;
+            for (const host of hosts) {
+              const hostPath = join(cacheDir, host);
+              if (!statSync(hostPath).isDirectory()) continue;
+              const owners = readdirSync(hostPath);
+              for (const owner of owners) {
+                const ownerPath = join(hostPath, owner);
+                if (!statSync(ownerPath).isDirectory()) continue;
+                const repos = readdirSync(ownerPath);
+                for (const repo of repos) {
+                  const repoPath = join(ownerPath, repo);
+                  if (!statSync(repoPath).isDirectory()) continue;
+                  const versions = readdirSync(repoPath).filter(v => v.startsWith('v'));
+                  console.log(`  ${host}/${owner}/${repo}: ${versions.join(', ') || '(empty)'}`);
+                  found = true;
+                }
+              }
+            }
+            if (!found) console.log('  (empty)');
+          } catch { console.log('  (empty)'); }
+        } else {
+          console.log('  (empty)');
+        }
+      } else if (subCmd === 'clean') {
+        if (existsSync(cacheDir)) {
+          rmSync(cacheDir, { recursive: true, force: true });
+        }
+        console.log('  Cache cleared.');
+      } else {
+        console.error(`  Unknown cache subcommand: ${subCmd}`);
+        console.error('  Usage: tova cache [list|path|clean]');
+        process.exit(1);
+      }
+      break;
+    }
     case 'fmt':
       formatFile(args.slice(1));
       break;
@@ -1912,6 +1980,62 @@ async function installDeps() {
     return;
   }
 
+  // Resolve Tova module dependencies (if any)
+  const tovaDeps = config.dependencies || {};
+  const { isTovModule: _isTovMod } = await import('../src/config/module-path.js');
+  const tovModuleKeys = Object.keys(tovaDeps).filter(k => _isTovMod(k));
+
+  if (tovModuleKeys.length > 0) {
+    const { resolveDependencies } = await import('../src/config/resolver.js');
+    const { listRemoteTags, fetchModule, getCommitSha } = await import('../src/config/git-resolver.js');
+    const { isVersionCached, getModuleCachePath } = await import('../src/config/module-cache.js');
+    const { readLockFile, writeLockFile } = await import('../src/config/lock-file.js');
+
+    console.log('  Resolving Tova dependencies...');
+
+    const lock = readLockFile(cwd);
+    const tovaModuleDeps = {};
+    for (const k of tovModuleKeys) {
+      tovaModuleDeps[k] = tovaDeps[k];
+    }
+
+    try {
+      const { resolved, npmDeps } = await resolveDependencies(tovaModuleDeps, {
+        getAvailableVersions: async (mod) => {
+          if (lock?.modules?.[mod]) return [lock.modules[mod].version];
+          const tags = await listRemoteTags(mod);
+          return tags.map(t => t.version);
+        },
+        getModuleConfig: async (mod, version) => {
+          if (!isVersionCached(mod, version)) {
+            console.log(`  Fetching ${mod}@v${version}...`);
+            await fetchModule(mod, version);
+          }
+          const modPath = getModuleCachePath(mod, version);
+          try {
+            return resolveConfig(modPath);
+          } catch { return null; }
+        },
+        getVersionSha: async (mod, version) => {
+          if (lock?.modules?.[mod]?.sha) return lock.modules[mod].sha;
+          return await getCommitSha(mod, version);
+        },
+      });
+
+      writeLockFile(cwd, resolved, npmDeps);
+      console.log(`  Resolved ${Object.keys(resolved).length} Tova module(s)`);
+
+      // Merge transitive npm deps into config for package.json generation
+      if (Object.keys(npmDeps).length > 0) {
+        if (!config.npm) config.npm = {};
+        if (!config.npm.prod) config.npm.prod = {};
+        Object.assign(config.npm.prod, npmDeps);
+      }
+    } catch (err) {
+      console.error(`  Failed to resolve Tova dependencies: ${err.message}`);
+    }
+  }
+
   // Generate shadow package.json from tova.toml
   const wrote = writePackageJson(config, cwd);
   if (wrote) {
@@ -1920,7 +2044,9 @@ async function installDeps() {
     const code = await new Promise(res => proc.on('close', res));
     process.exit(code);
   } else {
-    console.log('  No npm dependencies in tova.toml. Nothing to install.\n');
+    if (tovModuleKeys.length === 0) {
+      console.log('  No npm dependencies in tova.toml. Nothing to install.\n');
+    }
   }
 }
 
@@ -1985,21 +2111,56 @@ async function addDep(args) {
     await installDeps();
   } else {
     // Tova native dependency
-    let name = actualPkg;
-    let source = actualPkg;
+    const { isTovModule: isTovMod } = await import('../src/config/module-path.js');
+
+    // Parse potential @version suffix
+    let pkgName = actualPkg;
+    let versionConstraint = null;
+    if (pkgName.includes('@') && !pkgName.startsWith('@')) {
+      const atIdx = pkgName.lastIndexOf('@');
+      versionConstraint = pkgName.slice(atIdx + 1);
+      pkgName = pkgName.slice(0, atIdx);
+    }
+
+    if (isTovMod(pkgName)) {
+      // Tova module: fetch tags, pick version, add to [dependencies]
+      const { listRemoteTags, pickLatestTag } = await import('../src/config/git-resolver.js');
+      try {
+        const tags = await listRemoteTags(pkgName);
+        if (tags.length === 0) {
+          console.error(`  No version tags found for ${pkgName}`);
+          process.exit(1);
+        }
+        if (!versionConstraint) {
+          const latest = pickLatestTag(tags);
+          versionConstraint = `^${latest.version}`;
+        }
+        addToSection(tomlPath, 'dependencies', `"${pkgName}"`, versionConstraint);
+        console.log(`  Added ${pkgName}@${versionConstraint} to [dependencies] in tova.toml`);
+        await installDeps();
+      } catch (err) {
+        console.error(`  Failed to add ${pkgName}: ${err.message}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    // Local path or generic dependency
+    let name = pkgName;
+    let source = pkgName;
 
     // Detect source type
-    if (actualPkg.startsWith('file:') || actualPkg.startsWith('./') || actualPkg.startsWith('../') || actualPkg.startsWith('/')) {
+    if (pkgName.startsWith('file:') || pkgName.startsWith('./') || pkgName.startsWith('../') || pkgName.startsWith('/')) {
       // Local path dependency
-      source = actualPkg.startsWith('file:') ? actualPkg : `file:${actualPkg}`;
-      name = basename(actualPkg.replace(/^file:/, ''));
-    } else if (actualPkg.startsWith('git:') || actualPkg.includes('github.com/') || actualPkg.includes('.git')) {
+      source = pkgName.startsWith('file:') ? pkgName : `file:${pkgName}`;
+      name = basename(pkgName.replace(/^file:/, ''));
+    } else if (pkgName.startsWith('git:') || pkgName.includes('.git')) {
       // Git dependency
-      source = actualPkg.startsWith('git:') ? actualPkg : `git:${actualPkg}`;
-      name = basename(actualPkg.replace(/\.git$/, '').replace(/^git:/, ''));
+      source = pkgName.startsWith('git:') ? pkgName : `git:${pkgName}`;
+      name = basename(pkgName.replace(/\.git$/, '').replace(/^git:/, ''));
     } else {
       // Tova registry package (future: for now, just store the name)
-      source = `*`;
+      source = versionConstraint || `*`;
     }
 
     addToSection(tomlPath, 'dependencies', name, source);

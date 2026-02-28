@@ -28,13 +28,15 @@ export function addToSection(filePath, section, key, value) {
   const endIdx = findSectionEnd(lines, sectionIdx);
 
   // Check if key already exists in this section — update it
+  const bareKey = key.replace(/^"|"$/g, '');
   for (let i = sectionIdx + 1; i < endIdx; i++) {
     const line = lines[i].trim();
     if (line === '' || line.startsWith('#')) continue;
     const eqIdx = line.indexOf('=');
     if (eqIdx !== -1) {
       const existingKey = line.slice(0, eqIdx).trim();
-      if (existingKey === key) {
+      const existingBare = existingKey.replace(/^"|"$/g, '');
+      if (existingKey === key || existingBare === bareKey) {
         lines[i] = entry;
         writeFileSync(filePath, lines.join('\n'));
         return;
@@ -57,6 +59,7 @@ export function addToSection(filePath, section, key, value) {
 export function removeFromSection(filePath, section, key) {
   const content = readFileSync(filePath, 'utf-8');
   const lines = content.split('\n');
+  const bareKey = key.replace(/^"|"$/g, '');
 
   const sectionIdx = findSectionIndex(lines, section);
   if (sectionIdx === -1) return false;
@@ -69,7 +72,8 @@ export function removeFromSection(filePath, section, key) {
     const eqIdx = line.indexOf('=');
     if (eqIdx !== -1) {
       const existingKey = line.slice(0, eqIdx).trim();
-      if (existingKey === key) {
+      const existingBare = existingKey.replace(/^"|"$/g, '');
+      if (existingKey === key || existingBare === bareKey) {
         lines.splice(i, 1);
         writeFileSync(filePath, lines.join('\n'));
         return true;

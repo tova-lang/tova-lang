@@ -13,10 +13,10 @@ export function parseTOML(input) {
     // Skip empty lines and comments
     if (line === '' || line.startsWith('#')) continue;
 
-    // Section header: [section] or [section.subsection]
+    // Section header: [section] or [section.subsection] or ["quoted.key"]
     if (line.startsWith('[') && !line.startsWith('[[')) {
-      const close = line.indexOf(']');
-      if (close === -1) {
+      const close = line.lastIndexOf(']');
+      if (close <= 0) {
         throw new Error(`TOML parse error on line ${i + 1}: unclosed section header`);
       }
       const sectionPath = line.slice(1, close).trim();
@@ -24,8 +24,8 @@ export function parseTOML(input) {
         throw new Error(`TOML parse error on line ${i + 1}: empty section name`);
       }
       current = result;
-      for (const part of sectionPath.split('.')) {
-        const key = part.trim();
+      const parts = parseSectionPath(sectionPath);
+      for (const key of parts) {
         if (!current[key]) current[key] = {};
         current = current[key];
       }
@@ -43,6 +43,49 @@ export function parseTOML(input) {
   }
 
   return result;
+}
+
+function parseSectionPath(path) {
+  const parts = [];
+  let i = 0;
+  while (i < path.length) {
+    // Skip whitespace
+    while (i < path.length && path[i] === ' ') i++;
+    if (i >= path.length) break;
+
+    if (path[i] === '"') {
+      // Quoted key: read until closing quote
+      i++; // skip opening quote
+      let key = '';
+      while (i < path.length && path[i] !== '"') {
+        if (path[i] === '\\') {
+          i++;
+          key += path[i] || '';
+        } else {
+          key += path[i];
+        }
+        i++;
+      }
+      i++; // skip closing quote
+      parts.push(key);
+    } else {
+      // Bare key: read until dot or end
+      let key = '';
+      while (i < path.length && path[i] !== '.') {
+        key += path[i];
+        i++;
+      }
+      key = key.trim();
+      if (key) parts.push(key);
+    }
+
+    // Skip dot separator
+    while (i < path.length && (path[i] === ' ' || path[i] === '.')) {
+      if (path[i] === '.') { i++; break; }
+      i++;
+    }
+  }
+  return parts;
 }
 
 function parseValue(raw, lineNum) {

@@ -73,6 +73,23 @@ function normalizeConfig(parsed, source) {
     }
   }
 
+  // [package] section: marks this as a publishable package
+  if (parsed.package) {
+    config.package = {
+      name: parsed.package.name || '',
+      version: parsed.package.version || '0.1.0',
+      description: parsed.package.description || '',
+      license: parsed.package.license || '',
+      keywords: parsed.package.keywords || [],
+      homepage: parsed.package.homepage || '',
+      exports: parsed.package.exports || null,
+      entry: parsed.package.entry || null,
+    };
+    config.isPackage = true;
+  } else {
+    config.isPackage = false;
+  }
+
   return config;
 }
 

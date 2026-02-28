@@ -75,6 +75,8 @@ async fn load_dashboard() {
 
 This starts all three requests simultaneously and waits for all of them to finish, which is much faster than sequential awaits when the operations are independent.
 
+For structured concurrency with error handling, cancellation, and channels, see the [Concurrency](./concurrency) guide.
+
 ## Async Lambdas
 
 Anonymous functions can be async too:
