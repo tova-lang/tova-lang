@@ -2,11 +2,11 @@ import { describe, test, expect } from 'bun:test';
 import { BlockRegistry } from '../src/registry/register-all.js';
 
 describe('BlockRegistry', () => {
-  test('all() returns 10 built-in plugins in registration order', () => {
+  test('all() returns 11 built-in plugins in registration order', () => {
     const all = BlockRegistry.all();
-    expect(all.length).toBe(10);
+    expect(all.length).toBe(11);
     expect(all.map(p => p.name)).toEqual([
-      'server', 'browser', 'shared', 'security', 'cli', 'data', 'test', 'bench', 'edge', 'concurrency',
+      'server', 'browser', 'shared', 'security', 'cli', 'data', 'test', 'bench', 'edge', 'concurrency', 'deploy',
     ]);
   });
 
@@ -89,7 +89,7 @@ describe('BlockRegistry', () => {
 
   test('identifier-strategy plugins have identifierValue', () => {
     const ids = BlockRegistry.all().filter(p => p.detection.strategy === 'identifier');
-    expect(ids.length).toBe(7); // security, cli, data, test, bench, edge, concurrency
+    expect(ids.length).toBe(8); // security, cli, data, test, bench, edge, concurrency, deploy
     for (const p of ids) {
       expect(p.detection.identifierValue).toBeString();
     }
@@ -130,6 +130,21 @@ describe('BlockRegistry', () => {
     expect(typeof testP.detection.lookahead).toBe('function');
     const benchP = BlockRegistry.get('bench');
     expect(typeof benchP.detection.lookahead).toBe('function');
+  });
+
+  test('deploy plugin has correct structure', () => {
+    const deploy = BlockRegistry.get('deploy');
+    expect(deploy.name).toBe('deploy');
+    expect(deploy.astNodeType).toBe('DeployBlock');
+    expect(deploy.detection.strategy).toBe('identifier');
+    expect(deploy.detection.identifierValue).toBe('deploy');
+    expect(typeof deploy.detection.lookahead).toBe('function');
+    expect(typeof deploy.parser.install).toBe('function');
+    expect(deploy.parser.installedFlag).toBe('_deployParserInstalled');
+    expect(deploy.parser.method).toBe('parseDeployBlock');
+    expect(typeof deploy.analyzer.visit).toBe('function');
+    expect(deploy.analyzer.noopNodeTypes).toEqual(['DeployConfigField', 'DeployEnvBlock', 'DeployDbBlock']);
+    expect(deploy.codegen).toEqual({});
   });
 });
 
