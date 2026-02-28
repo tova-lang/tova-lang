@@ -746,6 +746,14 @@ export {
 } from './edge-ast.js';
 
 // ============================================================
+// Deploy-specific nodes (lazy-loaded from deploy-ast.js, re-exported for backward compat)
+// ============================================================
+
+export {
+  DeployBlock, DeployConfigField, DeployEnvBlock, DeployDbBlock,
+} from './deploy-ast.js';
+
+// ============================================================
 // Form-specific nodes (lazy-loaded from form-ast.js, re-exported for backward compat)
 // ============================================================
 
