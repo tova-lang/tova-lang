@@ -38,23 +38,23 @@ pub async fn concurrent_all(values: Vec<i64>) -> Result<Vec<i64>> {
 // --- Channels ---
 
 #[napi]
-pub fn channel_create(capacity: u32) -> u32 {
-    channels::create(capacity)
+pub fn channel_create(capacity: u32) -> i64 {
+    channels::create(capacity) as i64
 }
 
 #[napi]
-pub fn channel_send(id: u32, value: i64) -> bool {
-    channels::send(id, value)
+pub fn channel_send(id: i64, value: i64) -> bool {
+    channels::send(id as u64, value)
 }
 
 #[napi]
-pub fn channel_receive(id: u32) -> Option<i64> {
-    channels::receive(id)
+pub fn channel_receive(id: i64) -> Option<i64> {
+    channels::receive(id as u64)
 }
 
 #[napi]
-pub fn channel_close(id: u32) {
-    channels::close(id)
+pub fn channel_close(id: i64) {
+    channels::close(id as u64)
 }
 
 // --- WASM execution ---

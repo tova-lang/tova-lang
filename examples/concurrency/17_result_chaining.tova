@@ -1,0 +1,49 @@
+// Example: Result chaining on spawn results
+// Every spawn returns Result<T, Error>. Use match, .unwrapOr(), .map(), .isOk()
+// to handle success and failure concisely.
+
+fn risky_parse(input: String) -> Int {
+    if input == "" {
+        var x = None
+        x.unwrap()  // triggers an error
+    }
+    42
+}
+
+fn double(x: Int) -> Int { x * 2 }
+
+async fn main() {
+    concurrent {
+        good = spawn risky_parse("hello")
+        bad = spawn risky_parse("")
+    }
+
+    // .unwrapOr() — provide a default on failure
+    val = good.unwrapOr(0)
+    print("good.unwrapOr(0) = {val}")
+
+    fallback = bad.unwrapOr(-1)
+    print("bad.unwrapOr(-1) = {fallback}")
+
+    // .isOk() / .isErr() — check without unwrapping
+    print("good.isOk() = {good.isOk()}")
+    print("bad.isOk() = {bad.isOk()}")
+
+    // .map() — transform the Ok value, pass through Err unchanged
+    doubled = good.map(double)
+    print("good.map(double) = {doubled}")
+
+    doubled_bad = bad.map(double)
+    print("bad.map(double) = {doubled_bad}")
+
+    // Full pattern match for maximum control
+    match good {
+        Ok(v) => print("good matched Ok: {v}")
+        Err(e) => print("good matched Err: {e}")
+    }
+
+    match bad {
+        Ok(v) => print("bad matched Ok: {v}")
+        Err(e) => print("bad matched Err: {e}")
+    }
+}

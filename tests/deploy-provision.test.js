@@ -90,11 +90,13 @@ describe('generateProvisionScript', () => {
     expect(checks.length).toBeGreaterThanOrEqual(4);
   });
 
-  test('creates app directories', () => {
+  test('creates app directories under /opt/tova/apps/', () => {
     const script = generateProvisionScript(baseManifest());
+    expect(script).toContain('mkdir -p /opt/tova/apps');
+    expect(script).toContain('APP_DIR="/opt/tova/apps/myapp"');
     expect(script).toContain('mkdir -p "$APP_DIR/releases"');
     expect(script).toContain('mkdir -p "$APP_DIR/shared/logs"');
-    expect(script).toContain('/opt/myapp');
+    expect(script).toContain('chown -R tova:tova /opt/tova');
   });
 
   test('configures UFW firewall', () => {
@@ -180,9 +182,14 @@ describe('generateSystemdService', () => {
     expect(service).toContain('Group=tova');
   });
 
-  test('sets WorkingDirectory to /opt/appName/current', () => {
+  test('sets WorkingDirectory to /opt/tova/apps/appName/current', () => {
     const service = generateSystemdService('myapp', {});
-    expect(service).toContain('WorkingDirectory=/opt/myapp/current');
+    expect(service).toContain('WorkingDirectory=/opt/tova/apps/myapp/current');
+  });
+
+  test('includes EnvironmentFile for .env.production', () => {
+    const service = generateSystemdService('myapp', {});
+    expect(service).toContain('EnvironmentFile=-/opt/tova/apps/myapp/.env.production');
   });
 });
 

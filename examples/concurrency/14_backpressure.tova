@@ -1,0 +1,30 @@
+// Example: Channel backpressure
+// A bounded channel naturally throttles a fast producer when the consumer is slow.
+// The producer blocks on send() when the buffer is full, preventing unbounded memory growth.
+
+async fn main() {
+    ch = Channel.new(2)  // small buffer to demonstrate backpressure
+
+    concurrent {
+        // Fast producer — will block when buffer fills up
+        spawn fn() {
+            for i in range(6) {
+                print("Producing: {i}")
+                await ch.send(i)
+                print("Sent: {i}")
+            }
+            ch.close()
+        }
+
+        // Slow consumer — processes items with a delay
+        spawn fn() {
+            async for item in ch {
+                print("Consuming: {item}")
+                await sleep(100)  // simulate slow processing
+            }
+            print("Consumer done")
+        }
+    }
+
+    print("All done — producer was throttled by the bounded channel")
+}

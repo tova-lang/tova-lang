@@ -120,11 +120,12 @@ export function generateProvisionScript(manifest) {
   lines.push('# Layer 3: App directories');
   lines.push('# ═══════════════════════════════════════════════════════════');
   lines.push('');
-  lines.push(`APP_DIR="/opt/${appName}"`);
+  lines.push('mkdir -p /opt/tova/apps');
+  lines.push(`APP_DIR="/opt/tova/apps/${appName}"`);
   lines.push('mkdir -p "$APP_DIR/releases"');
   lines.push('mkdir -p "$APP_DIR/shared/logs"');
   lines.push('mkdir -p "$APP_DIR/shared/data"');
-  lines.push('chown -R tova:tova "$APP_DIR"');
+  lines.push('chown -R tova:tova /opt/tova');
   lines.push('');
 
   // ── Layer 5: Caddy config ──────────────────────────────────
@@ -216,14 +217,15 @@ export function generateSystemdService(appName, config = {}) {
   lines.push('Type=simple');
   lines.push('User=tova');
   lines.push('Group=tova');
-  lines.push(`WorkingDirectory=/opt/${appName}/current`);
+  lines.push(`WorkingDirectory=/opt/tova/apps/${appName}/current`);
   lines.push(`ExecStart=/home/tova/.bun/bin/bun run server.js --port %i`);
   lines.push(`Restart=${restart}`);
   lines.push('RestartSec=5');
   lines.push(`MemoryMax=${memLimit}`);
   lines.push('');
 
-  // Environment variables
+  // Environment — load secrets from .env.production, then set inline defaults
+  lines.push(`EnvironmentFile=-/opt/tova/apps/${appName}/.env.production`);
   lines.push('Environment=NODE_ENV=production');
   lines.push('Environment=PORT=%i');
   for (const [key, value] of Object.entries(env)) {

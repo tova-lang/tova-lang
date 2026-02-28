@@ -1,0 +1,58 @@
+// Example: Nested concurrent blocks
+// Concurrent blocks can be nested — the inner block completes before the outer block continues.
+
+async fn fetch_user(id: Int) -> String {
+    await sleep(50)
+    "user_{id}"
+}
+
+async fn fetch_posts(user: String) -> List {
+    await sleep(50)
+    ["{user}_post1", "{user}_post2"]
+}
+
+async fn fetch_comments(user: String) -> List {
+    await sleep(50)
+    ["{user}_comment1"]
+}
+
+async fn main() {
+    // Outer: fetch two users in parallel
+    concurrent {
+        user_a = spawn fetch_user(1)
+        user_b = spawn fetch_user(2)
+    }
+
+    a = user_a.unwrapOr("unknown")
+    b = user_b.unwrapOr("unknown")
+    print("Fetched users: {a}, {b}")
+
+    // Inner: for each user, fetch posts and comments in parallel
+    concurrent {
+        a_data = spawn fn() {
+            concurrent {
+                posts = spawn fetch_posts(a)
+                comments = spawn fetch_comments(a)
+            }
+            [posts.unwrapOr([]), comments.unwrapOr([])]
+        }
+
+        b_data = spawn fn() {
+            concurrent {
+                posts = spawn fetch_posts(b)
+                comments = spawn fetch_comments(b)
+            }
+            [posts.unwrapOr([]), comments.unwrapOr([])]
+        }
+    }
+
+    match a_data {
+        Ok(data) => print("User A data: {data}")
+        Err(e) => print("User A failed: {e}")
+    }
+
+    match b_data {
+        Ok(data) => print("User B data: {data}")
+        Err(e) => print("User B failed: {e}")
+    }
+}

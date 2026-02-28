@@ -1,0 +1,37 @@
+// Example: Deadlock anti-pattern and how to avoid it
+//
+// DEADLOCK SCENARIO (don't do this):
+//   Two tasks each hold a channel the other needs.
+//   With unbuffered channels, both block forever waiting on each other.
+//
+//   spawn fn() { await a.send(1); val = await b.receive() }
+//   spawn fn() { await b.send(2); val = await a.receive() }
+//
+//   Task 1 blocks on a.send() waiting for a receiver on 'a'.
+//   Task 2 blocks on b.send() waiting for a receiver on 'b'.
+//   Neither can proceed — deadlock.
+//
+// FIX: Use buffered channels so sends don't block, or restructure
+// so one task receives before sending.
+
+async fn main() {
+    // SAFE version: use buffered channels (capacity 1)
+    a = Channel.new(1)
+    b = Channel.new(1)
+
+    concurrent {
+        spawn fn() {
+            await a.send(1)       // doesn't block — buffer has room
+            val = await b.receive()
+            print("Task 1 got: {val}")
+        }
+
+        spawn fn() {
+            await b.send(2)       // doesn't block — buffer has room
+            val = await a.receive()
+            print("Task 2 got: {val}")
+        }
+    }
+
+    print("No deadlock — buffered channels allowed both sends to complete")
+}

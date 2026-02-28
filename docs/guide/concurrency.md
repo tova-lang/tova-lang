@@ -48,6 +48,8 @@ concurrent {
 }
 ```
 
+`spawn` must appear inside a `concurrent` block. Using `spawn` outside one produces the `W_SPAWN_OUTSIDE_CONCURRENT` warning.
+
 Fire-and-forget spawns (no assignment) still run and complete before the block exits:
 
 ```tova
@@ -135,11 +137,29 @@ concurrent timeout(5000) {
     data = spawn slow_network_call()
     stats = spawn compute_stats(dataset)
 }
-// If 5 seconds elapse, all tasks are cancelled
-// and the block throws a timeout error.
+// If 5 seconds elapse, pending tasks are cancelled.
+// Completed tasks keep their Ok results, timed-out tasks get Err.
 ```
 
 > **Cancellation is cooperative, not preemptive.** Tova uses `AbortController` for cancellation, which signals at the next async yield point. CPU-bound synchronous code will not be interrupted mid-execution. For compute-heavy tasks, consider using `@wasm` functions, which will support fuel-based preemptive cancellation in a future release.
+
+### Execution Paths: WASM vs JavaScript
+
+When a `concurrent` block contains `@wasm` functions, Tova routes their execution through the native Rust/Tokio runtime for true parallel execution on OS threads. Non-`@wasm` functions (or when the native runtime is unavailable) fall back to JavaScript's `async`/`await` with `Promise.all`.
+
+Key differences:
+
+| Aspect | WASM Path | JS Fallback |
+|--------|-----------|-------------|
+| Parallelism | True parallel (OS threads) | Cooperative (single-threaded event loop) |
+| Isolation | Each task gets own linear memory | Tasks share the JS heap |
+| Data safety | No shared mutable state | Avoid capturing mutable closures |
+| Cancellation | Task detached on cancel | Signaled via `AbortController` at next yield point |
+| Value types | Numeric types only (current phase) | All Tova types |
+
+If you mix `@wasm` and non-`@wasm` spawns in the same block, the compiler emits `W_SPAWN_WASM_FALLBACK` -- WASM tasks are individually routed through the native runtime while non-WASM tasks use async JS.
+
+> **Shared state caution:** In the JS fallback path, spawned tasks share the JavaScript heap. If a closure captures a mutable variable from an enclosing scope, concurrent modifications can produce unpredictable results. Prefer passing values as function arguments rather than capturing mutable variables.
 
 ## Channels
 
@@ -241,6 +261,8 @@ select {
     _ => print("Nothing ready, moving on")
 }
 ```
+
+> **Resolution order:** When multiple cases are ready simultaneously, `select` resolves based on promise completion order (whichever channel operation settles first). This is deterministic, not random. If you need fair scheduling across channels, rotate your channel checks in a loop.
 
 ### Select in a Loop
 

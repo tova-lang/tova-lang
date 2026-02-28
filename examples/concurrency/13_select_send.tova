@@ -1,0 +1,46 @@
+// Example: select with send cases
+// Demonstrates multiplexing both send and receive operations
+
+async fn main() {
+    requests = Channel.new(1)
+    responses = Channel.new(1)
+
+    concurrent {
+        // Worker: receives requests, sends responses
+        spawn fn() {
+            async for req in requests {
+                print("Processing request: {req}")
+                await responses.send(req * 10)
+            }
+            responses.close()
+        }
+
+        // Client: sends requests and collects responses via select
+        spawn fn() {
+            pending = [1, 2, 3]
+            received = 0
+
+            for item in pending {
+                select {
+                    requests.send(item) => {
+                        print("Sent request: {item}")
+                    }
+                    result from responses => {
+                        print("Got response: {result}")
+                        received = received + 1
+                    }
+                }
+            }
+
+            requests.close()
+
+            // Drain remaining responses
+            async for result in responses {
+                print("Got response: {result}")
+                received = received + 1
+            }
+
+            print("Total responses: {received}")
+        }
+    }
+}

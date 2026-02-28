@@ -3442,6 +3442,14 @@ export class BaseCodegen {
         lines.push(`${this.i()}  } catch (__wasm_err) {`);
         lines.push(`${this.i()}    [${tempVars.join(', ')}] = Array(${tasks.length}).fill(new Err(__wasm_err));`);
         lines.push(`${this.i()}  }`);
+      } else if (node.mode === 'timeout' && node.timeout) {
+        // timeout: WASM function throws on timeout — wrap with try/catch
+        lines.push(`${this.i()}  try {`);
+        lines.push(`${this.i()}    const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
+        lines.push(`${this.i()}  } catch (__wasm_err) {`);
+        lines.push(`${this.i()}    [${tempVars.join(', ')}] = Array(${tasks.length}).fill(new Err(__wasm_err));`);
+        lines.push(`${this.i()}  }`);
       } else {
         lines.push(`${this.i()}  const __wasm_results = await ${rtVar}.${rtFunc}(${taskArrayCode}${rtCallSuffix});`);
         lines.push(`${this.i()}  [${tempVars.join(', ')}] = __wasm_results.map(__v => new Ok(__v));`);
@@ -3463,17 +3471,21 @@ export class BaseCodegen {
         lines.push(`${this.i()}  ]);`);
       } else if (node.mode === 'timeout' && node.timeout) {
         const timeoutMs = this.genExpression(node.timeout);
+        const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
+        const timerVar = `__timer${base}`;
+        lines.push(`${this.i()}  const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}  const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('concurrent timeout')), { once: true }); });`);
+        lines.push(`${this.i()}  const ${timerVar} = setTimeout(() => ${acVar}.abort(), ${timeoutMs});`);
         const fallbackExprs = tasks.map(t =>
-          `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
+          `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { return new Err(__e); } })()`
         );
-        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.race([`);
-        lines.push(`${this.i()}    Promise.all([`);
+        lines.push(`${this.i()}  [${tempVars.join(', ')}] = await Promise.all([`);
         for (let i = 0; i < fallbackExprs.length; i++) {
-          lines.push(`${this.i()}      ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
+          lines.push(`${this.i()}    ${fallbackExprs[i]}${i < fallbackExprs.length - 1 ? ',' : ''}`);
         }
-        lines.push(`${this.i()}    ]),`);
-        lines.push(`${this.i()}    new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
         lines.push(`${this.i()}  ]);`);
+        lines.push(`${this.i()}  clearTimeout(${timerVar});`);
       } else {
         const fallbackExprs = tasks.map(t =>
           `(async () => { try { return new Ok(await ${t.callCode}); } catch(__e) { return new Err(__e); } })()`
@@ -3499,14 +3511,26 @@ export class BaseCodegen {
 
       if (node.mode === 'timeout' && node.timeout) {
         const timeoutMs = this.genExpression(node.timeout);
-        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.race([`);
-        lines.push(`${this.i()}  Promise.all([`);
-        for (let i = 0; i < taskExprs.length; i++) {
-          lines.push(`${this.i()}    ${taskExprs[i]}${i < taskExprs.length - 1 ? ',' : ''}`);
+        const acVar = `__ac${base}`;
+        const abortedVar = `__aborted${base}`;
+        const timerVar = `__timer${base}`;
+        lines.push(`${this.i()}const ${acVar} = new AbortController();`);
+        lines.push(`${this.i()}const ${abortedVar} = new Promise((_, reject) => { ${acVar}.signal.addEventListener('abort', () => reject(new Error('concurrent timeout')), { once: true }); });`);
+        lines.push(`${this.i()}const ${timerVar} = setTimeout(() => ${acVar}.abort(), ${timeoutMs});`);
+        const taskExprsTimeout = tasks.map(t => {
+          if (t.isWasm && hasWasm) {
+            this._needsRuntimeBridge = true;
+            const argsCode = t.spawn.arguments.map(a => this.genExpression(a)).join(', ');
+            return `(async () => { try { if (typeof __tova_rt !== 'undefined' && __tova_rt.isRuntimeAvailable()) { return new Ok(await Promise.race([__tova_rt.execWasm(__wasm_bytes_${t.calleeName}, ${JSON.stringify(t.calleeName)}, [${argsCode}]), ${abortedVar}])); } return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { return new Err(__e); } })()`;
+          }
+          return `(async () => { try { return new Ok(await Promise.race([${t.callCode}, ${abortedVar}])); } catch(__e) { return new Err(__e); } })()`;
+        });
+        lines.push(`${this.i()}const [${tempVars.join(', ')}] = await Promise.all([`);
+        for (let i = 0; i < taskExprsTimeout.length; i++) {
+          lines.push(`${this.i()}  ${taskExprsTimeout[i]}${i < taskExprsTimeout.length - 1 ? ',' : ''}`);
         }
-        lines.push(`${this.i()}  ]),`);
-        lines.push(`${this.i()}  new Promise((_, reject) => setTimeout(() => reject(new Error('concurrent timeout')), ${timeoutMs}))`);
         lines.push(`${this.i()}]);`);
+        lines.push(`${this.i()}clearTimeout(${timerVar});`);
       } else if (node.mode === 'cancel_on_error') {
         const acVar = `__ac${base}`;
         const abortedVar = `__aborted${base}`;
