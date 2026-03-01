@@ -24,7 +24,7 @@ Non-concurrent Tova code continues to compile to JS unchanged. The concurrent ru
 
 ## Mental Model
 
-- **Millions of lightweight tasks** — each WASM task is ~64 bytes of state on Tokio's scheduler (like goroutines)
+- **Millions of lightweight tasks** — architectural target; each WASM task is ~64 bytes of state on Tokio's scheduler (like goroutines). Current implementation uses `spawn_blocking` for WASM tasks, which runs on Tokio's blocking thread pool rather than the async task scheduler. True async WASM task execution is planned for a future phase.
 - **M:N scheduling** — Tokio multiplexes tasks onto a small OS thread pool (like Go's GMP scheduler)
 - **No shared mutable state** — each WASM task gets its own linear memory. Communication only through channels. Data races are impossible in the WASM execution path. Tasks falling back to JS async execution share the JS heap and should avoid capturing mutable variables from enclosing scopes.
 - **Structured scoping** — all tasks must complete (or be cancelled) before a `concurrent {}` block exits. No leaked tasks.
@@ -275,8 +275,8 @@ const result = __result[0];
 WASM modules call host-imported functions provided by the Rust runtime:
 
 ```wat
-(import "tova" "chan_send"    (func $chan_send    (param i32 i32) (result i32)))
-(import "tova" "chan_receive" (func $chan_receive (param i32) (result i32 i32)))
+(import "tova" "chan_send"    (func $chan_send    (param i32 i64) (result i32)))
+(import "tova" "chan_receive" (func $chan_receive (param i32) (result i64)))
 (import "tova" "chan_close"   (func $chan_close   (param i32)))
 (import "tova" "http_get"    (func $http_get     (param i32 i32) (result i32 i32)))
 (import "tova" "sleep"       (func $sleep        (param i64)))
@@ -362,7 +362,7 @@ N-API exports:
 ### Phase 1 — Rust Runtime Foundation
 Build `tova_runtime` crate. Tokio scheduler, Wasmtime executor, crossbeam channels. Expose to Bun via napi-rs. Test: load a WASM module, run it on a Tokio task, send/receive on a channel. Hand-written WASM test modules (no compiler changes).
 
-**Exit criteria:** 1M concurrent WASM tasks, channel throughput > 10M msg/sec, benchmarks vs Go goroutines.
+**Exit criteria:** 1M concurrent WASM tasks, channel throughput > 10M msg/sec, benchmarks vs Go goroutines. (Note: "1M tasks" is an architectural target. Current implementation uses `spawn_blocking`, which is bounded by the blocking thread pool size. True lightweight async WASM tasks require Wasmtime async support.)
 
 ### Phase 2 — Compiler: `concurrent` / `spawn` / `Channel`
 New AST nodes: `ConcurrentBlock`, `SpawnExpression`. Parser handles `concurrent {}`, `spawn expr`. Codegen routes numeric-compatible functions through extended `wasm-codegen.js`, emits JS stubs calling `__tova_runtime.concurrent()`. Promise fallback for non-WASM bodies.

@@ -1,0 +1,40 @@
+// Example: Retry pattern with concurrent spawn
+// Loop retries a flaky operation, breaking on success.
+
+var attempt_count = 0
+
+fn flaky_operation() -> Int {
+    attempt_count = attempt_count + 1
+    if attempt_count < 3 {
+        throw Error("temporary failure (attempt {attempt_count})")
+    }
+    42
+}
+
+async fn main() {
+    var result = Err("not started")
+    var retries = 0
+    max_retries = 5
+
+    while retries < max_retries {
+        concurrent {
+            r = spawn flaky_operation()
+        }
+
+        match r {
+            Ok(v) => {
+                result = Ok(v)
+                retries = max_retries  // break
+            }
+            Err(e) => {
+                print("Attempt {retries + 1} failed: {e}")
+                retries = retries + 1
+            }
+        }
+    }
+
+    match result {
+        Ok(v) => print("Success after retries: {v}")
+        Err(e) => print("All retries failed: {e}")
+    }
+}

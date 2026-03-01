@@ -1087,3 +1087,147 @@ describe('WASM fallback analyzer warning', () => {
     });
 });
 
+describe('concurrency gap fixes E2E', () => {
+    test('T1: concurrent timeout — async task exceeding timeout', () => {
+        const output = runTova(`
+            async fn slow_task() -> Int {
+                await sleep(3000)
+                42
+            }
+
+            async fn main() {
+                concurrent timeout(200) {
+                    a = spawn slow_task()
+                }
+                match a {
+                    Ok(v) => print("got: {v}")
+                    Err(_) => print("timed out")
+                }
+            }
+        `);
+        expect(output).toContain('timed out');
+    });
+
+    test('T2: channel backpressure — producer blocks on full buffer', () => {
+        const output = runTova(`
+            async fn produce(ch) {
+                for i in range(5) {
+                    await ch.send(i)
+                }
+                ch.close()
+            }
+
+            async fn consume(ch) {
+                async for msg in ch {
+                    print("got: {msg}")
+                }
+            }
+
+            async fn main() {
+                ch = Channel.new(2)
+                concurrent {
+                    spawn produce(ch)
+                    spawn consume(ch)
+                }
+            }
+        `);
+        expect(output).toContain('got: 0');
+        expect(output).toContain('got: 1');
+        expect(output).toContain('got: 2');
+        expect(output).toContain('got: 3');
+        expect(output).toContain('got: 4');
+    });
+
+    test('T3: send-to-closed channel — verify error thrown via JS Channel', () => {
+        const output = runTova(`
+            async fn try_send_closed(ch) {
+                await ch.send(42)
+            }
+
+            async fn main() {
+                ch = Channel.new(1)
+                ch.close()
+                concurrent {
+                    r = spawn try_send_closed(ch)
+                }
+                match r {
+                    Ok(_) => print("no error")
+                    Err(_) => print("error caught")
+                }
+            }
+        `);
+        expect(output).toContain('error caught');
+    });
+
+    test('T4: select with send case', () => {
+        const output = runTova(`
+            async fn main() {
+                ch = Channel.new(1)
+                select {
+                    ch.send(42) => print("sent 42")
+                    timeout(1000) => print("timeout")
+                }
+            }
+        `);
+        expect(output).toContain('sent 42');
+    });
+
+    test('T5: nested concurrent blocks — inner result used by outer', () => {
+        const output = runTova(`
+            fn add(a: Int, b: Int) -> Int { a + b }
+            fn mul(a: Int, b: Int) -> Int { a * b }
+
+            async fn compute_both() -> Int {
+                concurrent {
+                    inner_a = spawn add(3, 4)
+                    inner_b = spawn mul(5, 6)
+                }
+                a = inner_a.unwrapOr(0)
+                b = inner_b.unwrapOr(0)
+                a + b
+            }
+
+            async fn main() {
+                concurrent {
+                    outer = spawn compute_both()
+                }
+                match outer {
+                    Ok(v) => print("result: {v}")
+                    Err(e) => print("error: {e}")
+                }
+            }
+        `);
+        // 3+4=7, 5*6=30, 7+30=37
+        expect(output).toContain('result: 37');
+    });
+
+    test('T6: @wasm concurrent — correct results from WASM functions', () => {
+        const output = runTova(`
+            @wasm
+            fn square(n: Int) -> Int { n * n }
+
+            async fn main() {
+                concurrent {
+                    a = spawn square(5)
+                    b = spawn square(7)
+                    c = spawn square(12)
+                }
+                match a {
+                    Ok(v) => print("5^2 = {v}")
+                    Err(e) => print("err: {e}")
+                }
+                match b {
+                    Ok(v) => print("7^2 = {v}")
+                    Err(e) => print("err: {e}")
+                }
+                match c {
+                    Ok(v) => print("12^2 = {v}")
+                    Err(e) => print("err: {e}")
+                }
+            }
+        `);
+        expect(output).toContain('5^2 = 25');
+        expect(output).toContain('7^2 = 49');
+        expect(output).toContain('12^2 = 144');
+    });
+});

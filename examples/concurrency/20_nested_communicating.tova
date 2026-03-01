@@ -1,0 +1,55 @@
+// Example: Nested concurrent blocks sharing a channel with outer aggregator
+// Inner concurrent blocks produce partial results into a shared channel,
+// while the outer block aggregates them.
+
+async fn compute_batch(start: Int, count: Int, results_ch: Channel) {
+    concurrent {
+        spawn fn() {
+            for i in range(count) {
+                await results_ch.send(start + i)
+            }
+        }
+    }
+}
+
+async fn main() {
+    results = Channel.new(100)
+
+    // Outer block: launch two inner concurrent blocks in parallel
+    concurrent {
+        spawn fn() {
+            // Inner block 1: produce values 0-4
+            concurrent {
+                spawn fn() {
+                    for i in range(5) {
+                        await results.send(i)
+                    }
+                }
+            }
+        }
+
+        spawn fn() {
+            // Inner block 2: produce values 100-104
+            concurrent {
+                spawn fn() {
+                    for i in range(5) {
+                        await results.send(100 + i)
+                    }
+                }
+            }
+        }
+    }
+
+    results.close()
+
+    // Collect all results
+    var total = 0
+    var count = 0
+    async for val in results {
+        total = total + val
+        count = count + 1
+    }
+
+    print("Collected {count} values, total: {total}")
+    // Expected: 10 values, total = (0+1+2+3+4) + (100+101+102+103+104) = 10 + 510 = 520
+}

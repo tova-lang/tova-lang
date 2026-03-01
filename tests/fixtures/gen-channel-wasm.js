@@ -126,6 +126,7 @@ function generateProducerModule() {
  * Consumer: receives count values from channel, returns their sum
  * Exports: consumer(channel_id: i32, count: i64) -> i64
  * Imports: tova.chan_receive(ch: i32) -> i64
+ *   Returns the received value, or i64::MIN (0x8000000000000000) when closed
  */
 function generateConsumerModule() {
     const bytes = [];

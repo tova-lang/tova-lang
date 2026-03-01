@@ -25,6 +25,8 @@ ch = Channel.new()
 ch = Channel.new(10)
 ```
 
+> **Type handling:** JavaScript-side channels are dynamically typed — you can send any Tova value (numbers, strings, objects, etc.). WASM-side channels (used by `@wasm` functions via host imports) are currently limited to `i64` values. Future phases will extend WASM channels to support strings, arrays, and structs.
+
 ---
 
 ## Sending and Receiving
@@ -86,6 +88,15 @@ await ch.receive()    // Some(1)
 await ch.receive()    // Some(2)
 await ch.receive()    // None
 ```
+
+### Error Behavior
+
+| Operation | After close |
+|-----------|-------------|
+| `ch.send(value)` | Throws an error: "Cannot send on closed channel" |
+| `ch.receive()` | Returns `Some(value)` while buffer has items, then `None` |
+| `ch.close()` | No-op (double-close is safe) |
+| `async for ... in ch` | Drains remaining items, then exits the loop |
 
 ---
 

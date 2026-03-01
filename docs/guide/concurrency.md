@@ -126,7 +126,7 @@ match result {
 }
 ```
 
-> In `first` mode, **all** named variables receive the winner's result (there is only one winning value). Use a single variable for clarity.
+> In `first` mode, **all** named variables receive the winner's result (there is only one winning value). Use a single variable for clarity. If you assign multiple variables, they all reference the same `Result` — the winner's. This means `a` and `b` in `concurrent first { a = spawn f(); b = spawn g() }` will hold the same value after the block completes.
 
 ### timeout
 
@@ -141,7 +141,7 @@ concurrent timeout(5000) {
 // Completed tasks keep their Ok results, timed-out tasks get Err.
 ```
 
-> **Cancellation is cooperative, not preemptive.** Tova uses `AbortController` for cancellation, which signals at the next async yield point. CPU-bound synchronous code will not be interrupted mid-execution. For compute-heavy tasks, consider using `@wasm` functions, which will support fuel-based preemptive cancellation in a future release.
+> **Cancellation is cooperative, not preemptive.** Tova uses `AbortController` for cancellation in the JS path, which signals at the next async yield point. CPU-bound synchronous JS code will not be interrupted mid-execution. For compute-heavy tasks, use `@wasm` functions — they run with WASM fuel metering enabled, allowing the runtime to interrupt execution after a fuel budget is exhausted (currently 1 billion instructions per task).
 
 ### Execution Paths: WASM vs JavaScript
 
@@ -161,9 +161,13 @@ If you mix `@wasm` and non-`@wasm` spawns in the same block, the compiler emits 
 
 > **Shared state caution:** In the JS fallback path, spawned tasks share the JavaScript heap. If a closure captures a mutable variable from an enclosing scope, concurrent modifications can produce unpredictable results. Prefer passing values as function arguments rather than capturing mutable variables.
 
+> For details on the `@wasm` decorator and how functions are compiled to WebAssembly, see [Performance — WASM / WebAssembly Compilation](performance.md#wasm--webassembly-compilation).
+
 ## Channels
 
 Channels are typed, bounded communication pipes for passing messages between concurrent tasks. See the [Channels stdlib reference](../stdlib/channels) for the full API.
+
+> **`async for` syntax:** Tova's `async for value in source { ... }` compiles to JavaScript's `for await (const value of source) { ... }`. It works with any object implementing `Symbol.asyncIterator`, including channels. When used with a channel, the loop receives values until the channel is closed and drained.
 
 ```tova
 ch = Channel.new(10)    // buffered channel, capacity 10
@@ -225,6 +229,8 @@ async fn router(commands, events, done) {
 ```
 
 ### Select Cases
+
+> **The `from` keyword:** In select cases, `from` is a contextual keyword used to bind a received value to a variable: `msg from ch`. It is only treated as a keyword inside `select` blocks — elsewhere, `from` can be used as a regular identifier.
 
 Four kinds of case are supported:
 
@@ -383,6 +389,37 @@ Tova offers several ways to run things concurrently. Here's when to use each:
 | `parallel([...])` | Quick one-liner for independent promises |
 | `await Promise.all([...])` | JS interop, simple promise collection |
 | `parallel_map(arr, fn)` | CPU-bound work on large arrays across worker threads |
+
+## Utility Functions
+
+### parallel
+
+```tova
+await parallel([promise1, promise2, ...]) -> List<Result>
+```
+
+A convenience wrapper around `Promise.all` that runs an array of promises concurrently and returns their results. Use this for quick one-liners when you don't need the structured scoping of a `concurrent` block.
+
+```tova
+results = await parallel([
+    fetch("/api/users"),
+    fetch("/api/posts"),
+    fetch("/api/stats")
+])
+```
+
+### parallel_map
+
+```tova
+await parallel_map(array, fn) -> List<Result>
+```
+
+Applies a function to each element of an array, running all invocations concurrently. Useful for CPU-bound work on large arrays. For `@wasm` functions, tasks are distributed across worker threads via the Tokio runtime.
+
+```tova
+// Square each number in parallel
+squares = await parallel_map(range(1000), fn(n) n * n)
+```
 
 ## Compiler Diagnostics
 

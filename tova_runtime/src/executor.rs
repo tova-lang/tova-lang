@@ -8,7 +8,12 @@ use crate::host_imports;
 
 // Global cached Engine — Wasmtime's JIT pipeline initialization is expensive,
 // reuse the engine across all WASM executions.
-static WASM_ENGINE: Lazy<Engine> = Lazy::new(|| Engine::default());
+static WASM_ENGINE: Lazy<Engine> = Lazy::new(|| {
+    let mut config = Config::new();
+    config.consume_fuel(true);
+    config.wasm_multi_value(true);
+    Engine::new(&config).expect("failed to create WASM engine")
+});
 
 // Module cache — avoids recompiling the same WASM bytes on repeated calls.
 // Keyed by a fast hash of the WASM bytes.
@@ -42,6 +47,7 @@ pub fn exec_wasm_sync(wasm_bytes: &[u8], func_name: &str, args: &[i64]) -> Resul
     let engine = &*WASM_ENGINE;
     let module = get_or_compile_module(wasm_bytes)?;
     let mut store = Store::new(engine, ());
+    store.set_fuel(1_000_000_000).map_err(|e| format!("fuel error: {}", e))?;
     let instance = Instance::new(&mut store, &module, &[])
         .map_err(|e| format!("WASM instantiation error: {}", e))?;
     let func = instance
@@ -82,6 +88,7 @@ pub fn exec_many_shared(
         .into_iter()
         .map(|(func_name, args)| {
             let mut store = Store::new(engine, ());
+            store.set_fuel(1_000_000_000).map_err(|e| format!("fuel error: {}", e))?;
             let instance = Instance::new(&mut store, &module, &[])
                 .map_err(|e| format!("instantiate: {}", e))?;
             let func = instance
@@ -129,6 +136,10 @@ pub fn exec_many_shared_reuse(
     };
 
     let mut store = Store::new(engine, ());
+    if let Err(e) = store.set_fuel(1_000_000_000) {
+        let err = format!("fuel error: {}", e);
+        return tasks.iter().map(|_| Err(err.clone())).collect();
+    }
     let instance = match Instance::new(&mut store, &module, &[]) {
         Ok(i) => i,
         Err(e) => {
@@ -270,6 +281,7 @@ pub fn exec_wasm_with_channels(wasm_bytes: &[u8], func_name: &str, args: &[i64])
     let mut linker = Linker::new(engine);
     host_imports::add_channel_imports(&mut linker)?;
     let mut store = Store::new(engine, ());
+    store.set_fuel(1_000_000_000).map_err(|e| format!("fuel error: {}", e))?;
     let instance = linker
         .instantiate(&mut store, &module)
         .map_err(|e| format!("WASM instantiation error: {}", e))?;

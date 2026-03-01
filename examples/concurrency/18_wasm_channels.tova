@@ -1,0 +1,39 @@
+// Example: @wasm producer/consumer communicating via channels
+// WASM tasks use host imports (chan_send, chan_receive) to communicate
+// through channels while running on native Tokio threads.
+
+@wasm
+fn produce(ch: Int, count: Int) -> Int {
+    for i in range(count) {
+        chan_send(ch, i)
+    }
+    count
+}
+
+@wasm
+fn consume(ch: Int, count: Int) -> Int {
+    var sum = 0
+    for i in range(count) {
+        sum = sum + chan_receive(ch)
+    }
+    sum
+}
+
+async fn main() {
+    ch = Channel.new(50)
+
+    concurrent {
+        produced = spawn produce(ch.id, 100)
+        consumed = spawn consume(ch.id, 100)
+    }
+
+    match produced {
+        Ok(n) => print("Produced {n} items")
+        Err(e) => print("Producer error: {e}")
+    }
+
+    match consumed {
+        Ok(sum) => print("Consumer sum: {sum}")  // 0+1+...+99 = 4950
+        Err(e) => print("Consumer error: {e}")
+    }
+}

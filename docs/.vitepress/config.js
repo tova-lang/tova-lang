@@ -36,6 +36,7 @@ export default defineConfig({
       { text: 'Examples', link: '/examples/' },
       { text: 'Packages', link: '/packages/' },
       { text: 'Tooling', link: '/tooling/cli' },
+      { text: 'Deploy', link: '/guide/deploy' },
       {
         text: 'App Models',
         items: [
@@ -143,6 +144,7 @@ export default defineConfig({
             { text: 'Form Block', link: '/fullstack/form-block' },
             { text: 'RPC Bridge', link: '/fullstack/rpc' },
             { text: 'Named Blocks', link: '/fullstack/named-blocks' },
+            { text: 'Deploy Block', link: '/guide/deploy' },
             { text: 'Compilation', link: '/fullstack/compilation' },
           ],
         },

@@ -26,15 +26,17 @@ pub fn create(capacity: u32) -> u64 {
     id
 }
 
-pub fn send(id: u64, value: i64) -> bool {
+pub fn send(id: u64, value: i64) -> Result<bool, String> {
     let channels = CHANNELS.lock().unwrap();
     if let Some(entry) = channels.get(&id) {
-        if entry.closed { return false; }
+        if entry.closed {
+            return Err("Cannot send on closed channel".to_string());
+        }
         let sender = entry.sender.clone();
         drop(channels);
-        sender.send(value).is_ok()
+        Ok(sender.send(value).is_ok())
     } else {
-        false
+        Err("Cannot send on closed channel".to_string())
     }
 }
 

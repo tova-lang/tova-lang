@@ -43,8 +43,11 @@ pub fn channel_create(capacity: u32) -> i64 {
 }
 
 #[napi]
-pub fn channel_send(id: i64, value: i64) -> bool {
-    channels::send(id as u64, value)
+pub fn channel_send(id: i64, value: i64) -> Result<bool> {
+    match channels::send(id as u64, value) {
+        Ok(sent) => Ok(sent),
+        Err(e) => Err(Error::from_reason(e)),
+    }
 }
 
 #[napi]
