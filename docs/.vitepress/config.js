@@ -99,6 +99,12 @@ export default defineConfig({
           ],
         },
         {
+          text: 'Deployment',
+          items: [
+            { text: 'Deploy Block', link: '/guide/deploy' },
+          ],
+        },
+        {
           text: 'Coming From...',
           items: [
             { text: 'Data Professionals', link: '/guide/data-professionals' },

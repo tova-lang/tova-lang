@@ -1,6 +1,6 @@
 # Deployment Guide
 
-How to deploy Tova applications to production.
+How to deploy Tova applications to production. For zero-config VPS deployment using the `deploy` block, see the [Deploy Block guide](/guide/deploy).
 
 ## Build for Production
 

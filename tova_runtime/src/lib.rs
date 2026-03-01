@@ -127,7 +127,7 @@ pub async fn concurrent_wasm_shared(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
     for chunk in chunks {
         let wasm = Arc::clone(&wasm_arc);
         handles.push(scheduler::TOKIO_RT.spawn_blocking(move || {
-            executor::exec_many_shared(&wasm, chunk)
+            executor::exec_many_shared_reuse(&wasm, chunk)
         }));
     }
 

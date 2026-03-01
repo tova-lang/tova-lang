@@ -222,21 +222,32 @@ func benchSelectMultiplex() {
 	fmt.Printf("RESULT:select_multiplex:%.2f:ms\n", ms)
 }
 
-// Benchmark 6: Concurrent compute — 4× fib(30) concurrent vs sequential
+// Benchmark 6: Concurrent compute — 4 workers each running fib(30) × REPS
+// Uses repeated fib(30) calls to create measurable workload on both runtimes.
 func benchConcurrentCompute() {
 	const WORKERS = 4
 	const FIB_N int64 = 30
+	const REPS = 10_000
+	expected := int64(832040) * REPS
+
+	computeWork := func() int64 {
+		var sum int64
+		for r := 0; r < REPS; r++ {
+			sum += fib(FIB_N)
+		}
+		return sum
+	}
 
 	// Sequential
 	t0 := time.Now()
 	var seqSum int64
 	for i := 0; i < WORKERS; i++ {
-		seqSum += fib(FIB_N)
+		seqSum += computeWork()
 	}
 	seqElapsed := time.Since(t0)
 
-	if seqSum != 832040*WORKERS {
-		fmt.Printf("VERIFY FAILED: seqSum=%d expected=%d\n", seqSum, 832040*WORKERS)
+	if seqSum != expected*WORKERS {
+		fmt.Printf("VERIFY FAILED: seqSum=%d expected=%d\n", seqSum, expected*WORKERS)
 	}
 
 	// Concurrent
@@ -248,7 +259,7 @@ func benchConcurrentCompute() {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			results[idx] = fib(FIB_N)
+			results[idx] = computeWork()
 		}(i)
 	}
 	wg.Wait()
@@ -258,8 +269,8 @@ func benchConcurrentCompute() {
 	for _, r := range results {
 		concSum += r
 	}
-	if concSum != 832040*WORKERS {
-		fmt.Printf("VERIFY FAILED: concSum=%d expected=%d\n", concSum, 832040*WORKERS)
+	if concSum != expected*WORKERS {
+		fmt.Printf("VERIFY FAILED: concSum=%d expected=%d\n", concSum, expected*WORKERS)
 	}
 
 	seqMs := float64(seqElapsed.Microseconds()) / 1000.0

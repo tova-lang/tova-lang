@@ -80,49 +80,30 @@ async function benchChannelThroughput() {
   console.log(`RESULT:channel_throughput:${elapsed.toFixed(2)}:ms`);
 }
 
-// ── Benchmark 3: Ping-pong latency — 100K round-trips through 2 Crossbeam channels ──
+// ── Benchmark 3: Ping-pong latency — 100K round-trips via Crossbeam channels ──
 //
-// Uses JS-level channel bridge since we need two channels with alternating send/receive.
-// channelReceive() is non-blocking (try_recv), so we spin-poll.
+// Measures per-hop NAPI FFI + Crossbeam channel latency.
+// Uses capacity=1 channels so single-threaded send-then-receive works.
+// Each iteration: send to ch → receive from ch (2 NAPI FFI calls per hop).
 
 async function benchPingPong() {
   const N = 100_000;
-  const pingCh = bridge.channelCreate(0); // unbuffered
-  const pongCh = bridge.channelCreate(0); // unbuffered
-
-  // Ping-pong needs blocking receive on both sides concurrently.
-  // Use WASM pinger + ponger modules via concurrentWasmWithChannels.
-  // We need custom WASM modules for ping-pong. Since we don't have them,
-  // use the Crossbeam channels via the JS bridge in a tight loop.
-  // This measures the NAPI FFI overhead per channel operation.
+  const ch = bridge.channelCreate(1); // capacity 1 so send doesn't block
 
   const t0 = performance.now();
 
-  // Run ponger in background — receives from ping, sends to pong
-  // Since channelReceive is non-blocking (try_recv), we need to spin.
-  // Instead, use two WASM tasks: a "pinger" and "ponger".
-  // The producer module sends 0..N-1, consumer reads N values and sums.
-  // For true ping-pong we'd need custom WASM, so we approximate:
-  // pinger sends N values to pingCh, ponger reads from pingCh and sends to pongCh,
-  // then we read from pongCh.
-
-  // Approximate ping-pong: sequential send/receive pairs via NAPI FFI
-  // This measures per-hop NAPI channel latency
   let lastVal = -1;
   for (let i = 0; i < N; i++) {
-    bridge.channelSend(pingCh, i);
-    // Non-blocking receive — spin until value available
-    let val = bridge.channelReceive(pingCh);
-    while (val === null || val === undefined) {
-      val = bridge.channelReceive(pingCh);
+    bridge.channelSend(ch, i);
+    const val = bridge.channelReceive(ch);
+    if (val !== null && val !== undefined) {
+      lastVal = val;
     }
-    lastVal = val;
   }
 
   const elapsed = performance.now() - t0;
 
-  bridge.channelClose(pingCh);
-  bridge.channelClose(pongCh);
+  bridge.channelClose(ch);
 
   if (lastVal !== N - 1) {
     console.log(`VERIFY FAILED: lastVal=${lastVal} expected=${N - 1}`);
@@ -221,40 +202,49 @@ async function benchSelectMultiplex() {
   console.log(`RESULT:select_multiplex:${elapsed.toFixed(2)}:ms`);
 }
 
-// ── Benchmark 6: Concurrent compute — 4× fib(30) on Tokio vs sequential ──
+// ── Benchmark 6: Concurrent compute — 4 workers × 10K fib(30) on Tokio vs sequential ──
 
 async function benchConcurrentCompute() {
   const WORKERS = 4;
   const FIB_N = 30;
+  const REPS = 10_000;
+  const TOTAL_TASKS = WORKERS * REPS;
+  const expectedPerWorker = 832040 * REPS;
 
-  // Sequential: run fib(30) 4 times in JS (same as Go's sequential baseline)
+  // Sequential: run fib(30) WORKERS*REPS times, one at a time
+  const seqTasks = Array.from({ length: TOTAL_TASKS }, () => ({
+    wasm: fibWasm,
+    func: 'fib',
+    args: [FIB_N],
+  }));
+
   const t0 = performance.now();
   let seqSum = 0;
-  for (let i = 0; i < WORKERS; i++) {
+  for (let i = 0; i < TOTAL_TASKS; i++) {
     const result = await bridge.execWasm(fibWasm, 'fib', [FIB_N]);
     seqSum += Number(result);
   }
   const seqElapsed = performance.now() - t0;
 
-  if (seqSum !== 832040 * WORKERS) {
-    console.log(`VERIFY FAILED: seqSum=${seqSum} expected=${832040 * WORKERS}`);
+  if (seqSum !== expectedPerWorker * WORKERS) {
+    console.log(`VERIFY FAILED: seqSum=${seqSum} expected=${expectedPerWorker * WORKERS}`);
   }
 
-  // Concurrent: 4× fib(30) on Tokio thread pool (true parallelism)
-  const tasks = Array.from({ length: WORKERS }, () => ({
+  // Concurrent: all WORKERS*REPS tasks on Tokio thread pool (true parallelism)
+  const concTasks = Array.from({ length: TOTAL_TASKS }, () => ({
     wasm: fibWasm,
     func: 'fib',
     args: [FIB_N],
   }));
 
   const t1 = performance.now();
-  const results = await bridge.concurrentWasmShared(tasks);
+  const results = await bridge.concurrentWasmShared(concTasks);
   const concElapsed = performance.now() - t1;
 
   let concSum = 0;
   for (const r of results) concSum += Number(r);
-  if (concSum !== 832040 * WORKERS) {
-    console.log(`VERIFY FAILED: concSum=${concSum} expected=${832040 * WORKERS}`);
+  if (concSum !== expectedPerWorker * WORKERS) {
+    console.log(`VERIFY FAILED: concSum=${concSum} expected=${expectedPerWorker * WORKERS}`);
   }
 
   console.log(`RESULT:compute_sequential:${seqElapsed.toFixed(2)}:ms`);

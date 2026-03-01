@@ -78,8 +78,8 @@ channel_throughput|Channel 1M msgs
 ping_pong|Ping-pong 100K
 fan_out|Fan-out 4x100K
 select_multiplex|Select 4ch 100K
-compute_sequential|Compute seq 4xfib(30)
-compute_concurrent|Compute conc 4xfib(30)"
+compute_sequential|Compute seq 40K fib(30)
+compute_concurrent|Compute conc 40K fib(30)"
 
 # ── Print comparison table ──
 

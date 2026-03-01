@@ -1086,3 +1086,4 @@ describe('WASM fallback analyzer warning', () => {
         expect(w).toBeUndefined();
     });
 });
+

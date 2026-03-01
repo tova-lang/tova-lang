@@ -468,3 +468,17 @@ The benchmark suite lives in `benchmarks/` and includes 14 workloads:
 ```
 
 The runner executes each benchmark and outputs a formatted results table.
+
+### Concurrency: Tova vs Go
+
+A dedicated comparison suite benchmarks Tova's concurrency runtime (Tokio + Wasmtime + Crossbeam) against Go's goroutines and channels:
+
+```bash
+# Run side-by-side comparison (requires go and bun)
+bash benchmarks/concurrent/run_comparison.sh
+
+# Show raw output for debugging
+VERBOSE=1 bash benchmarks/concurrent/run_comparison.sh
+```
+
+Six benchmarks are compared: spawn overhead, channel throughput (1M messages), ping-pong latency, fan-out (4 workers), select multiplexing (4 channels), and concurrent compute (40K × fib(30)). The runner prints a formatted table with timing and ratios.
