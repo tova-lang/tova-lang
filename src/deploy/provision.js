@@ -138,6 +138,8 @@ export function generateProvisionScript(manifest) {
       domain: manifest.domain,
       instances: manifest.instances || 1,
       health: manifest.health,
+      health_interval: manifest.health_interval,
+      health_timeout: manifest.health_timeout,
       hasWebSocket: manifest.hasWebSocket,
     });
     lines.push(`cat > /etc/caddy/Caddyfile <<'CADDY_EOF'`);
@@ -257,6 +259,8 @@ export function generateCaddyConfig(appName, opts = {}) {
   const domain = opts.domain || 'localhost';
   const instances = opts.instances || 1;
   const health = opts.health || '/healthz';
+  const healthInterval = opts.health_interval || 30;
+  const healthTimeout = opts.health_timeout || 5;
   const hasWebSocket = opts.hasWebSocket || false;
 
   const lines = [];
@@ -277,8 +281,8 @@ export function generateCaddyConfig(appName, opts = {}) {
 
   // Health check
   lines.push(`    health_uri ${health}`);
-  lines.push('    health_interval 30s');
-  lines.push('    health_timeout 5s');
+  lines.push(`    health_interval ${healthInterval}s`);
+  lines.push(`    health_timeout ${healthTimeout}s`);
 
   lines.push('  }');
 

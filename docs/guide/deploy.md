@@ -8,8 +8,8 @@ A minimal deployment requires a server block and a deploy block:
 
 ```tova
 server {
-  get "/healthz" => "ok"
-  get "/" => "<h1>Hello from Tova</h1>"
+  route GET "/healthz" => fn() { "ok" }
+  route GET "/" => fn() { "<h1>Hello from Tova</h1>" }
 }
 
 deploy "prod" {
@@ -86,7 +86,7 @@ deploy "prod" {
 
 Key rules:
 
-- `NODE_ENV` and `PORT` are set automatically if not specified — `NODE_ENV=production` and `PORT` is the instance port (3000, 3001, etc.)
+- `NODE_ENV` is always set to `production` and `PORT` is always set to the instance port (3000, 3001, etc.) — these are managed by the systemd template and cannot be overridden in the `env` block
 - Variables declared in `env` are written to the systemd unit as `Environment=KEY=value` directives
 - For secrets that should not live in source code, use a `.env.production` file on the server — systemd loads it via `EnvironmentFile`
 
@@ -187,8 +187,10 @@ For example, if your server block uses WebSocket:
 
 ```tova
 server {
-  ws "/chat" {
-    on message(msg) => broadcast(msg)
+  ws {
+    on_message fn(msg) {
+      broadcast(msg)
+    }
   }
 }
 
@@ -364,7 +366,7 @@ Your server block should expose the health endpoint:
 
 ```tova
 server {
-  get "/healthz" => "ok"
+  route GET "/healthz" => fn() { "ok" }
 }
 ```
 
@@ -442,14 +444,14 @@ A minimal full-stack application with SQLite, single instance, and all defaults:
 server {
   db { path: "todos.db" }
 
-  get "/healthz" => "ok"
+  route GET "/healthz" => fn() { "ok" }
 
-  get "/todos" {
+  route GET "/todos" => fn() {
     todos = query("SELECT * FROM todos ORDER BY id DESC")
     json(todos)
   }
 
-  post "/todos" {
+  route POST "/todos" => fn() {
     body = await request.json()
     run("INSERT INTO todos (title, done) VALUES (?, ?)", body.title, false)
     json({ ok: true })
@@ -503,15 +505,15 @@ security {
 }
 
 server {
-  get "/healthz" => "ok"
+  route GET "/healthz" => fn() { "ok" }
 
-  group "/api" {
-    get "/users" {
+  routes "/api" {
+    route GET "/users" => fn() {
       users = query("SELECT id, email, role FROM users")
       json(users)
     }
 
-    post "/users" {
+    route POST "/users" => fn() {
       body = await request.json()
       run("INSERT INTO users (email, role) VALUES ($1, $2)", body.email, body.role)
       json({ ok: true })
@@ -574,21 +576,27 @@ A WebSocket and SSE application with auto-detected features and multiple instanc
 
 ```tova
 server {
-  get "/healthz" => "ok"
+  route GET "/healthz" => fn() { "ok" }
 
-  ws "/live" {
-    on connect(client) => print("Connected: {client.id}")
-    on message(msg) => broadcast(msg)
-    on disconnect(client) => print("Left: {client.id}")
+  ws {
+    on_open fn(client) {
+      print("Connected: {client.id}")
+    }
+    on_message fn(msg) {
+      broadcast(msg)
+    }
+    on_close fn(client) {
+      print("Left: {client.id}")
+    }
   }
 
-  sse "/events" {
+  sse "/events" fn(emit) {
     interval(1000) {
       emit("heartbeat", { time: now() })
     }
   }
 
-  get "/api/status" {
+  route GET "/api/status" => fn() {
     json({ connected: ws_client_count(), uptime: uptime() })
   }
 }
