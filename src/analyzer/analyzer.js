@@ -2010,7 +2010,7 @@ export class Analyzer {
       const sym = this.currentScope.lookup(narrowing.varName);
       if (sym) {
         // Store narrowed type info in the scope
-        const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, false, sym.loc);
+        const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, sym.mutable, sym.loc);
         narrowedSym.inferredType = narrowing.narrowedType;
         narrowedSym._narrowed = true;
         try { this.currentScope.define(narrowing.varName, narrowedSym); } catch (e) { /* already defined */ }
@@ -2035,7 +2035,7 @@ export class Analyzer {
         this.currentScope = this.currentScope.child('block');
         const sym = this.currentScope.lookup(narrowing.varName);
         if (sym) {
-          const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, false, sym.loc);
+          const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, sym.mutable, sym.loc);
           narrowedSym.inferredType = narrowing.inverseType;
           narrowedSym._narrowed = true;
           try { this.currentScope.define(narrowing.varName, narrowedSym); } catch (e) { /* already defined */ }

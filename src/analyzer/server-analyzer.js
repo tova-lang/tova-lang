@@ -37,7 +37,22 @@ export function installServerAnalyzer(AnalyzerClass) {
     const prevScope = this.currentScope;
     const prevServerBlockName = this._currentServerBlockName;
     this._currentServerBlockName = node.name || null;
-    this.currentScope = this.currentScope.child('server');
+    let serverScope = null;
+    for (const ch of this.currentScope.children) {
+      if (ch.context === 'server') { serverScope = ch; break; }
+    }
+    const isFirst = !serverScope;
+    this.currentScope = serverScope || this.currentScope.child('server');
+
+    // On first server block, pre-register function/var/type names from ALL
+    // server blocks so cross-file references resolve regardless of file order.
+    if (isFirst && this.ast && this.ast.body) {
+      for (const topNode of this.ast.body) {
+        if (topNode.type === 'ServerBlock') {
+          this._preRegisterServerDecls(topNode.body);
+        }
+      }
+    }
 
     try {
       // Register peer server block names as valid identifiers in this scope
@@ -73,6 +88,23 @@ export function installServerAnalyzer(AnalyzerClass) {
     } finally {
       this.currentScope = prevScope;
       this._currentServerBlockName = prevServerBlockName;
+    }
+  };
+
+  AnalyzerClass.prototype._preRegisterServerDecls = function(stmts) {
+    for (const stmt of stmts) {
+      const name = stmt.name;
+      if (!name) continue;
+      let kind = null;
+      if (stmt.type === 'FunctionDeclaration') kind = 'function';
+      else if (stmt.type === 'VarDeclaration') kind = 'variable';
+      else if (stmt.type === 'TypeDeclaration') kind = 'type';
+      else if (stmt.type === 'ModelDeclaration') kind = 'type';
+      if (kind && !this.currentScope.symbols.has(name)) {
+        const sym = new Symbol(name, kind, stmt.typeAnnotation || null, kind === 'variable', stmt.loc);
+        sym._forward = true;
+        try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+      }
     }
   };
 

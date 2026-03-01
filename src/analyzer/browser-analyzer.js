@@ -12,13 +12,46 @@ export function installBrowserAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitBrowserBlock = function(node) {
     const prevScope = this.currentScope;
-    this.currentScope = this.currentScope.child('browser');
+    let browserScope = null;
+    for (const ch of this.currentScope.children) {
+      if (ch.context === 'browser') { browserScope = ch; break; }
+    }
+    const isFirst = !browserScope;
+    this.currentScope = browserScope || this.currentScope.child('browser');
+
+    // On first browser block, pre-register state/computed/function names from ALL
+    // browser blocks so cross-file references resolve regardless of file order.
+    if (isFirst && this.ast && this.ast.body) {
+      for (const topNode of this.ast.body) {
+        if (topNode.type === 'BrowserBlock') {
+          this._preRegisterBrowserDecls(topNode.body);
+        }
+      }
+    }
+
     try {
       for (const stmt of node.body) {
         this.visitNode(stmt);
       }
     } finally {
       this.currentScope = prevScope;
+    }
+  };
+
+  AnalyzerClass.prototype._preRegisterBrowserDecls = function(stmts) {
+    for (const stmt of stmts) {
+      const name = stmt.name;
+      if (!name) continue;
+      let kind = null;
+      if (stmt.type === 'StateDeclaration') kind = 'state';
+      else if (stmt.type === 'ComputedDeclaration') kind = 'computed';
+      else if (stmt.type === 'FunctionDeclaration') kind = 'function';
+      else if (stmt.type === 'ComponentDeclaration') kind = 'component';
+      if (kind && !this.currentScope.symbols.has(name)) {
+        const sym = new Symbol(name, kind, stmt.typeAnnotation || null, kind === 'state', stmt.loc);
+        sym._forward = true;
+        try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+      }
     }
   };
 

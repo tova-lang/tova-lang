@@ -28,6 +28,13 @@ export class Scope {
       const existing = this.symbols.get(name);
       // Allow user code to shadow builtins
       if (existing.kind === 'builtin') {
+        if (existing.used) symbol.used = true;
+        this.symbols.set(name, symbol);
+        return;
+      }
+      // Allow real definitions to overwrite forward-declared symbols
+      if (existing._forward) {
+        if (existing.used) symbol.used = true;
         this.symbols.set(name, symbol);
         return;
       }
