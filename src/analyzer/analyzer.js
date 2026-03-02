@@ -762,6 +762,7 @@ export class Analyzer {
       case 'ComponentStyleBlock':
         this._validateStyleTokens(node.css, node.loc);
         this._validateResponsiveBreakpoints(node.css, node.loc);
+        this._validateVariantProps(node.css, this._currentComponentProps, node.loc);
         return;
       case 'ImplDeclaration': return this.visitImplDeclaration(node);
       case 'TraitDeclaration': return this.visitTraitDeclaration(node);
@@ -1134,6 +1135,28 @@ export class Analyzer {
           loc,
           code: 'W_UNKNOWN_BREAKPOINT',
         });
+      }
+    }
+  }
+
+  _validateVariantProps(css, componentProps, loc) {
+    if (!componentProps || componentProps.length === 0) return;
+    const variantRegex = /variant\(([^)]+)\)/g;
+    let m;
+    while ((m = variantRegex.exec(css)) !== null) {
+      const rawProps = m[1];
+      // Split by + for compound variants
+      const propNames = rawProps.split('+').map(s => s.trim());
+      for (const propName of propNames) {
+        if (!propName) continue;
+        if (!componentProps.includes(propName)) {
+          this.warn(
+            `variant() references unknown prop '${propName}'. Component has props: [${componentProps.join(', ')}]`,
+            loc,
+            null,
+            { code: 'W_VARIANT_UNKNOWN_PROP' }
+          );
+        }
       }
     }
   }

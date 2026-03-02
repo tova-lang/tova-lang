@@ -106,6 +106,9 @@ export function installBrowserAnalyzer(AnalyzerClass) {
 
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
+    // Store component prop names for variant() validation in style blocks
+    const prevComponentProps = this._currentComponentProps;
+    this._currentComponentProps = node.params.map(p => p.name);
     for (const param of node.params) {
       try {
         this.currentScope.define(param.name,
@@ -119,6 +122,7 @@ export function installBrowserAnalyzer(AnalyzerClass) {
         this.visitNode(child);
       }
     } finally {
+      this._currentComponentProps = prevComponentProps;
       this.currentScope = prevScope;
     }
   };

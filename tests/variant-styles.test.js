@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
+import { Analyzer } from '../src/analyzer/analyzer.js';
 
 function compileBrowser(source) {
   const lexer = new Lexer(source, '<test>');
@@ -270,5 +271,142 @@ describe('variant() styles', () => {
     expect(code).toContain('--variant-outlined');
     expect(code).toContain('border-radius: 8px');
     expect(code).toContain('border: 1px solid #e0e0e0');
+  });
+});
+
+function analyze(source) {
+  const lexer = new Lexer(source, '<test>');
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, '<test>');
+  const ast = parser.parse();
+  const analyzer = new Analyzer(ast, '<test>');
+  analyzer.analyze();
+  return analyzer.warnings;
+}
+
+describe('variant() analyzer', () => {
+  test('warns on unknown prop in variant()', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String) {
+          style {
+            variant(color) {
+              red { background: red; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    expect(warnings.some(w => w.code === 'W_VARIANT_UNKNOWN_PROP')).toBe(true);
+  });
+
+  test('no warning for valid variant prop', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String) {
+          style {
+            variant(variant) {
+              primary { background: blue; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    expect(warnings.some(w => w.code === 'W_VARIANT_UNKNOWN_PROP')).toBe(false);
+  });
+
+  test('warns on unknown prop in compound variant', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String, size: String) {
+          style {
+            variant(variant + color) {
+              primary + red { background: red; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    const w = warnings.find(w => w.code === 'W_VARIANT_UNKNOWN_PROP');
+    expect(w).toBeTruthy();
+    expect(w.message).toContain('color');
+  });
+
+  test('no warning for valid compound variant props', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String, size: String) {
+          style {
+            variant(variant + size) {
+              primary + lg { font-weight: bold; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    expect(warnings.some(w => w.code === 'W_VARIANT_UNKNOWN_PROP')).toBe(false);
+  });
+
+  test('warning message includes available props', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String, size: String) {
+          style {
+            variant(color) {
+              red { background: red; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    const w = warnings.find(w => w.code === 'W_VARIANT_UNKNOWN_PROP');
+    expect(w).toBeTruthy();
+    expect(w.message).toContain('variant');
+    expect(w.message).toContain('size');
+  });
+
+  test('warns on each unknown prop in compound variant', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String) {
+          style {
+            variant(foo + bar) {
+              a + b { background: red; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    const variantWarnings = warnings.filter(w => w.code === 'W_VARIANT_UNKNOWN_PROP');
+    expect(variantWarnings.length).toBe(2);
+    expect(variantWarnings.some(w => w.message.includes('foo'))).toBe(true);
+    expect(variantWarnings.some(w => w.message.includes('bar'))).toBe(true);
+  });
+
+  test('multiple variant blocks each validated', () => {
+    const warnings = analyze(`
+      browser {
+        component Button(variant: String, size: String) {
+          style {
+            variant(variant) {
+              primary { background: blue; }
+            }
+            variant(unknown_prop) {
+              big { font-size: 20px; }
+            }
+          }
+          <button>"Click"</button>
+        }
+      }
+    `);
+    const variantWarnings = warnings.filter(w => w.code === 'W_VARIANT_UNKNOWN_PROP');
+    expect(variantWarnings.length).toBe(1);
+    expect(variantWarnings[0].message).toContain('unknown_prop');
   });
 });
