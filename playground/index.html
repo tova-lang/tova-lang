@@ -3033,6 +3033,10 @@ class RangePattern {
 // ============================================================
 // Select-specific nodes (lazy-loaded from select-ast.js, re-exported for backward compat)
 // ============================================================
+
+// ============================================================
+// Theme-specific nodes (lazy-loaded from theme-ast.js, re-exported for backward compat)
+// ============================================================
 class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';
@@ -3650,9 +3654,38 @@ class DeployDbBlock {
   }
 }
 
+// ─── src/parser/theme-ast.js ───────────────────────────
+
+// Theme-specific AST Node definitions for the Tova language
+// Extracted for lazy loading — only loaded when theme { } blocks are used.
+class ThemeBlock {
+  constructor(sections, darkOverrides, loc) {
+    this.type = 'ThemeBlock';
+    this.sections = sections;           // Array of ThemeSection
+    this.darkOverrides = darkOverrides; // Array of ThemeToken (flat dark mode overrides)
+    this.loc = loc;
+  }
+}
+class ThemeSection {
+  constructor(name, tokens, loc) {
+    this.type = 'ThemeSection';
+    this.name = name;       // string — section name, e.g. "colors", "spacing", "font"
+    this.tokens = tokens;   // Array of ThemeToken
+    this.loc = loc;
+  }
+}
+class ThemeToken {
+  constructor(name, value, loc) {
+    this.type = 'ThemeToken';
+    this.name = name;   // string — dot-separated name, e.g. "primary.hover"
+    this.value = value;  // string or number — token value
+    this.loc = loc;
+  }
+}
+
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase, DeployBlock, DeployConfigField, DeployEnvBlock, DeployDbBlock };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase, DeployBlock, DeployConfigField, DeployEnvBlock, DeployDbBlock, ThemeBlock, ThemeSection, ThemeToken };
 
 // ─── src/diagnostics/error-codes.js ────────────────────
 
@@ -6445,6 +6478,75 @@ function installDeployParser(ParserClass) {
   };
 }
 
+// ─── src/parser/theme-parser.js ────────────────────────
+
+// Theme-specific parser methods for the Tova language
+// Extracted from parser.js for lazy loading — only loaded when theme { } blocks are encountered.
+function installThemeParser(ParserClass) {
+  if (ParserClass.prototype._themeParserInstalled) return;
+  ParserClass.prototype._themeParserInstalled = true;
+
+  ParserClass.prototype.parseThemeBlock = function() {
+    const l = this.loc();
+    this.advance(); // consume 'theme'
+    this.expect(TokenType.LBRACE, "Expected '{' after 'theme'");
+
+    const sections = [];
+    const darkOverrides = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const sectionLoc = this.loc();
+      const sectionName = this.expect(TokenType.IDENTIFIER, "Expected section name inside theme block").value;
+      this.expect(TokenType.LBRACE, `Expected '{' after theme section '${sectionName}'`);
+
+      if (sectionName === 'dark') {
+        // dark section: flat overrides with dot-notation names
+        while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+          darkOverrides.push(this._parseThemeToken());
+        }
+      } else {
+        // Regular section: parse tokens into a ThemeSection
+        const tokens = [];
+        while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+          tokens.push(this._parseThemeToken());
+        }
+        sections.push(new ThemeSection(sectionName, tokens, sectionLoc));
+      }
+
+      this.expect(TokenType.RBRACE, `Expected '}' to close theme section '${sectionName}'`);
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close theme block");
+    return new ThemeBlock(sections, darkOverrides, l);
+  };
+
+  ParserClass.prototype._parseThemeToken = function() {
+    const l = this.loc();
+
+    // Read dot-separated name: IDENTIFIER (DOT IDENTIFIER)*
+    let name = this.expect(TokenType.IDENTIFIER, "Expected token name").value;
+    while (this.check(TokenType.DOT)) {
+      this.advance(); // consume DOT
+      const part = this.expect(TokenType.IDENTIFIER, "Expected identifier after '.' in token name").value;
+      name += '.' + part;
+    }
+
+    this.expect(TokenType.COLON, `Expected ':' after token name '${name}'`);
+
+    // Read value: STRING or NUMBER
+    let value;
+    if (this.check(TokenType.STRING)) {
+      value = this.advance().value;
+    } else if (this.check(TokenType.NUMBER)) {
+      value = this.advance().value;
+    } else {
+      this.error(`Expected string or number value for token '${name}'`);
+    }
+
+    return new ThemeToken(name, value, l);
+  };
+}
+
 // ─── src/parser/parser.js ──────────────────────────────
 
 class Parser {
@@ -9014,6 +9116,13 @@ class Scope {
       const existing = this.symbols.get(name);
       // Allow user code to shadow builtins
       if (existing.kind === 'builtin') {
+        if (existing.used) symbol.used = true;
+        this.symbols.set(name, symbol);
+        return;
+      }
+      // Allow real definitions to overwrite forward-declared symbols
+      if (existing._forward) {
+        if (existing.used) symbol.used = true;
         this.symbols.set(name, symbol);
         return;
       }
@@ -9678,7 +9787,22 @@ function installServerAnalyzer(AnalyzerClass) {
     const prevScope = this.currentScope;
     const prevServerBlockName = this._currentServerBlockName;
     this._currentServerBlockName = node.name || null;
-    this.currentScope = this.currentScope.child('server');
+    let serverScope = null;
+    for (const ch of this.currentScope.children) {
+      if (ch.context === 'server') { serverScope = ch; break; }
+    }
+    const isFirst = !serverScope;
+    this.currentScope = serverScope || this.currentScope.child('server');
+
+    // On first server block, pre-register function/var/type names from ALL
+    // server blocks so cross-file references resolve regardless of file order.
+    if (isFirst && this.ast && this.ast.body) {
+      for (const topNode of this.ast.body) {
+        if (topNode.type === 'ServerBlock') {
+          this._preRegisterServerDecls(topNode.body);
+        }
+      }
+    }
 
     try {
       // Register peer server block names as valid identifiers in this scope
@@ -9714,6 +9838,23 @@ function installServerAnalyzer(AnalyzerClass) {
     } finally {
       this.currentScope = prevScope;
       this._currentServerBlockName = prevServerBlockName;
+    }
+  };
+
+  AnalyzerClass.prototype._preRegisterServerDecls = function(stmts) {
+    for (const stmt of stmts) {
+      const name = stmt.name;
+      if (!name) continue;
+      let kind = null;
+      if (stmt.type === 'FunctionDeclaration') kind = 'function';
+      else if (stmt.type === 'VarDeclaration') kind = 'variable';
+      else if (stmt.type === 'TypeDeclaration') kind = 'type';
+      else if (stmt.type === 'ModelDeclaration') kind = 'type';
+      if (kind && !this.currentScope.symbols.has(name)) {
+        const sym = new Symbol(name, kind, stmt.typeAnnotation || null, kind === 'variable', stmt.loc);
+        sym._forward = true;
+        try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+      }
     }
   };
 
@@ -10232,13 +10373,46 @@ function installBrowserAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitBrowserBlock = function(node) {
     const prevScope = this.currentScope;
-    this.currentScope = this.currentScope.child('browser');
+    let browserScope = null;
+    for (const ch of this.currentScope.children) {
+      if (ch.context === 'browser') { browserScope = ch; break; }
+    }
+    const isFirst = !browserScope;
+    this.currentScope = browserScope || this.currentScope.child('browser');
+
+    // On first browser block, pre-register state/computed/function names from ALL
+    // browser blocks so cross-file references resolve regardless of file order.
+    if (isFirst && this.ast && this.ast.body) {
+      for (const topNode of this.ast.body) {
+        if (topNode.type === 'BrowserBlock') {
+          this._preRegisterBrowserDecls(topNode.body);
+        }
+      }
+    }
+
     try {
       for (const stmt of node.body) {
         this.visitNode(stmt);
       }
     } finally {
       this.currentScope = prevScope;
+    }
+  };
+
+  AnalyzerClass.prototype._preRegisterBrowserDecls = function(stmts) {
+    for (const stmt of stmts) {
+      const name = stmt.name;
+      if (!name) continue;
+      let kind = null;
+      if (stmt.type === 'StateDeclaration') kind = 'state';
+      else if (stmt.type === 'ComputedDeclaration') kind = 'computed';
+      else if (stmt.type === 'FunctionDeclaration') kind = 'function';
+      else if (stmt.type === 'ComponentDeclaration') kind = 'component';
+      if (kind && !this.currentScope.symbols.has(name)) {
+        const sym = new Symbol(name, kind, stmt.typeAnnotation || null, kind === 'state', stmt.loc);
+        sym._forward = true;
+        try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+      }
     }
   };
 
@@ -11393,6 +11567,10 @@ class Analyzer {
     }
   }
 
+  visitThemeBlock(node) {
+    // Stub — validation added in Task 2
+  }
+
   visitSecurityBlock(node) {
     // Per-block: only check for duplicate role names within this block
     const localRoles = new Set();
@@ -12440,7 +12618,7 @@ class Analyzer {
       const sym = this.currentScope.lookup(narrowing.varName);
       if (sym) {
         // Store narrowed type info in the scope
-        const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, false, sym.loc);
+        const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, sym.mutable, sym.loc);
         narrowedSym.inferredType = narrowing.narrowedType;
         narrowedSym._narrowed = true;
         try { this.currentScope.define(narrowing.varName, narrowedSym); } catch (e) { /* already defined */ }
@@ -12465,7 +12643,7 @@ class Analyzer {
         this.currentScope = this.currentScope.child('block');
         const sym = this.currentScope.lookup(narrowing.varName);
         if (sym) {
-          const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, false, sym.loc);
+          const narrowedSym = new Symbol(narrowing.varName, sym.kind, null, sym.mutable, sym.loc);
           narrowedSym.inferredType = narrowing.inverseType;
           narrowedSym._narrowed = true;
           try { this.currentScope.define(narrowing.varName, narrowedSym); } catch (e) { /* already defined */ }
@@ -15576,6 +15754,27 @@ const deployPlugin = {
   codegen: {},
 };
 
+// ─── src/registry/plugins/theme-plugin.js ──────────────
+
+const themePlugin = {
+  name: 'theme',
+  astNodeType: 'ThemeBlock',
+  detection: {
+    strategy: 'identifier',
+    identifierValue: 'theme',
+  },
+  parser: {
+    install: installThemeParser,
+    installedFlag: '_themeParserInstalled',
+    method: 'parseThemeBlock',
+  },
+  analyzer: {
+    visit: (analyzer, node) => analyzer.visitThemeBlock(node),
+    noopNodeTypes: ['ThemeSection', 'ThemeToken'],
+  },
+  codegen: {},
+};
+
 // ─── src/registry/register-all.js ──────────────────────
 
 // Registers all built-in block plugins and re-exports BlockRegistry.
@@ -15592,6 +15791,8 @@ const deployPlugin = {
 
 
 
+
+BlockRegistry.register(themePlugin);
 BlockRegistry.register(serverPlugin);
 BlockRegistry.register(browserPlugin);
 BlockRegistry.register(sharedPlugin);

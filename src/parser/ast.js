@@ -768,6 +768,12 @@ export {
 
 export { SelectStatement, SelectCase } from './select-ast.js';
 
+// ============================================================
+// Theme-specific nodes (lazy-loaded from theme-ast.js, re-exported for backward compat)
+// ============================================================
+
+export { ThemeBlock, ThemeSection, ThemeToken } from './theme-ast.js';
+
 export class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';

@@ -963,6 +963,10 @@ export class Analyzer {
     }
   }
 
+  visitThemeBlock(node) {
+    // Stub — validation added in Task 2
+  }
+
   visitSecurityBlock(node) {
     // Per-block: only check for duplicate role names within this block
     const localRoles = new Set();
