@@ -435,6 +435,14 @@ export class BrowserCodegen extends BaseCodegen {
     return p.join('');
   }
 
+  // Resolve $token syntax in CSS: $category.name.sub -> var(--tova-category-name-sub)
+  _resolveTokens(css) {
+    return css.replace(/\$(\w+)\.([\w.]+)/g, (match, category, name) => {
+      const cssName = name.replace(/\./g, '-');
+      return `var(--tova-${category}-${cssName})`;
+    });
+  }
+
   // Generate a scope hash from component name + CSS content (for CSS scoping)
   // Uses FNV-1a for better distribution and 8-char output to reduce collision risk.
   _genScopeId(name, css) {
@@ -608,9 +616,10 @@ export class BrowserCodegen extends BaseCodegen {
     const savedScopeId = this._currentScopeId;
     if (styleBlocks.length > 0) {
       const rawCSS = styleBlocks.map(s => s.css).join('\n');
-      const scopeId = this._genScopeId(comp.name, rawCSS);
+      const resolvedCSS = this._resolveTokens(rawCSS);
+      const scopeId = this._genScopeId(comp.name, rawCSS); // Use rawCSS for hash stability
       this._currentScopeId = scopeId;
-      const scopedCSS = this._scopeCSS(rawCSS, `[data-tova-${scopeId}]`);
+      const scopedCSS = this._scopeCSS(resolvedCSS, `[data-tova-${scopeId}]`);
       p.push(`${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`);
     }
 
