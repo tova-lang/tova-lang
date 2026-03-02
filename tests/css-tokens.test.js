@@ -2,6 +2,17 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
+import { Analyzer } from '../src/analyzer/analyzer.js';
+
+function analyze(source) {
+  const lexer = new Lexer(source, '<test>');
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, '<test>');
+  const ast = parser.parse();
+  const analyzer = new Analyzer(ast, '<test>');
+  analyzer.analyze();
+  return analyzer.warnings;
+}
 
 function compileBrowser(source) {
   const lexer = new Lexer(source, '<test>');
@@ -127,5 +138,75 @@ describe('$token syntax', () => {
       }
     }`);
     expect(result).toContain('var(--tova-color-primary)');
+  });
+});
+
+describe('$token — analyzer validation', () => {
+  test('warns on unknown token reference', () => {
+    const warnings = analyze(`theme {
+      colors { primary: "#3b82f6" }
+    }
+    browser {
+      component App {
+        <div class="box">"Hello"</div>
+        style { .box { color: $color.primry; } }
+      }
+    }`);
+    expect(warnings.some(w => w.code === 'W_UNKNOWN_THEME_TOKEN')).toBe(true);
+    expect(warnings.some(w => w.message.includes('primry'))).toBe(true);
+  });
+
+  test('suggests closest match for typo', () => {
+    const warnings = analyze(`theme {
+      colors { primary: "#3b82f6" secondary: "#8b5cf6" }
+    }
+    browser {
+      component App {
+        <div class="box">"Hello"</div>
+        style { .box { color: $color.primay; } }
+      }
+    }`);
+    const w = warnings.find(w => w.code === 'W_UNKNOWN_THEME_TOKEN');
+    expect(w).toBeTruthy();
+    expect(w.message).toContain('primary');
+  });
+
+  test('warns on unknown category', () => {
+    const warnings = analyze(`theme {
+      colors { primary: "#3b82f6" }
+    }
+    browser {
+      component App {
+        <div class="box">"Hello"</div>
+        style { .box { color: $clr.primary; } }
+      }
+    }`);
+    expect(warnings.some(w => w.code === 'W_UNKNOWN_THEME_CATEGORY')).toBe(true);
+  });
+
+  test('no warning for valid token references', () => {
+    const warnings = analyze(`theme {
+      colors { primary: "#3b82f6" }
+      spacing { md: 16 }
+    }
+    browser {
+      component App {
+        <div class="box">"Hello"</div>
+        style { .box { color: $color.primary; padding: $spacing.md; } }
+      }
+    }`);
+    const tokenWarnings = warnings.filter(w => w.code && w.code.startsWith('W_UNKNOWN_THEME'));
+    expect(tokenWarnings.length).toBe(0);
+  });
+
+  test('no warning when no theme block (tokens pass through)', () => {
+    const warnings = analyze(`browser {
+      component App {
+        <div class="box">"Hello"</div>
+        style { .box { color: $color.primary; } }
+      }
+    }`);
+    const tokenWarnings = warnings.filter(w => w.code && w.code.startsWith('W_UNKNOWN_THEME'));
+    expect(tokenWarnings.length).toBe(0);
   });
 });

@@ -759,7 +759,7 @@ export class Analyzer {
       case 'GuardStatement': return this.visitGuardStatement(node);
       case 'InterfaceDeclaration': return this.visitInterfaceDeclaration(node);
       case 'RefinementType': return;
-      case 'ComponentStyleBlock': return; // raw CSS — no analysis needed
+      case 'ComponentStyleBlock': return this._validateStyleTokens(node.css, node.loc);
       case 'ImplDeclaration': return this.visitImplDeclaration(node);
       case 'TraitDeclaration': return this.visitTraitDeclaration(node);
       case 'TypeAlias': return this.visitTypeAlias(node);
@@ -1038,6 +1038,49 @@ export class Analyzer {
         });
       }
     }
+  }
+
+  _validateStyleTokens(css, loc) {
+    if (!this._hasThemeBlock) return;
+    const VALID_CATEGORIES = new Set(['color', 'spacing', 'radius', 'shadow', 'font', 'transition', 'breakpoint']);
+    const tokenRegex = /\$(\w+)\.([\w.]+)/g;
+    let m;
+    while ((m = tokenRegex.exec(css)) !== null) {
+      const category = m[1];
+      const name = m[2];
+      if (!VALID_CATEGORIES.has(category)) {
+        this.warnings.push({
+          message: `Unknown theme category '$${category}' — valid categories are: ${[...VALID_CATEGORIES].join(', ')}`,
+          loc,
+          code: 'W_UNKNOWN_THEME_CATEGORY',
+        });
+        continue;
+      }
+      const tokenSet = this._themeTokens ? this._themeTokens.get(category) : null;
+      if (!tokenSet || !tokenSet.has(name)) {
+        const available = tokenSet ? [...tokenSet] : [];
+        let suggestion = '';
+        if (available.length > 0) {
+          const closest = this._findClosestThemeMatch(name, available);
+          if (closest) suggestion = ` — did you mean '$${category}.${closest}'?`;
+        }
+        this.warnings.push({
+          message: `Unknown theme token '$${category}.${name}'${suggestion}`,
+          loc,
+          code: 'W_UNKNOWN_THEME_TOKEN',
+        });
+      }
+    }
+  }
+
+  _findClosestThemeMatch(input, candidates) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const c of candidates) {
+      const d = levenshtein(input, c);
+      if (d < bestDist && d <= 3) { bestDist = d; best = c; }
+    }
+    return best;
   }
 
   visitSecurityBlock(node) {
