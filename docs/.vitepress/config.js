@@ -141,6 +141,7 @@ export default defineConfig({
             { text: 'Edge Block', link: '/fullstack/edge-block' },
             { text: 'Server Block', link: '/fullstack/server-block' },
             { text: 'Browser Block', link: '/fullstack/browser-block' },
+            { text: 'Theme Block', link: '/fullstack/theme-block' },
             { text: 'Form Block', link: '/fullstack/form-block' },
             { text: 'RPC Bridge', link: '/fullstack/rpc' },
             { text: 'Named Blocks', link: '/fullstack/named-blocks' },

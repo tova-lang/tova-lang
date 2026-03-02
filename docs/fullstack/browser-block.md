@@ -523,6 +523,7 @@ browser {
 - [Named Blocks](./named-blocks) -- named browser and server blocks for separate outputs
 - [Modules](/guide/modules) -- multi-file merging and import system
 - [Form Block](./form-block) -- declarative forms with validation, groups, arrays, and wizard steps
+- [Theme Block](./theme-block) -- design tokens, dark mode, CSS custom properties
 - [Compilation](./compilation) -- how the client output is generated
 
 For detailed reference on each reactive primitive, see the Reactive UI pages:
@@ -531,6 +532,7 @@ For detailed reference on each reactive primitive, see the Reactive UI pages:
 - [Effects](/reactivity/effects)
 - [Components](/reactivity/components)
 - [JSX](/reactivity/jsx)
+- [Styling](/reactivity/styling) -- scoped CSS, design tokens, variants, animations, fonts
 - [Stores](/reactivity/stores)
 - [Forms & Validation](/reactivity/forms)
 - [Lifecycle](/reactivity/lifecycle)

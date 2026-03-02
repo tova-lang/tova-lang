@@ -229,3 +229,7 @@ When items are added to or removed from the list, each item animates with the sp
 2. When a new child appears, its enter transition plays automatically
 3. When a child is removed, its leave transition plays before DOM removal
 4. The container element receives a `data-tova-transition-group` attribute for styling
+
+::: tip
+For declarative, composable animations with `@keyframes` generation (parallel, sequential, stagger), see the [`animate {}` block](/reactivity/styling#declarative-animations) in the Styling guide.
+:::
