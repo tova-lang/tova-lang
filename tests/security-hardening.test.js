@@ -226,7 +226,8 @@ describe('W_DANGEROUS_API', () => {
 function compile(source) {
   const ast = parse(source);
   const gen = new CodeGenerator(ast, 'test.tova');
-  return gen.generate();
+  const result = gen.generate();
+  return result.server || '';
 }
 
 // ════════════════════════════════════════════════════════════

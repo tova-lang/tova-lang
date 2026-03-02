@@ -1052,6 +1052,22 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     // 8b. Security Headers — OWASP recommended
     // ════════════════════════════════════════════════════════════
+    // Always emit base security headers (even in fast mode)
+    lines.push('// ── Base Security Headers (always) ──');
+    lines.push('const __baseSecurityHeaders = Object.freeze({');
+    lines.push('  "X-Content-Type-Options": "nosniff",');
+    lines.push('  "X-Frame-Options": "DENY",');
+    lines.push('  "X-XSS-Protection": "0",');
+    lines.push('  "Referrer-Policy": "strict-origin-when-cross-origin",');
+    lines.push('});');
+    lines.push('function __applyBaseHeaders(res) {');
+    lines.push('  if (!res) return res;');
+    lines.push('  const h = new Headers(res.headers);');
+    lines.push('  for (const [k, v] of Object.entries(__baseSecurityHeaders)) h.set(k, v);');
+    lines.push('  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });');
+    lines.push('}');
+    lines.push('');
+
     if (!isFastMode) {
       lines.push('// ── Security Headers ──');
       lines.push('const __securityHeaders = Object.freeze({');
@@ -3490,8 +3506,14 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  if (!res) return res;');
       lines.push('  return __compressResponse(req, res);');
       lines.push('};');
+    } else if (isFastMode) {
+      // Fast mode: wrap with base security headers
+      lines.push('const __secureFetch = async (req) => {');
+      lines.push('  const res = await __handleRequest(req);');
+      lines.push('  return __applyBaseHeaders(res);');
+      lines.push('};');
     }
-    const fetchHandler = (!isFastMode || compressionConfig) ? '__idempotentFetch' : '__handleRequest';
+    const fetchHandler = !isFastMode ? '__idempotentFetch' : (compressionConfig ? '__idempotentFetch' : '__secureFetch');
     lines.push(`const __server = Bun.serve({`);
     lines.push(`  port: __port,`);
     lines.push(`  maxRequestBodySize: __maxBodySize,`);
