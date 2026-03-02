@@ -85,6 +85,18 @@ describe('W_NO_SECURITY_BLOCK', () => {
     expect(w.category).toBe('security');
   });
 
+  test('warns when edge block exists without security block', () => {
+    const result = analyze(`
+      edge {
+        target: "cloudflare"
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_NO_SECURITY_BLOCK')).toBe(true);
+    const w = result.warnings.find(w => w.code === 'W_NO_SECURITY_BLOCK');
+    expect(w.category).toBe('security');
+  });
+
   test('does not warn when security block exists', () => {
     const result = analyze(`
       security {

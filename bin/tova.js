@@ -17,6 +17,7 @@ import { Formatter } from '../src/formatter/formatter.js';
 import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE, DEVTOOLS_SOURCE, SSR_SOURCE, TESTING_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
 import '../src/runtime/array-proto.js';
+import { generateSecurityScorecard } from '../src/diagnostics/security-scorecard.js';
 import { resolveConfig } from '../src/config/resolve.js';
 import { writePackageJson } from '../src/config/package-json.js';
 import { addToSection, removeFromSection } from '../src/config/edit-toml.js';
@@ -805,6 +806,7 @@ async function buildProject(args) {
 
   // Group files by directory for multi-file merging
   const dirGroups = groupFilesByDirectory(tovaFiles);
+  let _scorecardData = null; // Collect security info for scorecard
 
   for (const [dir, files] of dirGroups) {
     const dirName = basename(dir) === '.' ? 'app' : basename(dir);
@@ -844,7 +846,10 @@ async function buildProject(args) {
       const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity });
       if (!result) continue;
 
-      const { output, single } = result;
+      const { output, single, warnings: buildWarnings, securityConfig, hasServer, hasEdge } = result;
+      if ((hasServer || hasEdge) && !_scorecardData) {
+        _scorecardData = { securityConfig, warnings: buildWarnings || [], hasServer, hasEdge };
+      }
       // Preserve relative directory structure in output (e.g., src/lib/math.tova → lib/math.js)
       const outBaseName = single
         ? relative(srcDir, files[0]).replace(/\.tova$/, '').replace(/\\/g, '/')
@@ -1007,6 +1012,18 @@ async function buildProject(args) {
     const cachedStr = skippedCount > 0 ? ` (${skippedCount} cached)` : '';
     console.log(`\n  Build complete. ${dirCount - errorCount}/${dirCount} directory group(s) succeeded${cachedStr}${timingStr}.\n`);
   }
+
+  // Security scorecard (shown with --verbose or --strict-security, suppressed with --quiet)
+  if ((isVerbose || buildStrictSecurity) && !isQuiet && _scorecardData) {
+    const scorecard = generateSecurityScorecard(
+      _scorecardData.securityConfig,
+      _scorecardData.warnings,
+      _scorecardData.hasServer,
+      _scorecardData.hasEdge
+    );
+    if (scorecard) console.log(scorecard.format());
+  }
+
   if (errorCount > 0) process.exit(1);
 
   // Watch mode for build command
@@ -1076,6 +1093,8 @@ async function checkProject(args) {
   let totalErrors = 0;
   let totalWarnings = 0;
   const seenCodes = new Set();
+  let _checkScorecardData = null;
+  const _allCheckWarnings = [];
 
   for (const file of tovaFiles) {
     const relPath = relative(srcDir, file);
@@ -1093,6 +1112,32 @@ async function checkProject(args) {
       const warnings = result.warnings || [];
       totalErrors += errors.length;
       totalWarnings += warnings.length;
+      _allCheckWarnings.push(...warnings);
+
+      // Collect security info for scorecard
+      if (!_checkScorecardData) {
+        const hasServer = ast.body.some(n => n.type === 'ServerBlock');
+        const hasEdge = ast.body.some(n => n.type === 'EdgeBlock');
+        if (hasServer || hasEdge) {
+          const secNode = ast.body.find(n => n.type === 'SecurityBlock');
+          let secCfg = null;
+          if (secNode) {
+            secCfg = {};
+            for (const child of secNode.body || []) {
+              if (child.type === 'AuthDeclaration') secCfg.auth = { authType: child.authType || 'jwt', storage: child.config?.storage?.value };
+              else if (child.type === 'CsrfDeclaration') secCfg.csrf = { enabled: child.config?.enabled?.value !== false };
+              else if (child.type === 'RateLimitDeclaration') secCfg.rateLimit = { max: child.config?.max?.value };
+              else if (child.type === 'CspDeclaration') secCfg.csp = { default_src: true };
+              else if (child.type === 'CorsDeclaration') {
+                const origins = child.config?.origins;
+                secCfg.cors = { origins: origins ? (origins.elements || []).map(e => e.value) : [] };
+              }
+              else if (child.type === 'AuditDeclaration') secCfg.audit = { events: ['auth'] };
+            }
+          }
+          _checkScorecardData = { securityConfig: secCfg, hasServer, hasEdge };
+        }
+      }
 
       if (errors.length > 0 || warnings.length > 0) {
         const formatter = new DiagnosticFormatter(source, file);
@@ -1119,6 +1164,17 @@ async function checkProject(args) {
         console.error(`  ✗ ${relPath}: ${err.message}`);
       }
     }
+  }
+
+  // Security scorecard (shown with --verbose or --strict-security, suppressed with --quiet)
+  if ((isVerbose || checkStrictSecurity) && !isQuiet && _checkScorecardData) {
+    const scorecard = generateSecurityScorecard(
+      _checkScorecardData.securityConfig,
+      _allCheckWarnings,
+      _checkScorecardData.hasServer,
+      _checkScorecardData.hasEdge
+    );
+    if (scorecard) console.log(scorecard.format());
   }
 
   if (!isQuiet) {
@@ -1744,11 +1800,19 @@ print("Hello, {name}!")
     tomlDescription: 'A Tova library',
     entry: 'src',
     noEntry: true,
+    isPackage: true,
     file: 'src/lib.tova',
     content: name => `// ${name} — A Tova library
+//
+// Usage:
+//   import { greet } from "github.com/yourname/${name}"
 
 pub fn greet(name: String) -> String {
   "Hello, {name}!"
+}
+
+pub fn version() -> String {
+  "0.1.0"
 }
 `,
     nextSteps: name => `    cd ${name}\n    tova build`,
@@ -1786,6 +1850,7 @@ async function newProject(rawArgs) {
   }
 
   const projectDir = resolve(name);
+  const projectName = basename(projectDir);
   if (existsSync(projectDir)) {
     console.error(color.red(`Error: Directory '${name}' already exists`));
     process.exit(1);
@@ -1837,24 +1902,46 @@ async function newProject(rawArgs) {
   const createdFiles = [];
 
   // tova.toml
-  const tomlConfig = {
-    project: {
-      name,
-      version: '0.1.0',
-      description: template.tomlDescription,
-    },
-    build: {
-      output: '.tova-out',
-    },
-  };
-  if (!template.noEntry) {
-    tomlConfig.project.entry = template.entry;
+  let tomlContent;
+  if (template.isPackage) {
+    // Library packages use [package] section per package management design
+    tomlContent = [
+      '[package]',
+      `name = "github.com/yourname/${projectName}"`,
+      `version = "0.1.0"`,
+      `description = "${template.tomlDescription}"`,
+      `license = "MIT"`,
+      `exports = ["greet", "version"]`,
+      '',
+      '[build]',
+      'output = ".tova-out"',
+      '',
+      '[dependencies]',
+      '',
+      '[npm]',
+      '',
+    ].join('\n') + '\n';
+  } else {
+    const tomlConfig = {
+      project: {
+        name: projectName,
+        version: '0.1.0',
+        description: template.tomlDescription,
+      },
+      build: {
+        output: '.tova-out',
+      },
+    };
+    if (!template.noEntry) {
+      tomlConfig.project.entry = template.entry;
+    }
+    if (templateName === 'fullstack' || templateName === 'api') {
+      tomlConfig.dev = { port: 3000 };
+      tomlConfig.npm = {};
+    }
+    tomlContent = stringifyTOML(tomlConfig);
   }
-  if (templateName === 'fullstack' || templateName === 'api') {
-    tomlConfig.dev = { port: 3000 };
-    tomlConfig.npm = {};
-  }
-  writeFileSync(join(projectDir, 'tova.toml'), stringifyTOML(tomlConfig));
+  writeFileSync(join(projectDir, 'tova.toml'), tomlContent);
   createdFiles.push('tova.toml');
 
   // .gitignore
@@ -1870,12 +1957,12 @@ bun.lock
 
   // Template source file
   if (template.file && template.content) {
-    writeFileSync(join(projectDir, template.file), template.content(name));
+    writeFileSync(join(projectDir, template.file), template.content(projectName));
     createdFiles.push(template.file);
   }
 
   // README
-  writeFileSync(join(projectDir, 'README.md'), `# ${name}
+  let readmeContent = `# ${projectName}
 
 Built with [Tova](https://github.com/tova-lang/tova-lang) — a modern full-stack language.
 
@@ -1884,7 +1971,34 @@ Built with [Tova](https://github.com/tova-lang/tova-lang) — a modern full-stac
 \`\`\`bash
 ${template.nextSteps(name).trim()}
 \`\`\`
-`);
+`;
+  if (template.isPackage) {
+    readmeContent += `
+## Usage
+
+\`\`\`tova
+import { greet } from "github.com/yourname/${projectName}"
+
+print(greet("world"))
+\`\`\`
+
+## Publishing
+
+Tag a release and push — no registry needed:
+
+\`\`\`bash
+git tag v0.1.0
+git push origin v0.1.0
+\`\`\`
+
+Others can then add your package:
+
+\`\`\`bash
+tova add github.com/yourname/${projectName}
+\`\`\`
+`;
+  }
+  writeFileSync(join(projectDir, 'README.md'), readmeContent);
   createdFiles.push('README.md');
 
   // Print created files
@@ -4332,7 +4446,27 @@ function mergeDirectory(dir, srcDir, options = {}) {
   output._sourceContents = sourceContents;
   output._sourceFiles = tovaFiles;
 
-  return { output, files: tovaFiles, single: false };
+  // Extract security info for scorecard
+  const hasServer = mergedBody.some(n => n.type === 'ServerBlock');
+  const hasEdge = mergedBody.some(n => n.type === 'EdgeBlock');
+  const securityNode = mergedBody.find(n => n.type === 'SecurityBlock');
+  let securityConfig = null;
+  if (securityNode) {
+    securityConfig = {};
+    for (const child of securityNode.body || []) {
+      if (child.type === 'AuthDeclaration') securityConfig.auth = { authType: child.authType || 'jwt', storage: child.config?.storage?.value };
+      else if (child.type === 'CsrfDeclaration') securityConfig.csrf = { enabled: child.config?.enabled?.value !== false };
+      else if (child.type === 'RateLimitDeclaration') securityConfig.rateLimit = { max: child.config?.max?.value };
+      else if (child.type === 'CspDeclaration') securityConfig.csp = { default_src: true };
+      else if (child.type === 'CorsDeclaration') {
+        const origins = child.config?.origins;
+        securityConfig.cors = { origins: origins ? (origins.elements || []).map(e => e.value) : [] };
+      }
+      else if (child.type === 'AuditDeclaration') securityConfig.audit = { events: ['auth'] };
+    }
+  }
+
+  return { output, files: tovaFiles, single: false, warnings, securityConfig, hasServer, hasEdge };
 }
 
 // Group .tova files by their parent directory
