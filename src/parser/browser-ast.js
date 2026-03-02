@@ -43,9 +43,10 @@ export class ComponentDeclaration {
 }
 
 export class ComponentStyleBlock {
-  constructor(css, loc) {
+  constructor(css, loc, config) {
     this.type = 'ComponentStyleBlock';
     this.css = css; // raw CSS string
+    this.config = config || null; // e.g. { motion: 'full' } from style(motion: full)
     this.loc = loc;
   }
 }

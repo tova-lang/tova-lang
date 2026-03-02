@@ -586,6 +586,17 @@ export class BrowserCodegen extends BaseCodegen {
     return BrowserCodegen.DEFAULT_BREAKPOINTS;
   }
 
+  // Auto-inject @media (prefers-reduced-motion: reduce) when CSS uses transition or animation
+  _generateReducedMotion(scopedCSS, scopeAttr) {
+    const hasTransition = /\btransition\s*:|\btransition-/.test(scopedCSS);
+    const hasAnimation = /\banimation\s*:|\banimation-/.test(scopedCSS);
+    if (!hasTransition && !hasAnimation) return scopedCSS;
+    let rules = '';
+    if (hasTransition) rules += ' transition-duration: 0.01ms !important;';
+    if (hasAnimation) rules += ' animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;';
+    return scopedCSS + ` @media (prefers-reduced-motion: reduce) { ${scopeAttr} {${rules} } }`;
+  }
+
   _extractResponsive(css) {
     // Find responsive { ... } block in raw CSS and extract it
     const responsiveMatch = css.match(/responsive\s*\{/);
@@ -714,6 +725,12 @@ export class BrowserCodegen extends BaseCodegen {
             scopedCSS += ` @media (min-width: ${bpValue}px) { ${scopedBpCSS} }`;
           }
         }
+      }
+
+      // Auto-inject prefers-reduced-motion unless opted out with style(motion: full)
+      const motionFull = styleBlocks.some(s => s.config && s.config.motion === 'full');
+      if (!motionFull) {
+        scopedCSS = this._generateReducedMotion(scopedCSS, scopeAttr);
       }
 
       p.push(`${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`);

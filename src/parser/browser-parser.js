@@ -125,9 +125,23 @@ export function installBrowserParser(ParserClass) {
     while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
       if (this.check(TokenType.STYLE_BLOCK)) {
         const sl = this.loc();
-        const css = this.current().value;
+        let css = this.current().value;
+        let config = null;
+        // Parse __CONFIG:key:value__ prefix from lexer
+        if (css.startsWith('__CONFIG:')) {
+          const endIdx = css.indexOf('__', 9);
+          if (endIdx !== -1) {
+            const configStr = css.slice(9, endIdx);
+            config = {};
+            for (const part of configStr.split(',')) {
+              const [k, v] = part.split(':').map(s => s.trim());
+              if (k) config[k] = v || true;
+            }
+            css = css.slice(endIdx + 2).trim();
+          }
+        }
         this.advance();
-        body.push(new AST.ComponentStyleBlock(css, sl));
+        body.push(new AST.ComponentStyleBlock(css, sl, config));
       } else if (this.check(TokenType.LESS) && this._looksLikeJSX()) {
         body.push(this.parseJSXElementOrFragment());
       } else if (this.check(TokenType.STATE)) {

@@ -899,14 +899,29 @@ export class Lexer {
       return;
     }
 
-    // Special case: "style {" → read raw CSS block
+    // Special case: "style {" or "style(...) {" → read raw CSS block
     if (value === 'style') {
       const savedPos = this.pos;
       const savedLine = this.line;
       const savedCol = this.column;
-      // Skip whitespace (including newlines) to check for {
+      // Skip whitespace (including newlines) to check for ( or {
       while (this.pos < this.length && (this.isWhitespace(this.peek()) || this.peek() === '\n')) {
         this.advance();
+      }
+      // Check for style(...) config
+      let configPrefix = '';
+      if (this.peek() === '(') {
+        this.advance(); // skip (
+        let configStr = '';
+        while (this.pos < this.length && this.peek() !== ')') {
+          configStr += this.advance();
+        }
+        if (this.pos < this.length) this.advance(); // skip )
+        configPrefix = '__CONFIG:' + configStr.trim() + '__';
+        // Skip whitespace after )
+        while (this.pos < this.length && (this.isWhitespace(this.peek()) || this.peek() === '\n')) {
+          this.advance();
+        }
       }
       if (this.peek() === '{') {
         this.advance(); // skip {
@@ -924,7 +939,7 @@ export class Lexer {
         if (depth > 0) {
           this.error('Unterminated style block');
         }
-        this.tokens.push(new Token(TokenType.STYLE_BLOCK, css.trim(), startLine, startCol));
+        this.tokens.push(new Token(TokenType.STYLE_BLOCK, configPrefix + css.trim(), startLine, startCol));
         return;
       }
       // Not a style block — restore position
