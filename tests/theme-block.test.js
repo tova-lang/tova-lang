@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
+import { Analyzer } from '../src/analyzer/analyzer.js';
 
 function parse(source) {
   const lexer = new Lexer(source, '<test>');
@@ -180,5 +181,55 @@ describe('Theme block — parsing', () => {
     expect(ast.body.length).toBe(2);
     expect(ast.body[0].type).toBe('ThemeBlock');
     expect(ast.body[1].type).toBe('BrowserBlock');
+  });
+});
+
+function analyze(source) {
+  const lexer = new Lexer(source, '<test>');
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, '<test>');
+  const ast = parser.parse();
+  const analyzer = new Analyzer(ast, '<test>');
+  analyzer.analyze();
+  return analyzer.warnings;
+}
+
+describe('Theme block — analyzer', () => {
+  test('warns on unknown section name', () => {
+    const warnings = analyze('theme { foo { bar: 42 } }');
+    expect(warnings.some(w => w.code === 'W_UNKNOWN_THEME_SECTION')).toBe(true);
+  });
+
+  test('warns on duplicate section', () => {
+    const warnings = analyze('theme { colors { a: "#f00" } colors { b: "#0f0" } }');
+    expect(warnings.some(w => w.code === 'W_DUPLICATE_THEME_SECTION')).toBe(true);
+  });
+
+  test('warns on duplicate token within section', () => {
+    const warnings = analyze('theme { colors { primary: "#f00" primary: "#0f0" } }');
+    expect(warnings.some(w => w.code === 'W_DUPLICATE_THEME_TOKEN')).toBe(true);
+  });
+
+  test('warns on multiple theme blocks', () => {
+    const warnings = analyze('theme { colors { a: "#f00" } } theme { spacing { b: 8 } }');
+    expect(warnings.some(w => w.code === 'W_MULTIPLE_THEME_BLOCKS')).toBe(true);
+  });
+
+  test('no warnings on valid theme', () => {
+    const warnings = analyze(`theme {
+      colors { primary: "#f00" secondary: "#0f0" }
+      spacing { sm: 8 md: 16 }
+      dark { colors.primary: "#f88" }
+    }`);
+    const themeWarnings = warnings.filter(w => w.code && w.code.startsWith('W_') && w.code.includes('THEME'));
+    expect(themeWarnings.length).toBe(0);
+  });
+
+  test('warns on dark override referencing unknown section', () => {
+    const warnings = analyze(`theme {
+      colors { primary: "#f00" }
+      dark { bogus.thing: "#fff" }
+    }`);
+    expect(warnings.some(w => w.code === 'W_DARK_OVERRIDE_UNKNOWN_SECTION')).toBe(true);
   });
 });

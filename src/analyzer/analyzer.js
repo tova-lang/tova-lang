@@ -964,7 +964,80 @@ export class Analyzer {
   }
 
   visitThemeBlock(node) {
-    // Stub — validation added in Task 2
+    const VALID_THEME_SECTIONS = new Set([
+      'colors', 'spacing', 'radius', 'shadow', 'font', 'breakpoints', 'transition'
+    ]);
+
+    // Check for multiple theme blocks
+    if (!this._themeBlockSeen) {
+      this._themeBlockSeen = true;
+    } else {
+      this.warnings.push({
+        message: 'Multiple theme blocks found — only one theme block is allowed per project',
+        loc: node.loc,
+        code: 'W_MULTIPLE_THEME_BLOCKS',
+      });
+    }
+
+    const CATEGORY_MAP = {
+      colors: 'color', spacing: 'spacing', radius: 'radius',
+      shadow: 'shadow', font: 'font', breakpoints: 'breakpoint', transition: 'transition'
+    };
+
+    // Store tokens for $token validation (used in Task 5)
+    if (!this._themeTokens) this._themeTokens = new Map();
+    this._hasThemeBlock = true;
+
+    const sectionNames = new Set();
+    for (const section of node.sections) {
+      if (!VALID_THEME_SECTIONS.has(section.name)) {
+        this.warnings.push({
+          message: `Unknown theme section '${section.name}' — valid sections are: ${[...VALID_THEME_SECTIONS].join(', ')}`,
+          loc: section.loc,
+          code: 'W_UNKNOWN_THEME_SECTION',
+        });
+      }
+
+      if (sectionNames.has(section.name)) {
+        this.warnings.push({
+          message: `Duplicate theme section '${section.name}'`,
+          loc: section.loc,
+          code: 'W_DUPLICATE_THEME_SECTION',
+        });
+      }
+      sectionNames.add(section.name);
+
+      // Store tokens for later $token validation
+      const category = CATEGORY_MAP[section.name] || section.name;
+      if (!this._themeTokens.has(category)) this._themeTokens.set(category, new Set());
+
+      const tokenNames = new Set();
+      for (const token of section.tokens) {
+        if (tokenNames.has(token.name)) {
+          this.warnings.push({
+            message: `Duplicate theme token '${token.name}' in section '${section.name}'`,
+            loc: token.loc,
+            code: 'W_DUPLICATE_THEME_TOKEN',
+          });
+        }
+        tokenNames.add(token.name);
+        this._themeTokens.get(category).add(token.name);
+      }
+    }
+
+    // Validate dark overrides
+    for (const override of node.darkOverrides) {
+      const dotIdx = override.name.indexOf('.');
+      if (dotIdx === -1) continue;
+      const sectionName = override.name.slice(0, dotIdx);
+      if (!sectionNames.has(sectionName)) {
+        this.warnings.push({
+          message: `Dark override '${override.name}' references unknown section '${sectionName}'`,
+          loc: override.loc,
+          code: 'W_DARK_OVERRIDE_UNKNOWN_SECTION',
+        });
+      }
+    }
   }
 
   visitSecurityBlock(node) {
