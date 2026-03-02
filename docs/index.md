@@ -171,7 +171,7 @@ security {
 }
 ```
 
-From this, the compiler generates JWT validation, role checking, route middleware, field sanitization, CSRF tokens, rate limit tracking, CSP headers, and audit logging. Compile-time warnings catch undefined roles, hardcoded secrets, and CORS wildcards before your code ever runs. [Learn more](/fullstack/security-block).
+From this, the compiler generates JWT validation, role checking, route middleware, field sanitization, CSRF tokens, rate limit tracking, CSP headers, and audit logging. Default OWASP security headers are emitted on all server responses even without a security block. Compile-time warnings catch undefined roles, hardcoded secrets, CORS wildcards, SQL injection patterns, and XSS risks before your code ever runs. Use `--strict-security` to promote all security warnings to errors in CI. [Learn more](/fullstack/security-block).
 
 ## Full-Stack Web
 

@@ -184,6 +184,7 @@ See the [CLI Block guide](/fullstack/cli-block) for details.
 |------|-------------|
 | `--debug` | Show verbose error output with full stack traces |
 | `--strict` | Enable strict type checking (type mismatches and argument errors become hard errors) |
+| `--strict-security` | Promote all security warnings to errors |
 
 ### `tova build [dir]`
 
@@ -217,7 +218,8 @@ tova build src --binary my-app
 | `--watch` | Watch for file changes and rebuild automatically |
 | `--no-cache` | Skip incremental build cache (force full recompile) |
 | `--strict` | Enable strict type checking |
-| `--verbose` | Show detailed output (timing, cached files) |
+| `--strict-security` | Promote security warnings to errors; shows security scorecard |
+| `--verbose` | Show detailed output (timing, cached files, security scorecard) |
 | `--quiet` | Suppress non-error output |
 
 **Incremental caching:** The build system caches compilation results in `.tova-out/.cache/manifest.json`. Unchanged files are skipped on subsequent builds. Use `--no-cache` to force a full rebuild.
@@ -244,6 +246,7 @@ Reports diagnostics (errors and warnings) and exits with a summary. No JavaScrip
 |------|-------------|
 | `--explain <code>` | Show a detailed explanation for a specific error code inline |
 | `--strict` | Enable strict type checking |
+| `--strict-security` | Promote security warnings to errors; shows security scorecard |
 
 ### `tova clean`
 
@@ -538,6 +541,7 @@ Covers all subcommands and their flags, including `--template` values for `tova 
 | `--quiet` | Suppress non-error output |
 | `--debug` | Verbose error output (available on most commands) |
 | `--strict` | Enable strict type checking (available on `run`, `build`, and `check`) |
+| `--strict-security` | Promote all security warnings to errors (available on `run`, `build`, and `check`) |
 
 ## Environment Variables
 

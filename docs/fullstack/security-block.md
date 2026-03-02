@@ -410,6 +410,9 @@ The auto-sanitizer:
 
 The analyzer produces warnings for:
 
+**Security block configuration:**
+
+- **No security block** (`W_NO_SECURITY_BLOCK`) -- a `server {}` or `edge {}` block exists without a `security {}` block. This is the most common security oversight -- add a security block to enable auth, CORS, and CSRF protection
 - **Undefined roles** (`W_UNDEFINED_ROLE`) -- a `protect` rule or `sensitive` `visible_to` references a role that isn't defined in any security block
 - **Duplicate roles** (`W_DUPLICATE_ROLE`) -- the same role name is defined more than once in a single security block
 - **Protect without auth** (`W_PROTECT_WITHOUT_AUTH`) -- route protection rules exist but no `auth` configuration is present, meaning all protected routes will be inaccessible
@@ -420,25 +423,81 @@ The analyzer produces warnings for:
 - **Invalid rate limit** (`W_INVALID_RATE_LIMIT`) -- rate limit values are invalid
 - **CSRF disabled** (`W_CSRF_DISABLED`) -- CSRF protection is explicitly disabled
 
+**Code-level security:**
+
+- **Unsafe interpolation** (`W_UNSAFE_INTERPOLATION`) -- a template literal with expressions is passed to `db.query()`, `db.run()`, `db.exec()`, `db.execute()`, or `db.prepare()`. Use parameterized queries (`?`) instead to prevent SQL injection
+- **Dangerous API** (`W_DANGEROUS_API`) -- direct `innerHTML` assignment (XSS risk) or passing a string to `setTimeout`/`setInterval` (code injection risk). Use `textContent` or a function argument instead
+
+All security warnings include a `category: 'security'` field, which enables the `--strict-security` mode described below.
+
 Role validation works across multiple security blocks -- a role defined in one block can be referenced by a `protect` rule or `sensitive` declaration in another block.
+
+## Strict Security Mode
+
+The `--strict-security` CLI flag promotes all security warnings to hard errors, causing the build to fail:
+
+```bash
+tova build --strict-security
+tova check --strict-security
+```
+
+This is recommended for production builds and CI pipelines. When enabled:
+
+- All `W_` codes with `category: 'security'` become errors (exit code 1)
+- Non-security warnings (naming conventions, unused variables) remain as warnings
+- A **security scorecard** is printed showing your security posture (0-10)
+
+The scorecard is also shown with `--verbose` and suppressed with `--quiet`.
 
 ## Security Hardening
 
 The security block implementation includes several hardening measures:
 
+- **Default OWASP headers** -- Even without a `security {}` block, the compiler emits `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 0`, and `Referrer-Policy: strict-origin-when-cross-origin` on all server responses
+- **Body sanitization** -- The `__sanitizeBody()` function strips `__proto__`, `constructor`, and `prototype` keys from parsed JSON bodies in all modes, preventing prototype pollution attacks
 - **JWT algorithm validation** -- Only `HS256` tokens are accepted; tokens with `alg: "none"` or other algorithms are rejected, preventing algorithm confusion attacks
 - **Path normalization** -- Request paths are URL-decoded, double slashes collapsed, `../` sequences resolved, and trailing slashes stripped before routing, preventing path traversal bypasses
 - **CSRF raw byte comparison** -- CSRF token signatures are compared using `timingSafeEqual` on raw bytes, not hex string comparison, preventing timing attacks
 - **CSRF exempt patterns** -- Webhook and API callback routes can be exempted from CSRF validation using glob patterns in `csrf { exempt: [...] }`
 - **HSTS auto-enablement** -- When `auth` is configured, the compiler automatically generates `Strict-Transport-Security: max-age=31536000; includeSubDomains` unless explicitly disabled
+- **Auto audit logging** -- When both `auth` and `audit` are configured, the compiler automatically injects audit log calls on auth success, auth failure, auth denial (403), and rate limit exceeded events
 - **Client-side advisory** -- The `can()` helper on the client includes a code comment noting it's for UI purposes only; all authorization is enforced server-side
 - **Auto-sanitization** -- The `__autoSanitize()` function is applied to all RPC responses, recursively walking objects and arrays to strip sensitive fields based on `__type`/`__tag` markers
+
+## Security Scorecard
+
+When building with `--strict-security` or `--verbose`, Tova prints a security posture summary:
+
+```
+Security: 7/10
+  [pass] Security block configured
+  [pass] JWT auth with HttpOnly cookies
+  [pass] CSRF enabled with session binding
+  [warn] No CSP configured (-1)
+  [warn] No audit logging (-1)
+  [warn] CORS wildcard origin (-1)
+```
+
+Scoring starts at 10 and deducts for missing or weak configuration:
+
+| Deduction | Condition |
+|-----------|-----------|
+| -3 | No `security {}` block (with server/edge present) |
+| -2 | No `auth` configured |
+| -1 | No CSRF (when auth exists) |
+| -1 | No rate limiting (when auth exists) |
+| -1 | No CSP configured |
+| -1 | CORS wildcard origin (`W_CORS_WILDCARD`) |
+| -1 | Hardcoded secret (`W_HARDCODED_SECRET`) |
+| -1 | localStorage tokens (`W_LOCALSTORAGE_TOKEN`) |
+| -1 | No audit logging |
 
 ## What the Compiler Generates
 
 For a security block with auth, roles, protections, and sensitive fields, the compiler generates:
 
 **Server-side (zero runtime dependencies):**
+- `__baseSecurityHeaders` -- OWASP security headers applied to all responses (even without a security block)
 - `__authenticate(req)` -- extracts and validates JWT/API key from request headers or cookies
 - `__hasRole(user, roleName)` -- checks single-role or multi-role users
 - `__hasPermission(user, permission)` -- checks if user's role(s) include the permission
@@ -449,7 +508,7 @@ For a security block with auth, roles, protections, and sensitive fields, the co
 - CSRF token generation and timing-safe validation
 - Path normalization middleware
 - CORS, CSP, HSTS header generation
-- Audit event logging with database insertion and error handling
+- Audit event logging with database insertion, automatic auth event tracking, and error handling
 
 **Client-side:**
 - `getAuthToken()`, `setAuthToken(token)`, `clearAuthToken()` -- token lifecycle

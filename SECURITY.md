@@ -67,13 +67,13 @@ The following are **out of scope**:
 
 Tova's security features are designed with these principles:
 
-1. **Secure by default.** Security features are opt-out, not opt-in. The `security {}` block generates secure defaults (HSTS, CSRF, path normalization) unless explicitly disabled.
+1. **Secure by default.** OWASP security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) and body sanitization (prototype pollution prevention) are emitted on all server responses, even without a `security {}` block. Additional security features are opt-out, not opt-in.
 
-2. **No silent failures.** When security features are misconfigured, the analyzer emits warnings (`W_HARDCODED_SECRET`, `W_CORS_WILDCARD`, `W_CSRF_DISABLED`, etc.). Security misconfigurations should be noisy.
+2. **No silent failures.** When security features are misconfigured, the analyzer emits warnings (`W_HARDCODED_SECRET`, `W_CORS_WILDCARD`, `W_CSRF_DISABLED`, `W_NO_SECURITY_BLOCK`, `W_UNSAFE_INTERPOLATION`, `W_DANGEROUS_API`, etc.). Security misconfigurations should be noisy. Use `--strict-security` to promote all security warnings to hard errors.
 
-3. **Defense in depth.** Multiple layers of protection — authentication, authorization, input sanitization, output encoding, rate limiting — work independently so that a failure in one layer doesn't compromise the whole system.
+3. **Defense in depth.** Multiple layers of protection — authentication, authorization, input sanitization, output encoding, rate limiting — work independently so that a failure in one layer doesn't compromise the whole system. When both `auth` and `audit` are configured, the compiler auto-injects audit logging on auth events.
 
-4. **Compile-time verification.** The analyzer validates security configurations at compile time. Invalid role references, duplicate roles, and unsafe patterns are caught before the code ever runs.
+4. **Compile-time verification.** The analyzer validates security configurations at compile time. Invalid role references, duplicate roles, SQL injection patterns, XSS risks, and unsafe patterns are caught before the code ever runs. A security scorecard (0-10) summarizes your security posture.
 
 ## Past Security Fixes
 

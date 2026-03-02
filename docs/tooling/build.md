@@ -28,7 +28,8 @@ By default, `tova build` compiles all `.tova` files in the current directory and
 | `--watch` | Watch for file changes and rebuild |
 | `--no-cache` | Skip incremental build cache |
 | `--strict` | Enable strict type checking |
-| `--verbose` | Show detailed output (timing, cached files) |
+| `--strict-security` | Promote security warnings to errors; shows security scorecard |
+| `--verbose` | Show detailed output (timing, cached files, security scorecard) |
 | `--quiet` | Suppress non-error output |
 
 ## Output Structure
