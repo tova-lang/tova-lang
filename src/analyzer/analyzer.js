@@ -759,7 +759,10 @@ export class Analyzer {
       case 'GuardStatement': return this.visitGuardStatement(node);
       case 'InterfaceDeclaration': return this.visitInterfaceDeclaration(node);
       case 'RefinementType': return;
-      case 'ComponentStyleBlock': return this._validateStyleTokens(node.css, node.loc);
+      case 'ComponentStyleBlock':
+        this._validateStyleTokens(node.css, node.loc);
+        this._validateResponsiveBreakpoints(node.css, node.loc);
+        return;
       case 'ImplDeclaration': return this.visitImplDeclaration(node);
       case 'TraitDeclaration': return this.visitTraitDeclaration(node);
       case 'TypeAlias': return this.visitTypeAlias(node);
@@ -1068,6 +1071,68 @@ export class Analyzer {
           message: `Unknown theme token '$${category}.${name}'${suggestion}`,
           loc,
           code: 'W_UNKNOWN_THEME_TOKEN',
+        });
+      }
+    }
+  }
+
+  _validateResponsiveBreakpoints(css, loc) {
+    // Find responsive { ... } in raw CSS
+    const responsiveMatch = css.match(/responsive\s*\{/);
+    if (!responsiveMatch) return;
+
+    // Get available breakpoints
+    let availableBreakpoints;
+    if (this._hasThemeBlock && this._themeTokens && this._themeTokens.has('breakpoint')) {
+      availableBreakpoints = this._themeTokens.get('breakpoint');
+    } else if (this._hasThemeBlock) {
+      // Theme exists but no breakpoints section — no defaults
+      availableBreakpoints = new Set();
+    } else {
+      // No theme block — use defaults, skip validation
+      return;
+    }
+
+    // Extract breakpoint names from responsive block
+    const startIdx = responsiveMatch.index + responsiveMatch[0].length;
+    let depth = 1;
+    let i = startIdx;
+    while (i < css.length && depth > 0) {
+      if (css[i] === '{') depth++;
+      else if (css[i] === '}') depth--;
+      i++;
+    }
+    const content = css.slice(startIdx, i - 1);
+
+    // Parse top-level identifiers (breakpoint names) before { at depth 0
+    const bpNames = [];
+    let pos = 0;
+    let bpDepth = 0;
+    while (pos < content.length) {
+      if (content[pos] === '{') {
+        bpDepth++;
+        pos++;
+      } else if (content[pos] === '}') {
+        bpDepth--;
+        pos++;
+      } else if (bpDepth === 0 && /[a-zA-Z_]/.test(content[pos])) {
+        let name = '';
+        while (pos < content.length && /\w/.test(content[pos])) {
+          name += content[pos];
+          pos++;
+        }
+        bpNames.push(name);
+      } else {
+        pos++;
+      }
+    }
+
+    for (const name of bpNames) {
+      if (!availableBreakpoints.has(name)) {
+        this.warnings.push({
+          message: `Unknown breakpoint '${name}' in responsive block — available breakpoints: ${[...availableBreakpoints].join(', ')}`,
+          loc,
+          code: 'W_UNKNOWN_BREAKPOINT',
         });
       }
     }
