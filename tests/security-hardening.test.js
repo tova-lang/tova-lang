@@ -2,6 +2,8 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
+import { generateSecurityScorecard } from '../src/diagnostics/security-scorecard.js';
 
 function parse(source) {
   const lexer = new Lexer(source, 'test.tova');
@@ -218,5 +220,115 @@ describe('W_DANGEROUS_API', () => {
       }
     `);
     expect(result.warnings.some(w => w.code === 'W_DANGEROUS_API')).toBe(false);
+  });
+});
+
+function compile(source) {
+  const ast = parse(source);
+  const gen = new CodeGenerator(ast, 'test.tova');
+  return gen.generate();
+}
+
+// ════════════════════════════════════════════════════════════
+// Task 3: Default security headers in fast mode
+// ════════════════════════════════════════════════════════════
+
+describe('Default security headers in fast mode', () => {
+  test('emits security headers even without security block', () => {
+    const code = compile(`
+      server {
+        fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('X-Content-Type-Options');
+    expect(code).toContain('nosniff');
+    expect(code).toContain('X-Frame-Options');
+    expect(code).toContain('DENY');
+  });
+
+  test('emits sanitizeBody even without security block', () => {
+    const code = compile(`
+      server {
+        fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('__sanitizeBody');
+    expect(code).toContain('__proto__');
+  });
+
+  test('security headers present in non-fast mode too', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+      }
+      server {
+        fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('X-Content-Type-Options');
+    expect(code).toContain('nosniff');
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+// Task 7: Security scorecard
+// ════════════════════════════════════════════════════════════
+
+describe('Security scorecard', () => {
+  test('returns 10/10 for fully configured security', () => {
+    const result = generateSecurityScorecard({
+      auth: { authType: 'jwt', storage: 'cookie' },
+      csrf: { enabled: true },
+      rateLimit: { max: 100 },
+      csp: { default_src: "'self'" },
+      cors: { origins: ['https://example.com'] },
+      audit: { events: ['auth'] },
+    }, [], true, false);
+    expect(result.score).toBe(10);
+    expect(result.items.every(i => i.pass)).toBe(true);
+  });
+
+  test('deducts 3 for no security block', () => {
+    const result = generateSecurityScorecard(null, [], true, false);
+    expect(result.score).toBeLessThanOrEqual(7);
+    expect(result.items.some(i => !i.pass && i.label.includes('security block'))).toBe(true);
+  });
+
+  test('deducts 1 for missing CSP', () => {
+    const result = generateSecurityScorecard({
+      auth: { authType: 'jwt', storage: 'cookie' },
+      csrf: { enabled: true },
+      rateLimit: { max: 100 },
+      cors: { origins: ['https://example.com'] },
+      audit: { events: ['auth'] },
+    }, [], true, false);
+    expect(result.score).toBe(9);
+    expect(result.items.some(i => !i.pass && i.label.includes('CSP'))).toBe(true);
+  });
+
+  test('deducts for W_HARDCODED_SECRET warning', () => {
+    const result = generateSecurityScorecard({
+      auth: { authType: 'jwt', storage: 'cookie' },
+      csrf: { enabled: true },
+      rateLimit: { max: 100 },
+      csp: { default_src: "'self'" },
+      cors: { origins: ['https://example.com'] },
+      audit: { events: ['auth'] },
+    }, [{ code: 'W_HARDCODED_SECRET' }], true, false);
+    expect(result.score).toBe(9);
+  });
+
+  test('returns null when no server/edge blocks', () => {
+    const result = generateSecurityScorecard(null, [], false, false);
+    expect(result).toBeNull();
+  });
+
+  test('format() returns readable string', () => {
+    const result = generateSecurityScorecard({
+      auth: { authType: 'jwt', storage: 'cookie' },
+    }, [], true, false);
+    const output = result.format();
+    expect(output).toContain('Security:');
+    expect(output).toContain('/10');
   });
 });
