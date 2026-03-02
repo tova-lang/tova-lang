@@ -344,7 +344,7 @@ server.create_user({ name: "Alice", email: "alice@example.com" })
 By default, RPC calls use the same origin as the page (in the browser) or `http://localhost:3000` (in non-browser contexts). Use `configureRPC` to customize behavior:
 
 ```javascript
-import { configureRPC } from './runtime/rpc.js';
+import { configureRPC } from './.tova-out/runtime/rpc.js';
 
 // Simple: just set the base URL (backward compatible)
 configureRPC("https://api.example.com");
@@ -393,7 +393,7 @@ No client-side setup is needed — the RPC bridge reads the token from the meta 
 For SPAs or cases where the token is provided differently:
 
 ```javascript
-import { setCSRFToken } from './runtime/rpc.js';
+import { setCSRFToken } from './.tova-out/runtime/rpc.js';
 
 // Set the token after login or page load
 setCSRFToken("abc123-token-value");
@@ -421,7 +421,7 @@ Interceptors let you add cross-cutting concerns to all RPC calls — authenticat
 ### Adding an Interceptor
 
 ```javascript
-import { addRPCInterceptor } from './runtime/rpc.js';
+import { addRPCInterceptor } from './.tova-out/runtime/rpc.js';
 
 const removeInterceptor = addRPCInterceptor({
   // Called before each request — modify headers, add auth, log, etc.

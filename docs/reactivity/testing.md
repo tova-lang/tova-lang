@@ -7,7 +7,7 @@ Tova provides built-in testing utilities for component testing. The `testing.js`
 Import the testing utilities from the runtime:
 
 ```js
-import { renderForTest, fireEvent, waitForEffect, cleanup } from './runtime/testing.js';
+import { renderForTest, fireEvent, waitForEffect, cleanup } from './.tova-out/runtime/testing.js';
 ```
 
 The testing utilities require a DOM environment. Use a test runner with DOM support — `bun:test` (built-in), `jsdom`, or `happy-dom` all work.
@@ -17,7 +17,7 @@ The testing utilities require a DOM environment. Use a test runner with DOM supp
 `renderForTest(component, options?)` renders a component into a detached container and returns query helpers:
 
 ```tova
-import { renderForTest, fireEvent, cleanup } from "./runtime/testing.js"
+import { renderForTest, fireEvent, cleanup } from "./.tova-out/runtime/testing.js"
 
 test("counter increments", fn() {
   result = renderForTest(Counter)
@@ -110,7 +110,7 @@ await waitForEffect(100); // wait 100ms
 `cleanup()` disposes all mounted test roots and removes their containers from the DOM. Call this in `afterEach()` or at the end of each test:
 
 ```js
-import { cleanup } from './runtime/testing.js';
+import { cleanup } from './.tova-out/runtime/testing.js';
 
 afterEach(() => {
   cleanup();
@@ -121,7 +121,7 @@ afterEach(() => {
 
 ```tova
 import { describe, test, expect, afterEach } from "bun:test"
-import { renderForTest, fireEvent, waitForEffect, cleanup } from "./runtime/testing.js"
+import { renderForTest, fireEvent, waitForEffect, cleanup } from "./.tova-out/runtime/testing.js"
 
 // A component to test
 component TodoList() {

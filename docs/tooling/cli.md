@@ -9,7 +9,7 @@ The `tova` command-line interface is the primary tool for developing, building, 
 ## Installation
 
 ```bash
-bun install tova-lang
+bun install -g tova
 ```
 
 After installation, the `tova` command is available globally (or via `bunx tova`).

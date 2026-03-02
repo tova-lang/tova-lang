@@ -705,7 +705,7 @@ if (container.children.length > 0) {
 `hydrateWhenVisible` defers hydration of a component until it scrolls into view. This is useful for below-the-fold content where you want to avoid hydrating off-screen components on page load:
 
 ```js
-import { hydrateWhenVisible } from './runtime/reactivity.js';
+import { hydrateWhenVisible } from './.tova-out/runtime/reactivity.js';
 
 hydrateWhenVisible(HeavyComponent, document.getElementById("heavy-section"));
 ```
