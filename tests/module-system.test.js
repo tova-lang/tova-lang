@@ -479,3 +479,92 @@ describe('T6-3 — Pub/private export semantics (full CodeGenerator)', () => {
     expect(output.shared).toContain('export let count');
   });
 });
+
+// ─── tova: Prefix Imports ──────────────────────────────────────
+
+describe('tova: prefix imports', () => {
+  test('parser preserves tova: prefix in ImportDeclaration source', () => {
+    const ast = parse('import { renderToString } from "tova:ssr"');
+    expect(ast.body[0].type).toBe('ImportDeclaration');
+    expect(ast.body[0].source).toBe('tova:ssr');
+    expect(ast.body[0].specifiers[0].imported).toBe('renderToString');
+  });
+
+  test('parser preserves tova: prefix in ImportDefault source', () => {
+    const ast = parse('import router from "tova:router"');
+    expect(ast.body[0].type).toBe('ImportDefault');
+    expect(ast.body[0].source).toBe('tova:router');
+  });
+
+  test('parser preserves tova: prefix in ImportWildcard source', () => {
+    const ast = parse('import * as ssr from "tova:ssr"');
+    expect(ast.body[0].type).toBe('ImportWildcard');
+    expect(ast.body[0].source).toBe('tova:ssr');
+  });
+
+  test('codegen rewrites tova:ssr to ./runtime/ssr.js', () => {
+    const code = codegen('import { renderToString } from "tova:ssr"');
+    expect(code).toContain('from "./runtime/ssr.js"');
+    expect(code).not.toContain('tova:');
+  });
+
+  test('codegen rewrites tova:testing to ./runtime/testing.js', () => {
+    const code = codegen('import { renderForTest } from "tova:testing"');
+    expect(code).toContain('from "./runtime/testing.js"');
+  });
+
+  test('codegen rewrites tova:devtools to ./runtime/devtools.js', () => {
+    const code = codegen('import { initDevTools } from "tova:devtools"');
+    expect(code).toContain('from "./runtime/devtools.js"');
+  });
+
+  test('codegen rewrites tova:rpc to ./runtime/rpc.js', () => {
+    const code = codegen('import { configureRPC } from "tova:rpc"');
+    expect(code).toContain('from "./runtime/rpc.js"');
+  });
+
+  test('codegen rewrites tova:reactivity to ./runtime/reactivity.js', () => {
+    const code = codegen('import { createSignal } from "tova:reactivity"');
+    expect(code).toContain('from "./runtime/reactivity.js"');
+  });
+
+  test('codegen rewrites tova:router to ./runtime/router.js', () => {
+    const code = codegen('import router from "tova:router"');
+    expect(code).toContain('from "./runtime/router.js"');
+  });
+
+  test('codegen rewrites tova: wildcard import', () => {
+    const code = codegen('import * as ssr from "tova:ssr"');
+    expect(code).toContain('from "./runtime/ssr.js"');
+  });
+
+  test('tova: import with multiple specifiers', () => {
+    const code = codegen('import { createSignal, createEffect, mount } from "tova:reactivity"');
+    expect(code).toContain('createSignal');
+    expect(code).toContain('createEffect');
+    expect(code).toContain('mount');
+    expect(code).toContain('from "./runtime/reactivity.js"');
+  });
+});
+
+// ─── @/ Project Root Imports ───────────────────────────────────
+
+describe('@/ project root imports', () => {
+  test('parser preserves @/ prefix in ImportDeclaration source', () => {
+    const ast = parse('import { validate_email } from "@/utils/validators"');
+    expect(ast.body[0].type).toBe('ImportDeclaration');
+    expect(ast.body[0].source).toBe('@/utils/validators');
+  });
+
+  test('parser preserves @/ prefix in ImportDefault source', () => {
+    const ast = parse('import Header from "@/components/header"');
+    expect(ast.body[0].type).toBe('ImportDefault');
+    expect(ast.body[0].source).toBe('@/components/header');
+  });
+
+  test('parser preserves @/ prefix in ImportWildcard source', () => {
+    const ast = parse('import * as utils from "@/lib/utils"');
+    expect(ast.body[0].type).toBe('ImportWildcard');
+    expect(ast.body[0].source).toBe('@/lib/utils');
+  });
+});

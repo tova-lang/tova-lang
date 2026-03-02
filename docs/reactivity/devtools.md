@@ -7,7 +7,7 @@ Tova includes opt-in development tooling for inspecting signals, effects, compon
 Call `initDevTools()` to activate instrumentation and expose the DevTools API on `window`:
 
 ```js
-import { initDevTools } from './.tova-out/runtime/devtools.js';
+import { initDevTools } from 'tova:devtools';
 
 // Enable before creating any signals/effects
 initDevTools();

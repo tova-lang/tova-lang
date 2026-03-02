@@ -619,7 +619,14 @@ export class BaseCodegen {
     }).join(', ');
   }
 
+  _rewriteImportSource(node) {
+    if (node.source.startsWith('tova:')) {
+      node.source = './runtime/' + node.source.slice(5) + '.js';
+    }
+  }
+
   genImport(node) {
+    this._rewriteImportSource(node);
     for (const s of node.specifiers) this.declareVar(s.local);
     const specs = node.specifiers.map(s => {
       if (s.imported !== s.local) return `${s.imported} as ${s.local}`;
@@ -629,11 +636,13 @@ export class BaseCodegen {
   }
 
   genImportDefault(node) {
+    this._rewriteImportSource(node);
     this.declareVar(node.local);
     return `${this.i()}import ${node.local} from ${JSON.stringify(node.source)};`;
   }
 
   genImportWildcard(node) {
+    this._rewriteImportSource(node);
     this.declareVar(node.local);
     return `${this.i()}import * as ${node.local} from ${JSON.stringify(node.source)};`;
   }

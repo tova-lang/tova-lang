@@ -14,7 +14,7 @@ import { richError, formatDiagnostics, DiagnosticFormatter, formatSummary } from
 import { getExplanation, lookupCode } from '../src/diagnostics/error-codes.js';
 import { getFullStdlib, buildSelectiveStdlib, BUILTIN_NAMES, PROPAGATE, NATIVE_INIT } from '../src/stdlib/inline.js';
 import { Formatter } from '../src/formatter/formatter.js';
-import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE } from '../src/runtime/embedded.js';
+import { REACTIVITY_SOURCE, RPC_SOURCE, ROUTER_SOURCE, DEVTOOLS_SOURCE, SSR_SOURCE, TESTING_SOURCE } from '../src/runtime/embedded.js';
 import '../src/runtime/string-proto.js';
 import '../src/runtime/array-proto.js';
 import { resolveConfig } from '../src/config/resolve.js';
@@ -784,6 +784,9 @@ async function buildProject(args) {
   writeFileSync(join(runtimeDest, 'reactivity.js'), REACTIVITY_SOURCE);
   writeFileSync(join(runtimeDest, 'rpc.js'), RPC_SOURCE);
   writeFileSync(join(runtimeDest, 'router.js'), ROUTER_SOURCE);
+  writeFileSync(join(runtimeDest, 'devtools.js'), DEVTOOLS_SOURCE);
+  writeFileSync(join(runtimeDest, 'ssr.js'), SSR_SOURCE);
+  writeFileSync(join(runtimeDest, 'testing.js'), TESTING_SOURCE);
 
   if (!isQuiet) console.log(`\n  Building ${tovaFiles.length} file(s)...\n`);
 
@@ -1193,6 +1196,9 @@ async function devServer(args) {
   writeFileSync(join(runtimeDest, 'reactivity.js'), REACTIVITY_SOURCE);
   writeFileSync(join(runtimeDest, 'rpc.js'), RPC_SOURCE);
   writeFileSync(join(runtimeDest, 'router.js'), ROUTER_SOURCE);
+  writeFileSync(join(runtimeDest, 'devtools.js'), DEVTOOLS_SOURCE);
+  writeFileSync(join(runtimeDest, 'ssr.js'), SSR_SOURCE);
+  writeFileSync(join(runtimeDest, 'testing.js'), TESTING_SOURCE);
 
   const serverFiles = [];
   let hasClient = false;
@@ -3962,8 +3968,24 @@ function compileWithImports(source, filename, srcDir) {
     // Collect this module's exports for validation
     collectExports(ast, filename);
 
-    // Resolve .tova imports first
+    // Resolve imports: tova: prefix, @/ prefix, then .tova files
     for (const node of ast.body) {
+      // Resolve tova: prefix imports to runtime modules
+      if ((node.type === 'ImportDeclaration' || node.type === 'ImportDefault' || node.type === 'ImportWildcard') && node.source.startsWith('tova:')) {
+        node.source = './runtime/' + node.source.slice(5) + '.js';
+        continue;
+      }
+      // Resolve @/ prefix imports to project root
+      if ((node.type === 'ImportDeclaration' || node.type === 'ImportDefault' || node.type === 'ImportWildcard') && node.source.startsWith('@/')) {
+        const relPath = node.source.slice(2);
+        let resolved = resolve(srcDir, relPath);
+        if (!resolved.endsWith('.tova')) resolved += '.tova';
+        const fromDir = dirname(filename);
+        let rel = relative(fromDir, resolved);
+        if (!rel.startsWith('.')) rel = './' + rel;
+        node.source = rel;
+        // Fall through to .tova import handling below
+      }
       if (node.type === 'ImportDeclaration' && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(filename), node.source);
         trackDependency(filename, importPath);
@@ -4180,8 +4202,22 @@ function mergeDirectory(dir, srcDir, options = {}) {
     // Collect exports for cross-file import validation
     collectExports(ast, file);
 
-    // Resolve cross-directory .tova imports (same logic as compileWithImports)
+    // Resolve imports: tova: prefix, @/ prefix, then cross-directory .tova
     for (const node of ast.body) {
+      if ((node.type === 'ImportDeclaration' || node.type === 'ImportDefault' || node.type === 'ImportWildcard') && node.source.startsWith('tova:')) {
+        node.source = './runtime/' + node.source.slice(5) + '.js';
+        continue;
+      }
+      if ((node.type === 'ImportDeclaration' || node.type === 'ImportDefault' || node.type === 'ImportWildcard') && node.source.startsWith('@/')) {
+        const relPath = node.source.slice(2);
+        let resolved = resolve(srcDir, relPath);
+        if (!resolved.endsWith('.tova')) resolved += '.tova';
+        const fromDir = dirname(file);
+        let rel = relative(fromDir, resolved);
+        if (!rel.startsWith('.')) rel = './' + rel;
+        node.source = rel;
+        // Fall through to .tova import handling below
+      }
       if ((node.type === 'ImportDeclaration' || node.type === 'ImportDefault' || node.type === 'ImportWildcard') && node.source.endsWith('.tova')) {
         const importPath = resolve(dirname(file), node.source);
         // Only process imports from OTHER directories (same-dir files are merged)

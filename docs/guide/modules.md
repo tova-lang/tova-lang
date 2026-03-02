@@ -409,19 +409,85 @@ tova add github.com/alice/tova-http
 
 For the full guide on packages -- finding, using, creating, and publishing -- see the [Package Management](/packages/) section.
 
+## Runtime Imports (`tova:`)
+
+Tova provides built-in runtime modules for SSR, testing, devtools, and more. Import them using the `tova:` prefix:
+
+```tova
+import { renderToString } from "tova:ssr"
+import { renderForTest, fireEvent } from "tova:testing"
+import { initDevTools } from "tova:devtools"
+import { configureRPC, addRPCInterceptor } from "tova:rpc"
+import { hydrateWhenVisible } from "tova:reactivity"
+import { navigate, getCurrentRoute } from "tova:router"
+```
+
+Available runtime modules:
+
+| Module | Description |
+|--------|-------------|
+| `tova:reactivity` | Signals, effects, computed, mount, hydrate |
+| `tova:ssr` | Server-side rendering (`renderToString`, `renderPage`, streaming) |
+| `tova:testing` | Component testing (`renderForTest`, `fireEvent`, `cleanup`) |
+| `tova:rpc` | RPC configuration and interceptors |
+| `tova:router` | Client-side routing |
+| `tova:devtools` | Development tools instrumentation |
+
+The `tova:` prefix compiles to `./runtime/<module>.js` in the build output. You never need to manage runtime file paths yourself.
+
+## Project Root Imports (`@/`)
+
+Use the `@/` prefix to import from the project root, regardless of how deep your current file is. This eliminates fragile relative paths like `../../utils/validators`:
+
+```tova
+// Instead of: import { validate_email } from "../../utils/validators"
+import { validate_email } from "@/utils/validators"
+
+// Works from any depth:
+import { Header } from "@/components/shared"
+import { API_URL } from "@/config"
+```
+
+The `@/` prefix resolves relative to your project's source directory (the directory passed to `tova build` or `tova dev`). The `.tova` extension is added automatically if omitted.
+
+Project structure example:
+
+```
+my-app/
+  src/
+    app.tova
+    config.tova
+    utils/
+      validators.tova
+    components/
+      shared.tova
+      pages/
+        dashboard.tova    ← can use @/utils/validators here
+```
+
+From `dashboard.tova`, both of these are equivalent:
+
+```tova
+import { validate_email } from "../../utils/validators"    // relative
+import { validate_email } from "@/utils/validators"         // project root
+```
+
+The `@/` form is preferred — it is stable regardless of file moves or restructuring.
+
 ## Import Conventions
 
 Tova follows these conventions for resolving imports:
 
 | Import Path | Resolution |
 |-------------|-----------|
+| `"tova:ssr"` | Tova runtime module (`./runtime/ssr.js` in build output) |
+| `"@/utils/validators"` | Project root-relative `.tova` file |
 | `"github.com/alice/tova-http"` | Tova package from global cache (`~/.tova/pkg/`) |
 | `"github.com/alice/tova-db/postgres"` | Tova sub-package |
 | `"./file"` | Relative `.tova` file in same directory |
 | `"../file"` | Relative `.tova` file in parent directory |
 | `"./dir/file"` | Relative `.tova` file in subdirectory |
 | `"package"` | npm package from `node_modules` |
-| `"builtin"` | Built-in Tova module |
 
 An import is a Tova package if its first path segment contains a dot (e.g., `github.com`). Everything else follows the rules above.
 

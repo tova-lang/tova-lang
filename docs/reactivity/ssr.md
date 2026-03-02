@@ -7,8 +7,8 @@ Tova includes a built-in SSR system that renders components to HTML on the serve
 `renderToString(vnode)` renders a vnode tree to an HTML string synchronously. This is the simplest SSR approach:
 
 ```js
-import { renderToString } from './.tova-out/runtime/ssr.js';
-import { tova_el } from './.tova-out/runtime/reactivity.js';
+import { renderToString } from 'tova:ssr';
+import { tova_el } from 'tova:reactivity';
 
 const vnode = App();
 const html = renderToString(vnode);
@@ -44,7 +44,7 @@ If there is no error boundary, the error re-throws so you can handle it at the s
 `renderPage(component, options?)` renders a full HTML page with the component wrapped in a standard HTML shell:
 
 ```js
-import { renderPage } from './.tova-out/runtime/ssr.js';
+import { renderPage } from 'tova:ssr';
 
 const html = renderPage(App, {
   title: 'My Tova App',
@@ -82,7 +82,7 @@ const html = renderPage(App, {
 `renderToReadableStream(vnode, options?)` renders a vnode tree to a Web `ReadableStream`. This enables streaming SSR -- the server starts sending HTML to the client before the entire page is rendered:
 
 ```js
-import { renderToReadableStream } from './.tova-out/runtime/ssr.js';
+import { renderToReadableStream } from 'tova:ssr';
 
 const stream = renderToReadableStream(App());
 
@@ -116,7 +116,7 @@ const stream = renderToReadableStream(App(), {
 `renderPageToStream(component, options?)` combines `renderToReadableStream` with the HTML page shell. It flushes the `<head>` immediately so CSS and JavaScript start downloading while the body streams:
 
 ```js
-import { renderPageToStream } from './.tova-out/runtime/ssr.js';
+import { renderPageToStream } from 'tova:ssr';
 
 const stream = renderPageToStream(App, {
   title: 'My App',
@@ -165,7 +165,7 @@ By default, SSR uses a global ID counter for hydration markers. This is fine for
 Use `withSSRContext()` to isolate each request:
 
 ```js
-import { withSSRContext, renderToString } from './.tova-out/runtime/ssr.js';
+import { withSSRContext, renderToString } from 'tova:ssr';
 
 // Each request gets its own ID counter
 server.get('/', (req, res) => {
@@ -185,7 +185,7 @@ For manual control, you can also use `createSSRContext()` directly, though `with
 When the `head` option contains user-controlled content (e.g., page titles from a CMS), use the array form instead of a raw HTML string to prevent XSS:
 
 ```js
-import { renderPage, renderHeadTags } from './.tova-out/runtime/ssr.js';
+import { renderPage, renderHeadTags } from 'tova:ssr';
 
 // SAFE: structured tag descriptors — all values are escaped
 const html = renderPage(App, {
