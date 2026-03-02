@@ -570,6 +570,82 @@ export class BrowserCodegen extends BaseCodegen {
     return s + scopeAttr;
   }
 
+  static DEFAULT_BREAKPOINTS = { mobile: 0, tablet: 768, desktop: 1024, wide: 1440 };
+
+  _getBreakpoints() {
+    if (this._themeConfig && this._themeConfig.sections) {
+      const bpSection = this._themeConfig.sections.get('breakpoints');
+      if (bpSection) {
+        const result = {};
+        for (const token of bpSection) {
+          result[token.name] = token.value;
+        }
+        return result;
+      }
+    }
+    return BrowserCodegen.DEFAULT_BREAKPOINTS;
+  }
+
+  _extractResponsive(css) {
+    // Find responsive { ... } block in raw CSS and extract it
+    const responsiveMatch = css.match(/responsive\s*\{/);
+    if (!responsiveMatch) return { baseCss: css, responsiveBlocks: [] };
+
+    const startIdx = responsiveMatch.index;
+    let i = startIdx + responsiveMatch[0].length;
+    let depth = 1;
+
+    while (i < css.length && depth > 0) {
+      if (css[i] === '{') depth++;
+      else if (css[i] === '}') depth--;
+      i++;
+    }
+
+    const responsiveContent = css.slice(startIdx + responsiveMatch[0].length, i - 1);
+    const baseCss = css.slice(0, startIdx) + css.slice(i);
+
+    // Parse breakpoint blocks: "tablet { .box { color: blue; } }"
+    const responsiveBlocks = [];
+    let pos = 0;
+    while (pos < responsiveContent.length) {
+      // Skip whitespace
+      while (pos < responsiveContent.length && /\s/.test(responsiveContent[pos])) pos++;
+      if (pos >= responsiveContent.length) break;
+
+      // Read breakpoint name
+      let name = '';
+      while (pos < responsiveContent.length && /\w/.test(responsiveContent[pos])) {
+        name += responsiveContent[pos];
+        pos++;
+      }
+      if (!name) break;
+
+      // Skip whitespace
+      while (pos < responsiveContent.length && /\s/.test(responsiveContent[pos])) pos++;
+
+      // Expect {
+      if (responsiveContent[pos] !== '{') break;
+      pos++; // skip {
+
+      // Collect content until matching }
+      let bpDepth = 1;
+      let bpCss = '';
+      while (pos < responsiveContent.length && bpDepth > 0) {
+        if (responsiveContent[pos] === '{') bpDepth++;
+        else if (responsiveContent[pos] === '}') {
+          bpDepth--;
+          if (bpDepth === 0) { pos++; break; }
+        }
+        bpCss += responsiveContent[pos];
+        pos++;
+      }
+
+      responsiveBlocks.push({ name: name.trim(), css: bpCss.trim() });
+    }
+
+    return { baseCss, responsiveBlocks };
+  }
+
   generateComponent(comp) {
     const hasParams = comp.params.length > 0;
     const paramStr = hasParams ? '__props' : '';
@@ -619,7 +695,27 @@ export class BrowserCodegen extends BaseCodegen {
       const resolvedCSS = this._resolveTokens(rawCSS);
       const scopeId = this._genScopeId(comp.name, rawCSS); // Use rawCSS for hash stability
       this._currentScopeId = scopeId;
-      const scopedCSS = this._scopeCSS(resolvedCSS, `[data-tova-${scopeId}]`);
+      const scopeAttr = `[data-tova-${scopeId}]`;
+
+      // Extract responsive blocks before scoping
+      const { baseCss, responsiveBlocks } = this._extractResponsive(resolvedCSS);
+      let scopedCSS = this._scopeCSS(baseCss, scopeAttr);
+
+      // Append responsive media queries with scoped selectors
+      if (responsiveBlocks.length > 0) {
+        const breakpoints = this._getBreakpoints();
+        const sorted = [...responsiveBlocks].sort((a, b) => (breakpoints[a.name] || 0) - (breakpoints[b.name] || 0));
+        for (const bp of sorted) {
+          const bpValue = breakpoints[bp.name] !== undefined ? breakpoints[bp.name] : 0;
+          const scopedBpCSS = this._scopeCSS(bp.css, scopeAttr);
+          if (bpValue === 0) {
+            scopedCSS += ' ' + scopedBpCSS;
+          } else {
+            scopedCSS += ` @media (min-width: ${bpValue}px) { ${scopedBpCSS} }`;
+          }
+        }
+      }
+
       p.push(`${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`);
     }
 
