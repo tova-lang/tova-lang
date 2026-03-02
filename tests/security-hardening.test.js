@@ -111,3 +111,112 @@ describe('W_NO_SECURITY_BLOCK', () => {
     expect(result.errors.some(e => e.code === 'W_NO_SECURITY_BLOCK')).toBe(true);
   });
 });
+
+// ════════════════════════════════════════════════════════════
+// Task 4: W_UNSAFE_INTERPOLATION
+// ════════════════════════════════════════════════════════════
+
+describe('W_UNSAFE_INTERPOLATION', () => {
+  test('warns on template literal with interpolation in db.query()', () => {
+    const result = analyze(`
+      server {
+        fn find(name: String) -> String {
+          db.query("SELECT * FROM users WHERE name = \${name}")
+          "done"
+        }
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_UNSAFE_INTERPOLATION')).toBe(true);
+    const w = result.warnings.find(w => w.code === 'W_UNSAFE_INTERPOLATION');
+    expect(w.category).toBe('security');
+  });
+
+  test('warns on template literal with interpolation in db.run()', () => {
+    const result = analyze(`
+      server {
+        fn update(id: Int, val: String) -> String {
+          db.run("UPDATE users SET name = \${val} WHERE id = \${id}")
+          "done"
+        }
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_UNSAFE_INTERPOLATION')).toBe(true);
+  });
+
+  test('does not warn on plain string in db.query()', () => {
+    const result = analyze(`
+      server {
+        fn find() -> String {
+          db.query("SELECT * FROM users")
+          "done"
+        }
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_UNSAFE_INTERPOLATION')).toBe(false);
+  });
+
+  test('does not warn on non-db calls with template literals', () => {
+    const result = analyze(`
+      fn greet(name: String) -> String {
+        print("Hello \${name}")
+        "done"
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_UNSAFE_INTERPOLATION')).toBe(false);
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+// Task 5: W_DANGEROUS_API
+// ════════════════════════════════════════════════════════════
+
+describe('W_DANGEROUS_API', () => {
+  test('warns on setTimeout with string argument', () => {
+    const result = analyze(`
+      fn bad() {
+        setTimeout("alert(1)", 1000)
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_DANGEROUS_API')).toBe(true);
+    const w = result.warnings.find(w => w.code === 'W_DANGEROUS_API');
+    expect(w.category).toBe('security');
+  });
+
+  test('does not warn on setTimeout with function argument', () => {
+    const result = analyze(`
+      fn ok() {
+        setTimeout(fn() { print("hi") }, 1000)
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_DANGEROUS_API')).toBe(false);
+  });
+
+  test('warns on setInterval with string argument', () => {
+    const result = analyze(`
+      fn bad() {
+        setInterval("doStuff()", 500)
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_DANGEROUS_API')).toBe(true);
+  });
+
+  test('warns on innerHTML assignment', () => {
+    const result = analyze(`
+      browser {
+        el.innerHTML = "<b>bold</b>"
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_DANGEROUS_API')).toBe(true);
+    const w = result.warnings.find(w => w.code === 'W_DANGEROUS_API');
+    expect(w.message).toContain('innerHTML');
+  });
+
+  test('does not warn on textContent assignment', () => {
+    const result = analyze(`
+      browser {
+        el.textContent = "safe"
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_DANGEROUS_API')).toBe(false);
+  });
+});

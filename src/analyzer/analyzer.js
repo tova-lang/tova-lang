@@ -833,6 +833,19 @@ export class Analyzer {
         this.visitExpression(node.collection);
         return;
       case 'CallExpression':
+        // W_DANGEROUS_API: detect setTimeout/setInterval with string args
+        if (node.callee.type === 'Identifier') {
+          const calleeName = node.callee.name;
+          if ((calleeName === 'setTimeout' || calleeName === 'setInterval') &&
+              node.arguments.length > 0 && node.arguments[0].type === 'StringLiteral') {
+            this.warn(
+              `Passing strings to ${calleeName}() executes code dynamically — use a function instead`,
+              node.loc,
+              'Replace the string argument with a function',
+              { code: 'W_DANGEROUS_API', category: 'security' }
+            );
+          }
+        }
         // Validate inter-server RPC calls: peerName.functionName()
         if (this._currentServerBlockName && node.callee.type === 'MemberExpression' &&
             node.callee.object.type === 'Identifier' && !node.callee.computed) {
@@ -850,6 +863,22 @@ export class Analyzer {
         // Argument count and type validation for known functions
         this._checkCallArgCount(node);
         this._checkCallArgTypes(node);
+        // W_UNSAFE_INTERPOLATION: detect template literals in database calls
+        if (node.callee.type === 'MemberExpression' && !node.callee.computed) {
+          const prop = node.callee.property;
+          const dbMethods = new Set(['query', 'run', 'exec', 'execute', 'prepare']);
+          if (dbMethods.has(prop) && node.arguments.length > 0) {
+            const firstArg = node.arguments[0];
+            if (firstArg.type === 'TemplateLiteral' && firstArg.parts && firstArg.parts.some(p => p.type === 'expr')) {
+              this.warn(
+                'Template literal with expressions in database query — use parameterized queries (?) to prevent SQL injection',
+                node.loc,
+                'Replace interpolated expressions with ? and pass values as parameters',
+                { code: 'W_UNSAFE_INTERPOLATION', category: 'security' }
+              );
+            }
+          }
+        }
         this.visitExpression(node.callee);
         for (const arg of node.arguments) {
           if (arg.type === 'NamedArgument') {
@@ -1910,6 +1939,15 @@ export class Analyzer {
       // Complex targets (e.g., arr[i] = val, obj.prop = val) — visit and skip declaration logic
       if (typeof target !== 'string') {
         this.visitExpression(target);
+        // W_DANGEROUS_API: detect innerHTML assignment
+        if (target.type === 'MemberExpression' && !target.computed && target.property === 'innerHTML') {
+          this.warn(
+            'Direct innerHTML assignment is an XSS risk — use textContent or escape_html()',
+            target.loc || node.loc,
+            'Use el.textContent for plain text, or escape_html(value) for safe HTML rendering',
+            { code: 'W_DANGEROUS_API', category: 'security' }
+          );
+        }
         continue;
       }
 
