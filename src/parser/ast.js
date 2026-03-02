@@ -774,6 +774,14 @@ export { SelectStatement, SelectCase } from './select-ast.js';
 
 export { ThemeBlock, ThemeSection, ThemeToken } from './theme-ast.js';
 
+// ============================================================
+// Animate-specific nodes (lazy-loaded from animate-ast.js, re-exported for backward compat)
+// ============================================================
+
+export {
+  AnimateDeclaration, AnimatePrimitive, AnimateSequence, AnimateParallel,
+} from './animate-ast.js';
+
 export class TestBlock {
   constructor(name, body, loc, options = {}) {
     this.type = 'TestBlock';

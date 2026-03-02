@@ -4,6 +4,9 @@
 import { TokenType, Keywords } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 import { installFormParser } from './form-parser.js';
+import {
+  AnimateDeclaration, AnimatePrimitive, AnimateSequence, AnimateParallel,
+} from './animate-ast.js';
 
 export function installBrowserParser(ParserClass) {
   if (ParserClass.prototype._browserParserInstalled) return;
@@ -154,6 +157,8 @@ export function installBrowserParser(ParserClass) {
         body.push(this.parseComponent());
       } else if (this.check(TokenType.FORM)) {
         body.push(this.parseFormDeclaration());
+      } else if (this.check(TokenType.IDENTIFIER) && this.current().value === 'animate' && this.peek(1).type === TokenType.IDENTIFIER && this.peek(2).type === TokenType.LBRACE) {
+        body.push(this.parseAnimateDeclaration());
       } else {
         body.push(this.parseStatement());
       }
@@ -621,5 +626,152 @@ export function installBrowserParser(ParserClass) {
 
     this.expect(TokenType.RBRACE, "Expected '}' to close JSX match body");
     return new AST.JSXMatch(subject, arms, l);
+  };
+
+  // ─── Animate block parsing ─────────────────────────────────
+
+  ParserClass.prototype.parseAnimateDeclaration = function() {
+    const l = this.loc();
+    this.advance(); // consume 'animate' identifier
+    const name = this.expect(TokenType.IDENTIFIER, "Expected animation name after 'animate'").value;
+    this.expect(TokenType.LBRACE, "Expected '{' after animate name");
+
+    let enter = null;
+    let exit = null;
+    let duration = null;
+    let easing = null;
+    let stagger = null;
+    let stay = null;
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected property name inside animate block").value;
+      this.expect(TokenType.COLON, `Expected ':' after '${key}'`);
+
+      switch (key) {
+        case 'enter':
+          enter = this._parseAnimateComposition();
+          break;
+        case 'exit':
+          exit = this._parseAnimateComposition();
+          break;
+        case 'duration': {
+          const tok = this.expect(TokenType.NUMBER, "Expected number for 'duration'");
+          duration = Number(tok.value);
+          break;
+        }
+        case 'easing': {
+          const tok = this.expect(TokenType.STRING, "Expected string for 'easing'");
+          easing = tok.value;
+          break;
+        }
+        case 'stagger': {
+          const tok = this.expect(TokenType.NUMBER, "Expected number for 'stagger'");
+          stagger = Number(tok.value);
+          break;
+        }
+        case 'stay': {
+          const tok = this.expect(TokenType.NUMBER, "Expected number for 'stay'");
+          stay = Number(tok.value);
+          break;
+        }
+        default:
+          this.error(`Unknown animate property '${key}'. Expected enter, exit, duration, easing, stagger, or stay`);
+      }
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' to close animate block");
+    return new AnimateDeclaration(name, enter, exit, duration, easing, stagger, stay, l);
+  };
+
+  /**
+   * Parse animate composition with precedence:
+   *   - `then` has lowest precedence (creates AnimateSequence)
+   *   - `+` has higher precedence (creates AnimateParallel)
+   */
+  ParserClass.prototype._parseAnimateComposition = function() {
+    const l = this.loc();
+    let left = this._parseAnimateParallel();
+
+    // Check for `then` (IDENTIFIER with value 'then') — sequential composition
+    const parts = [left];
+    while (this.check(TokenType.IDENTIFIER) && this.current().value === 'then') {
+      this.advance(); // consume 'then'
+      parts.push(this._parseAnimateParallel());
+    }
+
+    if (parts.length === 1) return left;
+    return new AnimateSequence(parts, l);
+  };
+
+  /**
+   * Parse parallel composition: primitives joined with `+`
+   */
+  ParserClass.prototype._parseAnimateParallel = function() {
+    const l = this.loc();
+    let left = this._parseAnimatePrimitive();
+
+    const parts = [left];
+    while (this.check(TokenType.PLUS)) {
+      this.advance(); // consume '+'
+      parts.push(this._parseAnimatePrimitive());
+    }
+
+    if (parts.length === 1) return left;
+    return new AnimateParallel(parts, l);
+  };
+
+  /**
+   * Parse a single animation primitive: name(key: value, key: value)
+   * Supports parenthesized grouping: (expr)
+   */
+  ParserClass.prototype._parseAnimatePrimitive = function() {
+    // Parenthesized grouping for precedence override
+    if (this.check(TokenType.LPAREN)) {
+      this.advance(); // consume '('
+      const inner = this._parseAnimateComposition();
+      this.expect(TokenType.RPAREN, "Expected ')' after grouped animation expression");
+      return inner;
+    }
+
+    const l = this.loc();
+    const primName = this.expect(TokenType.IDENTIFIER, "Expected animation primitive name (fade, slide, scale, rotate, blur)").value;
+    this.expect(TokenType.LPAREN, `Expected '(' after '${primName}'`);
+
+    const params = {};
+    while (!this.check(TokenType.RPAREN) && !this.isAtEnd()) {
+      // Accept identifiers and keywords as parameter names (e.g., 'from' is a keyword in Tova)
+      let paramKey;
+      if (this.check(TokenType.IDENTIFIER) || (typeof this.current().value === 'string' && this.current().value in Keywords)) {
+        paramKey = this.advance().value;
+      } else {
+        paramKey = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
+      }
+      this.expect(TokenType.COLON, `Expected ':' after parameter name '${paramKey}'`);
+
+      // Value can be a number (including negative), identifier, or string
+      if (this.check(TokenType.MINUS)) {
+        this.advance(); // consume '-'
+        const tok = this.expect(TokenType.NUMBER, "Expected number after '-'");
+        params[paramKey] = -Number(tok.value);
+      } else if (this.check(TokenType.NUMBER)) {
+        const tok = this.advance();
+        params[paramKey] = Number(tok.value);
+      } else if (this.check(TokenType.STRING)) {
+        const tok = this.advance();
+        params[paramKey] = tok.value;
+      } else if (this.check(TokenType.IDENTIFIER)) {
+        const tok = this.advance();
+        params[paramKey] = tok.value;
+      } else {
+        this.error("Expected number, string, or identifier as animation parameter value");
+      }
+
+      if (!this.check(TokenType.RPAREN)) {
+        this.expect(TokenType.COMMA, "Expected ',' between animation parameters");
+      }
+    }
+
+    this.expect(TokenType.RPAREN, `Expected ')' to close '${primName}' parameters`);
+    return new AnimatePrimitive(primName, params, l);
   };
 }
