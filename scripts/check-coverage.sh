@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+
+# Run tests with coverage and capture output
+OUTPUT=$(bun test --coverage 2>&1)
+
+# Print summary
+echo "$OUTPUT" | grep "All files" || true
+echo "$OUTPUT" | tail -3
+
+# Check minimum line coverage threshold (99%)
+LINE_PCT=$(echo "$OUTPUT" | grep "All files" | awk -F'|' '{gsub(/[ ]+/,"",$3); print $3}')
+if [ -z "$LINE_PCT" ]; then
+  echo "FAIL: Could not extract coverage percentage"
+  exit 1
+fi
+
+# Compare using awk (handles decimals)
+PASS=$(echo "$LINE_PCT" | awk '{if ($1 >= 99.0) print "yes"; else print "no"}')
+if [ "$PASS" = "no" ]; then
+  echo "FAIL: Line coverage ${LINE_PCT}% is below 99% threshold"
+  exit 1
+fi
+
+echo "PASS: Line coverage at ${LINE_PCT}% (threshold: 99%)"

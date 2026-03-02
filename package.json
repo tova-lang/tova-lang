@@ -15,6 +15,8 @@
   ],
   "scripts": {
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "test:coverage:check": "bash scripts/check-coverage.sh",
     "test:lexer": "bun test tests/lexer.test.js",
     "test:parser": "bun test tests/parser.test.js",
     "test:codegen": "bun test tests/codegen.test.js",
