@@ -21,6 +21,7 @@ A file can contain only one of `[project]` or `[package]`.
 [project]
 name = "my-app"
 version = "0.1.0"
+description = "A full-stack Tova application"
 entry = "src"
 ```
 
@@ -28,6 +29,7 @@ entry = "src"
 |-------|------|---------|-------------|
 | `name` | string | `"tova-app"` | Project name |
 | `version` | string | `"0.1.0"` | Project version |
+| `description` | string | `""` | Project description |
 | `entry` | string | `"src"` | Source directory |
 
 ### [dev]
@@ -49,12 +51,12 @@ Build output configuration:
 
 ```toml
 [build]
-outDir = ".tova-out"
+output = ".tova-out"
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `outDir` | string | `".tova-out"` | Build output directory |
+| `output` | string | `".tova-out"` | Build output directory |
 
 ## Package Configuration
 
@@ -144,7 +146,7 @@ entry = "src"
 port = 3000
 
 [build]
-outDir = "dist"
+output = ".tova-out"
 
 [dependencies]
 "github.com/alice/tova-http" = "^1.3.0"

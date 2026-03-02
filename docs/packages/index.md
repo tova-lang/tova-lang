@@ -42,24 +42,31 @@ server {
 
 ### Creating a package
 
-Any git repository with a `tova.toml` containing a `[package]` section is a Tova package:
+Scaffold a new library with the library template:
+
+```bash
+tova new my-lib --template library
+```
+
+This generates a `tova.toml` with a `[package]` section, a `src/lib.tova` entry point with `pub` exports, and a README with publishing instructions. Update the module path in `tova.toml` to match your git repository:
 
 ```toml
 [package]
-name = "github.com/alice/tova-http"
-version = "1.3.0"
-description = "HTTP server and client for Tova"
-exports = ["serve", "router", "Request", "Response"]
+name = "github.com/yourname/my-lib"
+version = "0.1.0"
+description = "A Tova library"
+license = "MIT"
+exports = ["greet", "version"]
 ```
 
 Publish by pushing a git tag:
 
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-That's it. No `tova publish` command, no registry account, no build artifacts to upload.
+That's it. No `tova publish` command, no registry account, no build artifacts to upload. See [Creating Packages](/packages/creating-packages) for the full guide.
 
 ## How It Works
 

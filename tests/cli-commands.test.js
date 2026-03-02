@@ -4902,6 +4902,84 @@ describe('new project command — extended coverage', () => {
     expect(toml).not.toContain('entry =');
   });
 
+  test('library template uses [package] section not [project]', () => {
+    const projDir = join(tmpDir, 'lib-pkg');
+    runTova(['new', projDir, '--template', 'library']);
+    const toml = readFileSync(join(projDir, 'tova.toml'), 'utf-8');
+    expect(toml).toContain('[package]');
+    expect(toml).not.toContain('[project]');
+  });
+
+  test('library template has domain-qualified name placeholder', () => {
+    const projDir = join(tmpDir, 'lib-domain');
+    runTova(['new', projDir, '--template', 'library']);
+    const toml = readFileSync(join(projDir, 'tova.toml'), 'utf-8');
+    expect(toml).toContain('name = "github.com/yourname/lib-domain"');
+  });
+
+  test('library template has license field', () => {
+    const projDir = join(tmpDir, 'lib-license');
+    runTova(['new', projDir, '--template', 'library']);
+    const toml = readFileSync(join(projDir, 'tova.toml'), 'utf-8');
+    expect(toml).toContain('license = "MIT"');
+  });
+
+  test('library template has exports field', () => {
+    const projDir = join(tmpDir, 'lib-exports');
+    runTova(['new', projDir, '--template', 'library']);
+    const toml = readFileSync(join(projDir, 'tova.toml'), 'utf-8');
+    expect(toml).toContain('exports = ["greet", "version"]');
+  });
+
+  test('library template has [dependencies] and [npm] sections', () => {
+    const projDir = join(tmpDir, 'lib-deps');
+    runTova(['new', projDir, '--template', 'library']);
+    const toml = readFileSync(join(projDir, 'tova.toml'), 'utf-8');
+    expect(toml).toContain('[dependencies]');
+    expect(toml).toContain('[npm]');
+  });
+
+  test('library template lib.tova has import usage comment', () => {
+    const projDir = join(tmpDir, 'lib-usage');
+    runTova(['new', projDir, '--template', 'library']);
+    const content = readFileSync(join(projDir, 'src', 'lib.tova'), 'utf-8');
+    expect(content).toContain('import { greet } from "github.com/yourname/lib-usage"');
+  });
+
+  test('library template lib.tova exports multiple functions', () => {
+    const projDir = join(tmpDir, 'lib-fns');
+    runTova(['new', projDir, '--template', 'library']);
+    const content = readFileSync(join(projDir, 'src', 'lib.tova'), 'utf-8');
+    expect(content).toContain('pub fn greet');
+    expect(content).toContain('pub fn version');
+  });
+
+  test('library template README has publishing instructions', () => {
+    const projDir = join(tmpDir, 'lib-readme');
+    runTova(['new', projDir, '--template', 'library']);
+    const readme = readFileSync(join(projDir, 'README.md'), 'utf-8');
+    expect(readme).toContain('git tag v0.1.0');
+    expect(readme).toContain('git push origin v0.1.0');
+    expect(readme).toContain('tova add github.com/yourname/lib-readme');
+  });
+
+  test('library template README has usage example', () => {
+    const projDir = join(tmpDir, 'lib-readme2');
+    runTova(['new', projDir, '--template', 'library']);
+    const readme = readFileSync(join(projDir, 'README.md'), 'utf-8');
+    expect(readme).toContain('import { greet } from "github.com/yourname/lib-readme2"');
+  });
+
+  test('non-library templates still use [project] section', () => {
+    for (const tpl of ['fullstack', 'api', 'script', 'blank']) {
+      const projDir = join(tmpDir, `non-lib-${tpl}`);
+      runTova(['new', projDir, '--template', tpl]);
+      const toml = readFileSync(join(projDir, 'tova.toml'), 'utf-8');
+      expect(toml).toContain('[project]');
+      expect(toml).not.toContain('[package]');
+    }
+  });
+
   test('new blank template does not create source file', () => {
     const projDir = join(tmpDir, 'blank-check');
     runTova(['new', projDir, '--template', 'blank']);

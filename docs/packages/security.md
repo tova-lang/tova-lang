@@ -139,8 +139,8 @@ error: failed to fetch github.com/alice/tova-http
 ```
 error: no entry point found for github.com/alice/tova-http@v1.3.0
 
-  Looked for: src/lib.tova, lib.tova, index.tova
-  Tip: The package may need an `entry` field in its tova.toml.
+  Looked for: src/lib.tova, lib.tova, index.tova, src/index.tova, src/main.tova, main.tova
+  Tip: Add an `entry` field to the package's tova.toml.
 ```
 
 ### Circular dependency
@@ -181,4 +181,4 @@ error: circular dependency detected
 
 **Audit your dependency tree.** Run `tova install` and review `tova.lock` to see every transitive dependency your project relies on.
 
-**Prefer well-maintained packages.** Check the repository's last update date, star count, and issue activity before depending on it. `tova search` shows this information.
+**Prefer well-maintained packages.** Check the repository's last update date, star count, and issue activity before depending on it.

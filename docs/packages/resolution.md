@@ -78,7 +78,7 @@ All fetched packages are stored in a global cache, shared across all projects on
 
 Default: `~/.tova/pkg/`
 
-Override with the `TOVA_CACHE_DIR` environment variable or pass `--cache-dir` to CLI commands.
+Override with the `TOVA_CACHE_DIR` environment variable.
 
 ### Cache structure
 
@@ -151,21 +151,21 @@ bob/jwt declares:   zod ^3.2.0
 → Generated package.json: zod ^3.2.0
 ```
 
-## Offline Mode
+## Offline Behavior
 
-Use `tova install --offline` to resolve and build using only what's already in the global cache. No network calls are made. If a required version is not cached, the command fails with an error listing available cached versions:
+When a lock file (`tova.lock`) exists, `tova install` uses the pinned versions. If those versions are already in the global cache, no network calls are made for Tova modules -- only `bun install` runs for npm dependencies.
+
+If a required version is not cached, the resolver fetches it via `git clone`. If the network is unavailable:
 
 ```
 error: failed to fetch github.com/alice/tova-http
 
+  git clone failed: Could not resolve host: github.com
+
   Cached versions available: v1.2.0, v1.2.1
-  Tip: Run with --offline to use cached versions only.
 ```
 
-This is useful for:
-- CI/CD pipelines with pre-populated caches
-- Air-gapped environments
-- Faster builds when you know everything is cached
+For CI/CD pipelines, pre-populate the cache (`~/.tova/pkg/`) in your build image so all versions are available locally.
 
 ## Circular Dependency Detection
 

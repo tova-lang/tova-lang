@@ -2,25 +2,7 @@
 
 ## Finding Packages
 
-### tova search
-
-Search for packages on GitHub:
-
-```bash
-tova search http server
-```
-
-This queries the GitHub API for repositories tagged with `topic:tova-package` matching your search terms. Results show the module path, description, star count, and last update date:
-
-```
-  github.com/alice/tova-http
-    HTTP server and client for Tova
-    Stars: 142  Updated: 2026-02-15
-
-  github.com/bob/tova-router
-    Fast router with middleware support
-    Stars: 87  Updated: 2026-02-10
-```
+Search for Tova packages on GitHub by looking for repositories with the `tova-package` topic. The `tova search` CLI command is planned but not yet available -- for now, search GitHub directly.
 
 ### Conventions
 
@@ -56,14 +38,15 @@ Tova detects that the argument is a module path (the first segment contains a do
 
 ### npm packages
 
-npm packages work the same as before:
+npm packages use the `npm:` prefix:
 
 ```bash
 tova add npm:zod
-tova add zod@3.22.0 --npm
+tova add npm:zod@3.22.0
+tova add npm:vitest --dev
 ```
 
-These go into the `[npm]` section of your `tova.toml`.
+These go into the `[npm]` section of your `tova.toml` (or `[npm.dev]` with `--dev`).
 
 ## Importing Packages
 
@@ -127,13 +110,9 @@ This:
 
 ### From lock file
 
-If a `tova.lock` exists, `tova install` uses the pinned versions instead of re-resolving. This ensures reproducible builds:
+If a `tova.lock` exists, `tova install` uses the pinned versions instead of re-resolving. This ensures reproducible builds.
 
-```bash
-tova install          # uses tova.lock if present
-tova install --fresh  # re-resolve, ignore lock file
-tova install --offline # use cache only, no network
-```
+To force a fresh resolution, delete `tova.lock` and run `tova install` again, or use `tova update` which does this automatically.
 
 ## Updating Packages
 
@@ -191,4 +170,4 @@ The caret (`^`) is the most common and is used by default when adding a package 
 
 **Check your lock file into version control.** The `tova.lock` file ensures everyone on your team gets the same dependency versions. Always commit it.
 
-**Use `--offline` in CI.** If your CI cache includes `~/.tova/pkg/`, use `tova install --offline` to avoid network calls during builds.
+**Pre-populate the cache in CI.** If your CI cache includes `~/.tova/pkg/` and a committed `tova.lock`, `tova install` will use cached versions without network calls for Tova modules.

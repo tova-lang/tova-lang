@@ -32,17 +32,17 @@ tova new my-app --template api
 | `fullstack` | Full-stack app with server + client + shared blocks (default) |
 | `api` | API server with HTTP routes, no frontend |
 | `script` | Standalone `.tova` script |
-| `library` | Reusable module with exports |
+| `library` | Reusable package with `[package]` manifest, `pub` exports, and publishing workflow |
 | `blank` | Empty project skeleton |
 
 When run without `--template`, an interactive picker is shown. The project also gets a `git init` automatically.
 
 This creates a project directory with:
 
-- `tova.toml` -- the project manifest (name, version, build settings, npm dependencies)
-- Source file (varies by template) -- e.g., `src/app.tova` for fullstack, `src/main.tova` for script
+- `tova.toml` -- the project manifest. Application templates use `[project]`; the library template uses `[package]` with a domain-qualified name, `exports`, and `license`
+- Source file (varies by template) -- e.g., `src/app.tova` for fullstack, `src/main.tova` for script, `src/lib.tova` for library
 - `.gitignore` -- ignores `node_modules/`, `.tova-out/`, `package.json`, `bun.lock`
-- `README.md` -- basic project documentation
+- `README.md` -- project documentation (library template includes publishing and usage instructions)
 
 After scaffolding:
 
@@ -70,7 +70,9 @@ If a `tova.toml` already exists, the command exits with an error.
 
 ### `tova.toml` Manifest
 
-Every Tova project uses a `tova.toml` file as its project manifest. This replaces `package.json` as the primary configuration file.
+Every Tova project uses a `tova.toml` file as its project manifest. This replaces `package.json` as the primary configuration file. Applications use `[project]`; publishable libraries use `[package]`.
+
+**Application** (fullstack, api, script templates):
 
 ```toml
 [project]
@@ -86,7 +88,7 @@ output = ".tova-out"
 port = 3000
 
 [dependencies]
-# future: tova-native packages
+"github.com/alice/tova-http" = "^1.3.0"
 
 [npm]
 htmx = "^2.0.0"
@@ -96,49 +98,74 @@ zod = "^3.0.0"
 prettier = "^3.0.0"
 ```
 
+**Library** (library template):
+
+```toml
+[package]
+name = "github.com/yourname/my-lib"
+version = "0.1.0"
+description = "A Tova library"
+license = "MIT"
+exports = ["greet", "version"]
+
+[build]
+output = ".tova-out"
+
+[dependencies]
+
+[npm]
+```
+
 | Section | Description |
 |---------|-------------|
-| `[project]` | Project name, version, description, and entry directory |
+| `[project]` | Application name, version, description, and entry directory |
+| `[package]` | Publishable library with domain-qualified name, exports, and license |
 | `[build]` | Build output directory |
 | `[dev]` | Development server settings (port) |
-| `[dependencies]` | Reserved for future Tova-native packages |
+| `[dependencies]` | Tova package dependencies (domain-qualified module paths) |
 | `[npm]` | npm production dependencies |
 | `[npm.dev]` | npm development dependencies |
+
+See the [tova.toml Reference](/packages/tova-toml) for full details on all fields.
 
 When npm dependencies are present, `tova install` generates a shadow `package.json` (included in `.gitignore`) and runs `bun install`.
 
 ### `tova install`
 
-Install npm dependencies defined in `tova.toml`.
+Install all dependencies defined in `tova.toml`.
 
 ```bash
 tova install
 ```
 
-This reads the `[npm]` and `[npm.dev]` sections from `tova.toml`, generates a shadow `package.json`, and runs `bun install`. If no `tova.toml` exists, it falls back to running `bun install` directly.
+This resolves Tova module dependencies from `[dependencies]` (fetching from git into the global cache at `~/.tova/pkg/`), then reads `[npm]` and `[npm.dev]` sections, generates a shadow `package.json`, and runs `bun install`. If no `tova.toml` exists, it falls back to running `bun install` directly.
 
 ### `tova add <package>`
 
-Add an npm package to `tova.toml` and install it.
+Add a Tova or npm package to `tova.toml` and install it.
 
 ```bash
-tova add htmx
-tova add zod@3.22.0
-tova add prettier --dev
-tova add npm:lodash
+# Tova packages (domain-qualified module paths)
+tova add github.com/alice/tova-http
+tova add github.com/alice/tova-http@^1.0.0
+
+# npm packages (use npm: prefix)
+tova add npm:zod
+tova add npm:zod@3.22.0
+tova add npm:prettier --dev
 ```
 
-Packages can be specified with or without the `npm:` prefix. Version pinning is supported with `@version`. For native Tova dependencies, use `file:` or `git:` prefixes.
+Tova modules are detected by the dot in the first path segment (e.g., `github.com`). npm packages require the `npm:` prefix.
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--dev` | Add to `[npm.dev]` instead of `[npm]` |
+| `--dev` | Add npm package to `[npm.dev]` instead of `[npm]` |
 
 ### `tova remove <package>`
 
-Remove an npm package from `tova.toml` and update the install. Searches `[dependencies]`, `[npm]`, and `[npm.dev]` sections.
+Remove a package from `tova.toml` and update the install. Searches `[dependencies]`, `[npm]`, and `[npm.dev]` sections.
 
 ```bash
 tova remove htmx

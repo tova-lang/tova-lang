@@ -32,23 +32,21 @@ The command detects Tova modules by the dot in the first path segment (e.g., `gi
 # With npm: prefix
 tova add npm:zod
 
-# With --npm flag
-tova add zod --npm
-
 # With version
 tova add npm:zod@3.22.0
+
+# Dev dependency
+tova add npm:vitest --dev
 ```
 
-npm packages are added to the `[npm]` section of `tova.toml`.
+npm packages are added to the `[npm]` section of `tova.toml` (or `[npm.dev]` with `--dev`).
 
 ## tova install
 
 Install all dependencies from `tova.toml`.
 
 ```bash
-tova install            # Install from tova.toml + tova.lock
-tova install --fresh    # Re-resolve all versions, ignore lock file
-tova install --offline  # Use cached versions only, no network
+tova install
 ```
 
 ### What it does
@@ -64,8 +62,7 @@ tova install --offline  # Use cached versions only, no network
 ### Lock file behavior
 
 - If `tova.lock` exists, pinned versions are used (no network calls for already-locked modules)
-- Use `--fresh` to ignore the lock file and re-resolve everything
-- Use `--offline` to skip all network calls and use only what's in `~/.tova/pkg/`
+- To force re-resolution, delete `tova.lock` and run `tova install` again (this is what `tova update` does internally)
 
 ## tova remove
 
@@ -97,15 +94,18 @@ This deletes the lock file (or the specific entry) and re-resolves, picking the 
 
 ## tova search
 
-Search for Tova packages on GitHub.
+::: warning Planned
+`tova search` is not yet available as a CLI command. The search module is implemented but not yet wired into the CLI. For now, search for packages on GitHub directly using the `tova-package` topic.
+:::
+
+Search for Tova packages on GitHub:
 
 ```bash
 tova search http server
 tova search database orm
-tova search jwt authentication
 ```
 
-Searches the GitHub API for repositories tagged with `topic:tova-package` matching your query. Results show:
+Will search the GitHub API for repositories tagged with `topic:tova-package` matching your query. Expected output:
 
 ```
   github.com/alice/tova-http

@@ -54,9 +54,9 @@ Commands:
   clean            Delete .tova-out build artifacts
   dev              Start development server with live reload
   new <name>       Create a new Tova project (--template fullstack|api|script|library|blank)
-  install          Install npm dependencies from tova.toml
-  add <pkg>        Add an npm dependency (--dev for dev dependency)
-  remove <pkg>     Remove an npm dependency
+  install          Install dependencies from tova.toml
+  add <pkg>        Add a dependency (npm:pkg for npm, github.com/user/repo for Tova)
+  remove <pkg>     Remove a dependency
   repl             Start interactive Tova REPL
   lsp              Start Language Server Protocol server
   fmt <file>      Format a .tova file (--check to verify only)

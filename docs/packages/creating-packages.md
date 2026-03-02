@@ -2,6 +2,14 @@
 
 Any git repository with a `tova.toml` containing a `[package]` section is a Tova package. There is no build step, no registry account, and no special tooling required.
 
+The fastest way to create a new package is with the library template:
+
+```bash
+tova new my-lib --template library
+```
+
+This scaffolds a ready-to-publish package with a `[package]` manifest, `src/lib.tova` entry point, and publishing instructions. Update the `name` field in `tova.toml` to match your git repository path before publishing.
+
 ## Package Structure
 
 A minimal Tova package looks like this:
