@@ -5894,9 +5894,10 @@ server {
     const outDir = join(tmpDir, 'out');
     runTova(['build', join(tmpDir, 'src'), '--output', outDir, '--production']);
     const files = readdirSync(outDir);
-    const jsFile = files.find(f => f.endsWith('.js') && !f.endsWith('.min.js'));
-    const minFile = files.find(f => f.endsWith('.min.js'));
-    if (jsFile && minFile) {
+    // Compare hashed bundles only (skip tiny entrypoint files like server.js/server.min.js)
+    const jsFile = files.find(f => /^server\.[a-f0-9]+\.js$/.test(f));
+    const minFile = jsFile ? jsFile.replace('.js', '.min.js') : null;
+    if (jsFile && minFile && files.includes(minFile)) {
       const jsSize = statSync(join(outDir, jsFile)).size;
       const minSize = statSync(join(outDir, minFile)).size;
       expect(minSize).toBeLessThanOrEqual(jsSize);
@@ -6311,9 +6312,11 @@ server {
     const result = runTova(['build', join(tmpDir, 'src'), '--output', outDir, '--production']);
     expect(result.exitCode).toBe(0);
     const files = readdirSync(outDir);
-    const serverFiles = files.filter(f => f.startsWith('server.') && f.endsWith('.js') && !f.includes('.min.'));
-    expect(serverFiles.length).toBe(1);
-    expect(serverFiles[0]).toMatch(/^server\.[a-f0-9]+\.js$/);
+    const hashedServerFiles = files.filter(f => f.startsWith('server.') && f.endsWith('.js') && !f.includes('.min.') && f !== 'server.js');
+    expect(hashedServerFiles.length).toBe(1);
+    expect(hashedServerFiles[0]).toMatch(/^server\.[a-f0-9]+\.js$/);
+    // Stable entrypoint for Docker/deployment
+    expect(files).toContain('server.js');
   });
 
   test('production build of browser app produces HTML and client file', () => {

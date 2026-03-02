@@ -21,13 +21,11 @@ This generates optimized output in `.tova-out/`:
 1. Create a `Dockerfile`:
 
 ```dockerfile
-FROM oven/bun:1
+FROM oven/bun:1-slim
 WORKDIR /app
-COPY tova.toml ./
 COPY .tova-out/ ./.tova-out/
-COPY node_modules/ ./node_modules/
 EXPOSE 3000
-CMD ["bun", "run", ".tova-out/server.js"]
+CMD ["bun", "run", ".tova-out/server.min.js"]
 ```
 
 2. Deploy:
@@ -49,7 +47,7 @@ tova build --production
 2. Set the start command:
 
 ```
-bun run .tova-out/server.js
+bun run .tova-out/server.min.js
 ```
 
 3. Push to your Railway-connected Git repository.
@@ -80,7 +78,7 @@ For full-stack Tova apps with server routes, use Vercel's Node.js serverless fun
 {
   "buildCommand": "tova build --production",
   "functions": {
-    ".tova-out/server.js": {
+    ".tova-out/server.min.js": {
       "runtime": "bun@1"
     }
   }
@@ -89,21 +87,32 @@ For full-stack Tova apps with server routes, use Vercel's Node.js serverless fun
 
 ### Docker
 
+Multi-stage build with `oven/bun:1-slim` for a minimal production image:
+
 ```dockerfile
 # Build stage
 FROM oven/bun:1 AS build
 WORKDIR /app
-COPY . .
+COPY package.json bun.lock* ./
 RUN bun install
-RUN bun run bin/tova.js build --production
+COPY src/ ./src/
+COPY tova.toml ./
+RUN bunx tova build --production
 
 # Production stage
 FROM oven/bun:1-slim
 WORKDIR /app
 COPY --from=build /app/.tova-out ./.tova-out
-COPY --from=build /app/node_modules ./node_modules
 EXPOSE 3000
-CMD ["bun", "run", ".tova-out/server.js"]
+CMD ["bun", "run", ".tova-out/server.min.js"]
+```
+
+Add a `.dockerignore` to keep the build context small:
+
+```
+.tova-out
+node_modules
+.git
 ```
 
 Build and run:
@@ -112,6 +121,8 @@ Build and run:
 docker build -t my-tova-app .
 docker run -p 3000:3000 my-tova-app
 ```
+
+The production build bundles everything into self-contained files — no `node_modules` needed in the production image.
 
 ### Static Hosting (Netlify, GitHub Pages)
 

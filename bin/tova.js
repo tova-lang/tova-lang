@@ -3357,6 +3357,9 @@ async function productionBuild(srcDir, outDir) {
     const serverPath = join(outDir, `server.${hash}.js`);
     writeFileSync(serverPath, serverBundle);
     console.log(`  server.${hash}.js`);
+
+    // Write stable server.js entrypoint for Docker/deployment
+    writeFileSync(join(outDir, 'server.js'), `import "./server.${hash}.js";\n`);
   }
 
   // Write script bundle for plain scripts (no server/client blocks)
@@ -3445,6 +3448,16 @@ async function productionBuild(srcDir, outDir) {
         // Skip files that can't be minified
       }
     }
+  }
+
+  // Rewrite min entrypoints to import minified hashed files
+  for (const f of ['server.min.js', 'script.min.js']) {
+    const minEntry = join(outDir, f);
+    try {
+      const content = readFileSync(minEntry, 'utf-8');
+      const rewritten = content.replace(/\.js(["'])/g, '.min.js$1');
+      writeFileSync(minEntry, rewritten);
+    } catch {}
   }
 
   if (minified === 0 && jsFiles.length > 0) {
