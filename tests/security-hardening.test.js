@@ -333,3 +333,77 @@ describe('Security scorecard', () => {
     expect(output).toContain('/10');
   });
 });
+
+// ════════════════════════════════════════════════════════════
+// Task 6: Auto-inject audit logging
+// ════════════════════════════════════════════════════════════
+
+describe('Auto-inject audit logging', () => {
+  test('emits __auditLog and auth:success when audit+auth configured', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+        audit { store: "audit_logs", events: ["auth"] }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('__auditLog');
+    expect(code).toContain('auth:success');
+  });
+
+  test('emits auth:failure when audit+auth configured', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+        audit { store: "audit_logs", events: ["auth"] }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('auth:failure');
+  });
+
+  test('does NOT emit audit calls when audit is not configured', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).not.toContain('__auditLog');
+  });
+
+  test('emits rate_limit:exceeded when audit+rate_limit configured', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+        rate_limit { max: 100, window: 60 }
+        audit { store: "audit_logs", events: ["auth"] }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('rate_limit:exceeded');
+  });
+
+  test('emits auth:denied when audit+protection configured', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+        role admin { can: [manage] }
+        protect "/admin" { require: admin }
+        audit { store: "audit_logs", events: ["auth"] }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    expect(code).toContain('auth:denied');
+  });
+});

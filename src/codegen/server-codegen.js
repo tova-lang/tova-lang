@@ -2381,7 +2381,12 @@ export class ServerCodegen extends BaseCodegen {
           const rlWindow = rateLimitDec.args[1] ? this.genExpression(rateLimitDec.args[1]) : '60';
           lines.push(`  const __rlIp = __getClientIp(req);`);
           lines.push(`  const __rlRoute = __checkRateLimit(\`route:${path}:\${__rlIp}\`, ${rlMax}, ${rlWindow});`);
-          lines.push(`  if (__rlRoute.limited) return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { "Retry-After": String(__rlRoute.retryAfter) });`);
+          lines.push(`  if (__rlRoute.limited) {`);
+          if (securityFragments && securityFragments.auditCode) {
+            lines.push(`    __auditLog("rate_limit:exceeded", { method: req.method, path: __pathname }, { id: null });`);
+          }
+          lines.push(`    return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { "Retry-After": String(__rlRoute.retryAfter) });`);
+          lines.push(`  }`);
         }
 
         // Upload decorator — parse multipart body, validate file field
@@ -3233,6 +3238,9 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  const __clientIp = __getClientIp(req);');
       lines.push('  const __rl = __checkRateLimit(__clientIp, __rateLimitMax, __rateLimitWindow);');
       lines.push('  if (__rl.limited) {');
+      if (securityFragments && securityFragments.auditCode) {
+        lines.push('    __auditLog("rate_limit:exceeded", { method: req.method, path: __pathname, ip: __clientIp }, { id: null });');
+      }
       lines.push('    return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__rl.retryAfter) });');
       lines.push('  }');
     }
@@ -3282,6 +3290,10 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  // Security block: route protection');
       if (authConfig) {
         lines.push('  const __secUser = await __authenticate(req);');
+        if (securityFragments && securityFragments.auditCode) {
+          lines.push('  if (__secUser) __auditLog("auth:success", { method: req.method, path: __pathname }, __secUser);');
+          lines.push('  else if (req.headers.get("Authorization")) __auditLog("auth:failure", { method: req.method, path: __pathname, reason: "invalid_token" }, { id: null });');
+        }
       } else {
         lines.push('  const __secUser = null;');
       }
@@ -3289,15 +3301,29 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  if (!__protection.allowed) {');
       lines.push('    const __statusCode = __secUser ? 403 : 401;');
       lines.push('    const __errorCode = __secUser ? "FORBIDDEN" : "AUTH_REQUIRED";');
+      if (securityFragments && securityFragments.auditCode) {
+        lines.push('    __auditLog("auth:denied", { method: req.method, path: __pathname }, __secUser || { id: null });');
+      }
       lines.push('    return __errorResponse(__statusCode, __errorCode, __protection.reason, null, __cors);');
       lines.push('  }');
       lines.push('  if (__protection.rateLimit && __protection.rateLimit.max) {');
       lines.push('    const __protectIp = __getClientIp(req);');
       lines.push('    const __protectRl = __checkRateLimit("protect:" + __pathname + ":" + __protectIp, __protection.rateLimit.max, __protection.rateLimit.window || 60);');
       lines.push('    if (__protectRl.limited) {');
+      if (securityFragments && securityFragments.auditCode) {
+        lines.push('      __auditLog("rate_limit:exceeded", { method: req.method, path: __pathname, ip: __protectIp }, { id: null });');
+      }
       lines.push('      return __errorResponse(429, "RATE_LIMITED", "Too Many Requests", null, { ...__cors, "Retry-After": String(__protectRl.retryAfter) });');
       lines.push('    }');
       lines.push('  }');
+    }
+
+    // Audit logging for auth (when no protection block but auth+audit configured)
+    if (!(securityFragments && securityFragments.protectCode) && authConfig && securityFragments && securityFragments.auditCode) {
+      lines.push('  // Audit: auth logging');
+      lines.push('  const __secUser = await __authenticate(req);');
+      lines.push('  if (__secUser) __auditLog("auth:success", { method: req.method, path: __pathname }, __secUser);');
+      lines.push('  else if (req.headers.get("Authorization")) __auditLog("auth:failure", { method: req.method, path: __pathname, reason: "invalid_token" }, { id: null });');
     }
 
     // Idempotency key check
