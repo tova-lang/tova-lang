@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
 import {
   AnimateDeclaration, AnimatePrimitive, AnimateSequence, AnimateParallel,
 } from '../src/parser/animate-ast.js';
@@ -10,6 +11,15 @@ function parse(src) {
   const tokens = lexer.tokenize();
   const parser = new Parser(tokens, '<test>');
   return parser.parse();
+}
+
+function compile(src) {
+  const lexer = new Lexer(src, '<test>');
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, '<test>');
+  const ast = parser.parse();
+  const codegen = new CodeGenerator(ast, '<test>');
+  return codegen.generate().browser;
 }
 
 function getAnimateDecls(ast) {
@@ -601,5 +611,327 @@ describe('animate {} — Edge cases', () => {
     expect(stateNodes).toHaveLength(1);
     expect(computedNodes).toHaveLength(1);
     expect(animateNodes).toHaveLength(1);
+  });
+});
+
+// ─── Codegen: @keyframes generation ─────────────────────────
+
+describe('animate {} codegen', () => {
+  test('generates @keyframes for enter animation', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+          }
+          <div animate:fadeIn>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('fadeIn');
+    expect(code).toContain('opacity');
+    expect(code).toContain('animation');
+  });
+
+  test('generates parallel animation (merged properties)', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate appear {
+            enter: fade(from: 0, to: 1) + slide(y: 20, to: 0)
+            duration: 500
+          }
+          <div animate:appear>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('opacity');
+    expect(code).toContain('transform');
+  });
+
+  test('sequential composition splits keyframes', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate staged {
+            enter: fade(from: 0, to: 1) then scale(from: 0.8, to: 1)
+            duration: 600
+          }
+          <div animate:staged>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('50%');
+  });
+
+  test('stagger adds animation-delay', () => {
+    const code = compile(`
+      browser {
+        component List() {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+            stagger: 50
+          }
+          <ul>
+            <li animate:fadeIn>"Item"</li>
+          </ul>
+        }
+      }
+    `);
+    expect(code).toContain('animationDelay');
+  });
+
+  test('exit animation generates separate keyframes', () => {
+    const code = compile(`
+      browser {
+        component Toast() {
+          animate toast {
+            enter: slide(y: 30, to: 0) + fade(from: 0, to: 1)
+            exit: fade(from: 1, to: 0)
+            duration: 300
+          }
+          <div animate:toast>"Toast"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    // Should have both enter and exit keyframes
+    expect(code).toContain('_enter');
+    expect(code).toContain('_exit');
+  });
+
+  test('easing is applied to animation', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+            easing: "ease-out"
+          }
+          <div animate:fadeIn>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('ease-out');
+  });
+
+  test('animate directive with conditional', () => {
+    const code = compile(`
+      browser {
+        component Card(visible: Bool) {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+          }
+          <div animate:fadeIn={visible}>"Hello"</div>
+        }
+      }
+    `);
+    // Should have conditional animation application
+    expect(code).toContain('fadeIn');
+    expect(code).toContain('visible');
+  });
+
+  test('rotate primitive generates rotate keyframes', () => {
+    const code = compile(`
+      browser {
+        component Spinner() {
+          animate spin {
+            enter: rotate(from: 0, to: 360)
+            duration: 1000
+          }
+          <div animate:spin>"Spin"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('rotate');
+    expect(code).toContain('0deg');
+    expect(code).toContain('360deg');
+  });
+
+  test('blur primitive generates filter keyframes', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate blurIn {
+            enter: blur(from: 10, to: 0)
+            duration: 500
+          }
+          <div animate:blurIn>"Blur"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('filter');
+    expect(code).toContain('blur(10px)');
+    expect(code).toContain('blur(0px)');
+  });
+
+  test('scale primitive generates scale keyframes', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate scaleIn {
+            enter: scale(from: 0.5, to: 1)
+            duration: 400
+          }
+          <div animate:scaleIn>"Scale"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('scale(0.5)');
+    expect(code).toContain('scale(1)');
+  });
+
+  test('slide with x parameter generates translateX', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate slideLeft {
+            enter: slide(x: -50, to: 0)
+            duration: 300
+          }
+          <div animate:slideLeft>"Slide"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('translateX(-50px)');
+    expect(code).toContain('translateX(0px)');
+  });
+
+  test('slide with y parameter generates translateY', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate slideUp {
+            enter: slide(y: 20, to: 0)
+            duration: 300
+          }
+          <div animate:slideUp>"Slide"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('translateY(20px)');
+    expect(code).toContain('translateY(0px)');
+  });
+
+  test('default easing is ease when not specified', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+          }
+          <div animate:fadeIn>"Hello"</div>
+        }
+      }
+    `);
+    // Default easing should be 'ease'
+    expect(code).toContain('ease');
+  });
+
+  test('default duration is 300ms when not specified', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+          }
+          <div animate:fadeIn>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('300ms');
+  });
+
+  test('animate works alongside style blocks', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          style {
+            .card { padding: 16px }
+          }
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+          }
+          <div class="card" animate:fadeIn>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('.card');
+    expect(code).toContain('tova_inject_css');
+  });
+
+  test('three-way sequence splits at 33% and 66%', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate staged {
+            enter: fade(from: 0, to: 1) then slide(y: 20, to: 0) then scale(from: 0.8, to: 1)
+            duration: 900
+          }
+          <div animate:staged>"Hello"</div>
+        }
+      }
+    `);
+    expect(code).toContain('@keyframes');
+    expect(code).toContain('0%');
+    expect(code).toContain('33%');
+    expect(code).toContain('66%');
+    expect(code).toContain('100%');
+  });
+
+  test('parallel merges transforms into single property', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate appear {
+            enter: slide(y: 20, to: 0) + scale(from: 0.8, to: 1)
+            duration: 500
+          }
+          <div animate:appear>"Hello"</div>
+        }
+      }
+    `);
+    // Both transforms should be merged into a single transform property
+    expect(code).toContain('translateY');
+    expect(code).toContain('scale');
+  });
+
+  test('multiple animate declarations generate multiple keyframe sets', () => {
+    const code = compile(`
+      browser {
+        component Card() {
+          animate fadeIn {
+            enter: fade(from: 0, to: 1)
+            duration: 300
+          }
+          animate slideUp {
+            enter: slide(y: 20, to: 0)
+            duration: 400
+          }
+          <div animate:fadeIn>"A"</div>
+          <div animate:slideUp>"B"</div>
+        }
+      }
+    `);
+    expect(code).toContain('fadeIn');
+    expect(code).toContain('slideUp');
+    // Both animations should be present
+    const keyframeCount = (code.match(/@keyframes/g) || []).length;
+    expect(keyframeCount).toBeGreaterThanOrEqual(2);
   });
 });

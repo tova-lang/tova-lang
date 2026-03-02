@@ -597,6 +597,222 @@ export class BrowserCodegen extends BaseCodegen {
     return scopedCSS + ` @media (prefers-reduced-motion: reduce) { ${scopeAttr} {${rules} } }`;
   }
 
+  // ── Animate @keyframes generation ──────────────────────────
+
+  // Main entry: generates @keyframes CSS from an AnimateDeclaration AST node.
+  // Returns { css, enterName, exitName, duration, easing, stagger }
+  _generateAnimateKeyframes(animDecl, scopeId) {
+    const enterName = `__tova_${scopeId}_${animDecl.name}_enter`;
+    const exitName = `__tova_${scopeId}_${animDecl.name}_exit`;
+    const duration = animDecl.duration || 300;
+    const easing = animDecl.easing || 'ease';
+    const stagger = animDecl.stagger || 0;
+
+    let css = '';
+
+    if (animDecl.enter) {
+      css += this._compositionToKeyframes(enterName, animDecl.enter);
+    }
+
+    if (animDecl.exit) {
+      css += this._compositionToKeyframes(exitName, animDecl.exit);
+    }
+
+    return { css, enterName, exitName, duration, easing, stagger, hasExit: !!animDecl.exit };
+  }
+
+  // Dispatches to the correct keyframe generator based on AST node type
+  _compositionToKeyframes(name, node) {
+    if (node.type === 'AnimatePrimitive') {
+      const kf = this._primitiveToKeyframes(node);
+      return `@keyframes ${name} { from { ${kf.from} } to { ${kf.to} } } `;
+    }
+    if (node.type === 'AnimateParallel') {
+      const kf = this._parallelToKeyframes(node.children);
+      return `@keyframes ${name} { from { ${kf.from} } to { ${kf.to} } } `;
+    }
+    if (node.type === 'AnimateSequence') {
+      return this._sequenceToKeyframes(name, node.children);
+    }
+    return '';
+  }
+
+  // Converts a single AnimatePrimitive to { from: "css", to: "css" }
+  _primitiveToKeyframes(prim) {
+    const p = prim.params;
+    switch (prim.name) {
+      case 'fade':
+        return {
+          from: `opacity: ${p.from !== undefined ? p.from : 0};`,
+          to: `opacity: ${p.to !== undefined ? p.to : 1};`,
+          fromProps: { opacity: `${p.from !== undefined ? p.from : 0}` },
+          toProps: { opacity: `${p.to !== undefined ? p.to : 1}` },
+        };
+      case 'slide': {
+        let fromTransform, toTransform;
+        if (p.x !== undefined && p.y !== undefined) {
+          fromTransform = `translate(${p.x}px, ${p.y}px)`;
+          toTransform = `translate(${p.to !== undefined ? p.to : 0}px, ${p.to !== undefined ? p.to : 0}px)`;
+        } else if (p.x !== undefined) {
+          fromTransform = `translateX(${p.x}px)`;
+          toTransform = `translateX(${p.to !== undefined ? p.to : 0}px)`;
+        } else {
+          fromTransform = `translateY(${p.y !== undefined ? p.y : 0}px)`;
+          toTransform = `translateY(${p.to !== undefined ? p.to : 0}px)`;
+        }
+        return {
+          from: `transform: ${fromTransform};`,
+          to: `transform: ${toTransform};`,
+          fromProps: { transform: fromTransform },
+          toProps: { transform: toTransform },
+        };
+      }
+      case 'scale':
+        return {
+          from: `transform: scale(${p.from !== undefined ? p.from : 1});`,
+          to: `transform: scale(${p.to !== undefined ? p.to : 1});`,
+          fromProps: { transform: `scale(${p.from !== undefined ? p.from : 1})` },
+          toProps: { transform: `scale(${p.to !== undefined ? p.to : 1})` },
+        };
+      case 'rotate':
+        return {
+          from: `transform: rotate(${p.from !== undefined ? p.from : 0}deg);`,
+          to: `transform: rotate(${p.to !== undefined ? p.to : 0}deg);`,
+          fromProps: { transform: `rotate(${p.from !== undefined ? p.from : 0}deg)` },
+          toProps: { transform: `rotate(${p.to !== undefined ? p.to : 0}deg)` },
+        };
+      case 'blur':
+        return {
+          from: `filter: blur(${p.from !== undefined ? p.from : 0}px);`,
+          to: `filter: blur(${p.to !== undefined ? p.to : 0}px);`,
+          fromProps: { filter: `blur(${p.from !== undefined ? p.from : 0}px)` },
+          toProps: { filter: `blur(${p.to !== undefined ? p.to : 0}px)` },
+        };
+      default:
+        return { from: '', to: '', fromProps: {}, toProps: {} };
+    }
+  }
+
+  // Merges multiple primitives into a single from/to block (parallel composition)
+  _parallelToKeyframes(children) {
+    const fromProps = {};
+    const toProps = {};
+    const fromTransforms = [];
+    const toTransforms = [];
+
+    for (const child of children) {
+      const kf = this._primitiveToKeyframes(child);
+      for (const [prop, val] of Object.entries(kf.fromProps || {})) {
+        if (prop === 'transform') {
+          fromTransforms.push(val);
+        } else {
+          fromProps[prop] = val;
+        }
+      }
+      for (const [prop, val] of Object.entries(kf.toProps || {})) {
+        if (prop === 'transform') {
+          toTransforms.push(val);
+        } else {
+          toProps[prop] = val;
+        }
+      }
+    }
+
+    if (fromTransforms.length > 0) fromProps.transform = fromTransforms.join(' ');
+    if (toTransforms.length > 0) toProps.transform = toTransforms.join(' ');
+
+    const fromCSS = Object.entries(fromProps).map(([k, v]) => `${k}: ${v};`).join(' ');
+    const toCSS = Object.entries(toProps).map(([k, v]) => `${k}: ${v};`).join(' ');
+
+    return { from: fromCSS, to: toCSS };
+  }
+
+  // Generates percentage-based keyframes for sequential composition
+  _sequenceToKeyframes(name, children) {
+    const n = children.length;
+    const stops = []; // Array of { percent, props }
+
+    for (let idx = 0; idx < n; idx++) {
+      const child = children[idx];
+      let kf;
+      if (child.type === 'AnimateParallel') {
+        const merged = this._parallelToKeyframes(child.children);
+        // Parse from/to CSS into props
+        kf = { fromProps: this._parseCSSProps(merged.from), toProps: this._parseCSSProps(merged.to) };
+      } else {
+        kf = this._primitiveToKeyframes(child);
+      }
+
+      const startPct = Math.floor((idx / n) * 100);
+      const endPct = idx === n - 1 ? 100 : Math.floor(((idx + 1) / n) * 100);
+
+      if (idx === 0) {
+        // First child: add from props at 0%
+        stops.push({ percent: startPct, props: { ...(kf.fromProps || {}) } });
+      }
+
+      // At the boundary between this child and the next:
+      // merge this child's "to" props with the next child's "from" props
+      if (idx < n - 1) {
+        const nextChild = children[idx + 1];
+        let nextKf;
+        if (nextChild.type === 'AnimateParallel') {
+          const merged = this._parallelToKeyframes(nextChild.children);
+          nextKf = { fromProps: this._parseCSSProps(merged.from), toProps: this._parseCSSProps(merged.to) };
+        } else {
+          nextKf = this._primitiveToKeyframes(nextChild);
+        }
+        stops.push({ percent: endPct, props: { ...(kf.toProps || {}), ...(nextKf.fromProps || {}) } });
+      } else {
+        // Last child: add to props at 100%
+        stops.push({ percent: endPct, props: { ...(kf.toProps || {}) } });
+      }
+    }
+
+    let css = `@keyframes ${name} { `;
+    for (const stop of stops) {
+      const propsCSS = Object.entries(stop.props).map(([k, v]) => `${k}: ${v};`).join(' ');
+      css += `${stop.percent}% { ${propsCSS} } `;
+    }
+    css += '} ';
+
+    return css;
+  }
+
+  // Helper: parse "opacity: 0; transform: scale(0.8);" into { opacity: "0", transform: "scale(0.8)" }
+  _parseCSSProps(cssString) {
+    const props = {};
+    if (!cssString) return props;
+    const parts = cssString.split(';').filter(Boolean);
+    for (const part of parts) {
+      const colonIdx = part.indexOf(':');
+      if (colonIdx > 0) {
+        const key = part.slice(0, colonIdx).trim();
+        const val = part.slice(colonIdx + 1).trim();
+        props[key] = val;
+      }
+    }
+    return props;
+  }
+
+  // Check if any JSX nodes in a tree use animate directives with stagger
+  _jsxTreeHasStagger(nodes) {
+    if (!this._currentAnimateDecls) return false;
+    for (const node of nodes) {
+      if (node.type === 'JSXElement') {
+        for (const attr of (node.attributes || [])) {
+          if (attr.name && attr.name.startsWith('animate:')) {
+            const animName = attr.name.slice(8);
+            const info = this._currentAnimateDecls[animName];
+            if (info && info.stagger) return true;
+          }
+        }
+        if (node.children && this._jsxTreeHasStagger(node.children)) return true;
+      }
+    }
+    return false;
+  }
+
   _extractResponsive(css) {
     // Find responsive { ... } block in raw CSS and extract it
     const responsiveMatch = css.match(/responsive\s*\{/);
@@ -828,9 +1044,10 @@ export class BrowserCodegen extends BaseCodegen {
       }
     }
 
-    // Separate JSX elements, style blocks, and statements
+    // Separate JSX elements, style blocks, animate declarations, and statements
     const jsxElements = [];
     const styleBlocks = [];
+    const animateDecls = [];
     const bodyItems = [];
 
     for (const node of comp.body) {
@@ -838,6 +1055,8 @@ export class BrowserCodegen extends BaseCodegen {
         jsxElements.push(node);
       } else if (node.type === 'ComponentStyleBlock') {
         styleBlocks.push(node);
+      } else if (node.type === 'AnimateDeclaration') {
+        animateDecls.push(node);
       } else {
         bodyItems.push(node);
       }
@@ -900,6 +1119,29 @@ export class BrowserCodegen extends BaseCodegen {
       p.push(`${this.i()}tova_inject_css(${JSON.stringify(scopeId)}, ${JSON.stringify(scopedCSS)});\n`);
     }
 
+    // Generate @keyframes CSS from animate declarations
+    const savedAnimateDecls = this._currentAnimateDecls;
+    this._currentAnimateDecls = null;
+    if (animateDecls.length > 0) {
+      // Ensure a scope ID exists for keyframe name uniqueness
+      if (!this._currentScopeId) {
+        this._currentScopeId = this._genScopeId(comp.name, 'animate');
+      }
+      const scopeId = this._currentScopeId;
+      const animateMap = {};
+      let keyframeCSS = '';
+      for (const animDecl of animateDecls) {
+        const result = this._generateAnimateKeyframes(animDecl, scopeId);
+        keyframeCSS += result.css;
+        animateMap[animDecl.name] = result;
+      }
+      this._currentAnimateDecls = animateMap;
+      if (keyframeCSS) {
+        const animScopeId = `${scopeId}_anim`;
+        p.push(`${this.i()}tova_inject_css(${JSON.stringify(animScopeId)}, ${JSON.stringify(keyframeCSS)});\n`);
+      }
+    }
+
     // Generate body items in order (state, computed, effect, other statements)
     for (const node of bodyItems) {
       if (node.type === 'StateDeclaration') {
@@ -937,11 +1179,12 @@ export class BrowserCodegen extends BaseCodegen {
     this.indent--;
     p.push(`}`);
 
-    // Restore scoped names, scope id, and variants
+    // Restore scoped names, scope id, variants, and animate decls
     this.stateNames = savedState;
     this.computedNames = savedComputed;
     this._currentScopeId = savedScopeId;
     this._currentVariants = savedVariants;
+    this._currentAnimateDecls = savedAnimateDecls;
 
     return p.join('');
   }
@@ -1520,6 +1763,13 @@ export class BrowserCodegen extends BaseCodegen {
         // Conditional class: class:active={cond}
         const className = attr.name.slice(6);
         classDirectives.push({ className, condition: this.genExpression(attr.value), node: attr.value });
+      } else if (attr.name.startsWith('animate:')) {
+        // animate:fadeIn or animate:fadeIn={visible} — CSS animation directive
+        const animName = attr.name.slice(8);
+        const isConditional = attr.value.type !== 'BooleanLiteral';
+        const condExpr = isConditional ? this.genExpression(attr.value) : null;
+        if (!node._animateDirectives) node._animateDirectives = [];
+        node._animateDirectives.push({ name: animName, conditional: isConditional, condExpr });
       } else if (attr.name.startsWith('use:')) {
         // use:action directive: use:tooltip={params}
         const actionName = attr.name.slice(4);
@@ -1677,6 +1927,72 @@ export class BrowserCodegen extends BaseCodegen {
     // Add scoped CSS attribute to HTML elements (not components)
     if (this._currentScopeId && !isComponent) {
       attrs[`"data-tova-${this._currentScopeId}"`] = '""';
+    }
+
+    // Apply animate: directives — add CSS animation property
+    if (node._animateDirectives && node._animateDirectives.length > 0 && this._currentAnimateDecls) {
+      const animParts = [];
+      let hasStagger = false;
+      let staggerValue = 0;
+
+      for (const dir of node._animateDirectives) {
+        const animInfo = this._currentAnimateDecls[dir.name];
+        if (!animInfo) continue;
+
+        const animStr = `${animInfo.enterName} ${animInfo.duration}ms ${animInfo.easing} both`;
+
+        if (dir.conditional) {
+          // Conditional: only apply when expression is truthy
+          animParts.push({ str: animStr, conditional: true, condExpr: dir.condExpr });
+        } else {
+          animParts.push({ str: animStr, conditional: false });
+        }
+
+        if (animInfo.stagger) {
+          hasStagger = true;
+          staggerValue = animInfo.stagger;
+        }
+      }
+
+      if (animParts.length > 0) {
+        // Build animation style
+        const allUnconditional = animParts.every(a => !a.conditional);
+        if (allUnconditional) {
+          const animValue = animParts.map(a => a.str).join(', ');
+          // Merge with existing style
+          if (attrs.style) {
+            const existing = attrs.style;
+            attrs.style = `Object.assign({}, ${existing}, { animation: "${animValue}" })`;
+          } else {
+            attrs.style = `{ animation: "${animValue}" }`;
+          }
+        } else {
+          // Conditional animations — use reactive style
+          const parts = animParts.map(a =>
+            a.conditional ? `(${a.condExpr} ? "${a.str}" : "")` : `"${a.str}"`
+          );
+          const animExpr = `[${parts.join(', ')}].filter(Boolean).join(", ")`;
+          if (attrs.style) {
+            const existing = attrs.style;
+            attrs.style = `() => Object.assign({}, ${existing}, { animation: ${animExpr} })`;
+          } else {
+            attrs.style = `() => ({ animation: ${animExpr} })`;
+          }
+        }
+
+        if (hasStagger) {
+          // Add animationDelay using a data attribute + parent-index pattern
+          // For stagger, inject a computed delay based on sibling index
+          if (attrs.style && typeof attrs.style === 'string' && attrs.style.startsWith('() =>')) {
+            const inner = attrs.style.slice(6);
+            attrs.style = `() => Object.assign({}, ${inner}, { animationDelay: (__tova_idx * ${staggerValue}) + "ms" })`;
+          } else if (attrs.style) {
+            attrs.style = `Object.assign({}, ${attrs.style}, { animationDelay: (__tova_idx * ${staggerValue}) + "ms" })`;
+          } else {
+            attrs.style = `{ animationDelay: (__tova_idx * ${staggerValue}) + "ms" }`;
+          }
+        }
+      }
     }
 
     const propParts = [];
@@ -1926,18 +2242,22 @@ export class BrowserCodegen extends BaseCodegen {
     const needsReactive = this._exprReadsSignal(node.iterable);
     const wrap = needsReactive ? '() => ' : '';
 
+    // Include __tova_idx in map callback when stagger animations are used on child elements
+    const needsIdx = this._jsxTreeHasStagger(node.body);
+    const idxParam = needsIdx ? ', __tova_idx' : '';
+
     if (node.keyExpr) {
       const keyExpr = this.genExpression(node.keyExpr);
       if (children.length === 1) {
-        return `${wrap}${iterable}.map((${varName}) => tova_keyed(${keyExpr}, ${children[0]}))`;
+        return `${wrap}${iterable}.map((${varName}${idxParam}) => tova_keyed(${keyExpr}, ${children[0]}))`;
       }
-      return `${wrap}${iterable}.map((${varName}) => tova_keyed(${keyExpr}, tova_fragment([${children.join(', ')}])))`;
+      return `${wrap}${iterable}.map((${varName}${idxParam}) => tova_keyed(${keyExpr}, tova_fragment([${children.join(', ')}])))`;
     }
 
     if (children.length === 1) {
-      return `${wrap}${iterable}.map((${varName}) => ${children[0]})`;
+      return `${wrap}${iterable}.map((${varName}${idxParam}) => ${children[0]})`;
     }
-    return `${wrap}${iterable}.map((${varName}) => tova_fragment([${children.join(', ')}]))`;
+    return `${wrap}${iterable}.map((${varName}${idxParam}) => tova_fragment([${children.join(', ')}]))`;
   }
 
   genJSXIf(node) {
