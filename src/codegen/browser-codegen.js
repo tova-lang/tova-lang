@@ -657,6 +657,150 @@ export class BrowserCodegen extends BaseCodegen {
     return { baseCss, responsiveBlocks };
   }
 
+  // Extract variant(propName) { ... } blocks from raw CSS.
+  // Returns { baseCss, variants: [{propNames: [...], entries: [...]}] }
+  _extractVariants(css) {
+    const variants = [];
+    let baseCss = css;
+
+    // Repeatedly find and extract variant(...) { ... } blocks
+    const variantRe = /variant\s*\(([^)]+)\)\s*\{/g;
+    let match;
+    // Collect all matches first (with their positions in original css)
+    const matches = [];
+    while ((match = variantRe.exec(baseCss)) !== null) {
+      matches.push({ index: match.index, fullMatch: match[0], propStr: match[1].trim() });
+    }
+
+    // Process in reverse order to maintain correct indices when removing
+    for (let m = matches.length - 1; m >= 0; m--) {
+      const { index: startIdx, fullMatch, propStr } = matches[m];
+      // Parse prop names (single or compound with +)
+      const propNames = propStr.split(/\s*\+\s*/).map(s => s.trim()).filter(Boolean);
+
+      // Find matching closing brace using brace counting
+      let i = startIdx + fullMatch.length;
+      let depth = 1;
+      while (i < baseCss.length && depth > 0) {
+        if (baseCss[i] === '{') depth++;
+        else if (baseCss[i] === '}') depth--;
+        i++;
+      }
+
+      const content = baseCss.slice(startIdx + fullMatch.length, i - 1);
+      const entries = this._parseVariantEntries(content, propNames);
+      variants.unshift({ propNames, entries });
+
+      // Remove the variant block from baseCss
+      baseCss = baseCss.slice(0, startIdx) + baseCss.slice(i);
+    }
+
+    return { baseCss, variants };
+  }
+
+  // Parse entries inside a variant block content string.
+  // Handles: "primary { ... }", "primary:hover { ... }", "primary + lg { ... }"
+  _parseVariantEntries(content, propNames) {
+    const entries = [];
+    let pos = 0;
+
+    while (pos < content.length) {
+      // Skip whitespace
+      while (pos < content.length && /\s/.test(content[pos])) pos++;
+      if (pos >= content.length) break;
+
+      // Read entry name (may include pseudo like "primary:hover" or compound "primary + lg")
+      let nameStr = '';
+      // Read until we hit an opening brace
+      while (pos < content.length && content[pos] !== '{') {
+        nameStr += content[pos];
+        pos++;
+      }
+      nameStr = nameStr.trim();
+      if (!nameStr || pos >= content.length) break;
+
+      // Skip {
+      pos++;
+
+      // Collect CSS content until matching }
+      let entryDepth = 1;
+      let entryCss = '';
+      while (pos < content.length && entryDepth > 0) {
+        if (content[pos] === '{') entryDepth++;
+        else if (content[pos] === '}') {
+          entryDepth--;
+          if (entryDepth === 0) { pos++; break; }
+        }
+        entryCss += content[pos];
+        pos++;
+      }
+
+      // Parse the name to extract values and pseudo-selector
+      // Compound: "primary + lg" -> values: ['primary', 'lg'], pseudo: null
+      // Pseudo: "primary:hover" -> values: ['primary'], pseudo: ':hover'
+      // Compound+pseudo: "primary + lg:hover" -> values: ['primary', 'lg'], pseudo: ':hover'
+      if (propNames.length > 1) {
+        // Compound variant -- split by +
+        const parts = nameStr.split(/\s*\+\s*/);
+        const values = [];
+        let pseudo = null;
+        for (let pi = 0; pi < parts.length; pi++) {
+          let part = parts[pi].trim();
+          // Check for pseudo on the last part
+          const colonIdx = part.indexOf(':');
+          if (colonIdx > 0) {
+            pseudo = part.slice(colonIdx);
+            part = part.slice(0, colonIdx);
+          }
+          values.push(part);
+        }
+        entries.push({ values, pseudo, css: entryCss.trim() });
+      } else {
+        // Single prop -- check for pseudo
+        let pseudo = null;
+        let valueName = nameStr;
+        const colonIdx = nameStr.indexOf(':');
+        if (colonIdx > 0) {
+          pseudo = nameStr.slice(colonIdx);
+          valueName = nameStr.slice(0, colonIdx);
+        }
+        entries.push({ values: [valueName], pseudo, css: entryCss.trim() });
+      }
+    }
+
+    return entries;
+  }
+
+  // Generate scoped CSS for variant entries.
+  // Single prop: .btn--propName-value[scopeAttr] { css }
+  // Compound: .btn--prop1-value1.btn--prop2-value2[scopeAttr] { css }
+  // Pseudo: .btn--propName-value[scopeAttr]:pseudo { css }
+  _generateVariantCSS(variants, baseClass, scopeAttr) {
+    const parts = [];
+    for (const variant of variants) {
+      const { propNames, entries } = variant;
+      for (const entry of entries) {
+        const { values, pseudo, css } = entry;
+        let selector;
+        if (propNames.length === 1) {
+          // Single prop variant
+          selector = `.${baseClass}--${propNames[0]}-${values[0]}${scopeAttr}`;
+        } else {
+          // Compound variant -- chain class selectors
+          const classParts = propNames.map((prop, i) =>
+            `.${baseClass}--${prop}-${values[i]}`
+          );
+          selector = classParts.join('') + scopeAttr;
+        }
+        if (pseudo) {
+          selector += pseudo;
+        }
+        parts.push(`${selector} { ${css} }`);
+      }
+    }
+    return parts.join(' ');
+  }
+
   generateComponent(comp) {
     const hasParams = comp.params.length > 0;
     const paramStr = hasParams ? '__props' : '';
@@ -701,6 +845,8 @@ export class BrowserCodegen extends BaseCodegen {
 
     // Set up scoped CSS if style blocks exist
     const savedScopeId = this._currentScopeId;
+    const savedVariants = this._currentVariants;
+    this._currentVariants = null;
     if (styleBlocks.length > 0) {
       const rawCSS = styleBlocks.map(s => s.css).join('\n');
       const resolvedCSS = this._resolveTokens(rawCSS);
@@ -708,9 +854,27 @@ export class BrowserCodegen extends BaseCodegen {
       this._currentScopeId = scopeId;
       const scopeAttr = `[data-tova-${scopeId}]`;
 
+      // Extract variant blocks before responsive and scoping
+      const { baseCss: variantBaseCss, variants } = this._extractVariants(resolvedCSS);
+      if (variants.length > 0) {
+        // Detect baseClass from the first CSS class selector in the base CSS
+        const classMatch = variantBaseCss.match(/\.([a-zA-Z_][\w-]*)\s*\{/);
+        const baseClass = classMatch ? classMatch[1] : comp.name.toLowerCase();
+        this._currentVariants = { variants, baseClass };
+      }
+
       // Extract responsive blocks before scoping
-      const { baseCss, responsiveBlocks } = this._extractResponsive(resolvedCSS);
+      const { baseCss, responsiveBlocks } = this._extractResponsive(variantBaseCss);
       let scopedCSS = this._scopeCSS(baseCss, scopeAttr);
+
+      // Append variant CSS (already scoped via _generateVariantCSS)
+      if (variants.length > 0) {
+        const baseClass = this._currentVariants.baseClass;
+        const variantCSS = this._generateVariantCSS(variants, baseClass, scopeAttr);
+        if (variantCSS) {
+          scopedCSS += ' ' + variantCSS;
+        }
+      }
 
       // Append responsive media queries with scoped selectors
       if (responsiveBlocks.length > 0) {
@@ -773,10 +937,11 @@ export class BrowserCodegen extends BaseCodegen {
     this.indent--;
     p.push(`}`);
 
-    // Restore scoped names and scope id
+    // Restore scoped names, scope id, and variants
     this.stateNames = savedState;
     this.computedNames = savedComputed;
     this._currentScopeId = savedScopeId;
+    this._currentVariants = savedVariants;
 
     return p.join('');
   }
@@ -1451,6 +1616,44 @@ export class BrowserCodegen extends BaseCodegen {
       const isReactive = classDirectives.some(d => this._exprReadsSignal(d.node));
       const classExpr = `[${parts.join(', ')}].filter(Boolean).join(" ")`;
       attrs.className = isReactive ? `() => ${classExpr}` : classExpr;
+    }
+
+    // Inject variant classes into className when component has variant() styles
+    if (this._currentVariants && attrs.className && !isComponent) {
+      const { variants, baseClass } = this._currentVariants;
+      // Build variant class suffix expressions for each variant prop
+      const variantParts = [];
+      for (const variant of variants) {
+        if (variant.propNames.length === 1) {
+          const prop = variant.propNames[0];
+          variantParts.push(`(${prop}() ? " ${baseClass}--${prop}-" + ${prop}() : "")`);
+        } else {
+          // Compound variants use multiple props -- add all prop classes
+          for (const prop of variant.propNames) {
+            variantParts.push(`(${prop}() ? " ${baseClass}--${prop}-" + ${prop}() : "")`);
+          }
+        }
+      }
+      // Deduplicate prop-based parts (same prop may appear in multiple variant blocks)
+      const seen = new Set();
+      const uniqueParts = [];
+      for (const part of variantParts) {
+        if (!seen.has(part)) {
+          seen.add(part);
+          uniqueParts.push(part);
+        }
+      }
+      if (uniqueParts.length > 0) {
+        const currentClass = attrs.className;
+        // If already reactive (starts with () =>), unwrap
+        let baseExpr;
+        if (typeof currentClass === 'string' && currentClass.startsWith('() => ')) {
+          baseExpr = currentClass.slice(6);
+        } else {
+          baseExpr = currentClass;
+        }
+        attrs.className = `() => ${baseExpr} + ${uniqueParts.join(' + ')}`;
+      }
     }
 
     // Merge show directive with style (show toggles display:none)
