@@ -84,6 +84,7 @@ Options:
   --quiet          Suppress non-error output
   --debug          Show verbose error output
   --strict         Enable strict type checking
+  --strict-security Promote security warnings to errors
 `;
 
 async function main() {
@@ -102,14 +103,15 @@ async function main() {
   const command = args[0];
 
   const isStrict = args.includes('--strict');
+  const isStrictSecurity = args.includes('--strict-security');
   switch (command) {
     case 'run': {
-      const runArgs = args.filter(a => a !== '--strict');
+      const runArgs = args.filter(a => a !== '--strict' && a !== '--strict-security');
       const filePath = runArgs[1];
       const restArgs = runArgs.slice(2);
       const ddIdx = restArgs.indexOf('--');
       const scriptArgs = ddIdx !== -1 ? restArgs.slice(ddIdx + 1) : restArgs;
-      await runFile(filePath, { strict: isStrict, scriptArgs });
+      await runFile(filePath, { strict: isStrict, strictSecurity: isStrictSecurity, scriptArgs });
       break;
     }
     case 'build':
@@ -280,10 +282,10 @@ async function main() {
       break;
     default:
       if (command.endsWith('.tova')) {
-        const directArgs = args.filter(a => a !== '--strict').slice(1);
+        const directArgs = args.filter(a => a !== '--strict' && a !== '--strict-security').slice(1);
         const ddIdx = directArgs.indexOf('--');
         const scriptArgs = ddIdx !== -1 ? directArgs.slice(ddIdx + 1) : directArgs;
-        await runFile(command, { strict: isStrict, scriptArgs });
+        await runFile(command, { strict: isStrict, strictSecurity: isStrictSecurity, scriptArgs });
       } else {
         console.error(`Unknown command: ${command}`);
         console.log(HELP);
@@ -301,7 +303,7 @@ function compileTova(source, filename, options = {}) {
   const parser = new Parser(tokens, filename);
   const ast = parser.parse();
 
-  const analyzer = new Analyzer(ast, filename, { strict: options.strict || false });
+  const analyzer = new Analyzer(ast, filename, { strict: options.strict || false, strictSecurity: options.strictSecurity || false });
   // Pre-define extra names in the analyzer scope (used by REPL for cross-line persistence)
   if (options.knownNames) {
     for (const name of options.knownNames) {
@@ -684,7 +686,7 @@ async function runFile(filePath, options = {}) {
     }
     const hasTovaImports = tovaImportPaths.length > 0;
 
-    const output = compileTova(source, filePath, { strict: options.strict });
+    const output = compileTova(source, filePath, { strict: options.strict, strictSecurity: options.strictSecurity });
 
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
@@ -750,6 +752,7 @@ async function buildProject(args) {
   const config = resolveConfig(process.cwd());
   const isProduction = args.includes('--production');
   const buildStrict = args.includes('--strict');
+  const buildStrictSecurity = args.includes('--strict-security');
   const isVerbose = args.includes('--verbose');
   const isQuiet = args.includes('--quiet');
   const isWatch = args.includes('--watch');
@@ -838,7 +841,7 @@ async function buildProject(args) {
         }
       }
 
-      const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
+      const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity });
       if (!result) continue;
 
       const { output, single } = result;
@@ -1030,6 +1033,7 @@ async function buildProject(args) {
 
 async function checkProject(args) {
   const checkStrict = args.includes('--strict');
+  const checkStrictSecurity = args.includes('--strict-security');
   const isVerbose = args.includes('--verbose');
   const isQuiet = args.includes('--quiet');
 
@@ -1082,7 +1086,7 @@ async function checkProject(args) {
       const tokens = lexer.tokenize();
       const parser = new Parser(tokens, file);
       const ast = parser.parse();
-      const analyzer = new Analyzer(ast, file, { strict: checkStrict, tolerant: true });
+      const analyzer = new Analyzer(ast, file, { strict: checkStrict, strictSecurity: checkStrictSecurity, tolerant: true });
       const result = analyzer.analyze();
 
       const errors = result.errors || [];
@@ -1153,6 +1157,7 @@ async function devServer(args) {
   const explicitPort = args.find((_, i, a) => a[i - 1] === '--port');
   const basePort = parseInt(explicitPort || config.dev.port || '3000');
   const buildStrict = args.includes('--strict');
+  const buildStrictSecurity = args.includes('--strict-security');
 
   const tovaFiles = findFiles(srcDir, '.tova');
   if (tovaFiles.length === 0) {
@@ -1217,7 +1222,7 @@ async function devServer(args) {
   for (const [dir, files] of dirGroups) {
     const dirName = basename(dir) === '.' ? 'app' : basename(dir);
     try {
-      const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
+      const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity });
       if (!result) continue;
 
       const { output, single } = result;
@@ -1367,7 +1372,7 @@ async function devServer(args) {
 
       for (const [dir, files] of rebuildDirGroups) {
         const dirName = basename(dir) === '.' ? 'app' : basename(dir);
-        const result = mergeDirectory(dir, srcDir, { strict: buildStrict });
+        const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity });
         if (!result) continue;
 
         const { output, single } = result;
@@ -4306,7 +4311,7 @@ function mergeDirectory(dir, srcDir, options = {}) {
   const mergedAST = new Program(mergedBody);
 
   // Run analyzer on merged AST
-  const analyzer = new Analyzer(mergedAST, dir);
+  const analyzer = new Analyzer(mergedAST, dir, { strict: options.strict, strictSecurity: options.strictSecurity });
   const { warnings } = analyzer.analyze();
 
   if (warnings.length > 0) {
@@ -4500,7 +4505,7 @@ function completionsCommand(shell) {
     'migrate:create', 'migrate:up', 'migrate:down', 'migrate:reset', 'migrate:fresh', 'migrate:status',
   ];
 
-  const globalFlags = ['--help', '--version', '--output', '--production', '--watch', '--verbose', '--quiet', '--debug', '--strict'];
+  const globalFlags = ['--help', '--version', '--output', '--production', '--watch', '--verbose', '--quiet', '--debug', '--strict', '--strict-security'];
 
   switch (shell) {
     case 'bash': {

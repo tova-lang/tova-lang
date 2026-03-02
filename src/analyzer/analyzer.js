@@ -121,6 +121,7 @@ export class Analyzer {
     this.warnings = [];
     this.tolerant = options.tolerant || false;
     this.strict = options.strict || false;
+    this.strictSecurity = options.strictSecurity || false;
     this.globalScope = new Scope(null, 'module');
     this.currentScope = this.globalScope;
     this._allScopes = []; // Track all scopes for unused variable checking
@@ -261,6 +262,7 @@ export class Analyzer {
     if (opts.code) w.code = opts.code;
     if (opts.length) w.length = opts.length;
     if (opts.fix) w.fix = opts.fix;
+    if (opts.category) w.category = opts.category;
     this.warnings.push(w);
   }
 
@@ -338,6 +340,15 @@ export class Analyzer {
       if (plugin.analyzer?.crossBlockValidate) plugin.analyzer.crossBlockValidate(this);
     }
 
+    // --strict-security: promote security warnings to errors
+    if (this.strictSecurity) {
+      const securityWarnings = this.warnings.filter(w => w.category === 'security');
+      this.warnings = this.warnings.filter(w => w.category !== 'security');
+      for (const w of securityWarnings) {
+        this.errors.push(w);
+      }
+    }
+
     // Check for unused variables/imports (#9)
     this._collectAllScopes(this.globalScope);
     this._checkUnusedSymbols();
@@ -353,7 +364,7 @@ export class Analyzer {
       throw err;
     }
 
-    return { warnings: this.warnings, scope: this.globalScope, typeRegistry: this.typeRegistry };
+    return { warnings: this.warnings, errors: this.errors, scope: this.globalScope, typeRegistry: this.typeRegistry };
   }
 
   _checkUnusedSymbols() {
@@ -1181,6 +1192,7 @@ export class Analyzer {
             message: `Duplicate role definition: '${stmt.name}'`,
             loc: stmt.loc,
             code: 'W_DUPLICATE_ROLE',
+            category: 'security',
           });
         }
         localRoles.add(stmt.name);
@@ -1646,6 +1658,7 @@ export class Analyzer {
             message: `Role '${decl.name}' is defined in multiple security blocks — later definition overwrites earlier one`,
             loc: decl.loc,
             code: 'W_DUPLICATE_ROLE',
+            category: 'security',
           });
         }
       }
@@ -1660,6 +1673,7 @@ export class Analyzer {
           message: `Unknown auth type '${authDecl.authType}' — supported types are: ${validAuthTypes.join(', ')}`,
           loc: authDecl.loc,
           code: 'W_UNKNOWN_AUTH_TYPE',
+          category: 'security',
         });
       }
     }
@@ -1672,6 +1686,7 @@ export class Analyzer {
           message: 'Auth secret is hardcoded as a string literal — use env("SECRET_NAME") instead',
           loc: authDecl.loc,
           code: 'W_HARDCODED_SECRET',
+          category: 'security',
         });
       }
     }
@@ -1686,6 +1701,7 @@ export class Analyzer {
               message: 'CORS origins contains wildcard "*" — consider restricting to specific origins',
               loc: corsDecl.loc,
               code: 'W_CORS_WILDCARD',
+              category: 'security',
             });
             break;
           }
@@ -1708,6 +1724,7 @@ export class Analyzer {
           message: `Rate limit max must be a positive number, got ${rlMaxVal}`,
           loc: rateLimitDecl.loc,
           code: 'W_INVALID_RATE_LIMIT',
+          category: 'security',
         });
       }
       if (rlWindowVal !== null && rlWindowVal <= 0) {
@@ -1715,6 +1732,7 @@ export class Analyzer {
           message: `Rate limit window must be a positive number, got ${rlWindowVal}`,
           loc: rateLimitDecl.loc,
           code: 'W_INVALID_RATE_LIMIT',
+          category: 'security',
         });
       }
     }
@@ -1728,6 +1746,7 @@ export class Analyzer {
           message: 'CSRF protection is explicitly disabled — this increases vulnerability to cross-site request forgery attacks',
           loc: csrfDecl.loc,
           code: 'W_CSRF_DISABLED',
+          category: 'security',
         });
       }
     }
@@ -1741,6 +1760,7 @@ export class Analyzer {
           message: 'Auth tokens stored in localStorage are vulnerable to XSS attacks — consider using storage: "cookie" for HttpOnly cookie storage',
           loc: authDecl.loc,
           code: 'W_LOCALSTORAGE_TOKEN',
+          category: 'security',
         });
       }
     }
@@ -1751,6 +1771,7 @@ export class Analyzer {
         message: 'Rate limiting uses in-memory storage — not shared across server instances. Consider an external store for production multi-instance deployments',
         loc: rateLimitDecl.loc,
         code: 'W_INMEMORY_RATELIMIT',
+        category: 'security',
       });
     }
 
@@ -1762,6 +1783,7 @@ export class Analyzer {
           message: 'Auth is configured without rate limiting — consider adding rate_limit to protect against brute-force attacks',
           loc: authDecl.loc,
           code: 'W_NO_AUTH_RATELIMIT',
+          category: 'security',
         });
       }
     }
@@ -1774,6 +1796,7 @@ export class Analyzer {
           message: `sensitive ${s.typeName}.${s.fieldName} declares hash: "${hashVal}" but hashing is not automatically enforced — use hash_password() in your write handlers`,
           loc: s.loc,
           code: 'W_HASH_NOT_ENFORCED',
+          category: 'security',
         });
       }
     }
@@ -1788,6 +1811,7 @@ export class Analyzer {
         message: 'Route protection rules exist but no auth is configured — all protected routes will be inaccessible',
         loc: allProtects[0].loc,
         code: 'W_PROTECT_WITHOUT_AUTH',
+        category: 'security',
       });
     }
 
@@ -1800,6 +1824,7 @@ export class Analyzer {
           message: `Protect rule for "${protect.pattern}" has no 'require' — route is unprotected`,
           loc: protect.loc,
           code: 'W_PROTECT_NO_REQUIRE',
+          category: 'security',
         });
         continue;
       }
@@ -1809,6 +1834,7 @@ export class Analyzer {
             message: `Protect rule references undefined role '${requireExpr.name}'`,
             loc: protect.loc,
             code: 'W_UNDEFINED_ROLE',
+            category: 'security',
           });
         }
       }
@@ -1825,6 +1851,7 @@ export class Analyzer {
                 message: `Sensitive field '${sensitive.typeName}.${sensitive.fieldName}' visible_to references undefined role '${elem.name}'`,
                 loc: sensitive.loc,
                 code: 'W_UNDEFINED_ROLE',
+                category: 'security',
               });
             }
           }
