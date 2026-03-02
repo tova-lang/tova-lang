@@ -1608,6 +1608,19 @@ export class Analyzer {
   }
 
   _validateSecurityCrossBlock() {
+    // W_NO_SECURITY_BLOCK: server/edge block without security block
+    const hasServerOrEdge = this.ast.body.some(n => n.type === 'ServerBlock' || n.type === 'EdgeBlock');
+    const hasSecurityBlock = this.ast.body.some(n => n.type === 'SecurityBlock');
+    if (hasServerOrEdge && !hasSecurityBlock) {
+      const block = this.ast.body.find(n => n.type === 'ServerBlock' || n.type === 'EdgeBlock');
+      this.warnings.push({
+        message: 'Server/edge block defined without a security block — consider adding security { ... } for auth, CORS, and CSRF protection',
+        loc: block.loc,
+        code: 'W_NO_SECURITY_BLOCK',
+        category: 'security',
+      });
+    }
+
     // Collect ALL security declarations across ALL security blocks in the AST
     const allRoles = new Set();
     const allProtects = [];

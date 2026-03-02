@@ -66,3 +66,48 @@ describe('--strict-security mode', () => {
     expect(result.errors.filter(e => e.code === 'W100').length).toBe(0);
   });
 });
+
+// ════════════════════════════════════════════════════════════
+// Task 2: W_NO_SECURITY_BLOCK
+// ════════════════════════════════════════════════════════════
+
+describe('W_NO_SECURITY_BLOCK', () => {
+  test('warns when server block exists without security block', () => {
+    const result = analyze(`
+      server {
+        fn hello() -> String { "hi" }
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_NO_SECURITY_BLOCK')).toBe(true);
+    const w = result.warnings.find(w => w.code === 'W_NO_SECURITY_BLOCK');
+    expect(w.category).toBe('security');
+  });
+
+  test('does not warn when security block exists', () => {
+    const result = analyze(`
+      security {
+        auth jwt { secret: env("SECRET") }
+      }
+      server {
+        fn hello() -> String { "hi" }
+      }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_NO_SECURITY_BLOCK')).toBe(false);
+  });
+
+  test('does not warn for standalone scripts without server/edge', () => {
+    const result = analyze(`
+      fn add(a: Int, b: Int) -> Int { a + b }
+    `);
+    expect(result.warnings.some(w => w.code === 'W_NO_SECURITY_BLOCK')).toBe(false);
+  });
+
+  test('promoted to error with --strict-security', () => {
+    const result = analyze(`
+      server {
+        fn hello() -> String { "hi" }
+      }
+    `, { strictSecurity: true });
+    expect(result.errors.some(e => e.code === 'W_NO_SECURITY_BLOCK')).toBe(true);
+  });
+});
