@@ -407,3 +407,72 @@ describe('Auto-inject audit logging', () => {
     expect(code).toContain('auth:denied');
   });
 });
+
+// ════════════════════════════════════════════════════════════
+// Task 8: Integration tests — multiple features together
+// ════════════════════════════════════════════════════════════
+
+describe('Security hardening integration', () => {
+  test('multiple security warnings under strict-security all become errors', () => {
+    const result = analyze(`
+      server {
+        fn find(name: String) -> String {
+          db.query("SELECT * FROM users WHERE name = \${name}")
+          "done"
+        }
+      }
+    `, { strictSecurity: true });
+    // Both W_NO_SECURITY_BLOCK and W_UNSAFE_INTERPOLATION promoted to errors
+    expect(result.errors.some(e => e.code === 'W_NO_SECURITY_BLOCK')).toBe(true);
+    expect(result.errors.some(e => e.code === 'W_UNSAFE_INTERPOLATION')).toBe(true);
+    // Neither should remain as warnings
+    expect(result.warnings.some(w => w.code === 'W_NO_SECURITY_BLOCK')).toBe(false);
+    expect(result.warnings.some(w => w.code === 'W_UNSAFE_INTERPOLATION')).toBe(false);
+  });
+
+  test('scorecard reflects actual warnings from analysis', () => {
+    const src = `
+      security {
+        auth jwt { secret: "hardcoded" }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `;
+    const analysisResult = analyze(src);
+    const scorecard = generateSecurityScorecard(
+      { auth: { authType: 'jwt' } },
+      analysisResult.warnings,
+      true, false
+    );
+    expect(scorecard).not.toBeNull();
+    // Should deduct for hardcoded secret
+    expect(scorecard.score).toBeLessThan(10);
+    expect(scorecard.items.some(i => !i.pass && i.label.toLowerCase().includes('secret'))).toBe(true);
+  });
+
+  test('full security setup produces clean output with headers and audit', () => {
+    const code = compile(`
+      security {
+        auth jwt { secret: env("SECRET") }
+        cors { origins: ["https://example.com"] }
+        csrf { enabled: true }
+        rate_limit { max: 100, window: 60 }
+        audit { store: "audit_logs", events: ["auth"] }
+      }
+      server {
+        get "/hello" fn hello() -> String { "hi" }
+      }
+    `);
+    // Should have security headers
+    expect(code).toContain('X-Content-Type-Options');
+    // Should have auth
+    expect(code).toContain('__authenticate');
+    // Should have audit logging
+    expect(code).toContain('__auditLog');
+    // Should have CSRF
+    expect(code).toContain('__validateCSRFToken');
+    // Should have rate limiting
+    expect(code).toContain('__checkRateLimit');
+  });
+});
