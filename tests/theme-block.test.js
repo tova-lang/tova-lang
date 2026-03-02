@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { CodeGenerator } from '../src/codegen/codegen.js';
 
 function parse(source) {
   const lexer = new Lexer(source, '<test>');
@@ -231,5 +232,99 @@ describe('Theme block — analyzer', () => {
       dark { bogus.thing: "#fff" }
     }`);
     expect(warnings.some(w => w.code === 'W_DARK_OVERRIDE_UNKNOWN_SECTION')).toBe(true);
+  });
+});
+
+function compile(source) {
+  const lexer = new Lexer(source, '<test>');
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens, '<test>');
+  const ast = parser.parse();
+  const codegen = new CodeGenerator(ast, '<test>');
+  return codegen.generate();
+}
+
+describe('Theme block — codegen', () => {
+  test('emits CSS custom properties for colors', () => {
+    const result = compile(`theme {
+      colors {
+        primary: "#3b82f6"
+        text: "#1e293b"
+      }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-color-primary: #3b82f6');
+    expect(result.browser).toContain('--tova-color-text: #1e293b');
+  });
+
+  test('emits spacing tokens with px units', () => {
+    const result = compile(`theme {
+      spacing { sm: 8 md: 16 }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-spacing-sm: 8px');
+    expect(result.browser).toContain('--tova-spacing-md: 16px');
+  });
+
+  test('emits radius tokens with px units', () => {
+    const result = compile(`theme {
+      radius { md: 8 full: 9999 }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-radius-md: 8px');
+    expect(result.browser).toContain('--tova-radius-full: 9999px');
+  });
+
+  test('emits font size tokens with px, font family without px', () => {
+    const result = compile(`theme {
+      font { size.base: 16 sans: "Inter, sans-serif" }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-font-size-base: 16px');
+    expect(result.browser).toContain('--tova-font-sans: Inter, sans-serif');
+  });
+
+  test('dot-notation flattens to dashes', () => {
+    const result = compile(`theme {
+      colors { primary.hover: "#2563eb" text.muted: "#64748b" }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-color-primary-hover: #2563eb');
+    expect(result.browser).toContain('--tova-color-text-muted: #64748b');
+  });
+
+  test('emits shadow tokens without modification', () => {
+    const result = compile(`theme {
+      shadow { sm: "0 1px 2px rgba(0,0,0,0.05)" }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-shadow-sm: 0 1px 2px rgba(0,0,0,0.05)');
+  });
+
+  test('emits transition tokens without modification', () => {
+    const result = compile(`theme {
+      transition { fast: "150ms ease" }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('--tova-transition-fast: 150ms ease');
+  });
+
+  test('emits dark mode overrides in prefers-color-scheme media query', () => {
+    const result = compile(`theme {
+      colors { surface: "#fff" }
+      dark { colors.surface: "#0f172a" }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('@media (prefers-color-scheme: dark)');
+    expect(result.browser).toContain('--tova-color-surface: #0f172a');
+  });
+
+  test('theme CSS is emitted via tova_inject_css', () => {
+    const result = compile(`theme {
+      colors { primary: "#3b82f6" }
+    }
+    browser { component App { <div>"Hello"</div> } }`);
+    expect(result.browser).toContain('tova_inject_css');
+    expect(result.browser).toContain(':root');
   });
 });

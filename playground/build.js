@@ -65,6 +65,7 @@ const SOURCE_FILES = [
   'src/codegen/cli-codegen.js',
   'src/codegen/edge-codegen.js',
   'src/codegen/deploy-codegen.js',
+  'src/codegen/theme-codegen.js',
   'src/codegen/codegen.js',
 ];
 
@@ -139,7 +140,9 @@ function buildCompilerBundle() {
         .replace(/function getCliCodegen\(\)\s*\{[^}]*\}/,
           'function getCliCodegen() { return CliCodegen; }')
         .replace(/function getEdgeCodegen\(\)\s*\{[^}]*\}/,
-          'function getEdgeCodegen() { return EdgeCodegen; }');
+          'function getEdgeCodegen() { return EdgeCodegen; }')
+        .replace(/function getThemeCodegen\(\)\s*\{[^}]*\}/,
+          'function getThemeCodegen() { return ThemeCodegen; }');
     }
 
     parts.push(`// ─── ${entry} ${'─'.repeat(Math.max(0, 50 - entry.length))}`);

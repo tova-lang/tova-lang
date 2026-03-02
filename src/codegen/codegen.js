@@ -42,6 +42,12 @@ function getDeployCodegen() {
   return _DeployCodegen;
 }
 
+let _ThemeCodegen;
+function getThemeCodegen() {
+  if (!_ThemeCodegen) _ThemeCodegen = _require('./theme-codegen.js').ThemeCodegen;
+  return _ThemeCodegen;
+}
+
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
@@ -94,6 +100,7 @@ export class CodeGenerator {
     const securityBlocks = getBlocks('security');
     const edgeBlocks = getBlocks('edge');
     const deployBlocks = getBlocks('deploy');
+    const themeBlocks = getBlocks('theme');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -171,6 +178,11 @@ export class CodeGenerator {
       ? getSecurityCodegen().mergeSecurityBlocks(securityBlocks)
       : null;
 
+    // Merge theme blocks into a single config
+    const themeConfig = themeBlocks.length > 0
+      ? getThemeCodegen().mergeThemeBlocks(themeBlocks)
+      : null;
+
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
@@ -222,7 +234,7 @@ export class CodeGenerator {
       const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap, themeConfig);
     }
 
     // Generate edge outputs (one per named group)

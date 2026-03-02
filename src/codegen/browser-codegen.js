@@ -1,6 +1,7 @@
 import { BaseCodegen } from './base-codegen.js';
 import { getBrowserStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 import { SecurityCodegen } from './security-codegen.js';
+import { ThemeCodegen } from './theme-codegen.js';
 import { generateValidatorFn, generateFieldSignals, generateFieldAccessor, generateGroupCode, generateArrayCode, generateAsyncValidatorEffect } from './form-codegen.js';
 
 export class BrowserCodegen extends BaseCodegen {
@@ -187,9 +188,10 @@ export class BrowserCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null, themeConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     this._typeValidators = typeValidatorsMap || {};
+    this._themeConfig = themeConfig;
     const lines = [];
 
     // Runtime imports
@@ -232,6 +234,14 @@ export class BrowserCodegen extends BaseCodegen {
     lines.push('// ── Stdlib ──');
     lines.push('__STDLIB_PLACEHOLDER__');
     lines.push('');
+
+    // Theme CSS custom properties
+    if (themeConfig) {
+      const themeCSS = ThemeCodegen.generateCSS(themeConfig);
+      lines.push('// ── Theme ──');
+      lines.push(`tova_inject_css("__tova_theme", ${JSON.stringify(themeCSS)});`);
+      lines.push('');
+    }
 
     // Server RPC proxy
     lines.push('// ── Server RPC Proxy ──');
