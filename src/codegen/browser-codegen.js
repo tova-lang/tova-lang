@@ -195,7 +195,7 @@ export class BrowserCodegen extends BaseCodegen {
     const lines = [];
 
     // Runtime imports
-    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, onBeforeUpdate, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy, Suspense, Head, createResource, __tova_action, TransitionGroup, createForm, configureCSP } from './runtime/reactivity.js';`);
+    lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, onBeforeUpdate, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy, Suspense, Head, createResource, __tova_action, TransitionGroup, createForm, configureCSP, __tova_load_font } from './runtime/reactivity.js';`);
     lines.push(`import { rpc, configureRPC, addRPCInterceptor, setCSRFToken } from './runtime/rpc.js';`);
     lines.push(`import { navigate, getCurrentRoute, getParams, getPath, getQuery, defineRoutes, onRouteChange, beforeNavigate, afterNavigate, Router, Outlet, Link, Redirect } from './runtime/router.js';`);
 
@@ -1044,10 +1044,11 @@ export class BrowserCodegen extends BaseCodegen {
       }
     }
 
-    // Separate JSX elements, style blocks, animate declarations, and statements
+    // Separate JSX elements, style blocks, animate declarations, font declarations, and statements
     const jsxElements = [];
     const styleBlocks = [];
     const animateDecls = [];
+    const fontDecls = [];
     const bodyItems = [];
 
     for (const node of comp.body) {
@@ -1057,6 +1058,8 @@ export class BrowserCodegen extends BaseCodegen {
         styleBlocks.push(node);
       } else if (node.type === 'AnimateDeclaration') {
         animateDecls.push(node);
+      } else if (node.type === 'FontDeclaration') {
+        fontDecls.push(node);
       } else {
         bodyItems.push(node);
       }
@@ -1139,6 +1142,27 @@ export class BrowserCodegen extends BaseCodegen {
       if (keyframeCSS) {
         const animScopeId = `${scopeId}_anim`;
         p.push(`${this.i()}tova_inject_css(${JSON.stringify(animScopeId)}, ${JSON.stringify(keyframeCSS)});\n`);
+      }
+    }
+
+    // Generate font loading calls
+    if (fontDecls.length > 0) {
+      for (const fontDecl of fontDecls) {
+        const isRemote = fontDecl.source.startsWith('http') || fontDecl.source.startsWith('//');
+        if (isRemote) {
+          // Remote font: use __tova_load_font runtime function
+          p.push(`${this.i()}__tova_load_font(${JSON.stringify(fontDecl.name)}, ${JSON.stringify(fontDecl.source)});\n`);
+        } else {
+          // Local font: generate @font-face CSS and inject via tova_inject_css
+          const config = fontDecl.config || {};
+          const display = config.display || 'swap';
+          let fontFaceCSS = `@font-face { font-family: "${fontDecl.name}"; src: url("${fontDecl.source}");`;
+          if (config.weight) fontFaceCSS += ` font-weight: ${config.weight};`;
+          if (config.style) fontFaceCSS += ` font-style: ${config.style};`;
+          fontFaceCSS += ` font-display: ${display}; }`;
+          const fontScopeId = `__tova_font_${fontDecl.name}`;
+          p.push(`${this.i()}tova_inject_css(${JSON.stringify(fontScopeId)}, ${JSON.stringify(fontFaceCSS)});\n`);
+        }
       }
     }
 

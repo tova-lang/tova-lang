@@ -7,6 +7,7 @@ import { installFormParser } from './form-parser.js';
 import {
   AnimateDeclaration, AnimatePrimitive, AnimateSequence, AnimateParallel,
 } from './animate-ast.js';
+import { FontDeclaration } from './browser-ast.js';
 
 export function installBrowserParser(ParserClass) {
   if (ParserClass.prototype._browserParserInstalled) return;
@@ -157,6 +158,8 @@ export function installBrowserParser(ParserClass) {
         body.push(this.parseComponent());
       } else if (this.check(TokenType.FORM)) {
         body.push(this.parseFormDeclaration());
+      } else if (this.check(TokenType.IDENTIFIER) && this.current().value === 'font' && this.peek(1).type === TokenType.IDENTIFIER && this.peek(2).type === TokenType.FROM) {
+        body.push(this.parseComponentFontDeclaration());
       } else if (this.check(TokenType.IDENTIFIER) && this.current().value === 'animate' && this.peek(1).type === TokenType.IDENTIFIER && this.peek(2).type === TokenType.LBRACE) {
         body.push(this.parseAnimateDeclaration());
       } else {
@@ -626,6 +629,32 @@ export function installBrowserParser(ParserClass) {
 
     this.expect(TokenType.RBRACE, "Expected '}' to close JSX match body");
     return new AST.JSXMatch(subject, arms, l);
+  };
+
+  // ─── Font declaration parsing ──────────────────────────────
+
+  ParserClass.prototype.parseComponentFontDeclaration = function() {
+    const l = this.loc();
+    this.advance(); // consume 'font' identifier
+    const name = this.expect(TokenType.IDENTIFIER, "Expected font name after 'font'").value;
+    this.expect(TokenType.FROM, "Expected 'from' after font name");
+    const source = this.expect(TokenType.STRING, "Expected URL or path string after 'from'").value;
+
+    // Optional config block: { weight: "400" style: "normal" display: "swap" }
+    let config = null;
+    if (this.check(TokenType.LBRACE)) {
+      this.advance(); // consume '{'
+      config = {};
+      while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        const key = this.expect(TokenType.IDENTIFIER, "Expected config key (weight, style, display)").value;
+        this.expect(TokenType.COLON, `Expected ':' after '${key}'`);
+        const val = this.expect(TokenType.STRING, `Expected string value for '${key}'`).value;
+        config[key] = val;
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close font config block");
+    }
+
+    return new FontDeclaration(name, source, config, l);
   };
 
   // ─── Animate block parsing ─────────────────────────────────

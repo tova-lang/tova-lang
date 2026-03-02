@@ -960,6 +960,45 @@ export function tova_inject_css(id, css) {
   }
 }
 
+// Load a remote font stylesheet with reference counting.
+// When the last component using a font unmounts, the <link> is removed.
+const __tovaFontRefs = new Map(); // id → { el, count }
+export function __tova_load_font(id, url) {
+  const ref = __tovaFontRefs.get(id);
+  if (ref) {
+    ref.count++;
+  } else {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = url;
+    link.dataset.tovaFont = id;
+    document.head.appendChild(link);
+    __tovaFontRefs.set(id, { el: link, count: 1 });
+  }
+  // Register cleanup on the current owner so unmount decrements the ref count
+  if (currentOwner) {
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      const r = __tovaFontRefs.get(id);
+      if (r) {
+        r.count--;
+        if (r.count <= 0) {
+          if (typeof r.el.remove === 'function') {
+            r.el.remove();
+          } else if (r.el.parentNode && typeof r.el.parentNode.removeChild === 'function') {
+            r.el.parentNode.removeChild(r.el);
+          }
+          __tovaFontRefs.delete(id);
+        }
+      }
+    };
+    if (!currentOwner._cleanups) currentOwner._cleanups = [];
+    currentOwner._cleanups.push(cleanup);
+  }
+}
+
 export function tova_el(tag, props = {}, children = []) {
   return { __tova: true, tag, props, children };
 }

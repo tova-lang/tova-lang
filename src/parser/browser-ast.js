@@ -146,3 +146,17 @@ export class JSXMatch {
     this.loc = loc;
   }
 }
+
+// ============================================================
+// Font loading
+// ============================================================
+
+export class FontDeclaration {
+  constructor(name, source, config, loc) {
+    this.type = 'FontDeclaration';
+    this.name = name;       // string - font identifier
+    this.source = source;   // string - URL or local path
+    this.config = config;   // { weight, style, display } or null
+    this.loc = loc;
+  }
+}

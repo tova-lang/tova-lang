@@ -704,6 +704,7 @@ export {
   ComponentDeclaration, ComponentStyleBlock, StoreDeclaration,
   JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment,
   JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch,
+  FontDeclaration,
 } from './browser-ast.js';
 
 // ============================================================
