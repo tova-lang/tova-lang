@@ -2128,8 +2128,16 @@ async function installDeps() {
 
   // Resolve Tova module dependencies (if any)
   const tovaDeps = config.dependencies || {};
-  const { isTovModule: _isTovMod } = await import('../src/config/module-path.js');
-  const tovModuleKeys = Object.keys(tovaDeps).filter(k => _isTovMod(k));
+  const { isTovModule: _isTovMod, expandBlessedPackage: _expandBlessed } = await import('../src/config/module-path.js');
+
+  // Expand blessed package shorthands (e.g., tova/data → github.com/tova-lang/data)
+  const expandedTovaDeps = {};
+  for (const [k, v] of Object.entries(tovaDeps)) {
+    const expanded = _expandBlessed(k);
+    expandedTovaDeps[expanded || k] = v;
+  }
+
+  const tovModuleKeys = Object.keys(expandedTovaDeps).filter(k => _isTovMod(k));
 
   if (tovModuleKeys.length > 0) {
     const { resolveDependencies } = await import('../src/config/resolver.js');
@@ -2142,7 +2150,7 @@ async function installDeps() {
     const lock = readLockFile(cwd);
     const tovaModuleDeps = {};
     for (const k of tovModuleKeys) {
-      tovaModuleDeps[k] = tovaDeps[k];
+      tovaModuleDeps[k] = expandedTovaDeps[k];
     }
 
     try {
@@ -2257,7 +2265,7 @@ async function addDep(args) {
     await installDeps();
   } else {
     // Tova native dependency
-    const { isTovModule: isTovMod } = await import('../src/config/module-path.js');
+    const { isTovModule: isTovMod, expandBlessedPackage } = await import('../src/config/module-path.js');
 
     // Parse potential @version suffix
     let pkgName = actualPkg;
@@ -2268,21 +2276,25 @@ async function addDep(args) {
       pkgName = pkgName.slice(0, atIdx);
     }
 
+    // Expand blessed package shorthand: tova/data → github.com/tova-lang/data
+    const expandedPkg = expandBlessedPackage(pkgName);
+    const resolvedPkg = expandedPkg || pkgName;
+
     if (isTovMod(pkgName)) {
       // Tova module: fetch tags, pick version, add to [dependencies]
       const { listRemoteTags, pickLatestTag } = await import('../src/config/git-resolver.js');
       try {
-        const tags = await listRemoteTags(pkgName);
+        const tags = await listRemoteTags(resolvedPkg);
         if (tags.length === 0) {
-          console.error(`  No version tags found for ${pkgName}`);
+          console.error(`  No version tags found for ${resolvedPkg}`);
           process.exit(1);
         }
         if (!versionConstraint) {
           const latest = pickLatestTag(tags);
           versionConstraint = `^${latest.version}`;
         }
-        addToSection(tomlPath, 'dependencies', `"${pkgName}"`, versionConstraint);
-        console.log(`  Added ${pkgName}@${versionConstraint} to [dependencies] in tova.toml`);
+        addToSection(tomlPath, 'dependencies', `"${resolvedPkg}"`, versionConstraint);
+        console.log(`  Added ${resolvedPkg}@${versionConstraint} to [dependencies] in tova.toml`);
         await installDeps();
       } catch (err) {
         console.error(`  Failed to add ${pkgName}: ${err.message}`);

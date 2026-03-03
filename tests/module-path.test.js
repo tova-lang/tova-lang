@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { isTovModule, parseModulePath, moduleToGitUrl } from '../src/config/module-path.js';
+import { isTovModule, parseModulePath, moduleToGitUrl, expandBlessedPackage, BLESSED_PACKAGES } from '../src/config/module-path.js';
 
 describe('isTovModule', () => {
   test('detects github.com module path', () => {
@@ -76,5 +76,63 @@ describe('moduleToGitUrl', () => {
   });
   test('converts custom domain path to HTTPS URL', () => {
     expect(moduleToGitUrl('gitea.mycompany.com/internal/auth')).toBe('https://gitea.mycompany.com/internal/auth.git');
+  });
+});
+
+describe('blessed package resolution', () => {
+  test('BLESSED_PACKAGES contains all 10 official packages', () => {
+    const expected = ['fp', 'validate', 'encoding', 'test', 'retry', 'template', 'data', 'stats', 'plot', 'ml'];
+    for (const pkg of expected) {
+      expect(BLESSED_PACKAGES).toHaveProperty(pkg);
+      expect(BLESSED_PACKAGES[pkg]).toBe(`github.com/tova-lang/${pkg}`);
+    }
+  });
+
+  test('expandBlessedPackage expands tova/data to full path', () => {
+    expect(expandBlessedPackage('tova/data')).toBe('github.com/tova-lang/data');
+  });
+
+  test('expandBlessedPackage expands tova/fp to full path', () => {
+    expect(expandBlessedPackage('tova/fp')).toBe('github.com/tova-lang/fp');
+  });
+
+  test('expandBlessedPackage returns null for unknown tova/ packages', () => {
+    expect(expandBlessedPackage('tova/unknown')).toBe(null);
+  });
+
+  test('expandBlessedPackage returns null for non-tova paths', () => {
+    expect(expandBlessedPackage('github.com/alice/lib')).toBe(null);
+    expect(expandBlessedPackage('./local')).toBe(null);
+    expect(expandBlessedPackage('lodash')).toBe(null);
+  });
+
+  test('expandBlessedPackage preserves subpath', () => {
+    expect(expandBlessedPackage('tova/encoding/toml')).toBe('github.com/tova-lang/encoding/toml');
+    expect(expandBlessedPackage('tova/data/io/csv')).toBe('github.com/tova-lang/data/io/csv');
+  });
+
+  test('isTovModule recognizes tova/ shorthand as a Tova module', () => {
+    expect(isTovModule('tova/data')).toBe(true);
+    expect(isTovModule('tova/fp')).toBe(true);
+  });
+
+  test('isTovModule rejects unknown tova/ packages', () => {
+    expect(isTovModule('tova/unknown')).toBe(false);
+  });
+
+  test('parseModulePath works with tova/ shorthand', () => {
+    const parsed = parseModulePath('tova/data');
+    expect(parsed.host).toBe('github.com');
+    expect(parsed.owner).toBe('tova-lang');
+    expect(parsed.repo).toBe('data');
+    expect(parsed.full).toBe('github.com/tova-lang/data');
+  });
+
+  test('parseModulePath preserves subpath in tova/ shorthand', () => {
+    const parsed = parseModulePath('tova/encoding/toml');
+    expect(parsed.host).toBe('github.com');
+    expect(parsed.owner).toBe('tova-lang');
+    expect(parsed.repo).toBe('encoding');
+    expect(parsed.subpath).toBe('toml');
   });
 });
