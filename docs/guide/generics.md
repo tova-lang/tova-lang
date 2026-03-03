@@ -45,6 +45,13 @@ type Triple<A, B, C> {
 t = Triple(1, "hello", true)
 ```
 
+Generic types support named construction too:
+
+```tova
+pair = Pair(second: 30, first: "Alice")
+t = Triple(c: true, a: 1, b: "hello")
+```
+
 ## Generic ADTs
 
 Generics combine naturally with algebraic data types. In fact, two of Tova's most important built-in types are generic ADTs:

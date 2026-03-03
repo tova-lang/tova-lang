@@ -475,3 +475,5 @@ jsx_for = "for" IDENTIFIER [ "," IDENTIFIER ] "in" expression
 11. **Data and bench blocks**: `data { ... }` defines data sources and transformations. `bench "name" { ... }` defines benchmarks.
 
 12. **`++` is patterns-only**: The `++` operator is only valid in match patterns for string prefix matching. In expression context, use `+` for string concatenation or string interpolation `"text {expr}"`.
+
+13. **Named construction**: Type and variant constructors support named arguments: `User(name: "Alice", age: 30)`. Named arguments are reordered to match the field declaration order at compile time. Positional and named arguments can be mixed (positional first). For regular functions, named arguments are wrapped into a trailing object instead.

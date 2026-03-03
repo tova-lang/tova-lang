@@ -860,6 +860,8 @@ export class Analyzer {
             }
           }
         }
+        // Validate named constructor args (before count/type checks)
+        this._checkNamedConstructorArgs(node);
         // Argument count and type validation for known functions
         this._checkCallArgCount(node);
         this._checkCallArgTypes(node);
@@ -2203,6 +2205,19 @@ export class Analyzer {
       }
     }
 
+    // Register struct type metadata (non-variant types)
+    const hasVariants = node.variants.some(v => v.type === 'TypeVariant');
+    if (!hasVariants && node.variants.length > 0) {
+      const typeSym = this.currentScope.lookup(node.name);
+      if (typeSym) {
+        typeSym._params = node.variants.map(f => f.name);
+        typeSym._totalParamCount = node.variants.length;
+        typeSym._requiredParamCount = node.variants.length;
+        typeSym._paramTypes = node.variants.map(f => f.typeAnnotation || null);
+        typeSym._isStructConstructor = true;
+      }
+    }
+
     // Validate derive traits
     if (node.derive) {
       const builtinTraits = new Set(['Eq', 'Show', 'JSON']);
@@ -3149,11 +3164,16 @@ export class Analyzer {
     const hasSpread = node.arguments.some(a => a.type === 'SpreadExpression');
     if (hasSpread) return;
 
-    // Named arguments are collapsed into a single object at codegen
+    // Named arguments: for type constructors, each named arg = one field;
+    // for regular functions, named args are collapsed into a single object
     const hasNamedArgs = node.arguments.some(a => a.type === 'NamedArgument');
     if (hasNamedArgs) {
-      const positionalCount = node.arguments.filter(a => a.type !== 'NamedArgument').length;
-      var actualCount = positionalCount + 1; // named args become one object
+      if (fnSym._variantOf || fnSym._isStructConstructor) {
+        var actualCount = node.arguments.length; // each arg = one field
+      } else {
+        const positionalCount = node.arguments.filter(a => a.type !== 'NamedArgument').length;
+        var actualCount = positionalCount + 1; // named args become one object
+      }
     } else {
       var actualCount = node.arguments.length;
     }
@@ -3205,6 +3225,68 @@ export class Analyzer {
       if (!this._typesCompatible(expectedType, actualType)) {
         const paramName = fnSym._params ? fnSym._params[i] : `argument ${i + 1}`;
         this.error(`Type mismatch: '${paramName}' expects ${expectedType}, but got ${actualType}`, arg.loc || node.loc, this._conversionHint(expectedType, actualType));
+      }
+    }
+
+    // Type-check named args for type/variant constructors
+    if ((fnSym._variantOf || fnSym._isStructConstructor) && fnSym._params && fnSym._paramTypes) {
+      for (const arg of node.arguments) {
+        if (arg.type !== 'NamedArgument') continue;
+        const idx = fnSym._params.indexOf(arg.name);
+        if (idx === -1 || !fnSym._paramTypes[idx]) continue;
+        let expectedType = this._typeAnnotationToString(fnSym._paramTypes[idx]);
+        if (typeParamBindings.size > 0) {
+          expectedType = this._substituteTypeParams(expectedType, typeParamBindings);
+        }
+        if (fnSym._typeParams && fnSym._typeParams.includes(expectedType)) continue;
+        const actualType = this._inferType(arg.value);
+        if (!this._typesCompatible(expectedType, actualType)) {
+          this.error(`Type mismatch: '${arg.name}' expects ${expectedType}, but got ${actualType}`, arg.loc || node.loc, this._conversionHint(expectedType, actualType));
+        }
+      }
+    }
+  }
+
+  _checkNamedConstructorArgs(node) {
+    if (node.callee.type !== 'Identifier') return;
+    const hasNamedArgs = node.arguments.some(a => a.type === 'NamedArgument');
+    if (!hasNamedArgs) return;
+
+    const fnSym = this.currentScope.lookup(node.callee.name);
+    if (!fnSym) return;
+    if (!fnSym._variantOf && !fnSym._isStructConstructor) return;
+    if (!fnSym._params) return;
+
+    // Check for duplicate field names in the type definition (would make named args ambiguous)
+    const uniqueParams = new Set(fnSym._params);
+    if (uniqueParams.size !== fnSym._params.length) {
+      this.error(`Cannot use named arguments with ${node.callee.name}: duplicate field names`, node.loc);
+      return;
+    }
+
+    const positionalCount = node.arguments.filter(a => a.type !== 'NamedArgument').length;
+    const seenNames = new Set();
+
+    for (const arg of node.arguments) {
+      if (arg.type !== 'NamedArgument') continue;
+
+      // Unknown field
+      if (!fnSym._params.includes(arg.name)) {
+        this.error(`Unknown field '${arg.name}' in ${node.callee.name} constructor`, arg.loc || node.loc);
+        continue;
+      }
+
+      // Duplicate named arg
+      if (seenNames.has(arg.name)) {
+        this.error(`Duplicate named argument '${arg.name}'`, arg.loc || node.loc);
+        continue;
+      }
+      seenNames.add(arg.name);
+
+      // Overlaps with positional slot
+      const fieldIdx = fnSym._params.indexOf(arg.name);
+      if (fieldIdx < positionalCount) {
+        this.error(`Field '${arg.name}' already provided positionally`, arg.loc || node.loc);
       }
     }
   }

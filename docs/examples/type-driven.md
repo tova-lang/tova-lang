@@ -355,8 +355,8 @@ fn validate_form(form: FormData) -> Result<ValidForm, [FieldError]> {
 }
 
 fn main(args: [String]) {
-  // Demo: shapes
-  shapes = [Circle(5.0), Rectangle(3.0, 4.0), Triangle(3.0, 4.0, 5.0)]
+  // Demo: shapes — named construction makes field roles clear
+  shapes = [Circle(radius: 5.0), Rectangle(width: 3.0, height: 4.0), Triangle(a: 3.0, b: 4.0, c: 5.0)]
   shapes |> each(fn(s) {
     print("{describe_shape(s)}: area = {area(s)}")
   })
@@ -381,6 +381,12 @@ fn main(args: [String]) {
     Ok(valid) => print("Valid: {valid.name} ({valid.email})")
     Err(errors) => errors |> each(fn(e) print("  {e.field}: {e.message}"))
   }
+
+  // Demo: named construction — fields in any order
+  payment = CreditCard(expiry: "12/26", number: "4111111111111111", cvv: "123")
+  shipped = Shipped(carrier: "FedEx", tracking: "TRK-12345")
+  print("Payment: {payment}")
+  print("Status: {shipped}")
 
   // Demo: Result chaining
   match process_order(1, 49.99) {
@@ -481,6 +487,27 @@ The complete system ties everything together:
 3. **Result chaining** validates each field independently
 4. **Error aggregation** collects all errors instead of failing on the first one
 5. **Guard clauses** keep validation functions flat and readable
+
+### Named Construction
+
+When types have many fields or fields of the same type, named arguments make construction self-documenting:
+
+```tova
+// Positional — which string is which?
+payment = CreditCard("4111111111111111", "12/26", "123")
+
+// Named — intent is clear, order doesn't matter
+payment = CreditCard(expiry: "12/26", number: "4111111111111111", cvv: "123")
+```
+
+Named arguments are especially valuable for variants like `Shipped(tracking: String, carrier: String)` where both fields are strings. The compiler reorders named arguments to match the type declaration, so there's no runtime cost.
+
+You can mix positional and named:
+
+```tova
+// First field positional, rest named
+shipped = Shipped("TRK-12345", carrier: "FedEx")
+```
 
 ## Key Patterns
 

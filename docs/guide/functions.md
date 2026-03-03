@@ -312,6 +312,10 @@ fn connect(url, { timeout, retries }) {
 connect("https://api.example.com", timeout: 5000, retries: 3)
 ```
 
+::: tip
+For **type constructors**, named arguments behave differently — they are reordered to match the field declaration order instead of being wrapped into an object. See the [Types guide](types.md#named-construction) for details.
+:::
+
 ## Destructuring Parameters
 
 Functions can destructure objects and arrays directly in the parameter list.

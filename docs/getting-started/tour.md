@@ -71,6 +71,10 @@ type User {
 user = User(1, "Alice", "alice@example.com")
 print(user.name)
 
+// Named construction — fields in any order
+user2 = User(name: "Bob", id: 2, email: "bob@example.com")
+print(user2.name)
+
 bg = Custom(30, 60, 90)
 print(bg)`
 
@@ -262,6 +266,12 @@ type User {
 
 user = User(1, "Alice", "alice@example.com")
 print(user.name)   // "Alice"
+```
+
+Use **named arguments** for clarity — fields can be in any order:
+
+```tova
+user = User(name: "Alice", id: 1, email: "alice@example.com")
 ```
 
 ADTs with variants:

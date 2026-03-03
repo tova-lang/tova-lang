@@ -31,12 +31,34 @@ type User {
 
 ### Constructing Instances
 
-Create instances by passing field values in order:
+Create instances by passing field values positionally:
 
 ```tova
 alice = User(1, "Alice", "alice@example.com")
 bob = User(2, "Bob", "bob@example.com")
 ```
+
+### Named Construction
+
+When a type has many fields, positional arguments can be hard to read. Use **named arguments** to make the intent clear and pass fields in any order:
+
+```tova
+alice = User(name: "Alice", id: 1, email: "alice@example.com")
+bob = User(id: 2, name: "Bob", email: "bob@example.com")
+```
+
+Named arguments are reordered to match the type's field order at compile time, so `User(name: "Alice", id: 1, email: "alice@example.com")` compiles to the same code as `User(1, "Alice", "alice@example.com")`.
+
+You can also mix positional and named arguments. Positional arguments fill fields left-to-right, then named arguments fill the rest:
+
+```tova
+// id is positional, the rest are named in any order
+charlie = User(3, email: "charlie@example.com", name: "Charlie")
+```
+
+::: tip
+Named construction is especially useful for types with many fields of the same type, where positional arguments would be ambiguous. The compiler validates field names and catches typos at compile time.
+:::
 
 ### Accessing Fields
 
@@ -89,6 +111,13 @@ type Shape {
 circle = Circle(5.0)
 rect = Rectangle(10.0, 20.0)
 tri = Triangle(3.0, 4.0)
+```
+
+Named arguments work with variants too:
+
+```tova
+rect = Rectangle(height: 20.0, width: 10.0)
+tri = Triangle(height: 4.0, base: 3.0)
 ```
 
 ### Mixed Variants
@@ -376,6 +405,11 @@ type Customer {
 }
 
 fn create_order(customer: Customer, total: Money) { ... }
+
+order = create_order(
+  customer: Customer(name: "Alice", email: "alice@example.com"),
+  total: Money(amount: 29.99, currency: "USD")
+)
 ```
 
 **Use ADTs for state machines.** When something can be in one of several states, an ADT makes each state explicit:

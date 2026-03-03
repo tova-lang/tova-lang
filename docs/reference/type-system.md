@@ -127,12 +127,33 @@ type User {
 }
 ```
 
-Struct instances are created by calling the type as a function:
+Struct instances are created by calling the type as a function with positional arguments:
 
 ```tova
 p = Point(1.0, 2.0)
 u = User("Alice", "alice@example.com", 30)
 ```
+
+#### Named Construction
+
+Fields can be passed by name in any order. The compiler reorders them to match the type declaration:
+
+```tova
+u = User(age: 30, name: "Alice", email: "alice@example.com")
+// compiles to: User("Alice", "alice@example.com", 30)
+```
+
+Positional and named arguments can be mixed. Positional arguments fill fields left-to-right, named arguments fill remaining slots:
+
+```tova
+u = User("Alice", age: 30, email: "alice@example.com")
+```
+
+The compiler validates named arguments at compile time:
+- Unknown field names produce an error
+- Duplicate named arguments produce an error
+- Named arguments that overlap with positional slots produce an error
+- Type mismatches on named arguments are checked against field types
 
 Fields are accessed with dot notation:
 
@@ -158,6 +179,13 @@ Variants are constructed by name:
 ```tova
 s1 = Circle(5.0)
 s2 = Rectangle(3.0, 4.0)
+```
+
+Named arguments work with variant constructors as well:
+
+```tova
+s2 = Rectangle(height: 4.0, width: 3.0)
+s3 = Triangle(c: 5.0, a: 3.0, b: 4.0)
 ```
 
 Sum types are used with pattern matching:

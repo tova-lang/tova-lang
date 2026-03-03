@@ -1568,6 +1568,15 @@ export class BaseCodegen {
     const hasNamedArgs = node.arguments.some(a => a.type === 'NamedArgument');
 
     if (hasNamedArgs) {
+      // Check if callee is a type/variant constructor — reorder named args to positional
+      const calleeName = node.callee.type === 'Identifier' ? node.callee.name : null;
+      const fieldOrder = calleeName ? this._variantFields[calleeName] : null;
+
+      if (fieldOrder) {
+        const result = this._reorderNamedArgsToPositional(node.arguments, fieldOrder);
+        return `${callee}(${result.join(', ')})`;
+      }
+
       const allNamed = node.arguments.every(a => a.type === 'NamedArgument');
       if (allNamed) {
         // All named args → single object argument
@@ -2139,6 +2148,33 @@ export class BaseCodegen {
     }
     // Fallback to normal expression generation for constants, strings, etc.
     return this.genExpression(node);
+  }
+
+  // Reorder named args to positional order for type/variant constructors
+  _reorderNamedArgsToPositional(args, fieldOrder) {
+    const slots = new Array(fieldOrder.length);
+    let positionalIndex = 0;
+    // First pass: place positional args in order
+    for (const arg of args) {
+      if (arg.type !== 'NamedArgument') {
+        slots[positionalIndex] = this.genExpression(arg);
+        positionalIndex++;
+      }
+    }
+    // Second pass: place named args in their field's slot
+    for (const arg of args) {
+      if (arg.type === 'NamedArgument') {
+        const idx = fieldOrder.indexOf(arg.name);
+        if (idx !== -1) {
+          slots[idx] = this.genExpression(arg.value);
+        } else {
+          // Unknown field — emit as-is (analyzer will warn)
+          slots[positionalIndex] = this.genExpression(arg.value);
+          positionalIndex++;
+        }
+      }
+    }
+    return slots.filter(s => s !== undefined);
   }
 
   // Override genCallExpression to handle table operations with column expressions
@@ -3151,6 +3187,7 @@ export class BaseCodegen {
     } else {
       this.declareVar(node.name);
       const fieldNames = node.variants.map(f => f.name);
+      this._variantFields[node.name] = fieldNames;
       const params = fieldNames.join(', ');
       const obj = fieldNames.map(f => `${f}`).join(', ');
       lines.push(`${this.i()}${exportPrefix}function ${node.name}(${params}) { return Object.assign(Object.create(${node.name}.prototype), { ${obj} }); }`);
