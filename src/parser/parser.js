@@ -599,6 +599,12 @@ export class Parser {
     if (this.check(TokenType.PUB)) {
       this.error("Duplicate 'pub' modifier");
     }
+    // Handle pub component at top level (parseComponent is installed by browser-parser plugin)
+    if (this.check(TokenType.COMPONENT) && typeof this.parseComponent === 'function') {
+      const comp = this.parseComponent();
+      comp.isPublic = true;
+      return comp;
+    }
     const stmt = this.parseStatement();
     if (stmt) stmt.isPublic = true;
     return stmt;

@@ -72,6 +72,11 @@ export class CodeGenerator {
     const topLevel = [];
 
     for (const node of this.ast.body) {
+      // pub component declarations at top level are module-level exports, not browser block children
+      if (node.type === 'ComponentDeclaration' && node.isPublic) {
+        topLevel.push(node);
+        continue;
+      }
       const plugin = BlockRegistry.getByAstType(node.type);
       if (plugin) {
         if (!blocksByType.has(plugin.name)) blocksByType.set(plugin.name, []);
@@ -107,14 +112,59 @@ export class CodeGenerator {
     const isModule = !hasAnyBlocks && topLevel.length > 0;
 
     if (isModule) {
+      // Separate pub component declarations from other top-level nodes
+      const componentNodes = topLevel.filter(n => n.type === 'ComponentDeclaration');
+      const otherNodes = topLevel.filter(n => n.type !== 'ComponentDeclaration');
+
       const moduleGen = new SharedCodegen();
       moduleGen._sourceMapsEnabled = this._sourceMaps;
       moduleGen.setSourceFile(this.filename);
-      // Use genBlockStatements for pattern optimization (array fill detection, etc.)
-      const fakeBlock = { type: 'BlockStatement', body: topLevel };
-      const moduleCode = moduleGen.genBlockStatements(fakeBlock);
+
+      // Generate non-component top-level code
+      let moduleCode = '';
+      if (otherNodes.length > 0) {
+        const fakeBlock = { type: 'BlockStatement', body: otherNodes };
+        moduleCode = moduleGen.genBlockStatements(fakeBlock);
+      }
+
+      // Generate pub component code using BrowserCodegen
+      let componentCode = '';
+      if (componentNodes.length > 0) {
+        const BrowserCodegen = getBrowserCodegen();
+        const compGen = new BrowserCodegen();
+        compGen._sourceMapsEnabled = this._sourceMaps;
+        compGen.setSourceFile(this.filename);
+
+        // Sort: parent components first, then compound (child) components
+        const sortedComponents = [...componentNodes].sort((a, b) => {
+          const aIsChild = a.parent ? 1 : 0;
+          const bIsChild = b.parent ? 1 : 0;
+          return aIsChild - bIsChild;
+        });
+
+        const compParts = [];
+        for (const comp of sortedComponents) {
+          if (comp.parent) {
+            // Compound component — assign as property on parent
+            compParts.push(`${comp.parent}.${comp.child} = ${compGen.generateComponent(comp)};`);
+          } else {
+            const exportPrefix = comp.isPublic ? 'export ' : '';
+            compParts.push(exportPrefix + compGen.generateComponent(comp));
+          }
+        }
+        componentCode = compParts.join('\n\n');
+      }
+
       const helpers = moduleGen.generateHelpers();
-      const combined = [helpers, moduleCode].filter(s => s.trim()).join('\n').trim();
+      const parts = [helpers];
+
+      // Add runtime imports for component DOM/reactivity functions
+      if (componentNodes.length > 0) {
+        parts.unshift(`import { createSignal, createEffect, createComputed, batch, onMount, onUnmount, onCleanup, tova_el, tova_fragment, tova_keyed, tova_inject_css, createRef, createContext, provide, inject } from './runtime/reactivity.js';`);
+      }
+
+      parts.push(moduleCode, componentCode);
+      const combined = parts.filter(s => s.trim()).join('\n').trim();
       return {
         shared: combined,
         server: '',

@@ -57,7 +57,7 @@ export function installBrowserAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitStateDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'browser') {
+    if (ctx !== 'browser' && !this._inPubComponent) {
       this.error(`'state' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     try {
@@ -71,7 +71,7 @@ export function installBrowserAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitComputedDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'browser') {
+    if (ctx !== 'browser' && !this._inPubComponent) {
       this.error(`'computed' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     try {
@@ -85,7 +85,7 @@ export function installBrowserAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitEffectDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'browser') {
+    if (ctx !== 'browser' && !this._inPubComponent) {
       this.error(`'effect' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
     this.visitNode(node.body);
@@ -93,13 +93,20 @@ export function installBrowserAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitComponentDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'browser') {
+    if (ctx !== 'browser' && !node.isPublic) {
       this.error(`'component' can only be used inside a browser block`, node.loc, "move this inside a browser { } block", { code: 'E302' });
     }
-    this._checkNamingConvention(node.name, 'component', node.loc);
+    // Skip naming convention check for compound components (e.g. Dialog.Title)
+    // since "Dialog.Title" isn't a single PascalCase identifier
+    if (!node.parent) {
+      this._checkNamingConvention(node.name, 'component', node.loc);
+    }
+    // For compound components, register with the parent name (already defined)
+    // and use the full name for the symbol definition
+    const symbolName = node.name;
     try {
-      this.currentScope.define(node.name,
-        new Symbol(node.name, 'component', null, false, node.loc));
+      this.currentScope.define(symbolName,
+        new Symbol(symbolName, 'component', null, false, node.loc));
     } catch (e) {
       this.error(e.message);
     }
@@ -109,6 +116,9 @@ export function installBrowserAnalyzer(AnalyzerClass) {
     // Store component prop names for variant() validation in style blocks
     const prevComponentProps = this._currentComponentProps;
     this._currentComponentProps = node.params.map(p => p.name);
+    // Track pub component context so state/computed/effect are allowed inside
+    const prevInPubComponent = this._inPubComponent;
+    if (node.isPublic) this._inPubComponent = true;
     for (const param of node.params) {
       try {
         this.currentScope.define(param.name,
@@ -123,6 +133,7 @@ export function installBrowserAnalyzer(AnalyzerClass) {
       }
     } finally {
       this._currentComponentProps = prevComponentProps;
+      this._inPubComponent = prevInPubComponent;
       this.currentScope = prevScope;
     }
   };

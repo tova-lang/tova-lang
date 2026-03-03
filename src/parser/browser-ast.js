@@ -39,6 +39,9 @@ export class ComponentDeclaration {
     this.params = params;
     this.body = body; // Array of JSX elements and statements
     this.loc = loc;
+    // Compound component fields (set by parser for Dialog.Title etc.)
+    this.parent = null;
+    this.child = null;
   }
 }
 

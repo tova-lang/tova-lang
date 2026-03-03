@@ -4,6 +4,16 @@ import { SecurityCodegen } from './security-codegen.js';
 import { ThemeCodegen } from './theme-codegen.js';
 import { generateValidatorFn, generateFieldSignals, generateFieldAccessor, generateGroupCode, generateArrayCode, generateAsyncValidatorEffect } from './form-codegen.js';
 
+// JS reserved words that cannot be used as variable names
+const JS_RESERVED = new Set([
+  'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default',
+  'delete', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for',
+  'function', 'if', 'import', 'in', 'instanceof', 'new', 'null', 'return', 'super',
+  'switch', 'this', 'throw', 'true', 'try', 'typeof', 'var', 'void', 'while', 'with',
+  'yield', 'let', 'static', 'implements', 'interface', 'package', 'private',
+  'protected', 'public', 'await', 'async'
+]);
+
 export class BrowserCodegen extends BaseCodegen {
   constructor() {
     super();
@@ -12,6 +22,7 @@ export class BrowserCodegen extends BaseCodegen {
     this.componentNames = new Set(); // Track component names for JSX
     this.storeNames = new Set(); // Track store names
     this.formNames = new Set(); // Track form names
+    this._paramRenames = new Map(); // Track JS reserved word renames for component params
     this._asyncContext = false; // When true, server.xxx() calls emit `await`
     this._rpcCache = new WeakMap(); // Memoize _containsRPC() results
     this._signalCache = new WeakMap(); // Memoize _exprReadsSignal() results
@@ -108,7 +119,8 @@ export class BrowserCodegen extends BaseCodegen {
   genExpression(node) {
     if (node && node.type === 'Identifier' &&
         (this.stateNames.has(node.name) || this.computedNames.has(node.name))) {
-      return `${node.name}()`;
+      const safeName = this._paramRenames.get(node.name) || node.name;
+      return `${safeName}()`;
     }
     return super.genExpression(node);
   }
@@ -1034,15 +1046,22 @@ export class BrowserCodegen extends BaseCodegen {
 
     // Generate reactive prop accessors — each prop is accessed through __props getter
     // This ensures parent signal changes propagate reactively to the child
+    const savedRenames = new Map(this._paramRenames);
     if (hasParams) {
       for (const param of comp.params) {
-        this.computedNames.add(param.name);
+        const propName = param.name;
+        const safeName = JS_RESERVED.has(propName) ? `_${propName}` : propName;
+        if (safeName !== propName) {
+          this._paramRenames.set(propName, safeName);
+        }
+        this.computedNames.add(propName);
         const def = param.default || param.defaultValue;
+        const propAccess = safeName !== propName ? `__props["${propName}"]` : `__props.${propName}`;
         if (def) {
           const defaultExpr = this.genExpression(def);
-          p.push(`${this.i()}const ${param.name} = () => __props.${param.name} !== undefined ? __props.${param.name} : ${defaultExpr};\n`);
+          p.push(`${this.i()}const ${safeName} = () => ${propAccess} !== undefined ? ${propAccess} : ${defaultExpr};\n`);
         } else {
-          p.push(`${this.i()}const ${param.name} = () => __props.${param.name};\n`);
+          p.push(`${this.i()}const ${safeName} = () => ${propAccess};\n`);
         }
       }
     }
@@ -1206,9 +1225,10 @@ export class BrowserCodegen extends BaseCodegen {
     this.indent--;
     p.push(`}`);
 
-    // Restore scoped names, scope id, variants, and animate decls
+    // Restore scoped names, scope id, variants, animate decls, and param renames
     this.stateNames = savedState;
     this.computedNames = savedComputed;
+    this._paramRenames = savedRenames;
     this._currentScopeId = savedScopeId;
     this._currentVariants = savedVariants;
     this._currentAnimateDecls = savedAnimateDecls;

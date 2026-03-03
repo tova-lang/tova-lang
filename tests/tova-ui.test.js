@@ -2,7 +2,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, test, expect } from 'bun:test';
 
-const COMPILED_PATH = join(import.meta.dir, '../../tova-packages/ui/.tova-out/src.js');
+// Build outputs to .tova-out/src/src.js when building from src/ directory
+const COMPILED_PATH = join(import.meta.dir, '../../tova-packages/ui/.tova-out/src/src.js');
 const COMPILED = readFileSync(COMPILED_PATH, 'utf-8');
 
 describe('tova/ui compiled output', () => {
@@ -147,5 +148,13 @@ describe('tova/ui compiled output', () => {
   test('has all 34 compound sub-components', () => {
     const compounds = [...COMPILED.matchAll(/(\w+\.\w+) = function/g)].map(m => m[1]);
     expect(compounds.length).toBe(34);
+  });
+
+  // Verify compiled output is valid JavaScript (no reserved word bugs)
+  test('compiled output is valid JavaScript', () => {
+    // Must not contain `const class =` or similar reserved word declarations
+    expect(COMPILED).not.toMatch(/const\s+(class|for|return|if|else|switch|default|delete|new|void|typeof)\s*=/);
+    // Should contain the safe renamed versions
+    expect(COMPILED).toContain('const _class = () => __props["class"]');
   });
 });
