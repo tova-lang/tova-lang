@@ -15,11 +15,11 @@ x *= 2
 print("x={x}")`
 
 const destructuringCode = `person = { name: "Alice", age: 30, email: "alice@example.com" }
-let { name, age } = person
+{ name, age } = person
 print("{name} is {age} years old")
 
 items = [1, 2, 3, 4, 5]
-let [head, ...rest] = items
+[head, ...rest] = items
 print("head={head}, rest={rest}")`
 </script>
 
@@ -86,12 +86,12 @@ var b = 2
 a, b = b, a   // a is now 2, b is now 1
 ```
 
-## Destructuring with `let`
+## Destructuring
 
-The `let` keyword is used specifically for destructuring -- pulling values out of objects and arrays into individual variables.
+Destructuring pulls values out of objects and arrays into individual variables. You can write it with or without the `let` keyword -- both forms are equivalent and produce identical compiled output.
 
 ::: tip
-In Tova, `let` is **only** for destructuring. It is **not** used for variable declaration like in JavaScript. Use plain `x = 10` for immutable bindings or `var x = 10` for mutable ones.
+`let` in Tova is **only** for destructuring. It is **not** used for variable declaration like in JavaScript. Use plain `x = 10` for immutable bindings or `var x = 10` for mutable ones. The `let` keyword is optional -- `{a, b} = obj` and `let {a, b} = obj` mean exactly the same thing.
 :::
 
 ### Object Destructuring
@@ -101,15 +101,18 @@ Extract fields from an object by name:
 ```tova
 person = { name: "Alice", age: 30, email: "alice@example.com" }
 
-let { name, age } = person
+{ name, age } = person
 print(name)   // "Alice"
 print(age)    // 30
+
+// Equivalent — the `let` keyword is optional:
+let { name, age } = person
 ```
 
 You can rename the bindings:
 
 ```tova
-let { name: userName, age: userAge } = person
+{ name: userName, age: userAge } = person
 print(userName)   // "Alice"
 print(userAge)    // 30
 ```
@@ -121,7 +124,7 @@ Pull elements out of arrays by position:
 ```tova
 coords = [10, 20, 30]
 
-let [x, y, z] = coords
+[x, y, z] = coords
 print(x)   // 10
 print(y)   // 20
 ```
@@ -133,11 +136,11 @@ Use the spread operator `...` to capture remaining elements:
 ```tova
 items = [1, 2, 3, 4, 5]
 
-let [first, ...rest] = items
+[first, ...rest] = items
 print(first)   // 1
 print(rest)    // [2, 3, 4, 5]
 
-let [head, second, ...tail] = items
+[head, second, ...tail] = items
 print(head)    // 1
 print(second)  // 2
 print(tail)    // [3, 4, 5]
@@ -152,7 +155,7 @@ data = {
   user: { name: "Alice", scores: [95, 87, 92] }
 }
 
-let { user: { name, scores: [first_score, ...other_scores] } } = data
+{ user: { name, scores: [first_score, ...other_scores] } } = data
 print(name)          // "Alice"
 print(first_score)   // 95
 print(other_scores)  // [87, 92]
@@ -188,7 +191,7 @@ ratio: Float = 22.0 / 7.0
 **Use destructuring to keep code clean.** Instead of accessing `response.data.user.name` repeatedly, destructure it once:
 
 ```tova
-let { data: { user: { name, email } } } = response
+{ data: { user: { name, email } } } = response
 // Now use 'name' and 'email' directly
 ```
 

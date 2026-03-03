@@ -18,7 +18,7 @@ If you write JavaScript or TypeScript, Tova will feel familiar — it compiles t
 | Boolean | `&&` / `\|\|` / `!` | `and` / `or` / `not` (or `&&`/`\|\|`/`!`) |
 | Optional chaining | `obj?.prop` | `obj?.prop` |
 | Spread | `...obj` | `...obj` |
-| Destructuring | `const { a, b } = obj` | `let { a, b } = obj` |
+| Destructuring | `const { a, b } = obj` | `{ a, b } = obj` (or `let { a, b } = obj`) |
 | Type annotation | `x: number` (TS) | `x: Int` |
 | Pipe | None (Stage 2 proposal) | `\|>` (built-in) |
 | Server/client | Separate projects | Single `.tova` file |
@@ -46,7 +46,7 @@ Tova's `var` is not JavaScript's `var`. It means "mutable variable" — equivale
 
 ### Destructuring
 
-Tova uses `let` exclusively for destructuring — never for variable declarations.
+Tova destructuring works with or without the `let` keyword -- both forms produce identical output. Unlike JavaScript, `let` is **never** used for variable declarations in Tova.
 
 ::: code-group
 ```javascript [JavaScript]
@@ -55,6 +55,10 @@ const [first, ...rest] = items;
 ```
 
 ```tova [Tova]
+{ name, age } = user
+[first, ...rest] = items
+
+// `let` is optional — these are equivalent:
 let { name, age } = user
 let [first, ...rest] = items
 ```

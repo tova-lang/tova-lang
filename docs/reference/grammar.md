@@ -241,7 +241,7 @@ assignment = IDENTIFIER { "," IDENTIFIER } "=" expression { "," expression } ;
 
 var_declaration = "var" IDENTIFIER { "," IDENTIFIER } "=" expression { "," expression } ;
 
-let_destructure = "let" ( object_pattern | array_pattern ) "=" expression ;
+let_destructure = [ "let" ] ( object_pattern | array_pattern ) "=" expression ;
 
 decorated_declaration = { "@" IDENTIFIER [ "(" expression_list ")" ] } ( function_declaration | async_function_declaration ) ;
 

@@ -50,7 +50,7 @@ count += 1          // OK
 
 ### Destructuring
 
-Python uses tuple unpacking. Tova uses `let` for destructuring (and `let` is *only* for destructuring — not for declaring variables like in JavaScript):
+Python uses tuple unpacking. Tova destructuring works with or without the `let` keyword (both are equivalent). Note that `let` in Tova is *only* for destructuring -- not for declaring variables like in JavaScript:
 
 ::: code-group
 ```python [Python]
@@ -60,7 +60,7 @@ first, *rest = [1, 2, 3, 4]
 
 ```tova [Tova]
 name, age = "Alice", 30
-let [first, ...rest] = [1, 2, 3, 4]
+[first, ...rest] = [1, 2, 3, 4]
 ```
 :::
 
@@ -68,7 +68,7 @@ Object destructuring has no direct Python equivalent:
 
 ```tova
 person = { name: "Alice", age: 30 }
-let { name, age } = person
+{ name, age } = person
 ```
 
 ## Functions

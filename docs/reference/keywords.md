@@ -537,15 +537,20 @@ interface Printable {
 
 ### `let`
 
-Performs destructuring binding from a value.
+Optional keyword for destructuring binding. Both forms are equivalent:
 
 ```tova
+// With let (explicit):
 let { name, email } = user
 let [first, ...rest] = items
+
+// Without let (shorthand — same result):
+{ name, email } = user
+[first, ...rest] = items
 ```
 
 ::: warning
-`let` is NOT used for simple variable declarations. Use `x = value` for simple bindings and `var x = value` for mutable variables.
+`let` is NOT used for simple variable declarations. Use `x = value` for simple bindings and `var x = value` for mutable variables. The `let` keyword is only for destructuring, and even then it is optional.
 :::
 
 ### `loop`
