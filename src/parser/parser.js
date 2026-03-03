@@ -1496,7 +1496,14 @@ export class Parser {
       // Destructuring without let: {name, age} = user  or  [a, b] = list
       if (expr.type === 'ObjectLiteral') {
         const pattern = new AST.ObjectPattern(
-          expr.properties.map(p => ({ key: typeof p.key === 'string' ? p.key : p.key.name || p.key, value: typeof p.key === 'string' ? p.key : p.key.name || p.key })),
+          expr.properties.map(p => {
+            const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
+            // For shorthand {name}, key and value are the same
+            // For rename {name: alias}, value is the alias identifier
+            const val = p.shorthand ? key
+              : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
+            return { key, value: val };
+          }),
           expr.loc
         );
         const value = this.parseExpression();
@@ -1504,7 +1511,13 @@ export class Parser {
       }
       if (expr.type === 'ArrayLiteral') {
         const pattern = new AST.ArrayPattern(
-          expr.elements.map(e => e.type === 'Identifier' ? e.name : '_'),
+          expr.elements.map(e => {
+            if (e.type === 'Identifier') return e.name;
+            if (e.type === 'SpreadExpression' && e.argument && e.argument.type === 'Identifier') {
+              return '...' + e.argument.name;
+            }
+            return '_';
+          }),
           expr.loc
         );
         const value = this.parseExpression();

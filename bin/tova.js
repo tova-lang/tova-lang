@@ -3147,6 +3147,26 @@ async function startRepl() {
         const declaredInCode = new Set();
         for (const m of code.matchAll(/\bfunction\s+([a-zA-Z_]\w*)/g)) { declaredInCode.add(m[1]); userDefinedNames.add(m[1]); }
         for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) { declaredInCode.add(m[1]); userDefinedNames.add(m[1]); }
+        // Extract destructured names: const { a, b } = ... or const [ a, b ] = ...
+        for (const m of code.matchAll(/\bconst\s+\{\s*([^}]+)\}/g)) {
+          for (const part of m[1].split(',')) {
+            const trimmed = part.trim();
+            if (!trimmed) continue;
+            // Handle renaming: "key: alias" or "key: alias = default" — extract the alias
+            const colonMatch = trimmed.match(/^\w+\s*:\s*([a-zA-Z_]\w*)/);
+            const name = colonMatch ? colonMatch[1] : trimmed.match(/^([a-zA-Z_]\w*)/)?.[1];
+            if (name) { declaredInCode.add(name); userDefinedNames.add(name); }
+          }
+        }
+        for (const m of code.matchAll(/\bconst\s+\[\s*([^\]]+)\]/g)) {
+          for (const part of m[1].split(',')) {
+            const trimmed = part.trim();
+            if (!trimmed) continue;
+            const name = trimmed.startsWith('...') ? trimmed.slice(3).trim() : trimmed;
+            const id = name.match(/^([a-zA-Z_]\w*)/)?.[1];
+            if (id) { declaredInCode.add(id); userDefinedNames.add(id); }
+          }
+        }
         for (const m of code.matchAll(/\blet\s+([a-zA-Z_]\w*)/g)) {
           declaredInCode.add(m[1]);
           userDefinedNames.add(m[1]);
