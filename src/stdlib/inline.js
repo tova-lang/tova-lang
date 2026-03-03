@@ -60,7 +60,39 @@ export const PROPAGATE = `function __propagate(val) {
 
 // Individual builtin functions for tree-shaking
 export const BUILTIN_FUNCTIONS = {
-  print: `function print(...args) { console.log(...args); }`,
+  print: `function print(...args) {
+  var _noColor = typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY));
+  var _codes = { red: '31', green: '32', yellow: '33', blue: '34', magenta: '35', cyan: '36', gray: '90', bold: '1', dim: '2', underline: '4' };
+  var _styled = function(s) {
+    if (typeof s !== 'string') return s;
+    return s.replace(/\\{(\\/|red|green|yellow|blue|magenta|cyan|gray|bold|dim|underline)\\}/g, function(_, tag) {
+      if (_noColor) return '';
+      if (tag === '/') return '\\x1b[0m';
+      return '\\x1b[' + _codes[tag] + 'm';
+    });
+  };
+  var _pretty = function(v) {
+    if (v === null || v === undefined) return v;
+    if (typeof v !== 'object') return v;
+    if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+      var headers = Object.keys(v[0]);
+      var rows = v.map(function(r) { return headers.map(function(h) { return String(r[h] != null ? r[h] : ''); }); });
+      var widths = headers.map(function(h, i) { return Math.max(h.length, Math.max.apply(null, rows.map(function(r) { return r[i].length; }))); });
+      var line = widths.map(function(w) { return '-'.repeat(w + 2); }).join('+');
+      var head = headers.map(function(h, i) { return ' ' + h.padEnd(widths[i]) + ' '; }).join('|');
+      var body = rows.map(function(r) { return r.map(function(c, i) { return ' ' + c.padEnd(widths[i]) + ' '; }).join('|'); }).join('\\n');
+      return head + '\\n' + line + '\\n' + body;
+    }
+    return JSON.stringify(v, null, 2);
+  };
+  if (args.length === 1) {
+    var processed = _styled(_pretty(args[0]));
+    console.log(processed);
+  } else {
+    var processed = args.map(function(a) { return _styled(a); });
+    console.log.apply(console, processed);
+  }
+}`,
   len: `function len(v) { if (v == null) return 0; if (typeof v === 'string' || Array.isArray(v) || ArrayBuffer.isView(v)) return v.length; if (typeof v === 'object') return Object.keys(v).length; return 0; }`,
   range: `function range(s, e, st) { if (e === undefined) { e = s; s = 0; } if (st === undefined) st = s < e ? 1 : -1; if (st === 0) return []; const r = []; if (st > 0) { for (let i = s; i < e; i += st) r.push(i); } else { for (let i = s; i > e; i += st) r.push(i); } return r; }`,
   enumerate: `function enumerate(a) { return a.map((v, i) => [i, v]); }`,
@@ -196,7 +228,7 @@ export const BUILTIN_FUNCTIONS = {
   atan2: `function atan2(y, x) { return Math.atan2(y, x); }`,
 
   // ── Logarithmic / Exponential ─────────────────────────
-  log: `function log(n) { return Math.log(n); }`,
+  ln: `function ln(n) { return Math.log(n); }`,
   log2: `function log2(n) { return Math.log2(n); }`,
   log10: `function log10(n) { return Math.log10(n); }`,
   exp: `function exp(n) { return Math.exp(n); }`,
@@ -585,7 +617,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   hex_decode: `function hex_decode(s) { let r = ''; for (let i = 0; i < s.length; i += 2) r += String.fromCharCode(parseInt(s.substr(i, 2), 16)); return r; }`,
 
   // ── String (extended) ──────────────────────────────────
-  fmt: `function fmt(template, ...args) { let i = 0; return template.replace(/\\{\\}/g, () => i < args.length ? String(args[i++]) : '{}'); }`,
+  fmt: `function fmt(template, ...args) { var named = args.length === 1 && args[0] !== null && typeof args[0] === 'object' && !Array.isArray(args[0]) && !(args[0] instanceof Date); var obj = named ? args[0] : null; var ai = 0, result = '', pos = 0, len = template.length; while (pos < len) { if (pos + 1 < len && template[pos] === '{' && template[pos + 1] === '{') { result += '{'; pos += 2; continue; } if (pos + 1 < len && template[pos] === '}' && template[pos + 1] === '}') { result += '}'; pos += 2; continue; } if (template[pos] === '{') { var close = template.indexOf('}', pos + 1); if (close === -1) { result += template[pos]; pos++; continue; } var inner = template.substring(pos + 1, close); pos = close + 1; var colonIdx = inner.indexOf(':'); var key = colonIdx >= 0 ? inner.substring(0, colonIdx) : inner; var spec = colonIdx >= 0 ? inner.substring(colonIdx + 1) : ''; var val; if (named && key.length > 0) { val = obj[key]; if (val === undefined) { result += '{' + inner + '}'; continue; } } else if (key.length === 0) { if (ai < args.length) { val = args[ai++]; } else { result += '{}'; continue; } } else { if (ai < args.length) { val = args[ai++]; } else { result += '{' + inner + '}'; continue; } } if (!spec) { result += String(val); continue; } var si = 0, fill = ' ', align = '', sign = '', comma = false, width = 0, hasWidth = false, precision = -1, type = ''; if (si + 1 < spec.length && (spec[si + 1] === '<' || spec[si + 1] === '>' || spec[si + 1] === '^')) { fill = spec[si]; align = spec[si + 1]; si += 2; } else if (si < spec.length && (spec[si] === '<' || spec[si] === '>' || spec[si] === '^')) { align = spec[si]; si += 1; } if (si < spec.length && (spec[si] === '+' || spec[si] === '-' || spec[si] === ' ')) { sign = spec[si]; si += 1; } while (si < spec.length && spec[si] >= '0' && spec[si] <= '9') { width = width * 10 + (spec.charCodeAt(si) - 48); hasWidth = true; si += 1; } if (si < spec.length && spec[si] === ',') { comma = true; si += 1; } if (si < spec.length && spec[si] === '.') { si += 1; precision = 0; while (si < spec.length && spec[si] >= '0' && spec[si] <= '9') { precision = precision * 10 + (spec.charCodeAt(si) - 48); si += 1; } } if (si < spec.length) { type = spec[si]; } var formatted, numVal = typeof val === 'number' ? val : Number(val); switch (type) { case 'b': formatted = (numVal >>> 0).toString(2); if (numVal === 0) formatted = '0'; break; case 'o': formatted = (numVal >>> 0).toString(8); if (numVal === 0) formatted = '0'; break; case 'x': formatted = (numVal >>> 0).toString(16); if (numVal === 0) formatted = '0'; break; case 'X': formatted = (numVal >>> 0).toString(16).toUpperCase(); if (numVal === 0) formatted = '0'; break; case 'f': formatted = numVal.toFixed(precision >= 0 ? precision : 6); break; case '%': { var pct = numVal * 100; formatted = precision >= 0 ? pct.toFixed(precision) + '%' : (Math.round(pct * 1e10) / 1e10).toString() + '%'; break; } case '$': { var abs = Math.abs(numVal), dollars = abs.toFixed(2), dotIdx2 = dollars.indexOf('.'), intPart2 = dollars.substring(0, dotIdx2), decPart2 = dollars.substring(dotIdx2); var withCommas2 = ''; for (var j2 = 0; j2 < intPart2.length; j2++) { if (j2 > 0 && (intPart2.length - j2) % 3 === 0) withCommas2 += ','; withCommas2 += intPart2[j2]; } formatted = (numVal < 0 ? '-' : '') + '$' + withCommas2 + decPart2; break; } case 's': formatted = String(val); if (precision >= 0) formatted = formatted.substring(0, precision); break; default: if (typeof val === 'number' && precision >= 0 && !type) formatted = numVal.toFixed(precision); else formatted = String(val); break; } if (comma && type !== '$') { var dIdx = formatted.indexOf('.'), iPart = dIdx >= 0 ? formatted.substring(0, dIdx) : formatted, dPart = dIdx >= 0 ? formatted.substring(dIdx) : ''; var signChar = '', digits = iPart; if (digits[0] === '-' || digits[0] === '+') { signChar = digits[0]; digits = digits.substring(1); } var withC = ''; for (var j = 0; j < digits.length; j++) { if (j > 0 && (digits.length - j) % 3 === 0) withC += ','; withC += digits[j]; } formatted = signChar + withC + dPart; } if (sign && type !== '$' && type !== '%') { if (typeof val === 'number') { var s = formatted; if (s[0] === '-' || s[0] === '+') { s = s.substring(1); } if (numVal >= 0) { if (sign === '+') formatted = '+' + s; else if (sign === ' ') formatted = ' ' + s; else formatted = s; } else { formatted = '-' + s; } } } if (hasWidth && formatted.length < width) { var pad = width - formatted.length, a = align || '>'; if (a === '<') formatted = formatted + fill.repeat(pad); else if (a === '^') { var left = Math.floor(pad / 2); formatted = fill.repeat(left) + formatted + fill.repeat(pad - left); } else formatted = fill.repeat(pad) + formatted; } result += formatted; continue; } result += template[pos]; pos++; } return result; }`,
 
   // ── Scripting: Environment & CLI ──────────────────────
   env: `function env(key, fallback) { if (key === undefined) return { ...process.env }; const v = process.env[key]; return v !== undefined ? v : (fallback !== undefined ? fallback : null); }`,
@@ -992,6 +1024,19 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   pretty(v) { return JSON.stringify(v, null, 2); }
 });`,
 
+  crypto: `const crypto = Object.freeze({
+  sha256(data) { const c = require('crypto'); return c.createHash('sha256').update(typeof data === 'string' ? data : Buffer.from(data)).digest('hex'); },
+  sha512(data) { const c = require('crypto'); return c.createHash('sha512').update(typeof data === 'string' ? data : Buffer.from(data)).digest('hex'); },
+  hmac(algo, key, data) { const c = require('crypto'); return c.createHmac(algo, key).update(data).digest('hex'); },
+  random_bytes(n) { return new Uint8Array(require('crypto').randomBytes(n)); },
+  random_int(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); },
+  hash_password(password) { try { const c = require('crypto'); const salt = c.randomBytes(16); const hash = c.scryptSync(password, salt, 64); return Ok(salt.toString('hex') + ':' + hash.toString('hex')); } catch (e) { return Err(e.message); } },
+  verify_password(password, stored) { try { const c = require('crypto'); const [saltHex, hashHex] = stored.split(':'); const salt = Buffer.from(saltHex, 'hex'); const hash = Buffer.from(hashHex, 'hex'); const derived = c.scryptSync(password, salt, 64); return c.timingSafeEqual(hash, derived); } catch { return false; } },
+  encrypt(plaintext, key) { try { const c = require('crypto'); const iv = c.randomBytes(12); const kb = typeof key === 'string' ? Buffer.from(key, 'utf-8').slice(0, 32) : key; const cipher = c.createCipheriv('aes-256-gcm', kb, iv); let enc = cipher.update(plaintext, 'utf8', 'hex'); enc += cipher.final('hex'); const tag = cipher.getAuthTag().toString('hex'); return Ok(iv.toString('hex') + ':' + tag + ':' + enc); } catch (e) { return Err(e.message); } },
+  decrypt(ciphertext, key) { try { const c = require('crypto'); const [ivHex, tagHex, enc] = ciphertext.split(':'); const iv = Buffer.from(ivHex, 'hex'); const tag = Buffer.from(tagHex, 'hex'); const kb = typeof key === 'string' ? Buffer.from(key, 'utf-8').slice(0, 32) : key; const decipher = c.createDecipheriv('aes-256-gcm', kb, iv); decipher.setAuthTag(tag); let dec = decipher.update(enc, 'hex', 'utf8'); dec += decipher.final('utf8'); return Ok(dec); } catch (e) { return Err(e.message); } },
+  constant_time_equal(a, b) { try { const ba = Buffer.from(a); const bb = Buffer.from(b); if (ba.length !== bb.length) return false; return require('crypto').timingSafeEqual(ba, bb); } catch { return false; } }
+});`,
+
   fs: `const fs = Object.freeze({
   read_text(path, enc) { try { return Ok(require('fs').readFileSync(path, enc || 'utf-8')); } catch (e) { return Err(e.message); } },
   write_text(path, content, opts) { try { const f = require('fs'); if (opts && opts.append) f.appendFileSync(path, content); else f.writeFileSync(path, content); return Ok(path); } catch (e) { return Err(e.message); } },
@@ -1012,6 +1057,46 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   parse_query(s) { const r = {}; const qs = s.startsWith('?') ? s.slice(1) : s; if (!qs) return r; for (const pair of qs.split('&')) { const [k, ...v] = pair.split('='); r[decodeURIComponent(k)] = decodeURIComponent(v.join('=')); } return r; },
   build_query(obj) { return Object.entries(obj).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); }
 });`,
+
+  http: `const http = Object.freeze({
+  async _request(method, url, body, opts) {
+    var o = opts || {};
+    var headers = o.headers ? { ...o.headers } : {};
+    if (o.bearer) headers['Authorization'] = 'Bearer ' + o.bearer;
+    if (body && typeof body === 'object' && !(body instanceof ArrayBuffer) && !(body instanceof Uint8Array) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+      body = JSON.stringify(body);
+    }
+    var timeout = o.timeout || 30000;
+    var retries = o.retries || 0;
+    var retryDelay = o.retry_delay || 1000;
+    var attempt = 0;
+    while (true) {
+      try {
+        var controller = new AbortController();
+        var timer = setTimeout(function() { controller.abort(); }, timeout);
+        var resp = await fetch(url, { method: method, headers: headers, body: method !== 'GET' && method !== 'HEAD' ? body : undefined, signal: controller.signal, redirect: o.follow_redirects === false ? 'manual' : 'follow' });
+        clearTimeout(timer);
+        var respHeaders = {};
+        resp.headers.forEach(function(v, k) { respHeaders[k] = v; });
+        var respBody;
+        var ct = resp.headers.get('content-type') || '';
+        if (ct.includes('application/json')) { try { respBody = await resp.json(); } catch(e) { respBody = await resp.text(); } }
+        else { respBody = await resp.text(); }
+        return Ok({ status: resp.status, headers: respHeaders, body: respBody, ok: resp.ok, json: function() { try { return Ok(typeof respBody === 'string' ? JSON.parse(respBody) : respBody); } catch (e) { return Err(e.message); } } });
+      } catch (e) {
+        if (attempt < retries) { attempt++; await new Promise(function(r) { setTimeout(r, retryDelay * attempt); }); continue; }
+        return Err(e.name === 'AbortError' ? 'Timeout after ' + timeout + 'ms' : e.message);
+      }
+    }
+  },
+  get(url, opts) { return http._request('GET', url, null, opts); },
+  post(url, body, opts) { return http._request('POST', url, body, opts); },
+  put(url, body, opts) { return http._request('PUT', url, body, opts); },
+  patch(url, body, opts) { return http._request('PATCH', url, body, opts); },
+  delete(url, opts) { return http._request('DELETE', url, null, opts); },
+  head(url, opts) { return http._request('HEAD', url, null, opts); }
+})`,
 
   // ── Channel-based async ───────────────────────────────
   Channel: `class Channel {
@@ -1227,6 +1312,24 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   OrderedDict, DefaultDict, Counter, Deque
 });`,
 
+  // ── LRU Cache ─────────────────────────────────────────
+  LRUCache: `class LRUCache {
+  constructor(maxSize, ttl) { this._max = maxSize; this._ttl = ttl || 0; this._map = new Map(); this._hits = 0; this._misses = 0; }
+  get(key) { var entry = this._map.get(key); if (\!entry) { this._misses++; return None; } if (this._ttl > 0 && Date.now() - entry.t > this._ttl) { this._map.delete(key); this._misses++; return None; } this._map.delete(key); this._map.set(key, entry); this._hits++; return Some(entry.v); }
+  set(key, value) { if (this._map.has(key)) this._map.delete(key); else if (this._map.size >= this._max) { var first = this._map.keys().next().value; this._map.delete(first); } this._map.set(key, { v: value, t: Date.now() }); }
+  has(key) { if (\!this._map.has(key)) return false; if (this._ttl > 0) { var entry = this._map.get(key); if (Date.now() - entry.t > this._ttl) { this._map.delete(key); return false; } } return true; }
+  delete(key) { return this._map.delete(key); }
+  clear() { this._map.clear(); this._hits = 0; this._misses = 0; }
+  size() { return this._map.size; }
+  keys() { return [...this._map.keys()]; }
+  stats() { var total = this._hits + this._misses; return { hits: this._hits, misses: this._misses, hit_rate: total > 0 ? this._hits / total : 0 }; }
+}`,
+
+  cache: `const cache = Object.freeze({
+  lru(maxSize) { return new LRUCache(maxSize, 0); },
+  ttl(maxSize, ttlMs) { return new LRUCache(maxSize, ttlMs); }
+})`,
+
   // ─── Typed numeric array functions for @fast mode ───────────────
 
   typed_zeros: `function typed_zeros(n, Type) {
@@ -1322,6 +1425,46 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   out.sort((a, b) => a - b);
   return out;
 }`,
+
+  // ── Logging Namespace ──────────────────────────────────
+  log: `var log = (function() {
+  var _level = 1;
+  var _levels = { debug: 0, info: 1, warn: 2, error: 3, silent: 4 };
+  var _format = 'pretty';
+  var _noColor = typeof process !== 'undefined' && (process.env.NO_COLOR || (process.stdout && !process.stdout.isTTY));
+  var _colors = { debug: '36', info: '32', warn: '33', error: '31' };
+  var _labels = { debug: 'DBG', info: 'INF', warn: 'WRN', error: 'ERR' };
+  function _emit(lvl, context, msg, data) {
+    if (_levels[lvl] < _level) return;
+    var consoleFn = lvl === 'error' ? console.error : lvl === 'warn' ? console.warn : lvl === 'debug' ? (console.debug || console.log) : console.log;
+    if (_format === 'json') {
+      var obj = { level: lvl, msg: msg, timestamp: new Date().toISOString() };
+      if (context) Object.assign(obj, context);
+      if (data && typeof data === 'object') Object.assign(obj, data);
+      consoleFn(JSON.stringify(obj));
+      return;
+    }
+    var ts = new Date().toISOString().slice(11, 19);
+    var label = _labels[lvl];
+    if (!_noColor) label = '\\x1b[' + _colors[lvl] + 'm' + label + '\\x1b[0m';
+    var parts = [ts, label, msg];
+    if (data !== undefined) parts.push(typeof data === 'object' ? JSON.stringify(data) : String(data));
+    if (context) parts.push(JSON.stringify(context));
+    consoleFn(parts.join(' '));
+  }
+  function _makeLogger(ctx) {
+    return {
+      debug: function(msg, data) { _emit('debug', ctx, msg, data); },
+      info: function(msg, data) { _emit('info', ctx, msg, data); },
+      warn: function(msg, data) { _emit('warn', ctx, msg, data); },
+      error: function(msg, data) { _emit('error', ctx, msg, data); },
+      level: function(l) { _level = _levels[l] !== undefined ? _levels[l] : 1; },
+      format: function(f) { _format = f; },
+      with: function(extra) { var merged = ctx ? Object.assign({}, ctx, extra) : extra; return _makeLogger(merged); }
+    };
+  }
+  return _makeLogger(null);
+})()`,
 };
 
 // All known builtin names for matching
@@ -1341,10 +1484,12 @@ export const STDLIB_DEPS = {
   // These are provided by RESULT_OPTION, not the builtin map, so no dep here
   // Namespace modules that use builtins internally
   json: ['Ok', 'Err'],
+  crypto: ['Ok', 'Err'],
   re: ['Ok', 'Err'],
   dt: ['Ok', 'Err'],
   fs: ['Ok', 'Err'],
   url: ['Ok', 'Err'],
+  http: ['Ok', 'Err'],
   parse_url: ['Ok', 'Err'],
   regex_test: ['__regex_cache'],
   regex_match: ['Ok', 'Err', '__regex_cache'],
@@ -1376,6 +1521,9 @@ export const STDLIB_DEPS = {
   cyan: ['color'],
   magenta: ['color'],
   gray: ['color'],
+  // LRU cache namespace
+  LRUCache: ['Some', 'None'],
+  cache: ['LRUCache', 'Some', 'None'],
 };
 
 // Resolve all transitive dependencies for a set of used names
