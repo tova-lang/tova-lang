@@ -116,7 +116,17 @@ export function installBrowserParser(ParserClass) {
   ParserClass.prototype.parseComponent = function() {
     const l = this.loc();
     this.expect(TokenType.COMPONENT);
-    const name = this.expect(TokenType.IDENTIFIER, "Expected component name").value;
+    let name = this.expect(TokenType.IDENTIFIER, "Expected component name").value;
+
+    // Check for compound component: Dialog.Title
+    let parent = null;
+    let child = null;
+    if (this.check(TokenType.DOT)) {
+      this.advance(); // consume '.'
+      child = this.expect(TokenType.IDENTIFIER, "Expected sub-component name after '.'").value;
+      parent = name;
+      name = parent + '.' + child;
+    }
 
     let params = [];
     if (this.match(TokenType.LPAREN)) {
@@ -168,7 +178,12 @@ export function installBrowserParser(ParserClass) {
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close component body");
 
-    return new AST.ComponentDeclaration(name, params, body, l);
+    const node = new AST.ComponentDeclaration(name, params, body, l);
+    if (parent) {
+      node.parent = parent;
+      node.child = child;
+    }
+    return node;
   };
 
   // ─── JSX-like parsing ─────────────────────────────────────
@@ -325,6 +340,13 @@ export function installBrowserParser(ParserClass) {
       name = this.advance().value;
     } else {
       this.error("Expected attribute name");
+    }
+
+    // Handle hyphenated attribute names: aria-disabled, data-testid, stroke-width, etc.
+    while (this.check(TokenType.MINUS) && this.peek(1) &&
+           (this.peek(1).type === TokenType.IDENTIFIER || this.peek(1).value in Keywords)) {
+      this.advance(); // consume MINUS
+      name += '-' + this.advance().value;
     }
 
     // Handle namespaced attributes: on:click, bind:value, class:active

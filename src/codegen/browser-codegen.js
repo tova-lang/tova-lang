@@ -1025,8 +1025,11 @@ export class BrowserCodegen extends BaseCodegen {
     const savedState = new Set(this.stateNames);
     const savedComputed = new Set(this.computedNames);
 
+    // For compound components (e.g. Dialog.Title), use concatenated name (DialogTitle) as function name
+    const funcName = comp.child ? (comp.parent + comp.child) : comp.name;
+
     const p = [];
-    p.push(`function ${comp.name}(${paramStr}) {\n`);
+    p.push(`function ${funcName}(${paramStr}) {\n`);
     this.indent++;
 
     // Generate reactive prop accessors — each prop is accessed through __props getter
@@ -2021,6 +2024,9 @@ export class BrowserCodegen extends BaseCodegen {
 
     const propParts = [];
     const memoizedProps = []; // Computed memoization for complex expressions
+    // Helper: quote property keys that contain hyphens (aria-*, data-*, stroke-*, etc.)
+    const _needsQuote = (k) => k.includes('-') && !k.startsWith('"');
+    const _propKey = (k) => _needsQuote(k) ? `"${k}"` : k;
     for (const [key, val] of Object.entries(attrs)) {
       // For component props, convert reactive () => wrappers to JS getter syntax
       // so the prop stays reactive through the __props access pattern
@@ -2030,14 +2036,14 @@ export class BrowserCodegen extends BaseCodegen {
         // Complex expressions: memoize with createComputed
         const isSimple = /^[a-zA-Z_$]\w*\(\)$/.test(rawExpr);
         if (isSimple) {
-          propParts.push(`get ${key}() { return ${rawExpr}; }`);
+          propParts.push(`get ${_propKey(key)}() { return ${rawExpr}; }`);
         } else {
-          const memoName = `__memo_${key}`;
+          const memoName = `__memo_${key.replace(/-/g, '_')}`;
           memoizedProps.push(`const ${memoName} = createComputed(() => ${rawExpr})`);
-          propParts.push(`get ${key}() { return ${memoName}(); }`);
+          propParts.push(`get ${_propKey(key)}() { return ${memoName}(); }`);
         }
       } else {
-        propParts.push(`${key}: ${val}`);
+        propParts.push(`${_propKey(key)}: ${val}`);
       }
     }
     for (const [event, handler] of Object.entries(events)) {
