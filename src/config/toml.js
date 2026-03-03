@@ -37,7 +37,19 @@ export function parseTOML(input) {
     if (eqIdx === -1) continue; // skip lines without =
 
     const key = line.slice(0, eqIdx).trim();
-    const rawValue = line.slice(eqIdx + 1).trim();
+    let rawValue = line.slice(eqIdx + 1).trim();
+
+    // Multi-line array: starts with [ but doesn't end with ]
+    if (rawValue.startsWith('[') && !rawValue.endsWith(']')) {
+      // Collect continuation lines until we find the closing ]
+      while (i + 1 < lines.length) {
+        i++;
+        const contLine = lines[i].trim();
+        if (contLine === '' || contLine.startsWith('#')) continue;
+        rawValue += ' ' + contLine;
+        if (contLine.includes(']')) break;
+      }
+    }
 
     current[key] = parseValue(rawValue, i + 1);
   }
