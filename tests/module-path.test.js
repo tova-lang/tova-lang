@@ -80,8 +80,8 @@ describe('moduleToGitUrl', () => {
 });
 
 describe('blessed package resolution', () => {
-  test('BLESSED_PACKAGES contains all 10 official packages', () => {
-    const expected = ['fp', 'validate', 'encoding', 'test', 'retry', 'template', 'data', 'stats', 'plot', 'ml'];
+  test('BLESSED_PACKAGES contains all 11 official packages', () => {
+    const expected = ['fp', 'validate', 'encoding', 'test', 'retry', 'template', 'data', 'stats', 'plot', 'ml', 'ui'];
     for (const pkg of expected) {
       expect(BLESSED_PACKAGES).toHaveProperty(pkg);
       expect(BLESSED_PACKAGES[pkg]).toBe(`github.com/tova-lang/${pkg}`);
@@ -114,6 +114,11 @@ describe('blessed package resolution', () => {
   test('isTovModule recognizes tova/ shorthand as a Tova module', () => {
     expect(isTovModule('tova/data')).toBe(true);
     expect(isTovModule('tova/fp')).toBe(true);
+  });
+
+  test('tova/ui is a blessed package', () => {
+    expect(expandBlessedPackage('tova/ui')).toBe('github.com/tova-lang/ui');
+    expect(isTovModule('tova/ui')).toBe(true);
   });
 
   test('isTovModule rejects unknown tova/ packages', () => {

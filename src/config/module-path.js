@@ -14,6 +14,7 @@ export const BLESSED_PACKAGES = {
   stats: 'github.com/tova-lang/stats',
   plot: 'github.com/tova-lang/plot',
   ml: 'github.com/tova-lang/ml',
+  ui: 'github.com/tova-lang/ui',
 };
 
 export function expandBlessedPackage(source) {
