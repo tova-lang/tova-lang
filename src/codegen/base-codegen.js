@@ -1531,6 +1531,10 @@ export class BaseCodegen {
       if (node.callee.name === 'iter') {
         this._needsResultOption = true; // Seq.first()/find() return Option
       }
+      // LRUCache.get() returns Option — needs Result/Option
+      if (node.callee.name === 'LRUCache') {
+        this._needsResultOption = true;
+      }
 
       // Inline string/collection builtins to direct method calls
       const inlined = this._tryInlineBuiltin(node);
@@ -1543,9 +1547,9 @@ export class BaseCodegen {
         BUILTIN_NAMES.has(node.callee.object.name)) {
       const ns = node.callee.object.name;
       this._trackBuiltin(ns);
-      // Namespaces that depend on Ok/Err need Result/Option
+      // Namespaces that depend on Ok/Err/Some/None need Result/Option
       const deps = STDLIB_DEPS[ns];
-      if (deps && (deps.includes('Ok') || deps.includes('Err'))) {
+      if (deps && (deps.includes('Ok') || deps.includes('Err') || deps.includes('Some') || deps.includes('None'))) {
         this._needsResultOption = true;
       }
     }

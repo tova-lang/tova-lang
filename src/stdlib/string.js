@@ -190,6 +190,88 @@ export function unescape_html(s) {
 }
 
 export function fmt(template, ...args) {
-  let i = 0;
-  return template.replace(/\{\}/g, () => i < args.length ? String(args[i++]) : '{}');
+  var named = args.length === 1 && args[0] !== null && typeof args[0] === 'object' && !Array.isArray(args[0]) && !(args[0] instanceof Date);
+  var obj = named ? args[0] : null;
+  var ai = 0, result = '', pos = 0, len = template.length;
+  while (pos < len) {
+    if (pos + 1 < len && template[pos] === '{' && template[pos + 1] === '{') { result += '{'; pos += 2; continue; }
+    if (pos + 1 < len && template[pos] === '}' && template[pos + 1] === '}') { result += '}'; pos += 2; continue; }
+    if (template[pos] === '{') {
+      var close = template.indexOf('}', pos + 1);
+      if (close === -1) { result += template[pos]; pos++; continue; }
+      var inner = template.substring(pos + 1, close);
+      pos = close + 1;
+      var colonIdx = inner.indexOf(':');
+      var key = colonIdx >= 0 ? inner.substring(0, colonIdx) : inner;
+      var spec = colonIdx >= 0 ? inner.substring(colonIdx + 1) : '';
+      var val;
+      if (named && key.length > 0) {
+        val = obj[key]; if (val === undefined) { result += '{' + inner + '}'; continue; }
+      } else if (key.length === 0) {
+        if (ai < args.length) { val = args[ai++]; } else { result += '{}'; continue; }
+      } else {
+        if (ai < args.length) { val = args[ai++]; } else { result += '{' + inner + '}'; continue; }
+      }
+      if (!spec) { result += String(val); continue; }
+      var si = 0, fill = ' ', align = '', sign = '', comma = false, width = 0, hasWidth = false, precision = -1, type = '';
+      if (si + 1 < spec.length && (spec[si + 1] === '<' || spec[si + 1] === '>' || spec[si + 1] === '^')) { fill = spec[si]; align = spec[si + 1]; si += 2; }
+      else if (si < spec.length && (spec[si] === '<' || spec[si] === '>' || spec[si] === '^')) { align = spec[si]; si += 1; }
+      if (si < spec.length && (spec[si] === '+' || spec[si] === '-' || spec[si] === ' ')) { sign = spec[si]; si += 1; }
+      while (si < spec.length && spec[si] >= '0' && spec[si] <= '9') { width = width * 10 + (spec.charCodeAt(si) - 48); hasWidth = true; si += 1; }
+      if (si < spec.length && spec[si] === ',') { comma = true; si += 1; }
+      if (si < spec.length && spec[si] === '.') { si += 1; precision = 0; while (si < spec.length && spec[si] >= '0' && spec[si] <= '9') { precision = precision * 10 + (spec.charCodeAt(si) - 48); si += 1; } }
+      if (si < spec.length) { type = spec[si]; }
+      var formatted, numVal = typeof val === 'number' ? val : Number(val);
+      switch (type) {
+        case 'b': formatted = (numVal >>> 0).toString(2); if (numVal === 0) formatted = '0'; break;
+        case 'o': formatted = (numVal >>> 0).toString(8); if (numVal === 0) formatted = '0'; break;
+        case 'x': formatted = (numVal >>> 0).toString(16); if (numVal === 0) formatted = '0'; break;
+        case 'X': formatted = (numVal >>> 0).toString(16).toUpperCase(); if (numVal === 0) formatted = '0'; break;
+        case 'f': formatted = numVal.toFixed(precision >= 0 ? precision : 6); break;
+        case '%': {
+          var pct = numVal * 100;
+          formatted = precision >= 0 ? pct.toFixed(precision) + '%' : (Math.round(pct * 1e10) / 1e10).toString() + '%';
+          break;
+        }
+        case '$': {
+          var abs = Math.abs(numVal), dollars = abs.toFixed(2), dotIdx2 = dollars.indexOf('.'), intPart2 = dollars.substring(0, dotIdx2), decPart2 = dollars.substring(dotIdx2);
+          var withCommas2 = '';
+          for (var j2 = 0; j2 < intPart2.length; j2++) { if (j2 > 0 && (intPart2.length - j2) % 3 === 0) withCommas2 += ','; withCommas2 += intPart2[j2]; }
+          formatted = (numVal < 0 ? '-' : '') + '$' + withCommas2 + decPart2;
+          break;
+        }
+        case 's': formatted = String(val); if (precision >= 0) formatted = formatted.substring(0, precision); break;
+        default:
+          if (typeof val === 'number' && precision >= 0 && !type) formatted = numVal.toFixed(precision);
+          else formatted = String(val);
+          break;
+      }
+      if (comma && type !== '$') {
+        var dIdx = formatted.indexOf('.'), iPart = dIdx >= 0 ? formatted.substring(0, dIdx) : formatted, dPart = dIdx >= 0 ? formatted.substring(dIdx) : '';
+        var signChar = '', digits = iPart;
+        if (digits[0] === '-' || digits[0] === '+') { signChar = digits[0]; digits = digits.substring(1); }
+        var withC = '';
+        for (var j = 0; j < digits.length; j++) { if (j > 0 && (digits.length - j) % 3 === 0) withC += ','; withC += digits[j]; }
+        formatted = signChar + withC + dPart;
+      }
+      if (sign && type !== '$' && type !== '%') {
+        if (typeof val === 'number') {
+          var s = formatted;
+          if (s[0] === '-' || s[0] === '+') { s = s.substring(1); }
+          if (numVal >= 0) { if (sign === '+') formatted = '+' + s; else if (sign === ' ') formatted = ' ' + s; else formatted = s; }
+          else { formatted = '-' + s; }
+        }
+      }
+      if (hasWidth && formatted.length < width) {
+        var pad = width - formatted.length, a = align || '>';
+        if (a === '<') formatted = formatted + fill.repeat(pad);
+        else if (a === '^') { var left = Math.floor(pad / 2); formatted = fill.repeat(left) + formatted + fill.repeat(pad - left); }
+        else formatted = fill.repeat(pad) + formatted;
+      }
+      result += formatted;
+      continue;
+    }
+    result += template[pos]; pos++;
+  }
+  return result;
 }
