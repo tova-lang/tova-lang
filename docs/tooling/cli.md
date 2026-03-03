@@ -8,11 +8,19 @@ The `tova` command-line interface is the primary tool for developing, building, 
 
 ## Installation
 
+Works on Windows, macOS, and Linux:
+
 ```bash
 bun install -g tova
 ```
 
 After installation, the `tova` command is available globally (or via `bunx tova`).
+
+On macOS and Linux you can also use the install script instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh
+```
 
 ## Commands
 

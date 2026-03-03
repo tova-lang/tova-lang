@@ -9,7 +9,7 @@ Get up and running with Tova in under five minutes.
 
 ## Install the Tova Compiler
 
-### Option 1: Install Script (recommended)
+### Option 1: Install Script (macOS / Linux)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh
@@ -19,11 +19,13 @@ This downloads a prebuilt binary for your platform and adds it to your PATH. No 
 
 > **Note:** Some commands (`dev`, `test`) require [Bun](https://bun.sh). The standalone binary handles `run`, `build`, `new`, `repl`, `fmt`, and `lsp` without Bun.
 
-### Option 2: npm (requires Bun)
+### Option 2: Bun (Windows, macOS, Linux)
 
 ```bash
 bun install -g tova
 ```
+
+This works on all platforms including Windows. If you don't have Bun installed, see [Prerequisites](#prerequisites-for-full-functionality) below.
 
 ### Option 3: Download Binary
 
@@ -46,8 +48,16 @@ You should see the current Tova version printed to the terminal.
 
 Tova uses [Bun](https://bun.sh/) as its runtime for the dev server and test runner. If you need these features, install Bun:
 
+**macOS / Linux:**
+
 ```bash
 curl -fsSL https://bun.sh/install | bash
+```
+
+**Windows:**
+
+```powershell
+powershell -c "irm bun.sh/install.ps1 | iex"
 ```
 
 You need Bun 1.0 or later.

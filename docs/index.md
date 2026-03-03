@@ -228,8 +228,18 @@ browser {
 
 ## Get Started
 
+**macOS / Linux:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tova-lang/tova-lang/main/install.sh | sh
+tova new my-app
+cd my-app && tova dev
+```
+
+**Windows, macOS, or Linux (via Bun):**
+
+```bash
+bun install -g tova
 tova new my-app
 cd my-app && tova dev
 ```
