@@ -15,7 +15,39 @@ Tova has the following built-in primitive and compound types:
 | `[T]` | Array of T | `[1, 2, 3]`, `["a", "b"]` |
 | `(A, B) -> R` | Function type | `(Int, Int) -> Int` |
 | `Table<T>` | Tabular data (array of typed rows) | `Table([{name: "Alice"}])` |
+| `(A, B)` | Tuple types | `(Int, String)`, `(Bool, Float, Int)` |
 | `nil` | Absence of value | `nil` |
+
+### Numeric Type Widening
+
+`Int` values are automatically widened to `Float` when needed — this is safe because no data is lost:
+
+```tova
+fn calculate(x: Float) -> Float { x * 2.0 }
+calculate(42)   // OK — Int widens to Float
+```
+
+The reverse — `Float` to `Int` — is **not** implicit because it loses the fractional part. Use `floor()` or `round()` to convert explicitly:
+
+```tova
+fn process(x: Int) -> Int { x * 2 }
+process(floor(3.14))    // OK — explicit conversion
+process(round(3.7))     // OK — rounds to 4
+```
+
+### Nil and Option Compatibility
+
+`nil` is compatible with `Option<T>` types. You can return `nil` anywhere an `Option` is expected:
+
+```tova
+fn find_user(id: Int) -> Option<User> {
+  if id == 0 {
+    nil    // equivalent to None
+  } else {
+    Some(User(id, "Alice", "alice@example.com"))
+  }
+}
+```
 
 ## Struct-like Types
 
@@ -248,6 +280,30 @@ type Handler = (Request) -> Response
 type Pair = (String, Int)
 ```
 
+### Generic Type Aliases
+
+Type aliases can have their own type parameters, letting you create reusable shorthand for parameterized types:
+
+```tova
+type Pair<A, B> = (A, B)
+type MyResult<T> = Result<T, String>
+type Callback<T> = (T) -> Nil
+type Matrix<T> = [[T]]
+```
+
+```tova
+fn get_user(id: Int) -> MyResult<User> {
+  // Error type is always String
+  if id > 0 {
+    Ok(User(id, "Alice", "alice@example.com"))
+  } else {
+    Err("User not found")
+  }
+}
+```
+
+Type aliases are resolved at compile time — they generate no runtime code.
+
 ## Union Types
 
 Define a type that can be one of several other types:
@@ -298,14 +354,36 @@ Tova supports tuple types for grouping a fixed number of values:
 ```tova
 point = (10, 20)
 name_age = ("Alice", 30)
+triple = (1, "hello", true)
 ```
 
-Access elements by position:
+### Tuple Type Annotations
+
+Use parenthesized types in annotations:
+
+```tova
+fn get_point() -> (Int, Int) {
+  (10, 20)
+}
+
+fn swap(pair: (String, Int)) -> (Int, String) {
+  let (s, n) = pair
+  (n, s)
+}
+```
+
+Note: `(Int, String) -> Bool` is a **function type** (from Int and String to Bool), while `(Int, String)` without `->` is a **tuple type**.
+
+### Accessing Elements
+
+Access elements by position using dot notation with numeric indices:
 
 ```tova
 x = point.0    // 10
 y = point.1    // 20
 ```
+
+### Destructuring
 
 Destructure tuples with `let`:
 
@@ -358,7 +436,9 @@ option is None        // false
 
 ### Type Narrowing
 
-The compiler narrows the type of a variable after an `is` check:
+The compiler automatically narrows the type of a variable inside conditional branches based on runtime checks. This means you get precise type information without manual casts.
+
+#### Narrowing with `is`
 
 ```tova
 fn process(value) {
@@ -369,6 +449,55 @@ fn process(value) {
     // value is known to be an Int here
     print(value * 2)
   }
+}
+```
+
+#### Narrowing with Nil Checks
+
+After checking that a value is not nil, the compiler strips `Nil` from its type:
+
+```tova
+fn greet(name: String | Nil) {
+  if name != nil {
+    // name is narrowed to String
+    print("Hello, {name.upper()}!")
+  } else {
+    print("Hello, stranger!")
+  }
+}
+```
+
+#### Narrowing Result and Option
+
+The `.isOk()`, `.isErr()`, `.isSome()`, and `.isNone()` methods narrow the type in each branch:
+
+```tova
+fn handle(result: Result<Int, String>) {
+  if result.isOk() {
+    // result is known to be Ok here — safe to unwrap
+    print("Got: {result.unwrap()}")
+  } else {
+    // result is known to be Err here
+    print("Failed: {result.unwrapErr()}")
+  }
+}
+```
+
+#### Narrowing with Guard Statements
+
+`guard` narrows the type for the **rest of the enclosing scope**, not just a branch:
+
+```tova
+fn process(user: Option<User>) {
+  guard user.isSome() else { return }
+  // user is narrowed to Some for all code below
+  print(user.unwrap().name)
+}
+
+fn validate(name: String | Nil) {
+  guard name != nil else { return Err("name required") }
+  // name is narrowed to String for all code below
+  print(name.upper())
 }
 ```
 

@@ -225,6 +225,8 @@ statement = assignment
           | function_declaration
           | type_declaration
           | interface_declaration
+          | trait_declaration
+          | impl_declaration
           | import_declaration
           | export_statement
           | return_statement
@@ -245,7 +247,7 @@ let_destructure = [ "let" ] ( object_pattern | array_pattern ) "=" expression ;
 
 decorated_declaration = { "@" IDENTIFIER [ "(" expression_list ")" ] } ( function_declaration | async_function_declaration ) ;
 
-function_declaration = "fn" IDENTIFIER "(" [ param_list ] ")" [ "->" type_annotation ] block ;
+function_declaration = "fn" IDENTIFIER [ "<" type_param_list ">" ] "(" [ param_list ] ")" [ "->" type_annotation ] block ;
 
 async_function_declaration = "async" function_declaration ;
 
@@ -291,6 +293,10 @@ guard_statement = "guard" expression "else" block ;
 
 interface_declaration = "interface" IDENTIFIER "{" { "fn" IDENTIFIER "(" [ param_list ] ")" [ "->" type_annotation ] } "}" ;
 
+trait_declaration = "trait" IDENTIFIER "{" { function_declaration } "}" ;
+
+impl_declaration = "impl" [ IDENTIFIER "for" ] IDENTIFIER "{" { function_declaration } "}" ;
+
 expression_statement = expression ;
 
 block = "{" { statement } "}" ;
@@ -328,7 +334,7 @@ power          = unary [ "**" power ] ;
 
 unary          = ( "-" | "..." ) unary | postfix ;
 
-postfix        = primary { call | member | index | optional_chain } ;
+postfix        = primary { call | member | index | optional_chain | "?" } ;
 call           = "(" [ argument_list ] ")" ;
 member         = "." IDENTIFIER ;
 index          = "[" ( expression | slice ) "]" ;
@@ -399,11 +405,30 @@ binding_pattern  = IDENTIFIER ;
 ## Type Annotations
 
 ```ebnf
-type_annotation = simple_type
-                | array_type ;
+type_annotation = union_type ;
+
+union_type     = single_type { "|" single_type } ;
+
+single_type    = array_type
+               | tuple_or_fn_type
+               | simple_type ;
 
 simple_type    = IDENTIFIER [ "<" type_annotation { "," type_annotation } ">" ] ;
 array_type     = "[" type_annotation "]" ;
+tuple_or_fn_type = "(" [ type_annotation { "," type_annotation } ] ")"
+                   [ "->" type_annotation ] ;
+                   (* with "->" it is a function type; without it is a tuple type *)
+```
+
+### Type Declarations
+
+```ebnf
+type_declaration = "type" IDENTIFIER [ "<" type_param_list ">" ]
+                   ( type_alias | type_body_decl ) ;
+
+type_alias     = "=" type_annotation [ refinement ] ;
+type_body_decl = "{" type_body "}" [ "derive" "[" IDENTIFIER { "," IDENTIFIER } "]" ] ;
+refinement     = "where" "{" { expression } "}" ;
 ```
 
 ## Destructuring Patterns

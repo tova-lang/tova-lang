@@ -1491,11 +1491,20 @@ async function devServer(args) {
       if (!result) continue;
 
       const { output, single } = result;
-      const outBaseName = single ? basename(files[0], '.tova') : dirName;
+      const relDir = relative(srcDir, dir);
+      const outBaseName = single
+        ? relative(srcDir, files[0]).replace(/\.tova$/, '').replace(/\\/g, '/')
+        : (relDir === '.' ? dirName : relDir + '/' + dirName);
       dirResults.push({ dir, output, outBaseName, single, files });
 
+      // Ensure output subdirectory exists for nested paths
+      const outSubDir = dirname(join(outDir, outBaseName));
+      if (outSubDir !== outDir) mkdirSync(outSubDir, { recursive: true });
+
       if (output.shared && output.shared.trim()) {
-        const sp = join(outDir, `${outBaseName}.shared.js`);
+        // Use .js (not .shared.js) for module files to match build output
+        const ext = (output.isModule || (!output.browser && !output.server)) ? '.js' : '.shared.js';
+        const sp = join(outDir, `${outBaseName}${ext}`);
         const fixedShared = fixImportPaths(output.shared, sp, outDir);
         writeFileSync(sp, fixedShared);
         allSharedParts.push(fixedShared);
@@ -1727,15 +1736,28 @@ async function devServer(args) {
         if (!result) continue;
 
         const { output, single } = result;
-        const outBaseName = single ? basename(files[0], '.tova') : dirName;
+        const relDir = relative(srcDir, dir);
+        const outBaseName = single
+          ? relative(srcDir, files[0]).replace(/\.tova$/, '').replace(/\\/g, '/')
+          : (relDir === '.' ? dirName : relDir + '/' + dirName);
+
+        // Ensure output subdirectory exists for nested paths
+        const outSubDir = dirname(join(outDir, outBaseName));
+        if (outSubDir !== outDir) mkdirSync(outSubDir, { recursive: true });
 
         if (output.shared && output.shared.trim()) {
-          writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
-          rebuildSharedParts.push(output.shared);
+          const ext = (output.isModule || (!output.browser && !output.server)) ? '.js' : '.shared.js';
+          const sp = join(outDir, `${outBaseName}${ext}`);
+          const fixedShared = fixImportPaths(output.shared, sp, outDir);
+          writeFileSync(sp, fixedShared);
+          rebuildSharedParts.push(fixedShared);
         }
         if (output.browser) {
-          writeFileSync(join(outDir, `${outBaseName}.browser.js`), output.browser);
-          rebuildBrowserCode = output.browser;
+          const p = join(outDir, `${outBaseName}.browser.js`);
+          const browserSrcDir = (relative(srcDir, dir) === '.' || relative(srcDir, dir) === '') ? srcDir : undefined;
+          const fixedBrowser = fixImportPaths(output.browser, p, outDir, browserSrcDir);
+          writeFileSync(p, fixedBrowser);
+          rebuildBrowserCode = fixedBrowser;
           rebuildHasClient = true;
         }
         if (output.server) {
@@ -1744,7 +1766,7 @@ async function devServer(args) {
             serverCode = `const __clientHTML = ${JSON.stringify(rebuildClientHTML)};\n` + serverCode;
           }
           const p = join(outDir, `${outBaseName}.server.js`);
-          writeFileSync(p, serverCode);
+          writeFileSync(p, fixImportPaths(serverCode, p, outDir));
           newServerFiles.push(p);
         }
         if (output.multiBlock && output.servers) {

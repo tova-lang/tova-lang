@@ -110,6 +110,111 @@ match parse_int("42") {
 }
 ```
 
+## Generic Functions
+
+Functions in Tova can be generic in two ways: implicitly through type inference, or explicitly with type parameter declarations.
+
+### Implicit Generics (Type Inference)
+
+Most functions are generic by default — the compiler infers types from arguments:
+
+```tova
+fn identity(x) {
+  x
+}
+
+identity(42)       // T inferred as Int
+identity("hello")  // T inferred as String
+```
+
+### Explicit Type Parameters
+
+For clarity or documentation, you can declare type parameters with angle brackets:
+
+```tova
+fn identity<T>(x: T) -> T {
+  x
+}
+
+fn pair<A, B>(a: A, b: B) -> (A, B) {
+  (a, b)
+}
+
+fn wrap<T>(value: T) -> Option<T> {
+  Some(value)
+}
+```
+
+Type parameters are inferred from the call-site arguments:
+
+```tova
+identity(42)          // T = Int, returns Int
+pair("Alice", 30)     // A = String, B = Int
+wrap(3.14)            // T = Float, returns Option<Float>
+```
+
+Explicit type parameters are especially useful when:
+- The return type uses a type parameter not present in the arguments
+- You want to document the generic contract in the signature
+- You're building a library and want clear API boundaries
+
+### Async Generic Functions
+
+Async functions also support type parameters:
+
+```tova
+async fn fetch_and_wrap<T>(url: String) -> Result<T, String> {
+  response = await fetch(url)
+  data = await response.json()
+  Ok(data)
+}
+```
+
+## Generic Type Annotations
+
+When using generic types in annotations, specify type arguments with angle brackets:
+
+```tova
+fn parse_int(s: String) -> Result<Int, String> {
+  // ...
+}
+
+fn find_user(id: Int) -> Option<User> {
+  // ...
+}
+```
+
+### Nested Generic Types
+
+Generic type arguments can themselves be generic:
+
+```tova
+fn process(items: [Option<Int>]) -> [Int] {
+  items
+    |> filter(fn(item) item.isSome())
+    |> map(fn(item) item.unwrap())
+}
+
+fn get_results() -> [Result<String, String>] {
+  [Ok("hello"), Err("oops"), Ok("world")]
+}
+```
+
+### Generic Type Aliases
+
+Type aliases can have their own type parameters, letting you create shorthand for complex generic types:
+
+```tova
+type Pair<A, B> = (A, B)
+type MyResult<T> = Result<T, String>
+type Callback<T> = (T) -> Nil
+
+fn get_user(id: Int) -> MyResult<User> {
+  // error type is always String
+  Ok(User(id, "Alice", "alice@example.com"))
+}
+```
+
 ## Generic Data Structures
 
 Generics are ideal for building reusable data structures:

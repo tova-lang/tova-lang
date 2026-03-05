@@ -62,6 +62,41 @@ fn apply(f: (Int) -> Int, x: Int) -> Int {
 }
 ```
 
+## Tuple Types
+
+Tuple types represent a fixed-size, ordered collection of values with potentially different types:
+
+```tova
+(Int, String)               // pair of Int and String
+(Int, String, Bool)         // triple
+(Float, Float)              // pair of floats
+```
+
+Tuple values are created with parenthesized expressions:
+
+```tova
+point = (10, 20)
+record = ("Alice", 30, true)
+```
+
+Elements are accessed by position using dot notation with numeric indices:
+
+```tova
+point.0    // 10
+point.1    // 20
+```
+
+Tuples are destructured with `let`:
+
+```tova
+let (x, y) = point
+let (name, age, active) = record
+```
+
+::: tip
+Tuple types and function types share similar syntax. `(Int, String) -> Bool` is a **function type**, while `(Int, String)` alone is a **tuple type**. The presence of `->` determines which is parsed.
+:::
+
 ## Type Annotations
 
 Type annotations are supported on function parameters and return types. Variable types are inferred automatically.
@@ -218,7 +253,7 @@ type Color {
 
 ## Generics
 
-Types can be parameterized with type variables using angle bracket syntax. Functions are generic through type inference.
+Types can be parameterized with type variables using angle bracket syntax. Functions support both implicit generics through type inference and explicit type parameter declarations.
 
 ### Generic Types
 
@@ -249,21 +284,51 @@ pair = Pair(1, "hello")
 
 ### Generic Functions
 
-Functions are generic by default through type inference -- no explicit type parameters are needed:
+Functions can be generic implicitly (through type inference) or explicitly (with type parameter declarations):
 
 ```tova
+// Implicit — types inferred from arguments
 fn identity(x) {
   x
 }
 
-fn first(items) {
-  if len(items) > 0 {
-    Some(items[0])
-  } else {
-    None
-  }
+// Explicit — type parameters declared with angle brackets
+fn identity<T>(x: T) -> T {
+  x
+}
+
+fn pair<A, B>(a: A, b: B) -> (A, B) {
+  (a, b)
+}
+
+fn wrap<T>(value: T) -> Result<T, String> {
+  Ok(value)
 }
 ```
+
+Type parameters are resolved from call-site arguments. `identity(42)` infers `T = Int`.
+
+### Generic Type Aliases
+
+Type aliases can have their own type parameters:
+
+```tova
+type Pair<A, B> = (A, B)
+type MyResult<T> = Result<T, String>
+type Callback<T> = (T) -> Nil
+```
+
+### Generic Type Instantiation
+
+Use angle brackets to specify type arguments in annotations:
+
+```tova
+fn parse(s: String) -> Result<Int, String> { ... }
+fn find(id: Int) -> Option<User> { ... }
+items: [Option<Int>] = [Some(1), None, Some(3)]
+```
+
+Nested generics are fully supported. Bare generics (without type arguments) are compatible with parameterized versions through gradual typing — see [Type Compatibility](#type-compatibility) below.
 
 ## Type Inference
 
@@ -477,6 +542,215 @@ match s {
 ::: tip
 The LSP server always runs with strict mode enabled, so you'll see all type issues as diagnostics in your editor regardless of how you compile.
 :::
+
+## Type Compatibility
+
+Tova uses a gradual type system with specific compatibility rules. Understanding these rules helps you write correct, type-safe code.
+
+### Int-to-Float Widening
+
+`Int` is always assignable to `Float` because integer-to-floating-point conversion is safe (no data loss):
+
+```tova
+fn needs_float(x: Float) -> Float { x * 2.0 }
+
+needs_float(42)     // OK — Int widens to Float automatically
+```
+
+### Float-to-Int Narrowing
+
+`Float` is **not** implicitly assignable to `Int` because floating-point-to-integer conversion loses data. The compiler warns and suggests an explicit conversion:
+
+```tova
+fn needs_int(x: Int) -> Int { x * 2 }
+
+needs_int(3.14)     // Warning: type mismatch Float → Int
+                    // Hint: try floor(value) or round(value) to convert
+```
+
+In strict mode, this becomes a hard error rather than a warning.
+
+### Nil and Option Compatibility
+
+`nil` is assignable to any `Option<T>` type. This allows natural assignment of nil where an optional value is expected:
+
+```tova
+fn find_user(id: Int) -> Option<User> {
+  if id == 0 {
+    nil    // OK — nil is compatible with Option<User>
+  } else {
+    Some(User(id, "Alice", "alice@example.com"))
+  }
+}
+```
+
+### Gradual Typing (Bare Generics)
+
+A generic type used without type arguments (e.g., bare `Result`) is compatible with any parameterized version of that type:
+
+```tova
+fn get_result() -> Result {
+  Ok(42)
+}
+
+fn process(r: Result<Int, String>) -> Int {
+  r.unwrapOr(0)
+}
+
+process(get_result())   // OK — bare Result compatible with Result<Int, String>
+```
+
+This allows gradual adoption of type annotations. You can start with unparameterized generic types and add type arguments as your codebase matures.
+
+### Union Type Compatibility
+
+A value is assignable to a union type if it matches any member of the union:
+
+```tova
+fn display(value: String | Int) {
+  // ...
+}
+
+display("hello")   // OK — String is a member of String | Int
+display(42)        // OK — Int is a member of String | Int
+```
+
+### Assignability Summary
+
+| Source | Target | Compatible? | Notes |
+|--------|--------|-------------|-------|
+| `Int` | `Float` | Yes | Safe widening |
+| `Float` | `Int` | No | Needs explicit `floor()` or `round()` |
+| `nil` | `Option<T>` | Yes | Nil represents absence |
+| `Result` | `Result<T, E>` | Yes | Gradual typing |
+| `Result<T, E>` | `Result` | Yes | Gradual typing |
+| `T` | `T \| U` | Yes | Member of union |
+| Any type | `Any` | Yes | Universal target |
+
+## Type Narrowing
+
+Type narrowing refines a variable's type within a code block based on runtime checks. The compiler tracks these refinements through control flow, giving you precise types inside conditional branches.
+
+### Nil Checks
+
+After checking that a value is not nil, the compiler narrows its type:
+
+```tova
+fn process(name: String | Nil) {
+  if name != nil {
+    // name is narrowed to String here
+    print(name.upper())
+  } else {
+    // name is Nil here
+    print("no name")
+  }
+}
+```
+
+### Result Narrowing with `.isOk()` / `.isErr()`
+
+```tova
+fn handle(result: Result<Int, String>) {
+  if result.isOk() {
+    // result is narrowed to Ok variant
+    print("Success: {result.unwrap()}")
+  } else {
+    // result is narrowed to Err variant
+    print("Error: {result.unwrapErr()}")
+  }
+}
+```
+
+### Option Narrowing with `.isSome()` / `.isNone()`
+
+```tova
+fn display(maybe_user: Option<User>) {
+  if maybe_user.isSome() {
+    // maybe_user is narrowed to Some variant
+    user = maybe_user.unwrap()
+    print(user.name)
+  }
+}
+```
+
+### `typeOf()` Narrowing
+
+The compiler recognizes `typeOf()` checks and narrows accordingly:
+
+```tova
+fn serialize(value) {
+  if type_of(value) == "String" {
+    // value is narrowed to String
+    "\"" ++ value ++ "\""
+  } elif type_of(value) == "Number" {
+    // value is narrowed to a numeric type
+    str(value)
+  } else {
+    "unknown"
+  }
+}
+```
+
+### `is` Operator Narrowing
+
+The `is` keyword narrows types in conditional branches:
+
+```tova
+fn process(value) {
+  if value is String {
+    // value is narrowed to String
+    print(value.upper())
+  } elif value is Int {
+    // value is narrowed to Int
+    print(value * 2)
+  }
+}
+```
+
+### Guard Statement Narrowing
+
+`guard` statements narrow the type for the **rest of the enclosing scope** (not just a branch):
+
+```tova
+fn process(name: String | Nil) {
+  guard name != nil else { return }
+  // name is narrowed to String for ALL subsequent code
+  print(name.upper())
+  print(name.lower())
+}
+```
+
+This is particularly useful for early returns that eliminate nil or error cases.
+
+### Union Type Narrowing
+
+After an `is` check, the type of a union variable is narrowed in each branch:
+
+```tova
+fn format(value: String | Int | Float) {
+  if value is String {
+    "text: {value}"
+  } elif value is Int {
+    "integer: {value}"
+  } elif value is Float {
+    "decimal: {value}"
+  }
+}
+```
+
+### Narrowing Patterns Summary
+
+| Pattern | Narrows to |
+|---------|-----------|
+| `x != nil` | Non-nil type (strips `Nil` from union) |
+| `x == nil` | `Nil` in consequent; non-nil in alternate |
+| `x.isOk()` | Ok variant in consequent; Err in alternate |
+| `x.isErr()` | Err variant in consequent; Ok in alternate |
+| `x.isSome()` | Some variant in consequent; None in alternate |
+| `x.isNone()` | None in consequent; Some in alternate |
+| `x is Type` | The checked type |
+| `type_of(x) == "String"` | The corresponding Tova type |
+| `guard x != nil else { ... }` | Non-nil for rest of scope |
 
 ## Refinement Types
 

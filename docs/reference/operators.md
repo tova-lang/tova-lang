@@ -270,6 +270,20 @@ fn add(a: Int, b: Int) -> Int {
 }
 ```
 
+## Error Propagation Operator
+
+The `?` postfix operator unwraps a `Result` or `Option`, returning early if it contains an error or absence:
+
+```tova
+fn process(input: String) -> Result<Data, String> {
+  parsed = parse(input)?           // returns Err early if parse fails
+  validated = validate(parsed)?    // returns Err early if validation fails
+  Ok(validated)
+}
+```
+
+`?` on a `Result` returns the `Err` value from the enclosing function. `?` on an `Option` returns `None`. See the [Error Handling guide](/guide/error-handling#error-propagation-with) for details.
+
 ## Other Operators
 
 | Operator | Name | Usage |
@@ -277,6 +291,7 @@ fn add(a: Int, b: Int) -> Int {
 | `:` | Type annotation / object field | `x: Int`, `{name: "Alice"}` |
 | `::` | Slice step | `items[::2]`, `items[1::3]` |
 | `++` | String prefix matching (in `match` patterns) | `"api/" ++ rest` |
+| `?` | Error propagation | `parse(input)?` |
 
 ## Operator Precedence
 
