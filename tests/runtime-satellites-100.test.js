@@ -479,9 +479,10 @@ describe('router.js — full coverage', () => {
       // With no 404 defined and no match, component should be null
       expect(route().component).toBeNull();
       expect(route().path).toBe('/no-match-path');
-      // Also test Router returning null (line 176)
+      // Router returns a __dynamic vnode; compute() returns null when no match
       const routerResult = Router();
-      expect(routerResult).toBeNull();
+      expect(routerResult.__tova).toBe(true);
+      expect(routerResult.compute()).toBeNull();
     });
 
     test('simple routes', () => {
@@ -647,7 +648,9 @@ describe('router.js — full coverage', () => {
     test('renders static component', () => {
       defineRoutes({ '/': 'static_home' });
       const result = Router();
-      expect(result).toBe('static_home');
+      // Router() now returns a dynamic vnode; compute() returns the matched component
+      expect(result.__tova).toBe(true);
+      expect(result.compute()).toBe('static_home');
     });
 
     test('returns null when no component', () => {

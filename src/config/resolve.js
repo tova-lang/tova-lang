@@ -14,6 +14,9 @@ const DEFAULTS = {
   build: {
     output: '.tova-out',
   },
+  deploy: {
+    base: '/',
+  },
   dev: {
     port: 3000,
   },
@@ -52,6 +55,9 @@ function normalizeConfig(parsed, source) {
     },
     build: {
       output: parsed.build?.output || DEFAULTS.build.output,
+    },
+    deploy: {
+      base: parsed.deploy?.base || DEFAULTS.deploy.base,
     },
     dev: {
       port: parsed.dev?.port ?? DEFAULTS.dev.port,
@@ -103,6 +109,9 @@ function configFromPackageJson(pkg) {
     },
     build: {
       output: DEFAULTS.build.output,
+    },
+    deploy: {
+      base: '/',
     },
     dev: {
       port: DEFAULTS.dev.port,

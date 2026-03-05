@@ -3154,8 +3154,8 @@ export class ServerCodegen extends BaseCodegen {
         }
       }
 
-      // Client HTML fallback
-      lines.push('  if (__pathname === "/" && typeof __clientHTML !== "undefined") {');
+      // Client HTML fallback — serve SPA shell for any non-API route so client router handles 404s
+      lines.push('  if (typeof __clientHTML !== "undefined") {');
       lines.push('    return new Response(__clientHTML, { status: 200, headers: { "Content-Type": "text/html" } });');
       lines.push('  }');
       lines.push('  return new Response("Not Found", { status: 404 });');
@@ -3464,8 +3464,8 @@ export class ServerCodegen extends BaseCodegen {
     lines.push('    }');
     lines.push('  }');
 
-    // Serve client HTML at root
-    lines.push('  if (__pathname === "/" && typeof __clientHTML !== "undefined") {');
+    // Serve client HTML — SPA fallback for any non-API route so client router handles 404s
+    lines.push('  if (typeof __clientHTML !== "undefined") {');
     lines.push('    return new Response(__clientHTML, { status: 200, headers: { "Content-Type": "text/html", ...(__cors) } });');
     lines.push('  }');
     lines.push('  const __notFound = __errorResponse(404, "NOT_FOUND", "Not Found", null, __cors);');

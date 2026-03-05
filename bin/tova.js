@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { resolve, basename, dirname, join, relative } from 'path';
+import { resolve, basename, dirname, join, relative, sep, extname } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, chmodSync, renameSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
 import { createHash as _cryptoHash } from 'crypto';
@@ -53,7 +53,7 @@ Commands:
   check [dir]      Type-check .tova files without generating code
   clean            Delete .tova-out build artifacts
   dev              Start development server with live reload
-  new <name>       Create a new Tova project (--template fullstack|api|script|library|blank)
+  new <name>       Create a new Tova project (--template fullstack|spa|site|api|script|library|blank)
   install          Install dependencies from tova.toml
   add <pkg>        Add a dependency (npm:pkg for npm, github.com/user/repo for Tova)
   remove <pkg>     Remove a dependency
@@ -84,6 +84,7 @@ Options:
   --verbose        Show detailed output during compilation
   --quiet          Suppress non-error output
   --debug          Show verbose error output
+  --static         Pre-render routes to static HTML files (used with --production)
   --strict         Enable strict type checking
   --strict-security Promote security warnings to errors
 `;
@@ -747,11 +748,215 @@ async function runFile(filePath, options = {}) {
   }
 }
 
+// ─── Import Path Fixup ──────────────────────────────────────
+
+function fixImportPaths(code, outputFilePath, outDir, srcDir) {
+  const relPath = relative(outDir, outputFilePath);
+  const depth = dirname(relPath).split(sep).filter(p => p && p !== '.').length;
+
+  // Fix runtime imports: './runtime/X.js' → correct relative path based on depth
+  if (depth > 0) {
+    const prefix = '../'.repeat(depth);
+    for (const runtimeFile of ['reactivity.js', 'rpc.js', 'router.js', 'devtools.js', 'ssr.js', 'testing.js']) {
+      code = code.split("'./runtime/" + runtimeFile + "'").join("'" + prefix + "runtime/" + runtimeFile + "'");
+      code = code.split('"./runtime/' + runtimeFile + '"').join('"' + prefix + 'runtime/' + runtimeFile + '"');
+    }
+  }
+
+  // Add .js extension to relative imports that don't have one
+  code = code.replace(
+    /from\s+(['"])(\.[^'"]+)\1/g,
+    (match, quote, path) => {
+      if (path.endsWith('.js')) return match;
+      return 'from ' + quote + path + '.js' + quote;
+    }
+  );
+
+  // Inject missing router imports
+  code = injectRouterImport(code, depth);
+
+  // Fix duplicate identifiers between reactivity and router imports (e.g. 'lazy')
+  const reactivityMatch = code.match(/^import\s+\{([^}]+)\}\s+from\s+['"][^'"]*runtime\/reactivity[^'"]*['"]/m);
+  const routerMatch = code.match(/^(import\s+\{)([^}]+)(\}\s+from\s+['"][^'"]*runtime\/router[^'"]*['"])/m);
+  if (reactivityMatch && routerMatch) {
+    const reactivityNames = new Set(reactivityMatch[1].split(',').map(s => s.trim()));
+    const routerNames = routerMatch[2].split(',').map(s => s.trim());
+    const deduped = routerNames.filter(n => !reactivityNames.has(n));
+    if (deduped.length < routerNames.length) {
+      if (deduped.length === 0) {
+        // Remove the entire router import line if nothing left
+        code = code.replace(/^import\s+\{[^}]*\}\s+from\s+['"][^'"]*runtime\/router[^'"]*['"];?\s*\n?/m, '');
+      } else {
+        code = code.replace(routerMatch[0], routerMatch[1] + ' ' + deduped.join(', ') + ' ' + routerMatch[3]);
+      }
+    }
+  }
+
+  // Fix CodeBlock/code prop template literal interpolation: the compiler treats {identifier}
+  // inside string attributes as interpolation, generating `${identifier}` in template literals.
+  // For code example strings, these should be literal braces. Revert them.
+  code = code.replace(/code:\s*`([\s\S]*?)`/g, (match, content) => {
+    if (!content.includes('${')) return match;
+    const fixed = content.replace(/\$\{(\w+)\}/g, '{ $1 }');
+    // Convert template literal to regular string with escaped quotes and newlines
+    return 'code: "' + fixed.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+  });
+
+  // File-based routing: inject routes if src/pages/ exists and no manual routes defined
+  if (srcDir && !(/\b(defineRoutes|createRouter)\s*\(/.test(code))) {
+    const fileRoutes = generateFileBasedRoutes(srcDir);
+    if (fileRoutes) {
+      // Convert Tova-style imports to JS imports with .js extensions
+      const jsRoutes = fileRoutes
+        .replace(/from\s+"([^"]+)"/g, (m, p) => 'from "' + p + '.js"');
+      // Inject before the last closing function or at the end
+      code = code + '\n// ── File-Based Routes (auto-generated from src/pages/) ──\n' + jsRoutes + '\n';
+    }
+  }
+
+  return code;
+}
+
+function injectRouterImport(code, depth) {
+  const routerFuncs = ['createRouter', 'lazy', 'resetRouter', 'getPath', 'navigate',
+                       'getCurrentRoute', 'getParams', 'getQuery', 'getMeta', 'getRouter',
+                       'defineRoutes', 'onRouteChange', 'Router', 'Link', 'Outlet', 'Redirect',
+                       'beforeNavigate', 'afterNavigate'];
+  const hasRouterImport = /runtime\/router/.test(code);
+  if (hasRouterImport) return code;
+
+  // Strip import lines before checking for router function usage to avoid false positives
+  const codeWithoutImports = code.replace(/^import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?\s*$/gm, '');
+  const usedFuncs = routerFuncs.filter(fn => new RegExp('\\b' + fn + '\\b').test(codeWithoutImports));
+  if (usedFuncs.length === 0) return code;
+
+  const routerPath = depth === 0
+    ? './runtime/router.js'
+    : '../'.repeat(depth) + 'runtime/router.js';
+
+  const importLine = "import { " + usedFuncs.join(', ') + " } from '" + routerPath + "';\n";
+
+  // Insert after first import line, or at the start
+  const firstImportEnd = code.indexOf(';\n');
+  if (firstImportEnd !== -1 && code.trimStart().startsWith('import ')) {
+    return code.slice(0, firstImportEnd + 2) + importLine + code.slice(firstImportEnd + 2);
+  }
+  return importLine + code;
+}
+
+// ─── File-Based Routing ──────────────────────────────────────
+
+function generateFileBasedRoutes(srcDir) {
+  const pagesDir = join(srcDir, 'pages');
+  if (!existsSync(pagesDir) || !statSync(pagesDir).isDirectory()) return null;
+
+  // Scan pages directory recursively
+  const routes = [];
+  let hasLayout = false;
+  let has404 = false;
+
+  function scanDir(dir, prefix) {
+    const entries = readdirSync(dir).sort();
+    for (const entry of entries) {
+      const fullPath = join(dir, entry);
+      const stat = statSync(fullPath);
+
+      if (stat.isDirectory()) {
+        // Check for layout in subdirectory
+        const subLayout = join(fullPath, '_layout.tova');
+        if (existsSync(subLayout)) {
+          const childRoutes = [];
+          scanDir(fullPath, prefix + '/' + entry);
+          // Layout routes handled via nested children
+          continue;
+        }
+        scanDir(fullPath, prefix + '/' + entry);
+        continue;
+      }
+
+      if (!entry.endsWith('.tova')) continue;
+      const name = entry.replace('.tova', '');
+
+      // Skip layout files (handled separately)
+      if (name === '_layout') {
+        if (prefix === '') hasLayout = true;
+        continue;
+      }
+
+      // 404 page
+      if (name === '404') {
+        has404 = true;
+        const relImport = './pages' + (prefix ? prefix + '/' : '/') + name;
+        routes.push({ path: '404', importPath: relImport, componentName: 'NotFoundPage__auto' });
+        continue;
+      }
+
+      // Determine route path
+      let routePath;
+      if (name === 'index') {
+        routePath = prefix || '/';
+      } else if (name.startsWith('[...') && name.endsWith(']')) {
+        // Catch-all: [...slug] → *
+        routePath = prefix + '/*';
+      } else if (name.startsWith('[[') && name.endsWith(']]')) {
+        // Optional param: [[id]] → /:id?
+        const paramName = name.slice(2, -2);
+        routePath = prefix + '/:' + paramName + '?';
+      } else if (name.startsWith('[') && name.endsWith(']')) {
+        // Dynamic param: [id] → /:id
+        const paramName = name.slice(1, -1);
+        routePath = prefix + '/:' + paramName;
+      } else {
+        routePath = prefix + '/' + name;
+      }
+
+      const relImport = './pages' + (prefix ? prefix + '/' : '/') + name;
+      // Generate safe component name from path
+      const safeName = name
+        .replace(/\[\.\.\.(\w+)\]/, 'CatchAll_$1')
+        .replace(/\[\[(\w+)\]\]/, 'Optional_$1')
+        .replace(/\[(\w+)\]/, 'Param_$1')
+        .replace(/[^a-zA-Z0-9_]/g, '_');
+      const componentName = '__Page_' + (prefix ? prefix.slice(1).replace(/\//g, '_') + '_' : '') + safeName;
+
+      routes.push({ path: routePath, importPath: relImport, componentName });
+    }
+  }
+
+  scanDir(pagesDir, '');
+
+  if (routes.length === 0) return null;
+
+  // Generate import statements and route map
+  const imports = routes.map(r =>
+    'import { Page as ' + r.componentName + ' } from "' + r.importPath + '"'
+  ).join('\n');
+
+  const routeEntries = routes.map(r =>
+    '    "' + r.path + '": ' + r.componentName + ','
+  ).join('\n');
+
+  // Check for root layout
+  let layoutImport = '';
+  let layoutWrap = '';
+  if (hasLayout) {
+    layoutImport = '\nimport { Layout as __RootLayout } from "./pages/_layout"';
+    // With layout, wrap routes as children
+    // For now, just generate flat routes — layout support can be added later
+  }
+
+  const generated = imports + layoutImport + '\n\n' +
+    'defineRoutes({\n' + routeEntries + '\n})';
+
+  return generated;
+}
+
 // ─── Build ──────────────────────────────────────────────────
 
 async function buildProject(args) {
   const config = resolveConfig(process.cwd());
   const isProduction = args.includes('--production');
+  const isStatic = args.includes('--static');
   const buildStrict = args.includes('--strict');
   const buildStrictSecurity = args.includes('--strict-security');
   const isVerbose = args.includes('--verbose');
@@ -771,7 +976,7 @@ async function buildProject(args) {
 
   // Production build uses a separate optimized pipeline
   if (isProduction) {
-    return await productionBuild(srcDir, outDir);
+    return await productionBuild(srcDir, outDir, isStatic);
   }
 
   const tovaFiles = findFiles(srcDir, '.tova');
@@ -903,7 +1108,7 @@ async function buildProject(args) {
       else if (output.isModule) {
         if (output.shared && output.shared.trim()) {
           const modulePath = join(outDir, `${outBaseName}.js`);
-          writeFileSync(modulePath, generateSourceMap(output.shared, modulePath));
+          writeFileSync(modulePath, fixImportPaths(generateSourceMap(output.shared, modulePath), modulePath, outDir));
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', modulePath)}${timing}`);
         }
         // Update incremental build cache
@@ -922,28 +1127,30 @@ async function buildProject(args) {
         // Write shared
         if (output.shared && output.shared.trim()) {
           const sharedPath = join(outDir, `${outBaseName}.shared.js`);
-          writeFileSync(sharedPath, generateSourceMap(output.shared, sharedPath));
+          writeFileSync(sharedPath, fixImportPaths(generateSourceMap(output.shared, sharedPath), sharedPath, outDir));
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', sharedPath)}${timing}`);
         }
 
         // Write default server
         if (output.server) {
           const serverPath = join(outDir, `${outBaseName}.server.js`);
-          writeFileSync(serverPath, generateSourceMap(output.server, serverPath));
+          writeFileSync(serverPath, fixImportPaths(generateSourceMap(output.server, serverPath), serverPath, outDir));
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', serverPath)}${timing}`);
         }
 
         // Write default browser
         if (output.browser) {
           const browserPath = join(outDir, `${outBaseName}.browser.js`);
-          writeFileSync(browserPath, generateSourceMap(output.browser, browserPath));
+          // Pass srcDir for file-based routing injection (only for root-level browser output)
+          const browserSrcDir = (relDir === '.' || relDir === '') ? srcDir : undefined;
+          writeFileSync(browserPath, fixImportPaths(generateSourceMap(output.browser, browserPath), browserPath, outDir, browserSrcDir));
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', browserPath)}${timing}`);
         }
 
         // Write default edge
         if (output.edge) {
           const edgePath = join(outDir, `${outBaseName}.edge.js`);
-          writeFileSync(edgePath, generateSourceMap(output.edge, edgePath));
+          writeFileSync(edgePath, fixImportPaths(generateSourceMap(output.edge, edgePath), edgePath, outDir));
           if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', edgePath)} [edge]${timing}`);
         }
 
@@ -952,7 +1159,7 @@ async function buildProject(args) {
           for (const [name, code] of Object.entries(output.servers)) {
             if (name === 'default') continue;
             const path = join(outDir, `${outBaseName}.server.${name}.js`);
-            writeFileSync(path, code);
+            writeFileSync(path, fixImportPaths(code, path, outDir));
             if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [server:${name}]${timing}`);
           }
         }
@@ -962,7 +1169,7 @@ async function buildProject(args) {
           for (const [name, code] of Object.entries(output.edges)) {
             if (name === 'default') continue;
             const path = join(outDir, `${outBaseName}.edge.${name}.js`);
-            writeFileSync(path, code);
+            writeFileSync(path, fixImportPaths(code, path, outDir));
             if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [edge:${name}]${timing}`);
           }
         }
@@ -972,7 +1179,7 @@ async function buildProject(args) {
           for (const [name, code] of Object.entries(output.browsers)) {
             if (name === 'default') continue;
             const path = join(outDir, `${outBaseName}.browser.${name}.js`);
-            writeFileSync(path, code);
+            writeFileSync(path, fixImportPaths(code, path, outDir));
             if (!isQuiet) console.log(`  ✓ ${relLabel} → ${relative('.', path)} [browser:${name}]${timing}`);
           }
         }
@@ -1275,6 +1482,8 @@ async function devServer(args) {
 
   // Pass 1: Merge each directory, write shared/client outputs, collect clientHTML
   const dirResults = [];
+  const allSharedParts = [];
+  let browserCode = '';
   for (const [dir, files] of dirGroups) {
     const dirName = basename(dir) === '.' ? 'app' : basename(dir);
     try {
@@ -1286,19 +1495,33 @@ async function devServer(args) {
       dirResults.push({ dir, output, outBaseName, single, files });
 
       if (output.shared && output.shared.trim()) {
-        writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
+        const sp = join(outDir, `${outBaseName}.shared.js`);
+        const fixedShared = fixImportPaths(output.shared, sp, outDir);
+        writeFileSync(sp, fixedShared);
+        allSharedParts.push(fixedShared);
       }
 
       if (output.browser) {
         const p = join(outDir, `${outBaseName}.browser.js`);
-        writeFileSync(p, output.browser);
-        clientHTML = await generateDevHTML(output.browser, srcDir, actualReloadPort);
-        writeFileSync(join(outDir, 'index.html'), clientHTML);
+        const browserSrcDir = (relative(srcDir, dir) === '.' || relative(srcDir, dir) === '') ? srcDir : undefined;
+        const fixedBrowser = fixImportPaths(output.browser, p, outDir, browserSrcDir);
+        writeFileSync(p, fixedBrowser);
+        browserCode = fixedBrowser;
         hasClient = true;
       }
     } catch (err) {
       console.error(`  ✗ ${relative(srcDir, dir)}: ${err.message}`);
     }
+  }
+
+  // Generate dev HTML with all shared code prepended to browser code
+  // Skip if the project has its own index.html (uses import maps or custom module loading)
+  const hasCustomIndex = existsSync(join(process.cwd(), 'index.html'));
+  if (hasClient && !hasCustomIndex) {
+    const allSharedCode = allSharedParts.join('\n').replace(/^export /gm, '');
+    const fullClientCode = allSharedCode ? allSharedCode + '\n' + browserCode : browserCode;
+    clientHTML = await generateDevHTML(fullClientCode, srcDir, actualReloadPort);
+    writeFileSync(join(outDir, 'index.html'), clientHTML);
   }
 
   // Pass 2: Write server files with clientHTML injected
@@ -1372,6 +1595,75 @@ async function devServer(args) {
     console.log(`  ✓ Client: ${relative('.', outDir)}/index.html`);
   }
 
+  // If no server blocks were found but we have a client, start a static file server
+  if (processes.length === 0 && hasClient) {
+    const mimeTypes = {
+      '.html': 'text/html',
+      '.js': 'application/javascript',
+      '.mjs': 'application/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.woff': 'font/woff',
+      '.woff2': 'font/woff2',
+      '.map': 'application/json',
+    };
+
+    const staticServer = Bun.serve({
+      port: basePort,
+      async fetch(req) {
+        const url = new URL(req.url);
+        let pathname = url.pathname;
+
+        // Try to serve the file directly from outDir, srcDir, or project root
+        const tryPaths = [
+          join(outDir, pathname),
+          join(srcDir, pathname),
+          join(process.cwd(), pathname),
+        ];
+
+        for (const filePath of tryPaths) {
+          if (existsSync(filePath) && statSync(filePath).isFile()) {
+            const ext = extname(filePath);
+            const contentType = mimeTypes[ext] || 'application/octet-stream';
+            const content = readFileSync(filePath);
+            return new Response(content, {
+              headers: {
+                'Content-Type': contentType,
+                'Cache-Control': 'no-cache',
+                'Access-Control-Allow-Origin': '*',
+              },
+            });
+          }
+        }
+
+        // SPA fallback: serve index.html for non-file routes
+        const indexPath = join(outDir, 'index.html');
+        if (existsSync(indexPath)) {
+          return new Response(readFileSync(indexPath), {
+            headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' },
+          });
+        }
+
+        const rootIndex = join(process.cwd(), 'index.html');
+        if (existsSync(rootIndex)) {
+          return new Response(readFileSync(rootIndex), {
+            headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' },
+          });
+        }
+
+        return new Response('Not Found', { status: 404 });
+      },
+    });
+
+    console.log(`\n  Static file server running:`);
+    console.log(`    → http://localhost:${basePort}`);
+  }
+
   function handleReloadFetch(req) {
       const url = new URL(req.url);
       if (url.pathname === '/__tova_reload') {
@@ -1425,6 +1717,9 @@ async function devServer(args) {
       // Merge each directory group, collect client HTML
       const rebuildDirGroups = groupFilesByDirectory(currentFiles);
       let rebuildClientHTML = '';
+      const rebuildSharedParts = [];
+      let rebuildBrowserCode = '';
+      let rebuildHasClient = false;
 
       for (const [dir, files] of rebuildDirGroups) {
         const dirName = basename(dir) === '.' ? 'app' : basename(dir);
@@ -1436,11 +1731,12 @@ async function devServer(args) {
 
         if (output.shared && output.shared.trim()) {
           writeFileSync(join(outDir, `${outBaseName}.shared.js`), output.shared);
+          rebuildSharedParts.push(output.shared);
         }
         if (output.browser) {
           writeFileSync(join(outDir, `${outBaseName}.browser.js`), output.browser);
-          rebuildClientHTML = await generateDevHTML(output.browser, srcDir, actualReloadPort);
-          writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
+          rebuildBrowserCode = output.browser;
+          rebuildHasClient = true;
         }
         if (output.server) {
           let serverCode = output.server;
@@ -1459,6 +1755,14 @@ async function devServer(args) {
             newServerFiles.push(p);
           }
         }
+      }
+
+      // Generate dev HTML with all shared code prepended to browser code
+      if (rebuildHasClient) {
+        const rebuildAllShared = rebuildSharedParts.join('\n').replace(/^export /gm, '');
+        const rebuildFullClient = rebuildAllShared ? rebuildAllShared + '\n' + rebuildBrowserCode : rebuildBrowserCode;
+        rebuildClientHTML = await generateDevHTML(rebuildFullClient, srcDir, actualReloadPort);
+        writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
       }
     } catch (err) {
       console.error(`  ✗ Rebuild failed: ${err.message}`);
@@ -1577,6 +1881,10 @@ ${bundled}
   const inlineReactivity = REACTIVITY_SOURCE.replace(/^export /gm, '');
   const inlineRpc = RPC_SOURCE.replace(/^export /gm, '');
 
+  // Detect if client code uses routing (defineRoutes, Router, getPath, navigate, etc.)
+  const usesRouter = /\b(createRouter|lazy|resetRouter|defineRoutes|Router|getPath|getQuery|getParams|getCurrentRoute|getMeta|getRouter|navigate|onRouteChange|beforeNavigate|afterNavigate|Outlet|Link|Redirect)\b/.test(clientCode);
+  const inlineRouter = usesRouter ? ROUTER_SOURCE.replace(/^export /gm, '').replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '') : '';
+
   // Strip all import lines from client code (we inline the runtime instead)
   const inlineClient = clientCode
     .replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '')
@@ -1627,6 +1935,8 @@ ${inlineReactivity}
 // ── Tova Runtime: RPC ──
 ${inlineRpc}
 
+${usesRouter ? '// ── Tova Runtime: Router ──\n' + inlineRouter : ''}
+
 // ── App ──
 ${inlineClient}
   </script>${liveReloadScript}
@@ -1641,11 +1951,12 @@ ${inlineClient}
 const PROJECT_TEMPLATES = {
   fullstack: {
     label: 'Full-stack app',
-    description: 'server + client + shared blocks',
+    description: 'server + browser + shared blocks',
     tomlDescription: 'A full-stack Tova application',
     entry: 'src',
     file: 'src/app.tova',
     content: name => `// ${name} — Built with Tova
+// Full-stack app: server RPC + client-side routing
 
 shared {
   type Message {
@@ -1662,7 +1973,7 @@ server {
   route GET "/api/message" => get_message
 }
 
-client {
+browser {
   state message = ""
   state timestamp = ""
   state refreshing = false
@@ -1681,6 +1992,23 @@ client {
     refreshing = false
   }
 
+  // ─── Navigation ─────────────────────────────────────────
+  component NavBar {
+    <nav class="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <Link href="/" class="flex items-center gap-2 no-underline">
+          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg"></div>
+          <span class="font-bold text-gray-900 text-lg">"${name}"</span>
+        </Link>
+        <div class="flex items-center gap-6">
+          <Link href="/" exactActiveClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors text-gray-500 hover:text-gray-900 no-underline">"Home"</Link>
+          <Link href="/about" activeClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors text-gray-500 hover:text-gray-900 no-underline">"About"</Link>
+        </div>
+      </div>
+    </nav>
+  }
+
+  // ─── Pages ──────────────────────────────────────────────
   component FeatureCard(icon, title, description) {
     <div class="group relative bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:border-indigo-100 transition-all duration-300">
       <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-lg mb-4 group-hover:bg-indigo-100 transition-colors">
@@ -1691,72 +2019,416 @@ client {
     </div>
   }
 
+  component HomePage {
+    <main class="max-w-5xl mx-auto px-6">
+      <div class="py-20 text-center">
+        <div class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
+          <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+          "Powered by Tova"
+        </div>
+        <h1 class="text-5xl font-bold text-gray-900 tracking-tight mb-4">"Welcome to " <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">"${name}"</span></h1>
+        <p class="text-xl text-gray-500 max-w-2xl mx-auto mb-10">"A modern full-stack app. Edit " <code class="text-sm bg-gray-100 text-indigo-600 px-2 py-1 rounded-md font-mono">"src/app.tova"</code> " to get started."</p>
+
+        <div class="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm">
+          <div class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-5 py-2.5 rounded-xl font-medium">
+            "{message}"
+          </div>
+          <button
+            on:click={handle_refresh}
+            class="px-4 py-2.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all font-medium text-sm"
+          >
+            if refreshing {
+              "..."
+            } else {
+              "Refresh"
+            }
+          </button>
+        </div>
+        if timestamp != "" {
+          <p class="text-xs text-gray-400 mt-3">"Last fetched at " "{timestamp}"</p>
+        }
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pb-20">
+        <FeatureCard
+          icon="\u2699"
+          title="Full-Stack"
+          description="Server and client in one file. Shared types, RPC calls, and reactive UI — all type-safe."
+        />
+        <FeatureCard
+          icon="\u26A1"
+          title="Fast Refresh"
+          description="Edit your code and see changes instantly. The dev server recompiles on save."
+        />
+        <FeatureCard
+          icon="\uD83C\uDFA8"
+          title="Tailwind Built-in"
+          description="Style with utility classes out of the box. No config or build step needed."
+        />
+      </div>
+    </main>
+  }
+
+  component AboutPage {
+    <main class="max-w-5xl mx-auto px-6 py-12">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">"About"</h2>
+      <div class="bg-white rounded-xl border border-gray-200 p-8 space-y-4">
+        <p class="text-gray-600 leading-relaxed">"${name} is a full-stack application built with Tova — a modern language that compiles to JavaScript."</p>
+        <p class="text-gray-600 leading-relaxed">"It uses shared types between server and browser, server-side RPC, and client-side routing."</p>
+      </div>
+      <div class="mt-8">
+        <Link href="/" class="text-indigo-600 hover:text-indigo-700 font-medium no-underline">"\u2190 Back to home"</Link>
+      </div>
+    </main>
+  }
+
+  component NotFoundPage {
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <h1 class="text-6xl font-bold text-gray-200 mb-4">"404"</h1>
+      <p class="text-lg text-gray-500 mb-6">"Page not found"</p>
+      <Link href="/" class="text-indigo-600 hover:text-indigo-700 font-medium no-underline">"Go home"</Link>
+    </div>
+  }
+
+  // ─── Router setup ─────────────────────────────────────────
+  createRouter({
+    routes: {
+      "/": HomePage,
+      "/about": { component: AboutPage, meta: { title: "About" } },
+      "404": NotFoundPage,
+    },
+    scroll: "auto",
+  })
+
   component App {
     <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-      <nav class="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg"></div>
-            <span class="font-bold text-gray-900 text-lg">"${name}"</span>
-          </div>
-          <div class="flex items-center gap-4">
-            <a href="https://github.com/tova-lang/tova-lang" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">"Docs"</a>
-            <a href="https://github.com/tova-lang/tova-lang" class="text-sm bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors">"GitHub"</a>
-          </div>
+      <NavBar />
+      <Router />
+      <div class="border-t border-gray-100 py-8 text-center">
+        <p class="text-sm text-gray-400">"Built with " <a href="https://github.com/tova-lang/tova-lang" class="text-indigo-500 hover:text-indigo-600 transition-colors">"Tova"</a></p>
+      </div>
+    </div>
+  }
+}
+`,
+    nextSteps: name => `    cd ${name}\n    tova dev`,
+  },
+  spa: {
+    label: 'Single-page app',
+    description: 'browser-only app with routing',
+    tomlDescription: 'A Tova single-page application',
+    entry: 'src',
+    file: 'src/app.tova',
+    content: name => `// ${name} — Built with Tova
+// Demonstrates: createRouter, Link, Router, Outlet, navigate(),
+// dynamic :param routes, nested routes, route meta, 404 handling
+
+browser {
+  // ─── Navigation bar with active link highlighting ─────────
+  component NavBar {
+    <nav class="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <Link href="/" class="flex items-center gap-2 no-underline">
+          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg"></div>
+          <span class="font-bold text-gray-900 text-lg">"${name}"</span>
+        </Link>
+        <div class="flex items-center gap-6">
+          <Link href="/" exactActiveClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors text-gray-500 hover:text-gray-900">"Home"</Link>
+          <Link href="/users" activeClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors text-gray-500 hover:text-gray-900">"Users"</Link>
+          <Link href="/settings" activeClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors text-gray-500 hover:text-gray-900">"Settings"</Link>
         </div>
-      </nav>
+      </div>
+    </nav>
+  }
 
-      <main class="max-w-5xl mx-auto px-6">
-        <div class="py-20 text-center">
-          <div class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
-            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
-            "Powered by Tova"
-          </div>
-          <h1 class="text-5xl font-bold text-gray-900 tracking-tight mb-4">"Welcome to " <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">"${name}"</span></h1>
-          <p class="text-xl text-gray-500 max-w-2xl mx-auto mb-10">"A modern full-stack app. Edit " <code class="text-sm bg-gray-100 text-indigo-600 px-2 py-1 rounded-md font-mono">"src/app.tova"</code> " to get started."</p>
+  // ─── Home page ────────────────────────────────────────────
+  component HomePage {
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <div class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
+        <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+        "Tova Router"
+      </div>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">"Welcome to " <span class="text-indigo-600">"${name}"</span></h1>
+      <p class="text-lg text-gray-500 mb-8">"A single-page app with client-side routing. Click around to explore."</p>
+      <div class="flex items-center justify-center gap-4">
+        <Link href="/users" class="inline-block bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors no-underline">"Browse Users"</Link>
+        <Link href="/settings/profile" class="inline-block bg-white text-gray-700 border border-gray-200 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors no-underline">"Settings"</Link>
+      </div>
+    </div>
+  }
 
-          <div class="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm">
-            <div class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-5 py-2.5 rounded-xl font-medium">
-              "{message}"
+  // ─── Users list (demonstrates programmatic navigation) ────
+  fn go_to_user(uid) {
+    navigate("/users/{uid}")
+  }
+
+  component UsersPage {
+    <div class="max-w-5xl mx-auto px-6 py-12">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">"Users"</h2>
+      <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+        <div class="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors" on:click={fn() go_to_user("1")}>
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-semibold text-sm">"A"</div>
+            <div>
+              <p class="font-medium text-gray-900">"alice"</p>
+              <p class="text-xs text-gray-500">"Admin"</p>
             </div>
-            <button
-              on:click={handle_refresh}
-              class="px-4 py-2.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all font-medium text-sm"
-            >
-              if refreshing {
-                "..."
-              } else {
-                "Refresh"
-              }
-            </button>
           </div>
-          if timestamp != "" {
-            <p class="text-xs text-gray-400 mt-3">"Last fetched at " "{timestamp}"</p>
-          }
+          <span class="text-gray-400 text-sm">"View \u2192"</span>
         </div>
+        <div class="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors" on:click={fn() go_to_user("2")}>
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-green-100 text-green-600 rounded-full flex items-center justify-center font-semibold text-sm">"B"</div>
+            <div>
+              <p class="font-medium text-gray-900">"bob"</p>
+              <p class="text-xs text-gray-500">"Editor"</p>
+            </div>
+          </div>
+          <span class="text-gray-400 text-sm">"View \u2192"</span>
+        </div>
+        <div class="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors" on:click={fn() go_to_user("3")}>
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-semibold text-sm">"C"</div>
+            <div>
+              <p class="font-medium text-gray-900">"charlie"</p>
+              <p class="text-xs text-gray-500">"Viewer"</p>
+            </div>
+          </div>
+          <span class="text-gray-400 text-sm">"View \u2192"</span>
+        </div>
+      </div>
+    </div>
+  }
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pb-20">
-          <FeatureCard
-            icon="&#9881;"
-            title="Full-Stack"
-            description="Server and client in one file. Shared types, RPC calls, and reactive UI — all type-safe."
-          />
-          <FeatureCard
-            icon="&#9889;"
-            title="Fast Refresh"
-            description="Edit your code and see changes instantly. The dev server recompiles on save."
-          />
-          <FeatureCard
-            icon="&#127912;"
-            title="Tailwind Built-in"
-            description="Style with utility classes out of the box. No config or build step needed."
-          />
+  // ─── User detail (demonstrates :id dynamic route param) ───
+  component UserPage(id) {
+    <div class="max-w-5xl mx-auto px-6 py-12">
+      <button on:click={fn() navigate("/users")} class="text-sm text-indigo-600 hover:text-indigo-700 mb-6 inline-flex items-center gap-1 cursor-pointer bg-transparent border-0">
+        "\u2190 Back to users"
+      </button>
+      <div class="bg-white rounded-xl border border-gray-200 p-8">
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xl">
+            "#{id}"
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">"User {id}"</h2>
+            <span class="text-sm text-gray-500">"Dynamic route parameter: " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-xs">":id = {id}"</code></span>
+          </div>
         </div>
+        <p class="text-gray-600">"This page receives " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-xs">"id"</code> " from the route " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-xs">"/users/:id"</code> " pattern."</p>
+      </div>
+    </div>
+  }
 
-        <div class="border-t border-gray-100 py-8 text-center">
-          <p class="text-sm text-gray-400">"Built with " <a href="https://github.com/tova-lang/tova-lang" class="text-indigo-500 hover:text-indigo-600 transition-colors">"Tova"</a></p>
+  // ─── Settings layout with nested routes + Outlet ──────────
+  component SettingsLayout {
+    <div class="max-w-5xl mx-auto px-6 py-12">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">"Settings"</h2>
+      <div class="flex gap-8">
+        <aside class="w-48 flex-shrink-0">
+          <div class="flex flex-col gap-1">
+            <Link href="/settings/profile" activeClass="bg-indigo-50 text-indigo-700" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 no-underline transition-colors">"Profile"</Link>
+            <Link href="/settings/account" activeClass="bg-indigo-50 text-indigo-700" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 no-underline transition-colors">"Account"</Link>
+          </div>
+        </aside>
+        <div class="flex-1 min-w-0">
+          <Outlet />
         </div>
+      </div>
+    </div>
+  }
+
+  component ProfileSettings {
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">"Profile Settings"</h3>
+      <p class="text-gray-600 mb-4">"This is a nested child route rendered via " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-xs">"Outlet"</code> " inside SettingsLayout."</p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">"Display Name"</label>
+          <div class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">"Alice"</div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">"Bio"</label>
+          <div class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-500">"Tova developer"</div>
+        </div>
+      </div>
+    </div>
+  }
+
+  component AccountSettings {
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">"Account Settings"</h3>
+      <p class="text-gray-600 mb-4">"Another nested child of " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-xs">"/settings"</code> "."</p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
+          <div class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">"alice@example.com"</div>
+        </div>
+        <div class="pt-4 border-t border-gray-100">
+          <button class="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer bg-transparent border-0">"Delete Account"</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  // ─── 404 page ─────────────────────────────────────────────
+  component NotFoundPage {
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <h1 class="text-6xl font-bold text-gray-200 mb-4">"404"</h1>
+      <p class="text-lg text-gray-500 mb-6">"Page not found"</p>
+      <Link href="/" class="text-indigo-600 hover:text-indigo-700 font-medium no-underline">"Go home"</Link>
+    </div>
+  }
+
+  // ─── Router setup ─────────────────────────────────────────
+  createRouter({
+    routes: {
+      "/": HomePage,
+      "/users": { component: UsersPage, meta: { title: "Users" } },
+      "/users/:id": { component: UserPage, meta: { title: "User Detail" } },
+      "/settings": {
+        component: SettingsLayout,
+        children: {
+          "/profile": { component: ProfileSettings, meta: { title: "Profile" } },
+          "/account": { component: AccountSettings, meta: { title: "Account" } },
+        },
+      },
+      "404": NotFoundPage,
+    },
+    scroll: "auto",
+  })
+
+  // ─── Update document title from route meta ────────────────
+  afterNavigate(fn(current) {
+    if current.meta != undefined {
+      if current.meta.title != undefined {
+        document.title = "{current.meta.title} | ${name}"
+      }
+    }
+  })
+
+  component App {
+    <div class="min-h-screen bg-gray-50">
+      <NavBar />
+      <Router />
+    </div>
+  }
+}
+`,
+    nextSteps: name => `    cd ${name}\n    tova dev`,
+  },
+  site: {
+    label: 'Static site',
+    description: 'docs or marketing site with pages',
+    tomlDescription: 'A Tova static site',
+    entry: 'src',
+    file: 'src/app.tova',
+    extraFiles: [
+      {
+        path: 'src/pages/home.tova',
+        content: name => `pub component HomePage {
+  <div class="max-w-4xl mx-auto px-6 py-16">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4">"Welcome to ${name}"</h1>
+    <p class="text-lg text-gray-600 mb-8">"A static site built with Tova. Fast, simple, and easy to deploy anywhere."</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 class="font-semibold text-gray-900 mb-2">"Fast by default"</h3>
+        <p class="text-gray-500 text-sm">"Client-side routing for smooth, instant navigation between pages."</p>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 class="font-semibold text-gray-900 mb-2">"Deploy anywhere"</h3>
+        <p class="text-gray-500 text-sm">"GitHub Pages, Netlify, Vercel, Firebase — works with any static host."</p>
+      </div>
+    </div>
+  </div>
+}
+`,
+      },
+      {
+        path: 'src/pages/docs.tova',
+        content: name => `pub component DocsPage {
+  <div class="max-w-4xl mx-auto px-6 py-12">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">"Documentation"</h1>
+    <div class="prose">
+      <h2 class="text-xl font-semibold text-gray-900 mt-8 mb-3">"Getting Started"</h2>
+      <p class="text-gray-600 mb-4">"Add your documentation content here. Each page is a Tova component with its own route."</p>
+      <h2 class="text-xl font-semibold text-gray-900 mt-8 mb-3">"Adding Pages"</h2>
+      <p class="text-gray-600 mb-4">"Create a new file in " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-sm">"src/pages/"</code> " and add a route in " <code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-sm">"src/app.tova"</code> "."</p>
+    </div>
+  </div>
+}
+`,
+      },
+      {
+        path: 'src/pages/about.tova',
+        content: name => `pub component AboutPage {
+  <div class="max-w-4xl mx-auto px-6 py-12">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">"About"</h1>
+    <p class="text-gray-600">"This site was built with Tova — a modern programming language that compiles to JavaScript."</p>
+  </div>
+}
+`,
+      },
+    ],
+    content: name => `// ${name} — Built with Tova
+import { HomePage } from "./pages/home"
+import { DocsPage } from "./pages/docs"
+import { AboutPage } from "./pages/about"
+
+browser {
+  component SiteNav {
+    <header class="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <Link href="/" class="flex items-center gap-2 no-underline">
+          <div class="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg"></div>
+          <span class="font-bold text-gray-900">"${name}"</span>
+        </Link>
+        <nav class="flex items-center gap-6">
+          <Link href="/" exactActiveClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors no-underline text-gray-500 hover:text-gray-900">"Home"</Link>
+          <Link href="/docs" activeClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors no-underline text-gray-500 hover:text-gray-900">"Docs"</Link>
+          <Link href="/about" activeClass="text-indigo-600 font-semibold" class="text-sm font-medium transition-colors no-underline text-gray-500 hover:text-gray-900">"About"</Link>
+        </nav>
+      </div>
+    </header>
+  }
+
+  component NotFoundPage {
+    <div class="max-w-4xl mx-auto px-6 py-16 text-center">
+      <h1 class="text-6xl font-bold text-gray-200 mb-4">"404"</h1>
+      <p class="text-lg text-gray-500 mb-6">"Page not found"</p>
+      <Link href="/" class="text-indigo-600 hover:text-indigo-700 font-medium no-underline">"Go home"</Link>
+    </div>
+  }
+
+  createRouter({
+    routes: {
+      "/": HomePage,
+      "/docs": { component: DocsPage, meta: { title: "Documentation" } },
+      "/about": { component: AboutPage, meta: { title: "About" } },
+      "404": NotFoundPage,
+    },
+    scroll: "auto",
+  })
+
+  // Update document title from route meta
+  afterNavigate(fn(current) {
+    if current.meta != undefined {
+      if current.meta.title != undefined {
+        document.title = "{current.meta.title} | ${name}"
+      }
+    }
+  })
+
+  component App {
+    <div class="min-h-screen bg-gray-50">
+      <SiteNav />
+      <main>
+        <Router />
       </main>
+      <footer class="border-t border-gray-100 py-8 text-center">
+        <p class="text-sm text-gray-400">"Built with Tova"</p>
+      </footer>
     </div>
   }
 }
@@ -1828,7 +2500,7 @@ pub fn version() -> String {
   },
 };
 
-const TEMPLATE_ORDER = ['fullstack', 'api', 'script', 'library', 'blank'];
+const TEMPLATE_ORDER = ['fullstack', 'spa', 'site', 'api', 'script', 'library', 'blank'];
 
 async function newProject(rawArgs) {
   const name = rawArgs.find(a => !a.startsWith('-'));
@@ -1845,7 +2517,7 @@ async function newProject(rawArgs) {
 
   if (!name) {
     console.error(color.red('Error: No project name specified'));
-    console.error('Usage: tova new <project-name> [--template fullstack|api|script|library|blank]');
+    console.error('Usage: tova new <project-name> [--template fullstack|spa|site|api|script|library|blank]');
     process.exit(1);
   }
 
@@ -1935,9 +2607,12 @@ async function newProject(rawArgs) {
     if (!template.noEntry) {
       tomlConfig.project.entry = template.entry;
     }
-    if (templateName === 'fullstack' || templateName === 'api') {
+    if (templateName === 'fullstack' || templateName === 'api' || templateName === 'spa' || templateName === 'site') {
       tomlConfig.dev = { port: 3000 };
       tomlConfig.npm = {};
+    }
+    if (templateName === 'spa' || templateName === 'site') {
+      tomlConfig.deploy = { base: '/' };
     }
     tomlContent = stringifyTOML(tomlConfig);
   }
@@ -1959,6 +2634,16 @@ bun.lock
   if (template.file && template.content) {
     writeFileSync(join(projectDir, template.file), template.content(projectName));
     createdFiles.push(template.file);
+  }
+
+  // Extra files (e.g., page components for site template)
+  if (template.extraFiles) {
+    for (const extra of template.extraFiles) {
+      const extraPath = join(projectDir, extra.path);
+      mkdirSync(dirname(extraPath), { recursive: true });
+      writeFileSync(extraPath, extra.content(projectName));
+      createdFiles.push(extra.path);
+    }
   }
 
   // README
@@ -2089,7 +2774,7 @@ server {
   route GET "/api/message" => get_message
 }
 
-client {
+browser {
   state message = ""
 
   effect {
@@ -3463,7 +4148,11 @@ async function binaryBuild(srcDir, outputName, outDir) {
 
 // ─── Production Build ────────────────────────────────────────
 
-async function productionBuild(srcDir, outDir) {
+async function productionBuild(srcDir, outDir, isStatic = false) {
+  const config = resolveConfig(process.cwd());
+  const basePath = config.deploy?.base || '/';
+  const base = basePath.endsWith('/') ? basePath : basePath + '/';
+
   const tovaFiles = findFiles(srcDir, '.tova');
   if (tovaFiles.length === 0) {
     console.error('No .tova files found');
@@ -3538,7 +4227,9 @@ async function productionBuild(srcDir, outDir) {
       // No npm imports — inline runtime, strip all imports
       const reactivityCode = REACTIVITY_SOURCE.replace(/^export /gm, '');
       const rpcCode = RPC_SOURCE.replace(/^export /gm, '');
-      clientBundle = reactivityCode + '\n' + rpcCode + '\n' + allSharedCode + '\n' +
+      const usesRouter = /\b(defineRoutes|Router|getPath|getQuery|getParams|getCurrentRoute|navigate|onRouteChange|beforeNavigate|afterNavigate|Outlet|Link|Redirect)\b/.test(allClientCode);
+      const routerCode = usesRouter ? ROUTER_SOURCE.replace(/^export /gm, '').replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '') : '';
+      clientBundle = reactivityCode + '\n' + rpcCode + '\n' + (routerCode ? routerCode + '\n' : '') + allSharedCode + '\n' +
         allClientCode.replace(/^\s*import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]+['"];?\s*$/gm, '').trim();
     }
 
@@ -3549,14 +4240,19 @@ async function productionBuild(srcDir, outDir) {
 
     // Generate production HTML
     const scriptTag = useModule
-      ? `<script type="module" src="client.${hash}.js"></script>`
-      : `<script src="client.${hash}.js"></script>`;
+      ? `<script type="module" src="${base}.tova-out/client.${hash}.js"></script>`
+      : `<script src="${base}.tova-out/client.${hash}.js"></script>`;
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tova App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; }
+  </style>
 </head>
 <body>
   <div id="app"></div>
@@ -3565,6 +4261,12 @@ async function productionBuild(srcDir, outDir) {
 </html>`;
     writeFileSync(join(outDir, 'index.html'), html);
     console.log(`  index.html`);
+
+    // SPA fallback files for various static hosts
+    writeFileSync(join(outDir, '404.html'), html);
+    console.log(`  404.html (GitHub Pages SPA fallback)`);
+    writeFileSync(join(outDir, '200.html'), html);
+    console.log(`  200.html (Surge SPA fallback)`);
   }
 
   // Minify all JS bundles using Bun's built-in transpiler
@@ -3615,7 +4317,48 @@ async function productionBuild(srcDir, outDir) {
     console.log('  (minification skipped — Bun.build unavailable)');
   }
 
+  // Static generation: pre-render each route to its own HTML file
+  if (isStatic && allClientCode.trim()) {
+    console.log(`\n  Static generation...\n`);
+
+    const routePaths = extractRoutePaths(allClientCode);
+    if (routePaths.length > 0) {
+      // Read the generated index.html to use as the shell for all routes
+      const shellHtml = readFileSync(join(outDir, 'index.html'), 'utf-8');
+      for (const routePath of routePaths) {
+        const htmlPath = routePath === '/'
+          ? join(outDir, 'index.html')
+          : join(outDir, routePath.replace(/^\//, ''), 'index.html');
+
+        mkdirSync(dirname(htmlPath), { recursive: true });
+        writeFileSync(htmlPath, shellHtml);
+        const relPath = relative(outDir, htmlPath);
+        console.log(`  ${relPath}`);
+      }
+      console.log(`\n  Pre-rendered ${routePaths.length} route(s)`);
+    }
+  }
+
   console.log(`\n  Production build complete.\n`);
+}
+
+function extractRoutePaths(code) {
+  // Support both defineRoutes({...}) and createRouter({ routes: {...} })
+  let match = code.match(/defineRoutes\s*\(\s*\{([^}]+)\}\s*\)/);
+  if (!match) {
+    match = code.match(/routes\s*:\s*\{([^}]+)\}/);
+  }
+  if (!match) return [];
+
+  const paths = [];
+  const entries = match[1].matchAll(/"([^"]+)"\s*:/g);
+  for (const entry of entries) {
+    const path = entry[1];
+    if (path === '404' || path === '*') continue;
+    if (path.includes(':')) continue;
+    paths.push(path);
+  }
+  return paths;
 }
 
 // Fallback JS minifier — string/regex-aware, no AST required
@@ -4088,6 +4831,10 @@ function collectExports(ast, filename) {
       if (node.isPublic) publicExports.add(node.name);
     }
     if (node.type === 'TypeAlias') {
+      allNames.add(node.name);
+      if (node.isPublic) publicExports.add(node.name);
+    }
+    if (node.type === 'ComponentDeclaration') {
       allNames.add(node.name);
       if (node.isPublic) publicExports.add(node.name);
     }
@@ -4694,7 +5441,7 @@ _tova() {
       return 0
       ;;
     --template)
-      COMPREPLY=( $(compgen -W "fullstack api script library blank" -- "\${cur}") )
+      COMPREPLY=( $(compgen -W "fullstack spa site api script library blank" -- "\${cur}") )
       return 0
       ;;
     completions)
@@ -4742,7 +5489,7 @@ ${commands.map(c => `    '${c}:${c} command'`).join('\n')}
       case $words[1] in
         new)
           _arguments \\
-            '--template[Project template]:template:(fullstack api script library blank)' \\
+            '--template[Project template]:template:(fullstack spa site api script library blank)' \\
             '*:name:'
           ;;
         run|build|check|fmt|doc)
@@ -4834,7 +5581,7 @@ _tova "$@"
       script += `complete -c tova -l debug -d 'Debug output'\n`;
       script += `complete -c tova -l strict -d 'Strict type checking'\n`;
       script += `\n# Template completions for 'new'\n`;
-      script += `complete -c tova -n '__fish_seen_subcommand_from new' -l template -d 'Project template' -xa 'fullstack api script library blank'\n`;
+      script += `complete -c tova -n '__fish_seen_subcommand_from new' -l template -d 'Project template' -xa 'fullstack spa site api script library blank'\n`;
       script += `\n# Shell completions for 'completions'\n`;
       script += `complete -c tova -n '__fish_seen_subcommand_from completions' -xa 'bash zsh fish'\n`;
 

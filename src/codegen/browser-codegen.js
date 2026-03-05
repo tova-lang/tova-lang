@@ -209,7 +209,7 @@ export class BrowserCodegen extends BaseCodegen {
     // Runtime imports
     lines.push(`import { createSignal, createEffect, createComputed, mount, hydrate, tova_el, tova_fragment, tova_keyed, tova_transition, tova_inject_css, batch, onMount, onUnmount, onCleanup, onBeforeUpdate, createRef, createContext, provide, inject, createErrorBoundary, ErrorBoundary, ErrorInfo, createRoot, watch, untrack, Dynamic, Portal, lazy, Suspense, Head, createResource, __tova_action, TransitionGroup, createForm, configureCSP, __tova_load_font } from './runtime/reactivity.js';`);
     lines.push(`import { rpc, configureRPC, addRPCInterceptor, setCSRFToken } from './runtime/rpc.js';`);
-    lines.push(`import { navigate, getCurrentRoute, getParams, getPath, getQuery, defineRoutes, onRouteChange, beforeNavigate, afterNavigate, Router, Outlet, Link, Redirect } from './runtime/router.js';`);
+    lines.push(`import { createRouter, lazy, resetRouter, navigate, getCurrentRoute, getParams, getPath, getQuery, getMeta, defineRoutes, onRouteChange, beforeNavigate, afterNavigate, getRouter, Router, Outlet, Link, Redirect } from './runtime/router.js';`);
 
     // Hoist import lines from shared code to the top of the module
     let sharedRest = sharedCode;

@@ -818,10 +818,13 @@ describe('Runtime — context across nested components', () => {
 describe('Router — 404 and catch-all routes', () => {
   // This test must run BEFORE any test that registers a 404 component,
   // because notFoundComponent persists in module state.
-  test('Router component returns null when no component matched', () => {
+  test('Router component returns null compute when no component matched', () => {
     defineRoutes({});
     const result = Router();
-    expect(result).toBeNull();
+    // Router now always returns a __dynamic vnode; compute() returns null when no match
+    expect(result.__tova).toBe(true);
+    expect(result.tag).toBe('__dynamic');
+    expect(result.compute()).toBeNull();
   });
 
   test('defineRoutes with 404 key sets notFound component', () => {

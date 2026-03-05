@@ -98,6 +98,11 @@ function levenshtein(a, b) {
 const _TOVA_RUNTIME = new Set([
   'Ok', 'Err', 'Some', 'None', 'Result', 'Option',
   'db', 'server', 'browser', 'client', 'shared',
+  // Router globals (injected by browser-codegen when routing is used)
+  'createRouter', 'navigate', 'getCurrentRoute', 'getParams', 'getPath',
+  'getQuery', 'getMeta', 'defineRoutes', 'onRouteChange',
+  'beforeNavigate', 'afterNavigate', 'getRouter', 'resetRouter',
+  'Router', 'Outlet', 'Link', 'Redirect', 'lazy',
 ]);
 
 // Pre-built static candidate set for Levenshtein suggestions (N1 optimization)
@@ -3116,7 +3121,19 @@ export class Analyzer {
       case 'BlockStatement':
         if (node.body.length === 0) return false;
         // Any statement that definitely returns makes the block definitely return
-        return node.body.some(stmt => this._definitelyReturns(stmt));
+        if (node.body.some(stmt => this._definitelyReturns(stmt))) return true;
+        // Last value-producing expression in a block is an implicit return (codegen adds `return`).
+        // Only treat simple value expressions as implicit returns — calls, match, and if
+        // require deeper analysis and are excluded to avoid false negatives.
+        const lastStmt = node.body[node.body.length - 1];
+        if (lastStmt && lastStmt.type === 'ExpressionStatement') {
+          const exprType = lastStmt.expression.type;
+          if (exprType !== 'CallExpression' && exprType !== 'MatchExpression' &&
+              exprType !== 'IfExpression' && exprType !== 'IfStatement') {
+            return true;
+          }
+        }
+        return false;
       case 'IfStatement':
         if (!node.elseBody) return false;
         const consequentReturns = this._definitelyReturns(node.consequent);

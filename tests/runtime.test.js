@@ -444,10 +444,12 @@ describe('Router — signal-based', () => {
     expect(() => navigate('/test')).not.toThrow();
   });
 
-  test('Router component returns null when no match', () => {
+  test('Router component returns null compute when no match', () => {
     defineRoutes({});
     const result = Router();
-    expect(result).toBe(null);
+    // Router always returns a __dynamic vnode; compute() returns null when no match
+    expect(result.__tova).toBe(true);
+    expect(result.compute()).toBe(null);
   });
 
   test('Link creates an anchor element vnode', () => {

@@ -4820,7 +4820,7 @@ describe('init command — extended coverage', () => {
     expect(existsSync(join(tmpDir, 'src', 'app.tova'))).toBe(true);
     const content = readFileSync(join(tmpDir, 'src', 'app.tova'), 'utf-8');
     expect(content).toContain('server');
-    expect(content).toContain('client');
+    expect(content).toContain('browser');
   });
 
   test('init does not overwrite existing .tova files in src', () => {
