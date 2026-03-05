@@ -189,6 +189,8 @@ function getStdlib() {
     'keys', 'values', 'entries', 'merge',
     'upper', 'lower', 'contains', 'starts_with', 'ends_with',
     'chars', 'words', 'lines', 'capitalize', 'title_case',
+    'to_string', 'to_int', 'to_float', 'is_numeric',
+    'index_of', 'substr', 'pad_start', 'pad_end',
   ];
 
   // Parse out the BUILTIN_FUNCTIONS object from the source
@@ -198,7 +200,10 @@ function getStdlib() {
     const regex = new RegExp(`\\b${fnName}:\\s*\`([^\`]+)\``);
     const match = stdlibSource.match(regex);
     if (match) {
-      parts.push(match[1]);
+      // Raw text from template literals needs escape processing:
+      // \\X in source file → \X at runtime. Without this, regex literals
+      // like /\\{(\\/.../ break (\\\/ becomes \\ + / terminator instead of \/)
+      parts.push(match[1].replace(/\\\\/g, '\\'));
     }
   }
 

@@ -9,7 +9,7 @@ export function is_url(s) {
 }
 
 export function is_numeric(s) {
-  return typeof s === 'string' && s.length > 0 && !isNaN(Number(s));
+  return typeof s === 'string' && s.length > 0 && s.trim().length > 0 && !isNaN(Number(s));
 }
 
 export function is_alpha(s) {

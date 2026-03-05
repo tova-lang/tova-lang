@@ -1,0 +1,50 @@
+// Test index_of not found
+print(index_of("hello", "xyz"))
+
+// Test Result/Option
+r = Ok(42)
+print(r)
+print(r.unwrap())
+print(r.map(fn(x) x * 2))
+print(r.isOk())
+
+e = Err("oops")
+print(e)
+print(e.isOk())
+print(e.unwrapOr(0))
+
+o = Some(10)
+print(o)
+print(o.unwrapOr(99))
+
+n = None
+print(n)
+print(n.unwrapOr(99))
+
+// Test flatMap
+r2 = Ok(5).flatMap(fn(x) Ok(x * 2))
+print(r2)
+
+// Test string with function calls inside interpolation
+name = "test"
+val = 42
+msg = "{name}: {val}"
+print(msg)
+
+// Test chained comparisons
+age = 25
+if 18 <= age && age <= 65 {
+  print("working age")
+}
+
+// Test for with entries
+obj = {a: 1, b: 2, c: 3}
+for entry in entries(obj) {
+  k = entry[0]
+  v = entry[1]
+  print("{k} = {v}")
+}
+
+// Test frequencies
+freq = frequencies(["a", "b", "a", "c", "a", "b"])
+print(freq)

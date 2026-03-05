@@ -1,0 +1,52 @@
+// Test sort_by separately
+items = [{name: "b", val: 2}, {name: "a", val: 1}]
+s2 = sorted(items, fn(x) x.val)
+print("sorted with key: {s2}")
+
+// Test upper/lower
+print(upper("hello"))
+print(lower("HELLO"))
+
+// Test substr
+print(substr("Hello, World!", 0, 5))
+
+// Test reversed
+print(reversed([1, 2, 3]))
+
+// Test drop
+print(drop([1, 2, 3, 4, 5], 2))
+
+// Test all/any
+print(all([1, 2, 3], fn(x) x > 0))
+print(any([1, 2, 3], fn(x) x > 2))
+
+// Test sum piped
+print([1, 2, 3] |> sum())
+
+// Test chars
+print(chars("abc"))
+
+// Test contains on array
+print(contains([1, 2, 3], 2))
+
+// Test unique
+print(unique([1, 2, 2, 3, 3]))
+
+// Test take
+print(take([1, 2, 3, 4, 5], 3))
+
+// Test group_by
+items2 = [{g: "a", v: 1}, {g: "b", v: 2}, {g: "a", v: 3}]
+grouped = group_by(items2, fn(x) x.g)
+print(grouped)
+for entry in entries(grouped) {
+  print("key={entry[0]} values={entry[1]}")
+}
+
+// Test find
+found = find([1, 2, 3, 4], fn(x) x > 2)
+print("find: {found}")
+
+// Test is_numeric
+print(is_numeric("42"))
+print(is_numeric("abc"))

@@ -1,0 +1,44 @@
+// Test index_of for strings
+print(index_of("hello world", "world"))
+print(index_of("abcabc", "bc"))
+
+// Test starts_with / ends_with
+print(starts_with("hello", "hel"))
+print(ends_with("hello", "llo"))
+
+// Test repeat
+print(repeat("-", 10))
+
+// Test replace
+print(replace("hello world", "world", "tova"))
+
+// Test split/join
+parts = split("a,b,c", ",")
+print(parts)
+print(join(parts, " | "))
+
+// Test map/filter piped
+nums = [1, 2, 3, 4, 5]
+result = nums |> filter(fn(x) x > 2) |> map(fn(x) x * 10)
+print(result)
+
+// Test zip
+zipped = zip([1, 2, 3], ["a", "b", "c"])
+print(zipped)
+
+// Test filled
+arr = filled(5, 0)
+print(arr)
+
+// Test type_of
+print(type_of([1,2,3]))
+print(type_of("hello"))
+print(type_of(42))
+
+// Test flat_map
+result2 = flat_map([1, 2, 3], fn(x) [x, x * 10])
+print(result2)
+
+// Test partition
+parts2 = partition([1,2,3,4,5], fn(x) x > 3)
+print(parts2)

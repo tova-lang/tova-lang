@@ -31,6 +31,7 @@ export default defineConfig({
       { text: 'Why Tova?', link: '/why-tova' },
       { text: 'Guide', link: '/getting-started/' },
       { text: 'Tutorial', link: '/tutorial' },
+      { text: 'Mastering Tova', link: '/mastering/' },
       { text: 'Reference', link: '/reference/syntax' },
       { text: 'Stdlib', link: '/stdlib/' },
       { text: 'Examples', link: '/examples/' },
@@ -339,6 +340,37 @@ export default defineConfig({
             { text: 'Design Patterns', link: '/architecture/patterns' },
             { text: 'Scaling Applications', link: '/architecture/scaling' },
             { text: 'Data Engineering', link: '/architecture/data-engineering' },
+          ],
+        },
+      ],
+
+      '/mastering/': [
+        {
+          text: 'Part 1: Foundations',
+          items: [
+            { text: 'Overview', link: '/mastering/' },
+            { text: '1. Thinking in Tova', link: '/mastering/thinking-in-tova' },
+            { text: '2. Functions That Shine', link: '/mastering/functions' },
+            { text: '3. Mastering Collections', link: '/mastering/collections' },
+            { text: '4. String Craft', link: '/mastering/strings' },
+          ],
+        },
+        {
+          text: 'Part 2: Power Features',
+          items: [
+            { text: '5. Pattern Matching Power', link: '/mastering/pattern-matching' },
+            { text: '6. Designing with Types', link: '/mastering/types' },
+            { text: '7. Fearless Error Handling', link: '/mastering/error-handling' },
+            { text: '8. Pipes and Transformations', link: '/mastering/pipes' },
+          ],
+        },
+        {
+          text: 'Part 3: Advanced Techniques',
+          items: [
+            { text: '9. Modules and Architecture', link: '/mastering/modules' },
+            { text: '10. Async Programming', link: '/mastering/async' },
+            { text: '11. Performance Secrets', link: '/mastering/performance' },
+            { text: '12. Capstone: Text Analyzer', link: '/mastering/capstone' },
           ],
         },
       ],

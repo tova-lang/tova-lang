@@ -1,0 +1,2 @@
+x = concat("hello", " world")
+print(x)
