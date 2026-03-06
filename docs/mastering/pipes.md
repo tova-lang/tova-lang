@@ -56,7 +56,7 @@ print("=== Revenue by Product ===")
 by_product = sales |> group_by(fn(s) s.product)
 for entry in entries(by_product) {
   revenue = entry[1] |> map(fn(s) s.amount) |> sum()
-  print("{pad_end(entry[0], 12)} ${revenue}")
+  print("{pad_end(entry[0], 12)} \${revenue}")
 }
 
 // Pipeline 2: Top 3 sales
@@ -67,7 +67,7 @@ top3 = sales
   |> take(3)
 
 for s in top3 {
-  print("{s.product} ({s.region}, {s.quarter}): ${s.amount}")
+  print("{s.product} ({s.region}, {s.quarter}): \${s.amount}")
 }
 
 // Pipeline 3: Average by region
@@ -78,7 +78,7 @@ for entry in entries(by_region) {
   amounts = entry[1] |> map(fn(s) s.amount)
   total = amounts |> sum()
   avg = total / len(amounts)
-  print("{entry[0]}: ${avg} avg across {len(amounts)} sales")
+  print("{entry[0]}: \${avg} avg across {len(amounts)} sales")
 }`
 
 const pipelineCode = `// PROJECT: Data Pipeline Builder
@@ -137,7 +137,7 @@ top_engineers = pipeline(employees, [
 
 print("Top 3 Engineers:")
 for emp in top_engineers {
-  print("  {emp.name}: ${emp.salary}")
+  print("  {emp.name}: \${emp.salary}")
 }
 
 print("")
