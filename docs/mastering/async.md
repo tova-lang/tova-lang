@@ -44,7 +44,7 @@ async fn fetch_parallel() {
   elapsed = Date.now() - start_time
   print("Parallel: {elapsed}ms")
   for item in items {
-    print("  {item.name}: ${item.price}")
+    print("  {item.name}: \${item.price}")
   }
 }
 

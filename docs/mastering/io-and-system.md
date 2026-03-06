@@ -1618,4 +1618,4 @@ Build a **log file analyzer CLI tool** that works on real log files:
 
 ---
 
-[← Previous: Testing and Debugging](./testing) | [Next: Chapter 19 →](./index)
+[← Previous: Standard Library Mastery](./stdlib-mastery) | [Next: Testing →](./testing)

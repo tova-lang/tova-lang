@@ -373,6 +373,24 @@ export default defineConfig({
             { text: '12. Capstone: Text Analyzer', link: '/mastering/capstone' },
           ],
         },
+        {
+          text: 'Part 4: Deeper Mastery',
+          items: [
+            { text: '13. Functional Programming', link: '/mastering/functional-programming' },
+            { text: '14. Standard Library Mastery', link: '/mastering/stdlib-mastery' },
+          ],
+        },
+        {
+          text: 'Part 5: Building Applications',
+          items: [
+            { text: '15. I/O and System', link: '/mastering/io-and-system' },
+            { text: '16. Testing', link: '/mastering/testing' },
+            { text: '17. Server Development', link: '/mastering/servers' },
+            { text: '18. JSX and Reactivity', link: '/mastering/jsx-and-reactivity' },
+            { text: '19. Full-Stack Applications', link: '/mastering/fullstack' },
+            { text: '20. CLI and Edge Computing', link: '/mastering/cli-and-edge' },
+          ],
+        },
       ],
 
       '/contributing/': [

@@ -1517,4 +1517,4 @@ The entire application should live in a single `.tova` file. Trace the data flow
 
 ---
 
-[← Previous: Building Servers](./servers) | [Next: CLI Tools and Edge Computing →](./cli-and-edge)
+[← Previous: JSX and Reactivity](./jsx-and-reactivity) | [Next: CLI and Edge Computing →](./cli-and-edge)

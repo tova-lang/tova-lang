@@ -1239,4 +1239,4 @@ Build a **real-time notification system** with these features:
 
 ---
 
-[← Previous: Modules and Architecture](./modules) | [Next: Performance Secrets →](./performance)
+[← Previous: Testing](./testing) | [Next: JSX and Reactivity →](./jsx-and-reactivity)

@@ -1352,4 +1352,4 @@ The CLI tool should call the edge API. Design the interaction so that `pipeline 
 
 ---
 
-[← Previous: Full-Stack Applications](./fullstack) | [Next: Testing and Debugging →](./testing)
+[← Previous: Full-Stack Applications](./fullstack) | [Back to Mastering Tova →](./)

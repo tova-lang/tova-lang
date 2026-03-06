@@ -527,4 +527,4 @@ The best way to solidify your skills is to **build something real**. Pick a proj
 
 ---
 
-[← Previous: Performance Secrets](./performance) | [Back to Mastering Tova](./index)
+[← Previous: Performance Secrets](./performance) | [Next: Functional Programming →](./functional-programming)

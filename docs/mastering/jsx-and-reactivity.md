@@ -1391,4 +1391,4 @@ Build a **Kanban board** with three columns: "To Do", "In Progress", and "Done".
 
 ---
 
-[← Previous: Capstone Project](./capstone) | [Next: Building Servers →](./servers)
+[← Previous: Server Development](./servers) | [Next: Full-Stack Applications →](./fullstack)
