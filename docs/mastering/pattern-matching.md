@@ -31,6 +31,16 @@ fn season(month) {
 print(season(4))
 print(season(11))
 
+// Object patterns
+fn greet_role(user) {
+  match user {
+    { role: "admin" } => "Hello, Administrator!"
+    { name, role } => "Hello {name}, you are a {role}"
+  }
+}
+print(greet_role({ name: "Alice", role: "admin" }))
+print(greet_role({ name: "Bob", role: "editor" }))
+
 // 3. Binding + guard patterns
 fn classify(n) {
   match n {
@@ -296,7 +306,73 @@ match result {
 }
 ```
 
+### 9. Object Patterns
+
+Match and destructure objects by their properties:
+
+```tova
+fn describe_point(point) {
+  match point {
+    { x: 0, y: 0 } => "origin"
+    { x: 0, y } => "on y-axis at {y}"
+    { x, y: 0 } => "on x-axis at {x}"
+    { x, y } => "({x}, {y})"
+  }
+}
+
+print(describe_point({ x: 0, y: 0 }))    // "origin"
+print(describe_point({ x: 3, y: 0 }))    // "on x-axis at 3"
+print(describe_point({ x: 5, y: 7 }))    // "(5, 7)"
+```
+
+Object patterns match when the value has the specified keys. Unmentioned keys are ignored — `{ x }` matches any object with an `x` property, regardless of other properties.
+
 <TryInPlayground :code="allPatternsCode" label="All Pattern Types" />
+
+### 10. Tuple Patterns
+
+Match and destructure tuples by position:
+
+```tova
+fn describe_pair(pair) {
+  match pair {
+    (0, 0) => "origin"
+    (x, 0) => "on x-axis at {x}"
+    (0, y) => "on y-axis at {y}"
+    (x, y) => "point ({x}, {y})"
+  }
+}
+
+print(describe_pair((0, 0)))     // "origin"
+print(describe_pair((3, 0)))     // "on x-axis at 3"
+print(describe_pair((5, 7)))     // "point (5, 7)"
+```
+
+Tuple patterns are useful with functions that return multiple values:
+
+```tova
+fn classify_divmod(a, b) {
+  match divmod(a, b) {
+    (_, 0) => "evenly divisible"
+    (q, r) => "{a} = {b} * {q} + {r}"
+  }
+}
+```
+
+### 11. Boolean and Nil Patterns
+
+Match booleans and nil directly:
+
+```tova
+fn truthiness(val) {
+  match val {
+    true => "yes"
+    false => "no"
+    nil => "nothing"
+    _ => "something else"
+  }
+}
+```
 
 ## Combining Patterns
 
@@ -334,6 +410,8 @@ fn process_args(args) {
 
 ### Nested Destructuring
 
+Patterns can nest arbitrarily deep — variant inside variant, array inside object, any combination:
+
 ```tova
 type Tree {
   Leaf(value: Int)
@@ -345,6 +423,35 @@ fn tree_sum(tree) {
     Leaf(v) => v
     Node(Leaf(l), Leaf(r)) => l + r
     Node(left, right) => tree_sum(left) + tree_sum(right)
+  }
+}
+```
+
+### Nested Object Patterns
+
+Objects inside objects can be destructured in a single match:
+
+```tova
+fn get_city(user) {
+  match user {
+    { address: { city: "Portland" } } => "Local user"
+    { address: { city, country: "US" } } => "US user in {city}"
+    { address: { city, country } } => "International: {city}, {country}"
+    _ => "No address"
+  }
+}
+
+fn api_response(response) {
+  match response {
+    { status: 200, data: { users: [first, ...rest] } } => {
+      print("First user: {first.name}, {len(rest)} more")
+    }
+    { status: 200, data: { users: [] } } => {
+      print("No users found")
+    }
+    { status, error: { message } } => {
+      print("Error {status}: {message}")
+    }
   }
 }
 ```
@@ -419,6 +526,30 @@ print("{show(expr)} = {eval_expr(expr)}")
 Notice how `eval_expr` and `show` are both recursive — each variant of `Expr` is handled by exactly one arm, and the compiler ensures none are missed.
 
 <TryInPlayground :code="variantsCode" label="Expression Tree" />
+
+## Patterns in Let Destructuring
+
+The same patterns you use in `match` also work with `let` for direct destructuring:
+
+```tova
+// Array destructuring with rest
+let [first, second, ...remaining] = [1, 2, 3, 4, 5]
+print(first)        // 1
+print(remaining)    // [3, 4, 5]
+
+// Object destructuring
+let { name, age } = { name: "Alice", age: 30, role: "admin" }
+print(name)         // "Alice"
+
+// Nested destructuring
+let { address: { city, country } } = user
+print("Lives in {city}, {country}")
+
+// Tuple destructuring
+let (x, y) = get_coordinates()
+```
+
+`let` destructuring is a convenience for when you know the shape of your data. If the data might not match the pattern, use `match` instead so you can handle both cases.
 
 ## Match vs. If Chains
 

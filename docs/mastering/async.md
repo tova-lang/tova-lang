@@ -299,9 +299,50 @@ async fn fetch_all_safe(urls) {
 }
 ```
 
-## Retry Pattern
+## sleep(ms) -- Pausing Execution
 
-For unreliable operations, implement retry logic:
+The `sleep(ms)` stdlib function pauses execution for a given number of milliseconds. It returns a promise that resolves after the delay:
+
+```tova
+async fn delayed_greeting() {
+  print("Wait for it...")
+  await sleep(1000)
+  print("Hello!")
+}
+```
+
+This is useful for delays, polling intervals, and simulated latency in tests. Since `sleep` is async, it does not block the event loop -- other code continues running while the function waits.
+
+```tova
+async fn countdown(n) {
+  var i = n
+  while i > 0 {
+    print("{i}...")
+    await sleep(1000)
+    i -= 1
+  }
+  print("Go!")
+}
+```
+
+## retry(fn, options) -- Retrying Operations
+
+Tova's stdlib includes a `retry` function for retrying async operations with configurable attempts and delay:
+
+```tova
+result = await retry(fn() fetch_data(url), { times: 3, delay: 1000 })
+```
+
+The first argument is a zero-argument function that performs the operation. The second is an options object:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `times` | Maximum number of attempts | `3` |
+| `delay` | Milliseconds between retries | `1000` |
+
+`retry` returns the first successful result, or the final error if all attempts fail.
+
+You can also build a manual retry loop for more control -- for example, with exponential backoff:
 
 ```tova
 async fn with_retry(operation, max_attempts) {
@@ -315,7 +356,7 @@ async fn with_retry(operation, max_attempts) {
         if attempt == max_attempts {
           return Err("Failed after {max_attempts} attempts: {msg}")
         }
-        // Wait before retrying (exponential backoff)
+        // Exponential backoff
         await sleep(100 * attempt)
       }
     }
@@ -329,22 +370,32 @@ async fn fetch_with_retry(url) {
 }
 ```
 
-## Timeout Pattern
+::: tip When to Use retry vs. Manual Loops
+Use `retry(fn, options)` for simple cases where you want uniform delay between attempts. Use a manual loop when you need exponential backoff, different error handling per attempt, or logging between retries.
+:::
 
-Don't let async operations hang forever:
+## timeout(fn, ms) -- Time-Limited Operations
+
+The `timeout` stdlib function runs an async operation with a time limit. If the operation takes longer than the specified milliseconds, it returns `Err("timeout")`:
 
 ```tova
-async fn with_timeout(operation, ms) {
-  timeout_promise = async fn() {
-    await sleep(ms)
-    Err("Timeout after {ms}ms")
-  }
+result = await timeout(fn() slow_operation(), 5000)
+// Err("timeout") if it takes longer than 5 seconds
 
-  await Promise.race([
-    operation(),
-    timeout_promise()
-  ])
+match result {
+  Ok(data) => print("Got data: {data}")
+  Err("timeout") => print("Operation timed out")
+  Err(msg) => print("Other error: {msg}")
 }
+```
+
+This is essential for network requests, database queries, or any operation that might hang. Combine it with `retry` for robust data fetching:
+
+```tova
+async fn resilient_fetch(url) {
+  await retry(fn() timeout(fn() fetch_data(url), 3000), { times: 3, delay: 500 })
+}
+// Retries up to 3 times, each attempt limited to 3 seconds
 ```
 
 ## Async Iteration
@@ -385,9 +436,132 @@ async fn process_in_batches(items, batch_size, processor) {
 await process_in_batches(items, 10, fn(item) process(item))
 ```
 
+## Channels -- Async Communication
+
+The `Channel` class provides a way for async producers and consumers to communicate. A channel is a queue: one side sends values, the other receives them:
+
+```tova
+ch = Channel.new()
+
+// Producer
+async fn produce() {
+  for i in range(5) {
+    await ch.send(i)
+  }
+  ch.close()
+}
+
+// Consumer
+async fn consume() {
+  while true {
+    match await ch.receive() {
+      Some(value) => print("Got: {value}")
+      None => { print("Channel closed"); return }
+    }
+  }
+}
+
+// Run both concurrently
+concurrent {
+  p = spawn produce()
+  c = spawn consume()
+}
+```
+
+When a channel is open, `receive()` returns `Some(value)`. After the producer calls `ch.close()`, any pending `receive()` returns `None`, signaling that no more values will arrive.
+
+Channels are useful for:
+- Decoupling producers from consumers
+- Coordinating work between async tasks
+- Building streaming data pipelines
+
+```tova
+// Pipeline: generate -> transform -> collect
+source = Channel.new()
+transformed = Channel.new()
+
+async fn generate() {
+  for i in range(10) {
+    await source.send(i)
+  }
+  source.close()
+}
+
+async fn transform() {
+  while true {
+    match await source.receive() {
+      Some(n) => await transformed.send(n * n)
+      None => { transformed.close(); return }
+    }
+  }
+}
+
+async fn collect() {
+  var results = []
+  while true {
+    match await transformed.receive() {
+      Some(val) => results.push(val)
+      None => { print("Squares: {results}"); return }
+    }
+  }
+}
+
+concurrent {
+  g = spawn generate()
+  t = spawn transform()
+  c = spawn collect()
+}
+```
+
+::: tip Channels vs. Shared State
+Use channels when tasks need to pass data in sequence (streaming, pipelines, work queues). Use shared state (stores, mutable variables) when tasks need random access to the same data.
+:::
+
+## parallel_map -- Worker Pool Processing
+
+For CPU-intensive work across many items, `parallel_map` distributes tasks across a persistent worker pool:
+
+```tova
+results = await parallel_map(urls, fn(url) fetch(url), { workers: 4 })
+// Processes up to 4 URLs concurrently using persistent worker threads
+```
+
+The third argument is an options object:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `workers` | Number of worker threads | CPU core count |
+
+Workers are **persistent** -- they are created once and reused across calls, avoiding the overhead of spinning up new threads for each batch. This gives significant speedups for workloads with many small tasks.
+
+```tova
+// Process 1000 images using 8 worker threads
+processed = await parallel_map(
+  images,
+  fn(img) resize_image(img, 800, 600),
+  { workers: 8 }
+)
+print("Processed {len(processed)} images")
+```
+
+### When to Use parallel_map vs. Promise.all
+
+| Scenario | Use |
+|----------|-----|
+| I/O-bound tasks (fetch, DB queries) | `Promise.all` or `concurrent { }` |
+| CPU-bound tasks (image processing, parsing) | `parallel_map` |
+| Need to limit concurrency | `parallel_map` with `workers` option |
+| Dynamic number of heavy tasks | `parallel_map` |
+
+::: tip Performance
+`parallel_map` uses real OS threads (worker threads), not just async scheduling. For CPU-heavy work like data transformation, compression, or number crunching, it can achieve near-linear speedups -- a 4-worker pool can be 3.5x faster than sequential processing.
+:::
+
 ## Concurrent Blocks
 
-Tova provides a `concurrent` block for structured concurrency:
+Tova provides `concurrent` blocks for structured concurrency — a safer, more readable alternative to `Promise.all`:
+
+### Basic Concurrent Block
 
 ```tova
 concurrent {
@@ -395,11 +569,136 @@ concurrent {
   orders = spawn fetch_orders()
   stats = spawn fetch_stats()
 }
-// All three run in parallel
-// users, orders, stats are available here
+// All three ran in parallel
+// users, orders, stats are available here with their results
+print("Got {len(users)} users and {len(orders)} orders")
 ```
 
-The `spawn` keyword starts each operation concurrently. The block waits for all spawned tasks to complete before continuing.
+The `spawn` keyword starts each operation concurrently. The block waits for **all** spawned tasks to complete before continuing. Variables assigned via `spawn` are available after the block.
+
+### Concurrent Modes
+
+Concurrent blocks support different completion strategies:
+
+```tova
+// Default: wait for ALL tasks
+concurrent {
+  a = spawn task_a()
+  b = spawn task_b()
+}
+
+// cancel_on_error: abort all if any fails
+concurrent(cancel_on_error) {
+  data = spawn fetch_critical_data()
+  config = spawn load_config()
+}
+// If either fails, the other is cancelled
+
+// first: take the first result, cancel the rest
+concurrent(first) {
+  result = spawn fetch_from_primary()
+  fallback = spawn fetch_from_backup()
+}
+// Returns whichever finishes first
+
+// timeout: cancel all tasks if total time exceeds a limit
+concurrent timeout(5000) {
+  data = spawn fetch_data()
+  backup = spawn fetch_backup()
+}
+// Cancels all tasks if total time exceeds 5 seconds
+```
+
+The `timeout` mode is particularly valuable for operations that must complete within a deadline. If the timeout elapses, all spawned tasks are cancelled and the block returns with an error. Combine it with `cancel_on_error` patterns to build robust data-fetching pipelines:
+
+```tova
+concurrent timeout(3000) {
+  user = spawn fetch_user(id)
+  prefs = spawn fetch_preferences(id)
+  history = spawn fetch_history(id)
+}
+// All three must complete within 3 seconds, or none of them count
+```
+
+### When to Use Concurrent Blocks vs. Promise.all
+
+| Scenario | Use |
+|----------|-----|
+| Simple parallel operations | `concurrent { }` |
+| Need to cancel on first failure | `concurrent(cancel_on_error) { }` |
+| Race between alternatives | `concurrent(first) { }` |
+| Must complete within a deadline | `concurrent timeout(ms) { }` |
+| Dynamic number of parallel tasks | `Promise.all(items \|> map(fn))` |
+| Fine-grained Promise control | `Promise.all` or `Promise.race` |
+
+::: tip Structured Concurrency
+Concurrent blocks guarantee that all spawned tasks complete (or are cancelled) before execution continues past the block. This prevents "fire and forget" bugs where background tasks outlive their expected lifetime.
+:::
+
+## Select: Racing Multiple Operations
+
+The `select` statement races multiple async operations and executes the branch for whichever completes first:
+
+```tova
+select {
+  msg = await channel.receive() => {
+    print("Got message: {msg}")
+  }
+  data = await fetch_data(url) => {
+    print("Got data: {data}")
+  }
+  _ = await sleep(5000) => {
+    print("Timed out after 5 seconds")
+  }
+}
+```
+
+Each arm is an `await` expression with a handler block. The first operation to complete wins — the rest are cancelled. This is similar to Go's `select` statement.
+
+### Common select Patterns
+
+**Timeout with fallback:**
+
+```tova
+select {
+  result = await slow_operation() => {
+    print("Operation completed: {result}")
+  }
+  _ = await sleep(3000) => {
+    print("Operation timed out, using default")
+  }
+}
+```
+
+**User cancellation:**
+
+```tova
+select {
+  data = await download(url) => {
+    save(data)
+  }
+  _ = await cancel_signal.receive() => {
+    print("Download cancelled by user")
+  }
+}
+```
+
+**First response wins:**
+
+```tova
+select {
+  resp = await fetch(primary_url) => {
+    print("Primary responded: {resp}")
+  }
+  resp = await fetch(backup_url) => {
+    print("Backup responded: {resp}")
+  }
+}
+```
+
+::: tip select vs concurrent(first)
+`select` is for choosing between fundamentally different operations (a fetch vs. a timeout vs. a user action). `concurrent(first)` is for racing similar operations (fetching from multiple mirrors). Use whichever reads more naturally for your use case.
+:::
 
 ## Project: Parallel Data Fetcher
 

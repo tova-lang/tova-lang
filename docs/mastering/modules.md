@@ -88,12 +88,33 @@ print(result)   // 23
 
 <TryInPlayground :code="basicImportCode" label="Basic Imports" />
 
+### Import Forms
+
+Tova supports several import styles:
+
+```tova
+// Named imports (most common)
+import { add, multiply } from "./math"
+
+// Import with alias
+import { calculate as calc } from "./math"
+
+// Default import (for JS/npm modules)
+import lodash from "lodash"
+
+// Wildcard import (namespace)
+import * as math from "./math-utils"
+math.add(1, 2)
+math.multiply(3, 4)
+```
+
 ### Import Rules
 
 1. **Paths are relative** to the importing file: `"./utils"`, `"../shared/types"`
 2. **The `.tova` extension is optional**: `"./utils"` resolves to `./utils.tova`
 3. **Import only what you use**: Named imports keep dependencies clear
-4. **No default exports**: Everything is named, no ambiguity
+4. **Default imports** work for JavaScript/npm packages: `import axios from "axios"`
+5. **Wildcard imports** namespace everything: `import * as utils from "./utils"`
 
 ## Project Structure
 
@@ -158,6 +179,69 @@ my-platform/
 Group by feature. Each feature has its own directory with types, services, and logic.
 
 <TryInPlayground :code="organizationCode" label="Project Organization" />
+
+## Exports
+
+By default, all top-level functions and types in a `.tova` file are available for import. You can use `pub` to mark items as part of your module's public API (see Chapter 6):
+
+```tova
+// users.tova
+pub type User { name: String, email: String }
+pub fn create_user(name, email) { User(name: name, email: email) }
+
+// Internal helper — not exported
+fn validate_email(email) { contains(email, "@") }
+```
+
+For JavaScript interop, you can use `export` to explicitly export values:
+
+```tova
+export fn greet(name) { "Hello, {name}!" }
+export type Config { port: Int, debug: Bool }
+```
+
+## The REPL
+
+Tova includes an interactive Read-Eval-Print Loop for exploring the language and testing ideas quickly:
+
+```bash
+tova repl
+```
+
+The REPL gives you a live environment with the full standard library available:
+
+```
+tova> 1 + 2
+3
+tova> [1, 2, 3] |> map(fn(x) x * 2)
+[2, 4, 6]
+tova> fn greet(name) { "Hello, {name}!" }
+tova> greet("Alice")
+"Hello, Alice!"
+```
+
+### REPL Commands
+
+| Command | Description |
+|---------|-------------|
+| `:help` | Show available commands |
+| `:clear` | Clear the screen |
+| `:quit` | Exit the REPL |
+
+The REPL supports **multi-line input** — if your expression is incomplete (e.g., you opened a brace but didn't close it), the REPL waits for more input. This makes it easy to define functions and types interactively:
+
+```
+tova> fn factorial(n) {
+...>   if n <= 1 { 1 }
+...>   else { n * factorial(n - 1) }
+...> }
+tova> factorial(10)
+3628800
+```
+
+::: tip When to Use the REPL
+The REPL is perfect for exploring stdlib functions, testing small snippets, debugging logic, and learning Tova syntax. For anything longer than a few lines, write a `.tova` file and run it with `tova run`.
+:::
 
 ## Module Design Principles
 
@@ -256,6 +340,59 @@ fn safe_parse_date(text, fmt) {
 }
 ```
 :::
+
+## Extern Declarations
+
+When you need to call a function that exists at runtime but isn't defined in Tova or an npm package, use `extern`:
+
+```tova
+extern fn performance_now() -> Float
+extern fn crypto_random_uuid() -> String
+extern fn wasm_compute(data: [Int]) -> Int
+```
+
+`extern` tells the compiler "this function exists — trust me." The compiler won't look for an implementation; it just emits the call as-is. This is how you bridge to:
+
+- **WebAssembly modules** loaded at runtime
+- **Native bindings** provided by Bun
+- **Global browser APIs** not in the stdlib
+- **Runtime-injected functions** from your deployment environment
+
+```tova
+extern fn fetch_native(url: String) -> Promise
+extern fn console_time(label: String)
+extern fn console_time_end(label: String)
+
+async fn benchmark_fetch(url) {
+  console_time("fetch")
+  result = await fetch_native(url)
+  console_time_end("fetch")
+  result
+}
+```
+
+::: warning Type Safety
+`extern` declarations bypass Tova's type checking. If the declared signature doesn't match the actual function, you'll get runtime errors. Use `extern` sparingly and prefer Tova's stdlib or npm imports when available.
+:::
+
+## `Type.new()` for JavaScript Constructors
+
+When you need to call a JavaScript constructor (the `new` keyword), Tova uses the `.new()` syntax:
+
+```tova
+date = Date.new()                         // new Date()
+regex = RegExp.new("\\d+", "g")          // new RegExp("\\d+", "g")
+buffer = ArrayBuffer.new(1024)            // new ArrayBuffer(1024)
+map_obj = Map.new()                       // new Map()
+```
+
+This works with any JavaScript class, including imported ones:
+
+```tova
+import EventEmitter from "events"
+
+emitter = EventEmitter.new()
+```
 
 ## Multi-File Compilation
 

@@ -262,6 +262,82 @@ Not supported: strings, arrays, objects, closures, pattern matching.
 
 <TryInPlayground :code="wasmCode" label="@wasm Functions" />
 
+## parallel_map: Worker Pool Parallelism
+
+When you have a list of independent tasks, `parallel_map()` distributes them across a pool of persistent worker threads:
+
+```tova
+// Process items in parallel using persistent worker threads
+results = await parallel_map(urls, async fn(url) {
+  response = await fetch(url)
+  response.json()
+}, { workers: 4 })
+
+// Workers are persistent and reused across calls
+// 3.5x speedup on CPU-bound parallel work
+```
+
+The key design choice: workers are **persistent**. They're created once and reused across multiple `parallel_map()` calls, avoiding the overhead of spawning new threads each time. This matters when you call `parallel_map()` repeatedly in a loop or in a server handling many requests.
+
+```tova
+// CPU-bound work benefits the most
+scores = await parallel_map(documents, fn(doc) {
+  analyze_sentiment(doc)
+}, { workers: 8 })
+
+// I/O-bound work also benefits from concurrency
+pages = await parallel_map(urls, async fn(url) {
+  response = await fetch(url)
+  response.text()
+})
+```
+
+When the `workers` option is omitted, Tova defaults to the number of available CPU cores.
+
+::: tip When to Use parallel_map
+Use `parallel_map()` for **embarrassingly parallel** workloads — tasks that are independent and don't share mutable state. Think: processing images, analyzing documents, making HTTP requests, or running simulations. If your tasks need to communicate with each other, use channels or shared state instead.
+:::
+
+## @memoize: Automatic Caching
+
+The `@memoize` decorator caches function results — if the same arguments are passed again, the cached result is returned instantly:
+
+```tova
+@memoize fn fibonacci(n) {
+  if n <= 1 { n }
+  else { fibonacci(n - 1) + fibonacci(n - 2) }
+}
+
+// First call: computes recursively
+print(fibonacci(40))    // Instant — cached results for all sub-calls
+
+// Second call: returns cached result
+print(fibonacci(40))    // Truly instant — no computation
+```
+
+Without `@memoize`, `fibonacci(40)` would make billions of recursive calls. With it, each unique argument is computed exactly once.
+
+### When to Use @memoize
+
+- **Pure functions** with expensive computation (same input always gives same output)
+- **Recursive functions** with overlapping subproblems (Fibonacci, dynamic programming)
+- **Lookup functions** that parse or transform data deterministically
+
+```tova
+@memoize fn parse_config(path) {
+  text = read_text(path)
+  json_parse(text)
+}
+
+// First call reads the file; subsequent calls return the cached result
+config1 = parse_config("settings.json")
+config2 = parse_config("settings.json")   // Cache hit
+```
+
+::: warning Memoize Caveats
+Don't memoize functions with side effects (printing, writing files, network calls) — the side effect won't repeat on cache hits. Also, the cache grows without bound by default, so avoid memoizing functions called with thousands of unique arguments in long-running programs.
+:::
+
 ## Performance Patterns
 
 ### Pre-allocate Arrays
@@ -301,6 +377,18 @@ for item in big_list {
 // sort_by is optimized internally
 items |> sorted(fn(x) x.priority)
 ```
+
+### Numeric Sorting with Rust FFI
+
+For large numeric arrays, Tova can use a Rust-backed radix sort under the hood. This is **3.7x faster than Go's sort** for numeric data:
+
+```tova
+// For large numeric arrays, Tova can use a Rust-backed radix sort
+// that's 3.7x faster than Go's sort
+large_numbers |> sorted()   // Automatically optimized for numeric arrays
+```
+
+The optimization kicks in automatically when sorting arrays of numbers. You don't need to opt in — the compiler detects the element type and picks the fastest available sort implementation.
 
 ### Batch Operations
 
@@ -351,6 +439,7 @@ When you need more speed, climb the ladder:
 3. **Pre-allocate arrays** with `filled()` when sizes are known.
 4. **Add `@fast`** for numerical functions with typed arrays.
 5. **Add `@wasm`** for the hottest inner loops.
+6. **Use `parallel_map()`** for embarrassingly parallel workloads across worker threads.
 
 Most code never needs to go past step 2. Profile first, then optimize the bottleneck.
 

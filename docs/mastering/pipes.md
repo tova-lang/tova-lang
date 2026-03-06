@@ -353,6 +353,158 @@ for entry in entries(by_region) {
 
 <TryInPlayground :code="dataCode" label="Data Pipeline" />
 
+## Functional Programming Toolkit
+
+Tova's stdlib includes powerful functional programming utilities that compose beautifully with pipes:
+
+### compose and pipe_fn
+
+Combine multiple functions into one:
+
+```tova
+// compose: right-to-left (math style)
+parse_and_validate = compose(validate_positive, parse_int)
+parse_and_validate("42")   // Ok(42)
+
+// pipe_fn: left-to-right (more readable)
+process = pipe_fn(trim, lower, split(" "), unique)
+process("  Hello Hello World  ")   // ["hello", "world"]
+```
+
+### curry and partial
+
+Create specialized versions of general functions:
+
+```tova
+// curry: transform f(a, b) into f(a)(b)
+add = fn(a, b) a + b
+add5 = curry(add)(5)
+print(add5(3))   // 8
+
+// partial: lock in some arguments
+greet = fn(greeting, name) "{greeting}, {name}!"
+hello = partial(greet, "Hello")
+print(hello("Alice"))   // "Hello, Alice!"
+```
+
+`partial` is especially useful with pipes:
+
+```tova
+// Create reusable pipeline steps
+above = fn(threshold, x) x > threshold
+items |> filter(partial(above, 100))
+
+multiply_by = fn(factor, x) x * factor
+items |> map(partial(multiply_by, 2))
+```
+
+### memoize
+
+Cache function results for expensive computations:
+
+```tova
+fn expensive_calculation(n) {
+  // Simulates slow computation
+  sleep(1000)
+  n * n
+}
+
+fast_calc = memoize(expensive_calculation)
+fast_calc(42)    // Slow first time (1 second)
+fast_calc(42)    // Instant — cached result
+```
+
+### once
+
+Ensure a function only executes once:
+
+```tova
+initialize = once(fn() {
+  print("Setting up...")
+  load_config()
+})
+
+initialize()    // "Setting up..." — runs
+initialize()    // Nothing — already ran
+initialize()    // Nothing — still already ran
+```
+
+### debounce and throttle
+
+Control how often a function can be called:
+
+```tova
+// debounce: wait until calls stop for N ms
+save_draft = debounce(fn(content) {
+  write_file("draft.txt", content)
+}, 300)
+// Rapid calls → only the last one executes (after 300ms of quiet)
+
+// throttle: run at most once every N ms
+log_position = throttle(fn(pos) {
+  print("Position: {pos}")
+}, 1000)
+// Rapid calls → runs once per second maximum
+```
+
+### flip and lazy
+
+```tova
+// flip: swap the first two arguments
+divide = fn(a, b) a / b
+divide_by = flip(divide)
+[10, 20, 30] |> map(partial(divide_by, 5))   // [2, 4, 6]
+
+// lazy: defer computation until needed
+config = lazy(fn() load_expensive_config())
+// Config isn't loaded until first use:
+print(config())   // Loads and returns config
+print(config())   // Returns cached config
+```
+
+### identity and negate
+
+Two small utilities that come up surprisingly often in functional code:
+
+`identity` returns its argument unchanged. It sounds useless at first, but it serves as a perfect default or no-op in pipelines:
+
+```tova
+[1, 2, 3] |> map(identity)    // [1, 2, 3]
+
+// Use it as a no-op placeholder when a transform is conditionally applied
+transform = if should_process { fn(x) x * 2 } else { identity }
+data |> map(transform)
+
+// Also handy as a default argument
+fn process(items, transform_fn) {
+  items |> map(transform_fn)
+}
+process([1, 2, 3], identity)   // no transformation applied
+```
+
+`negate` takes a predicate function and returns a new function that flips its boolean result. It saves you from writing throwaway lambdas just to add `!`:
+
+```tova
+is_even = fn(x) x % 2 == 0
+is_odd = negate(is_even)
+
+[1, 2, 3, 4, 5] |> filter(is_odd)    // [1, 3, 5]
+
+// Compare — before negate you'd write:
+[1, 2, 3, 4, 5] |> filter(fn(x) !is_even(x))    // same result, more noise
+
+// Works great in pipelines with named predicates
+is_empty = fn(s) len(s) == 0
+is_not_empty = negate(is_empty)
+
+["hello", "", "world", "", "!"]
+  |> filter(is_not_empty)    // ["hello", "world", "!"]
+```
+
+::: tip Functional Thinking
+These utilities shine when combined. A common pattern: use `partial` to specialize functions, `compose` to chain them, and `memoize` to cache expensive steps. This creates pipelines that are both reusable and efficient.
+:::
+
 ## Project: Reusable Pipeline Builder
 
 Let's build a system where pipeline steps are first-class values:

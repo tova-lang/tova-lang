@@ -281,6 +281,148 @@ if result.isErr() {
 }
 ```
 
+### `.mapErr(fn)` — Transform the Error Value
+
+Sometimes you need to add context to an error or convert it to a different format. `.mapErr` transforms the `Err` side while leaving `Ok` untouched — the mirror of `.map`:
+
+```tova
+fn parse_config(text) {
+  parse_json(text)
+    .mapErr(fn(e) "Config parse error: {e}")
+}
+
+Err("not found").mapErr(fn(e) upper(e))  // Err("NOT FOUND")
+Ok(42).mapErr(fn(e) "error: {e}")         // Ok(42) — unchanged
+```
+
+This is especially useful in pipelines where you need consistent error types:
+
+```tova
+fn load_user(id) {
+  fetch_from_db(id)
+    .mapErr(fn(e) "DB error: {e}")
+    .flatMap(fn(row) parse_user(row).mapErr(fn(e) "Parse error: {e}"))
+}
+```
+
+### `.expect(message)` — Unwrap or Crash with Context
+
+When you're absolutely certain a Result is Ok (or an Option is Some), `.expect` unwraps the value. If you're wrong, it crashes with your custom message:
+
+```tova
+config = load_config().expect("Failed to load configuration")
+// If Err, crashes with: "Failed to load configuration"
+// If Ok, returns the value
+
+user = find_user(id).expect("User {id} must exist")
+```
+
+::: warning Use `.expect` Sparingly
+`.expect` causes a hard crash — it's Tova's escape hatch, not a default strategy. Use it for genuinely impossible states (like a config file that must exist for the program to run). For everything else, prefer `.unwrapOr`, `.map`, or full `match` handling.
+:::
+
+### `.or(alternative)` — Fallback to Another Result
+
+`.or` returns the original value if it's `Ok`, or the alternative if it's `Err`:
+
+```tova
+primary_db.connect().or(backup_db.connect())
+
+Ok(42).or(Ok(0))      // Ok(42)
+Err("x").or(Ok(0))    // Ok(0)
+```
+
+This is perfect for fallback chains:
+
+```tova
+fn load_setting(key) {
+  read_env(key)
+    .or(read_config_file(key))
+    .or(Ok(default_value(key)))
+}
+```
+
+### `.andThen(fn)` — Alias for flatMap
+
+`.andThen` is an alias for `.flatMap`. Use whichever reads better in your context:
+
+```tova
+parse_number("42").andThen(fn(n) validate_positive(n))
+// Same as:
+parse_number("42").flatMap(fn(n) validate_positive(n))
+```
+
+Some developers prefer `andThen` when describing sequential operations, and `flatMap` when thinking in terms of transformation. They are identical.
+
+### `.unwrapErr()` — Extract the Error Value
+
+`.unwrapErr` is the mirror of `.unwrap` — it extracts the error from an `Err`, or crashes if the Result is `Ok`:
+
+```tova
+Err("not found").unwrapErr()     // "not found"
+// Ok(42).unwrapErr()            // Crashes!
+```
+
+This is useful in tests when you want to assert on the error value:
+
+```tova
+test "validation rejects negative age" {
+  result = validate_age(-5)
+  assert(result.isErr())
+  msg = result.unwrapErr()
+  assert(contains(msg, "negative"))
+}
+```
+
+### `.context(message)` — Add Error Context
+
+`.context` wraps an error with additional context, leaving `Ok` unchanged:
+
+```tova
+fn load_config(path) {
+  read_file(path)
+    .context("Failed to load config from {path}")
+}
+
+// If read_file returns Err("file not found"),
+// the result becomes Err("Failed to load config from ./config.toml: file not found")
+```
+
+`.context` is a shorthand for `.mapErr(fn(e) "{message}: {e}")`. Use it to build informative error chains that tell you _where_ things went wrong, not just _what_ went wrong:
+
+```tova
+fn start_server(config_path) {
+  config = load_config(config_path)
+    .context("Server startup failed")?
+  db = connect_db(config.db_url)
+    .context("Database connection failed")?
+  Ok(Server(config, db))
+}
+// Error: "Server startup failed: Failed to load config from ./config.toml: file not found"
+```
+
+### `.and(next)` — Chain on Success
+
+`.and` returns `next` if the original is `Ok`, otherwise returns the original `Err`. Think of it as "if this succeeded, use that instead":
+
+```tova
+validate_name(name).and(validate_email(email))
+// If name is valid, check email; otherwise return name error
+
+Ok(1).and(Ok(2))    // Ok(2)
+Err("x").and(Ok(2)) // Err("x")
+```
+
+`.and` is useful for sequential validations where you only care about the final result:
+
+```tova
+fn validate_form(data) {
+  validate_username(data.username)
+    .and(validate_password(data.password))
+    .and(validate_email(data.email))
+}
+```
+
 <TryInPlayground :code="chainingCode" label="Result Chaining" />
 
 ## Option: Something or Nothing
@@ -296,7 +438,7 @@ fn find_user(id) {
 
 ### Option Methods
 
-Options have the same methods as Results:
+Options have the same core methods as Results:
 
 ```tova
 // .map — transform the value if present
@@ -308,6 +450,38 @@ find_user(1).flatMap(fn(u) get_settings(u.name))
 
 // .unwrapOr — provide a default
 find_user(99).unwrapOr({ name: "Guest", role: "viewer" })
+```
+
+Options also support `.expect`, `.or`, and `.and` just like Results:
+
+```tova
+Some(5).or(Some(0))   // Some(5)
+None.or(Some(0))      // Some(0)
+
+Some(5).and(Some(10)) // Some(10)
+None.and(Some(10))    // None
+```
+
+### `.filter(predicate)` — Conditionally Keep a Value
+
+`.filter` converts `Some` to `None` if the predicate returns false. It's like a gatekeeper for optional values:
+
+```tova
+Some(42).filter(fn(x) x > 50)   // None — 42 is not > 50
+Some(42).filter(fn(x) x > 10)   // Some(42) — passes the check
+None.filter(fn(x) x > 10)       // None — nothing to filter
+```
+
+`.filter` shines in lookup-then-validate patterns:
+
+```tova
+fn find_active_admin(users, name) {
+  find_user(users, name)
+    .filter(fn(u) u.role == "admin")
+    .filter(fn(u) u.active)
+}
+
+// Only returns Some if the user exists AND is an active admin
 ```
 
 <TryInPlayground :code="optionCode" label="Option Handling" />
@@ -427,6 +601,41 @@ Without `?`, this would be deeply nested match expressions. The `?` operator is 
 The `?` operator can only be used inside a function that itself returns a Result. Using it elsewhere is a compile error.
 :::
 
+## The `!` Operator — Unwrap or Propagate
+
+The `!` operator (postfix bang) is similar to `?` but works slightly differently. While `?` propagates the error to the caller, `!` unwraps the value directly or crashes with the error:
+
+```tova
+// ? propagates (returns Err from the function)
+fn load(path) {
+  content = read_file(path)?    // Returns Err if read fails
+  Ok(content)
+}
+
+// ! unwraps directly (crashes if Err)
+content = read_file(path)!      // Crashes if read fails
+```
+
+Use `!` when:
+- You're absolutely sure the operation will succeed
+- A failure means something is fundamentally broken (like a missing config file at startup)
+- You're prototyping and want to skip error handling temporarily
+
+```tova
+// At program startup, config MUST exist
+config = load_config("./config.toml")!
+
+// In tests, unwrap expected successes
+test "parse valid input" {
+  result = parse("42")!
+  assert_eq(result, 42)
+}
+```
+
+::: warning `!` Causes Hard Crashes
+`!` is Tova's escape hatch. Like `.expect()`, it crashes the program if the Result is `Err` or the Option is `None`. Prefer `?` in library code and production paths. Reserve `!` for startup code, tests, and genuinely impossible error states.
+:::
+
 ## try/catch: For JavaScript Interop
 
 When calling JavaScript code that might throw, use `try/catch`:
@@ -443,6 +652,193 @@ fn safe_json_parse(text) {
 
 ::: tip Prefer Result Over try/catch
 Use `try/catch` only at the boundary with JavaScript code. Within Tova code, prefer returning Result values. This keeps your error handling explicit and composable.
+:::
+
+## `try_fn` and `try_async`: Wrapping Unsafe Code
+
+Instead of writing try/catch blocks every time you call a JavaScript function that might throw, Tova provides two stdlib helpers that wrap the result for you.
+
+### `try_fn(fn)` — Catch Sync Exceptions as Result
+
+`try_fn` takes a zero-argument function, calls it, and wraps the outcome in a Result:
+
+```tova
+result = try_fn(fn() JSON.parse(raw_text))
+// Ok(parsed_value) or Err(error_message)
+
+match result {
+  Ok(data) => print("Parsed: {data}")
+  Err(e) => print("Failed: {e}")
+}
+```
+
+This is cleaner than writing a full try/catch block, especially when you want to immediately chain:
+
+```tova
+config = try_fn(fn() JSON.parse(raw))
+  .mapErr(fn(e) "Invalid JSON: {e}")
+  .flatMap(fn(data) validate_config(data))
+```
+
+### `try_async(fn)` — Catch Async Exceptions as Result
+
+`try_async` is the async counterpart. It wraps an async operation that might reject:
+
+```tova
+result = await try_async(fn() fetch_data(url))
+// Ok(data) or Err(error_message)
+
+response = await try_async(fn() http_get("https://api.example.com/users"))
+  .map(fn(r) r.body)
+  .unwrapOr("[]")
+```
+
+Together, `try_fn` and `try_async` let you bridge the gap between JavaScript's throw-based world and Tova's Result-based error handling without boilerplate.
+
+## The `?` Operator Deep Dive
+
+The `?` operator is Tova's most ergonomic error-handling tool. It unwraps an `Ok` value or immediately returns the `Err` from the enclosing function:
+
+```tova
+fn load_config(path) {
+  text = read_file(path)?              // If Err, return Err immediately
+  data = json_parse(text)?             // If Err, return Err immediately
+  validate_config(data)?               // If Err, return Err immediately
+  Ok(data)                             // If we get here, all succeeded
+}
+```
+
+Without `?`, this would require deeply nested matching:
+
+```tova
+// The verbose version — ? eliminates all of this
+fn load_config(path) {
+  match read_file(path) {
+    Err(e) => Err(e)
+    Ok(text) => match json_parse(text) {
+      Err(e) => Err(e)
+      Ok(data) => match validate_config(data) {
+        Err(e) => Err(e)
+        Ok(validated) => Ok(validated)
+      }
+    }
+  }
+}
+```
+
+### `?` with Option
+
+The `?` operator also works with Option — unwraps `Some` or returns `None`:
+
+```tova
+fn get_user_city(users, name) {
+  user = find(users, fn(u) u.name == name)?   // None if not found
+  address = user.address?                       // None if no address
+  Some(address.city)
+}
+```
+
+### `?` with Transformations
+
+Combine `?` with `.map()` to transform before unwrapping:
+
+```tova
+fn get_port(config) {
+  raw = config.get("port")?
+  parsed = parse_int(raw).map(fn(p) p)?
+  Ok(parsed)
+}
+```
+
+::: warning `?` Only Works Inside Result/Option-Returning Functions
+The `?` operator can only be used inside a function whose return type is Result or Option. Using it in a void function is a compile error — the compiler needs a way to propagate the error.
+:::
+
+## try/catch/finally
+
+For JavaScript interop, Tova supports the full try/catch/finally pattern:
+
+```tova
+fn safe_operation() {
+  try {
+    result = risky_js_call()
+    Ok(result)
+  } catch err {
+    Err("Operation failed: {err}")
+  } finally {
+    cleanup()    // Always runs, whether success or failure
+  }
+}
+```
+
+`finally` is useful for releasing resources regardless of outcome:
+
+```tova
+fn query_database(sql) {
+  conn = connect_db()
+  try {
+    Ok(conn.execute(sql))
+  } catch err {
+    Err("Query failed: {err}")
+  } finally {
+    conn.close()    // Always close the connection
+  }
+}
+```
+
+## Guard Clauses for Error Handling
+
+Guards are a natural fit for validating inputs before the main logic:
+
+```tova
+fn create_account(name, email, age) {
+  guard len(name) >= 2 else { return Err("Name too short") }
+  guard contains(email, "@") else { return Err("Invalid email") }
+  guard age >= 18 else { return Err("Must be 18+") }
+
+  // All validations passed — proceed with confidence
+  Ok({ name: name, email: email, age: age })
+}
+```
+
+Guards keep the error handling visible at the top and the happy path unindented:
+
+```tova
+fn process_payment(order) {
+  guard order.items |> len() > 0 else { return Err("Empty cart") }
+  guard order.total > 0 else { return Err("Invalid total") }
+  guard order.payment_method != nil else { return Err("No payment method") }
+
+  charge(order.payment_method, order.total)
+}
+```
+
+## The `with` Statement
+
+`with` manages resources that need cleanup — like files, connections, or locks:
+
+```tova
+with file = open("data.txt") {
+  content = read(file)
+  process(content)
+}
+// file is automatically closed when the block exits
+```
+
+`with` ensures the resource is cleaned up even if an error occurs inside the block. It's Tova's answer to Python's `with` or C#'s `using`:
+
+```tova
+with conn = connect("postgres://localhost/mydb") {
+  users = conn.query("SELECT * FROM users")
+  for user in users {
+    print(user.name)
+  }
+}
+// conn is automatically closed
+```
+
+::: tip with vs. defer
+Both ensure cleanup happens. `with` is for block-scoped resources (opened and closed within one block). `defer` is for function-scoped cleanup (runs when the function returns).
 :::
 
 ## Project: Config File Parser

@@ -180,6 +180,103 @@ Strings are everywhere — user input, file paths, URLs, log messages, generated
 
 By the end, you'll build a mini template engine.
 
+## String Types
+
+Tova has several string forms, each designed for different situations. Understanding when to use each one makes your code cleaner and avoids escaping headaches.
+
+### Double-Quoted Strings (Interpolation)
+
+The most common form. Expressions inside `{braces}` are evaluated and inserted:
+
+```tova
+name = "Alice"
+greeting = "Hello, {name}!"         // "Hello, Alice!"
+math = "2 + 2 = {2 + 2}"           // "2 + 2 = 4"
+nested = "Score: {user.scores[0]}"  // Access nested data
+```
+
+Double-quoted strings process escape sequences like `\n`, `\t`, and `\\`.
+
+### Single-Quoted Strings (Literal)
+
+Single quotes create **literal strings** — no interpolation, no escape processing:
+
+```tova
+template = 'Hello, {name}'          // Literally: Hello, {name}
+regex_str = '\d+\.\d+'              // Backslashes are literal
+json_key = '{"key": "value"}'       // Braces are literal
+```
+
+Use single quotes when you need literal curly braces, backslashes, or when the string shouldn't be processed in any way.
+
+### Raw Strings
+
+Prefix with `r` to disable all escape processing while keeping double-quote syntax:
+
+```tova
+windows_path = r"C:\Users\Alice\Documents"
+regex = r"\d{3}-\d{4}"
+```
+
+Raw strings are perfect for Windows file paths, regex patterns, and template literals.
+
+### Triple-Quoted Multiline Strings
+
+For multi-line text, use triple double quotes. They automatically **dedent** — common leading whitespace is stripped:
+
+```tova
+html = """
+  <div>
+    <h1>Hello</h1>
+    <p>Welcome to Tova</p>
+  </div>
+"""
+// The 2-space indent common to all lines is removed
+```
+
+Triple-quoted strings support interpolation:
+
+```tova
+fn render_card(title, body) {
+  """
+  <div class="card">
+    <h2>{title}</h2>
+    <p>{body}</p>
+  </div>
+  """
+}
+```
+
+### Escape Sequences Reference
+
+Double-quoted strings support these escape sequences:
+
+| Escape | Character |
+|--------|-----------|
+| `\n` | Newline |
+| `\t` | Tab |
+| `\r` | Carriage return |
+| `\\` | Literal backslash |
+| `\"` | Literal double quote |
+| `\'` | Literal single quote |
+| `\{` | Literal opening brace (prevents interpolation) |
+| `\}` | Literal closing brace |
+
+```tova
+print("Column1\tColumn2\tColumn3")   // Tab-separated
+print("She said \"hello\"")           // Escaped quotes
+print("Price: \{not interpolated\}")  // Literal braces
+```
+
+::: tip Choosing a String Type
+| Need | Use |
+|------|-----|
+| Most strings | `"double quotes"` |
+| No interpolation needed | `'single quotes'` |
+| File paths, regex | `r"raw strings"` |
+| Multi-line text, templates | `"""triple quotes"""` |
+:::
+
 ## String Interpolation
 
 Tova strings use `{expression}` for interpolation — no dollar signs, no special syntax, just curly braces:
@@ -241,6 +338,8 @@ contains(text, "World")      // true
 starts_with(text, "Hello")   // true
 ends_with(text, "!")         // true
 index_of(text, "World")     // 7
+last_index_of(text, "l")    // 10 (last occurrence)
+char_at(text, 0)             // "H" (character at index)
 ```
 
 ### Transforming
@@ -251,7 +350,10 @@ lower("HELLO")               // "hello"
 trim("  hello  ")           // "hello"
 trim_start("  hello  ")    // "hello  "
 trim_end("  hello  ")      // "  hello"
-replace("foo bar", "bar", "baz")  // "foo baz"
+replace("foo bar", "bar", "baz")   // "foo baz"
+replace_first("aaa", "a", "b")    // "baa" (only first occurrence)
+is_empty("")                 // true
+is_empty("hello")            // false
 ```
 
 ### Extracting
@@ -280,6 +382,51 @@ pad_start("42", 5, "0")       // "00042"
 pad_end("hi", 10, ".")        // "hi........"
 repeat("-", 30)                // "------------------------------"
 repeat("ab", 3)                // "ababab"
+```
+
+### Formatting
+
+The `fmt()` function creates formatted strings with `{}` placeholders, filled in order from the remaining arguments. Think of it as a lightweight alternative to interpolation when your template comes from a variable or config:
+
+```tova
+fmt("Hello, {}! You have {} messages.", "Alice", 5)
+// "Hello, Alice! You have 5 messages."
+
+fmt("{} + {} = {}", 2, 3, 5)
+// "2 + 3 = 5"
+
+// Useful when the template is dynamic
+template = "Welcome back, {}! Last login: {}"
+print(fmt(template, "Bob", "March 5"))
+```
+
+### Centering
+
+The `center()` function pads a string on both sides to center it within a given width. The default pad character is a space:
+
+```tova
+center("hello", 11)           // "   hello   "
+center("title", 20, "-")      // "-------title--------"
+
+// Great for building formatted output
+heading = center(" Report ", 40, "=")
+print(heading)
+// "================ Report ================"
+```
+
+### Counting Substrings
+
+The `count_of()` function counts how many times a substring appears in a string:
+
+```tova
+count_of("banana", "an")      // 2
+count_of("hello", "l")        // 2
+count_of("aaa", "aa")         // 1 (non-overlapping)
+
+// Handy for text analysis
+csv_line = "alice,bob,charlie,diana"
+num_commas = count_of(csv_line, ",")
+print("Fields: {num_commas + 1}")   // "Fields: 4"
 ```
 
 <TryInPlayground :code="methodsCode" label="String Methods" />
@@ -381,6 +528,10 @@ print(slugify("Hello World It's Tova"))
 // "hello-world-its-tova"
 ```
 
+::: tip Built-in Stdlib Function
+`slugify` is available as a stdlib function — you don't need to define it yourself. The implementation above shows how it works internally. Just call `slugify(text)` directly.
+:::
+
 ### Truncate with Ellipsis
 
 ```tova
@@ -396,7 +547,133 @@ print(truncate("A very long description that goes on and on", 20))
 // "A very long descr..."
 ```
 
+::: tip Built-in Stdlib Function
+`truncate` is available as a stdlib function — call `truncate(text, max_len)` directly without defining it.
+:::
+
 <TryInPlayground :code="processingCode" label="Text Processing" />
+
+## Regular Expressions
+
+For complex text patterns, Tova has regex literals and a full regex toolkit:
+
+### Regex Literals
+
+```tova
+// Regex literals use /pattern/flags syntax
+email_pattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+phone_pattern = /\d{3}-\d{3}-\d{4}/
+```
+
+### Testing Patterns
+
+```tova
+regex_test(email_pattern, "alice@example.com")   // true
+regex_test(email_pattern, "not-an-email")        // false
+regex_test(phone_pattern, "555-123-4567")        // true
+```
+
+### Matching and Capturing
+
+```tova
+// Find the first match
+result = regex_match(/(\d+)-(\d+)/, "Order 42-7")
+// result: { match: "42-7", groups: ["42", "7"] }
+
+// Find all matches
+all = regex_find_all(/\d+/, "I have 3 cats and 12 dogs")
+// all: ["3", "12"]
+
+// Named captures
+parsed = regex_capture(/(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/, "2026-03-05")
+// parsed: { year: "2026", month: "03", day: "05" }
+```
+
+### Replacing with Regex
+
+```tova
+// Simple replacement
+clean = regex_replace(/\s+/, "hello   world   foo", " ")
+// "hello world foo"
+
+// Replace all digits with #
+masked = regex_replace(/\d/, "Card: 4111-2222-3333-4444", "#")
+// "Card: ####-####-####-####"
+```
+
+### Splitting with Regex
+
+```tova
+// Split on any whitespace
+parts = regex_split(/\s+/, "hello   world\tfoo\nbar")
+// ["hello", "world", "foo", "bar"]
+
+// Split on comma with optional spaces
+items = regex_split(/\s*,\s*/, "a, b , c,d")
+// ["a", "b", "c", "d"]
+```
+
+### Building Regex Patterns
+
+For complex patterns, `regex_builder` provides a fluent API to construct regex step by step:
+
+```tova
+// Build a URL validation pattern
+url_regex = regex_builder()
+  .literal("https://")
+  .one_or_more("[a-zA-Z0-9.-]")
+  .literal(".")
+  .between("[a-zA-Z]", 2, 6)
+  .build()
+
+regex_test(url_regex, "https://tova.dev")     // true
+regex_test(url_regex, "not-a-url")            // false
+```
+
+`regex_builder` returns a builder object with methods like `.literal()`, `.one_or_more()`, `.zero_or_more()`, `.between()`, `.optional()`, `.group()`, and `.build()` to produce the final regex. This is more readable than writing raw regex strings for complex patterns.
+
+### String Validation Helpers
+
+Tova includes common validation functions:
+
+```tova
+is_email("alice@test.com")    // true
+is_url("https://tova.dev")   // true
+is_uuid("550e8400-e29b-41d4-a716-446655440000")   // true
+is_numeric("42.5")            // true
+is_alpha("hello")             // true
+is_alphanumeric("abc123")     // true
+is_hex("ff00aa")              // true
+```
+
+::: tip When to Use Regex vs. String Functions
+Use string functions (`contains`, `starts_with`, `split`) for simple patterns. Use regex for complex patterns involving repetition, alternation, or capturing groups. String functions are faster and more readable for simple cases.
+:::
+
+### Additional String Functions
+
+Tova also provides case conversion utilities:
+
+```tova
+snake_case("helloWorld")      // "hello_world"
+camel_case("hello_world")     // "helloWorld"
+kebab_case("helloWorld")      // "hello-world"
+capitalize("hello world")    // "Hello world"
+title_case("hello world")    // "Hello World"
+```
+
+And text manipulation tools:
+
+```tova
+words("hello world foo")      // ["hello", "world", "foo"]
+lines("line1\nline2\nline3") // ["line1", "line2", "line3"]
+reverse_str("hello")          // "olleh"
+word_wrap("long text...", 40) // Wraps at 40 chars
+indent_str("hello", 4)       // "    hello"
+dedent("    hello")           // "hello"
+escape_html("<script>")       // "&lt;script&gt;"
+unescape_html("&lt;script&gt;")   // "<script>"
+```
 
 ## Project: Mini Template Engine
 

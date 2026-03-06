@@ -215,6 +215,24 @@ fn is_positive(x) { x > 0 }
 
 No `return` keyword needed for the common case. The body is an expression, and expressions produce values.
 
+### Visibility with `pub`
+
+By default, functions are **file-private** — they can only be called within the same module. To make a function accessible from other files, prefix it with `pub`:
+
+```tova
+// pub makes a function accessible from other modules
+pub fn create_user(name: String) -> User {
+  User(name: name, role: "member")
+}
+
+// Without pub, functions are file-private
+fn validate_name(name: String) -> Bool {
+  len(name) >= 2
+}
+```
+
+This is intentional. Most functions are implementation details. Only mark functions `pub` when they're part of a module's public interface. If another file imports your module, it can only see the `pub` functions.
+
 ::: tip When to Use `return`
 Use `return` only for **early exits** — when you want to bail out of a function before reaching the end:
 ```tova
@@ -267,6 +285,40 @@ fn is_valid_email(email: String) -> Bool {
 ```
 
 Type annotations are optional but excellent documentation. Use them on public-facing functions and when the types aren't obvious from the code.
+
+## Doc Comments
+
+Use `///` (triple-slash) to document your functions. Doc comments describe what a function does, what it expects, and what it returns:
+
+```tova
+/// Calculates the distance between two 2D points.
+/// Returns the Euclidean distance as a Float.
+fn distance(x1: Float, y1: Float, x2: Float, y2: Float) -> Float {
+  dx = x2 - x1
+  dy = y2 - y1
+  (dx * dx + dy * dy) ** 0.5
+}
+```
+
+Doc comments are more than just notes for readers. The Tova LSP picks up `///` comments and displays them as hover documentation in your editor. When you hover over a call to `distance()`, you'll see the description right there.
+
+```tova
+/// Creates a new user with the given name and default role.
+/// The role defaults to "member" and can be changed later.
+pub fn create_user(name: String) -> User {
+  User(name: name, role: "member")
+}
+
+/// Checks whether a string looks like a valid email address.
+/// This is a simple check — it only verifies the presence of "@".
+fn is_valid_email(email: String) -> Bool {
+  contains(email, "@")
+}
+```
+
+::: tip Writing Good Doc Comments
+Put `///` on the lines immediately above the function declaration. The first line should be a concise summary. Additional lines can elaborate on parameters, edge cases, or return values. Regular `//` comments are ignored by the LSP — only `///` is treated as documentation.
+:::
 
 ## Lambdas (Anonymous Functions)
 
@@ -416,6 +468,129 @@ fn connect({host = "localhost", port = 3000}) {
 connect({ port: 8080 })   // "Connecting to localhost:8080"
 ```
 
+## Variadic Functions (Rest Parameters)
+
+A function can accept a variable number of arguments using the `...` rest syntax:
+
+```tova
+fn log_all(prefix, ...messages) {
+  for msg in messages {
+    print("[{prefix}] {msg}")
+  }
+}
+
+log_all("INFO", "Server started", "Port 3000", "Ready")
+// [INFO] Server started
+// [INFO] Port 3000
+// [INFO] Ready
+```
+
+The rest parameter `...messages` collects all extra arguments into an array. It must be the last parameter:
+
+```tova
+fn sum_all(...numbers) {
+  numbers |> reduce(fn(acc, n) acc + n, 0)
+}
+
+print(sum_all(1, 2, 3, 4, 5))   // 15
+```
+
+Combine with the spread operator to forward arguments:
+
+```tova
+fn log_error(...args) {
+  log_all("ERROR", ...args)
+}
+```
+
+## Named Arguments
+
+When calling functions with many parameters, named arguments make the call site more readable:
+
+```tova
+fn create_server(host, port, debug, max_connections) {
+  print("Starting {host}:{port} (debug={debug}, max={max_connections})")
+}
+
+// Positional — hard to read, easy to mix up
+create_server("localhost", 8080, false, 100)
+
+// Named — clear what each value means
+create_server(host: "localhost", port: 8080, debug: false, max_connections: 100)
+```
+
+Named arguments can be in any order:
+
+```tova
+create_server(port: 8080, host: "0.0.0.0", max_connections: 50, debug: true)
+```
+
+You can also mix positional and named arguments — positional arguments come first:
+
+```tova
+create_server("localhost", 8080, debug: true, max_connections: 200)
+```
+
+::: tip When to Use Named Arguments
+Use named arguments when a function takes more than 2-3 parameters, especially boolean flags or numeric values where the meaning isn't obvious from the value alone. `create_server("localhost", 8080, false, 100)` is cryptic; `create_server(host: "localhost", port: 8080, debug: false, max_connections: 100)` is self-documenting.
+:::
+
+## Decorators
+
+Decorators modify function behavior using the `@` prefix. Tova has built-in decorators and supports custom ones:
+
+### Built-in Decorators
+
+```tova
+// @wasm — compile to WebAssembly for maximum performance
+@wasm fn fibonacci(n: i32) -> i32 {
+  if n <= 1 { return n }
+  fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+// @fast — use TypedArrays for numerical work
+@fast fn dot_product(a: [Float], b: [Float]) -> Float {
+  var total = 0.0
+  for i in range(len(a)) {
+    total += a[i] * b[i]
+  }
+  total
+}
+
+// @memoize — cache results for repeated calls
+@memoize fn expensive_compute(n) {
+  // ... heavy computation ...
+  n * n
+}
+```
+
+### Decorators with Arguments
+
+Some decorators accept configuration:
+
+```tova
+@fast fn vector_add(a: [Float], b: [Float]) -> [Float] {
+  // @fast with typed parameters
+  typed_add(a, b)
+}
+```
+
+### Stacking Decorators
+
+Multiple decorators can be stacked on a single function:
+
+```tova
+@memoize
+@fast
+fn cached_dot(a: [Float], b: [Float]) -> Float {
+  typed_dot(a, b)
+}
+```
+
+Decorators are applied bottom-up — `@fast` is applied first, then `@memoize` wraps the result.
+
+We cover `@fast` and `@wasm` in depth in the Performance chapter.
+
 ## Recursion
 
 Tova supports recursion naturally. Use it when a problem has recursive structure:
@@ -456,6 +631,51 @@ fn depth(tree) {
 Use recursion when the problem is naturally recursive (trees, nested structures, divide-and-conquer). Use iteration (`for`, `while`) for flat data or when performance matters. Tova doesn't currently optimize tail calls, so very deep recursion can overflow the stack.
 :::
 
+## Generic Functions
+
+When a function works with any type, use type parameters to express that:
+
+```tova
+fn identity<T>(x: T) -> T {
+  x
+}
+
+fn first_of<T>(items: [T]) -> T {
+  items[0]
+}
+
+fn pair<A, B>(a: A, b: B) -> (A, B) {
+  (a, b)
+}
+```
+
+Generic functions are especially useful for utility functions that don't care about the specific type:
+
+```tova
+fn swap<T>(items: [T], i: Int, j: Int) -> [T] {
+  var result = [...items]
+  temp = result[i]
+  result[i] = result[j]
+  result[j] = temp
+  result
+}
+
+fn repeat_value<T>(value: T, n: Int) -> [T] {
+  var result = []
+  for _ in range(n) {
+    result.push(value)
+  }
+  result
+}
+
+print(repeat_value("hello", 3))   // ["hello", "hello", "hello"]
+print(repeat_value(42, 5))         // [42, 42, 42, 42, 42]
+```
+
+::: tip When to Use Generics
+Tova infers types aggressively, so you often don't _need_ to write generic annotations — `fn identity(x) { x }` works fine. But generics are valuable in library code where you want to document the relationship between input and output types, or when you're building data structures that work with any element type.
+:::
+
 ## Generators
 
 Generators produce values lazily using `yield`:
@@ -490,6 +710,32 @@ Generators are useful for:
 - Infinite sequences
 - Processing large datasets without loading everything into memory
 - Custom iteration patterns
+
+## Extern Declarations
+
+When you need to call JavaScript or native functions that Tova doesn't know about, use `extern` to declare them:
+
+```tova
+extern fn crypto_hash(data: String) -> String
+extern fn native_sort(arr: [Int]) -> [Int]
+```
+
+`extern` tells the compiler "this function exists at runtime — trust me." No implementation body is needed. This is how you bridge to native libraries, WebAssembly modules, or JavaScript APIs that aren't in the stdlib.
+
+```tova
+extern fn performance_now() -> Float
+
+fn benchmark(label, f) {
+  start = performance_now()
+  f()
+  elapsed = performance_now() - start
+  print("{label}: {elapsed}ms")
+}
+```
+
+::: warning Use Sparingly
+`extern` bypasses Tova's type checking for the declared function. Incorrect declarations will cause runtime errors rather than compile-time errors. Prefer Tova's stdlib functions when available.
+:::
 
 ## Project: Math Toolkit
 
