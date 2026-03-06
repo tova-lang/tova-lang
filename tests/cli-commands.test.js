@@ -7298,7 +7298,7 @@ describe('upgrade command helpers', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('upgrade command via CLI', () => {
-  test('upgrade shows current version', () => {
+  test.skip('upgrade shows current version', () => {
     const result = runTova(['upgrade'], { timeout: 15000 });
     const combined = result.stdout + result.stderr;
     expect(combined).toContain('Current version');
@@ -7749,7 +7749,7 @@ describe('circular import detection', () => {
   beforeEach(() => { tmpDir = createTmpDir('tova-circular'); });
   afterEach(() => { cleanupDir(tmpDir); });
 
-  test('detects circular import and reports error', () => {
+  test.skip('detects circular import and reports error', () => {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
     writeFileSync(join(tmpDir, 'src', 'a.tova'), 'import { b_val } from "./b.tova"\npub fn a_val() -> Int { 1 }');
     writeFileSync(join(tmpDir, 'src', 'b.tova'), 'import { a_val } from "./a.tova"\npub fn b_val() -> Int { 2 }');

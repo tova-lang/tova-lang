@@ -493,25 +493,4 @@ describe('P3 Documentation', () => {
 
 // ── ROADMAP checks ─────────────────────────────────────────────
 
-describe('P3 ROADMAP progress', () => {
-
-  test('already-done items are checked off', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'ROADMAP.md'), 'utf-8');
-
-    expect(roadmap).toContain('[x] **Opinionated formatter**');
-    expect(roadmap).toContain('[x] **Async utilities**');
-    expect(roadmap).toContain('[x] **Filesystem operations**');
-    expect(roadmap).toContain('[x] **Playground: show generated JS**');
-    expect(roadmap).toContain('[x] **Playground: "Tour of Tova"**');
-  });
-
-  test('progress tracker updated', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'ROADMAP.md'), 'utf-8');
-
-    expect(roadmap).toContain('| P3       | 16    | 16   | 0         |');
-  });
-});
+// P3 ROADMAP progress tests removed — ROADMAP.md no longer exists

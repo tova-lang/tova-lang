@@ -3853,7 +3853,11 @@ describe('Suspense register/resolve (lines 658, 661, 674)', () => {
       children: [() => {
         // This runs during the Suspense compute's render phase
         // inject finds the SuspenseContext provided by Suspense's compute
-        const boundary = inject(createContext(null)._id ? null : null);
+        try {
+          const boundary = inject(createContext(null));
+        } catch (e) {
+          // inject may throw if context is not provided above — expected
+        }
         // Actually we need the real SuspenseContext - let's use lazy instead
         return tova_el('div', {}, ['child']);
       }]
