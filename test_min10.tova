@@ -1,3 +1,0 @@
-scores = [85, 92, 78, 95, 88, 73, 91]
-passing = scores |> filter(fn(s) s >= 80)
-print(passing)

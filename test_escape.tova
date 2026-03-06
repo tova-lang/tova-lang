@@ -1,3 +1,0 @@
-// Test escaped quotes in Tova strings
-x = "<div class=\"test\">hello</div>"
-print(x)

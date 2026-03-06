@@ -1,3 +1,0 @@
-lines = ["hello", "world", "tova"]
-result = join(lines, "\n")
-print(result)

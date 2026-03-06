@@ -1,3 +1,0 @@
-x = "hello"
-y = if true { x } else { x ++ " world" }
-print(y)
