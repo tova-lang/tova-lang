@@ -2,6 +2,16 @@
 
 All notable changes to Tova are documented in this file.
 
+## [0.9.1] - 2026-03-06
+
+### Docs
+- Complete mastering tutorials with all missing language features
+- Added deploy block documentation (infrastructure as code, multi-environment, CLI commands)
+- Added data block documentation (sources, pipelines, validation, refresh policies)
+- Added theme block documentation (design tokens, dark mode, $token references)
+- Enhanced animation documentation (blur primitive, animate: directive, conditional animations, precedence)
+- Added missing syntax to core tutorials: string types, scientific notation, `mut`, `in`/`not in`, `nil`, chained comparisons, variadic functions, named arguments, decorators, extern declarations, tuple patterns, `select` statement, structured logging, array types, `@memoize`, `Type.new()`
+
 ## [0.9.0] - 2026-03-04
 
 ### Features
