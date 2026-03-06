@@ -224,7 +224,7 @@ Create `tests/stdlib-fmt.test.js` with tests for:
 - Binary/hex/octal: `fmt("{:b}", 42)` → `"101010"`, `fmt("{:x}", 255)` → `"ff"`
 - Currency: `fmt("{:$}", 49.9)` → `"$49.90"`
 - Fill chars: `fmt("{:*>10}", "hi")` → `"********hi"`
-- Escaped braces: `fmt("use {{}} for placeholders")` → `"use {} for placeholders"`
+- Escaped braces: double curly braces in `fmt()` are collapsed to single braces
 
 Tests compile Tova code and run the JS output, capturing `console.log` calls.
 
@@ -238,7 +238,7 @@ Expected: FAIL — most format specs not implemented.
 Replace the `fmt` entry in `BUILTIN_FUNCTIONS` in `src/stdlib/inline.js`. The implementation:
 - Detects named vs positional mode (single object arg = named)
 - Parses format spec: `{[fill][align][sign][,][width][.precision][type]}`
-- Handles escape: `{{` → `{`, `}}` → `}`
+- Handles escape: double curly braces → single curly braces
 - Types: `f` (float), `b` (binary), `o` (octal), `x`/`X` (hex), `%` (percentage), `$` (currency), `s` (string)
 - Comma flag: thousands separator
 - Align: `<` left, `>` right, `^` center with optional fill character
@@ -652,7 +652,12 @@ Core: `retry()`, `breaker()`, `limiter()`, `with_timeout()`, `batch()`, `schedul
 
 **Files:** `lib.tova` + `parser.tova` (template syntax parser) + `compiler.tova` (precompilation)
 
+<!-- prettier-ignore -->
+<div v-pre>
+
 Mustache-style: `{{var}}`, `{{#each items}}`, `{{#if cond}}`, `{{> partial}}`, `{{{raw}}}`, `{{val | filter}}`
+
+</div>
 
 ### Task 4.3: `tova/plot` — Visualization
 

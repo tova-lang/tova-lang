@@ -236,8 +236,13 @@ schedule.at("2025-01-01T00:00", fn)
 template("Hello {{name}}", {name: "World"})
 ```
 
+<!-- prettier-ignore -->
+<div v-pre>
+
 Features: `{{#each items}}`, `{{#if cond}}`, `{{> partial}}`, `{{{raw}}}` (unescaped),
 `{{name | upper}}` (filters), `compile(str)` (precompile for reuse).
+
+</div>
 
 Auto HTML-escapes by default.
 

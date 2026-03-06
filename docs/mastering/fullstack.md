@@ -1517,4 +1517,4 @@ The entire application should live in a single `.tova` file. Trace the data flow
 
 ---
 
-[← Previous: Edge Deployment](./edge) | [Next: Capstone Project →](./capstone)
+[← Previous: Building Servers](./servers) | [Next: CLI Tools and Edge Computing →](./cli-and-edge)

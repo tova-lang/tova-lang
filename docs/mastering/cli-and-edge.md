@@ -1352,4 +1352,4 @@ The CLI tool should call the edge API. Design the interaction so that `pipeline 
 
 ---
 
-[← Previous: Security](./security) | [Next: Forms and Validation →](./forms)
+[← Previous: Full-Stack Applications](./fullstack) | [Next: Testing and Debugging →](./testing)
