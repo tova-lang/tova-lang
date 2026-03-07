@@ -31,6 +31,7 @@ Tova's standard library follows a few guiding principles:
 | **Regex** | `regex_test`, `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`, `regex_capture`, `regex_builder` | [Regex](./regex) |
 | **Validation** | `is_email`, `is_url`, `is_numeric`, `is_alpha`, `is_alphanumeric`, `is_uuid`, `is_hex` | [Validation](./validation) |
 | **URL & UUID** | `uuid`, `parse_url`, `build_url`, `parse_query`, `build_query` | [URL & UUID](./url) |
+| **HTTP Client** | `http.get`, `http.post`, `http.put`, `http.patch`, `http.delete`, `http.head`, `http.get_stream` | [HTTP Client](./http) |
 | **Date & Time** | `now`, `now_iso`, `date_parse`, `date_format`, `date_add`, `date_diff`, `date_from`, `date_part`, `time_ago` | [Date & Time](./datetime) |
 | **JSON** | `json_parse`, `json_stringify`, `json_pretty` | [JSON](./json) |
 | **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode` | [Encoding](./encoding) |
@@ -129,6 +130,23 @@ is_uuid("550e8400-e29b-41d4-a716-446655440000")  // true
 id = uuid()                             // "a1b2c3d4-..."
 parse_query("a=1&b=2")                 // { a: "1", b: "2" }
 build_url({ host: "api.com", pathname: "/v1" })
+```
+
+### HTTP Client
+
+```tova
+// GET request
+result = http.get("https://api.example.com/users")
+data = result.unwrap().body
+
+// POST with JSON body
+result = http.post("https://api.example.com/users", { name: "Alice" })
+
+// With query params and bearer auth
+result = http.get("https://api.example.com/search", {
+  params: { q: "tova", limit: 10 },
+  bearer: env("API_TOKEN")
+})
 ```
 
 ### Date & Time
