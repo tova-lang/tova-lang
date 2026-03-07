@@ -363,7 +363,7 @@ Converts a string to `snake_case`. Handles camelCase, spaces, and hyphens.
 snake_case("helloWorld")         // "hello_world"
 snake_case("Hello World")        // "hello_world"
 snake_case("some-thing")         // "some_thing"
-snake_case("XMLParser")          // "xml_parser"
+snake_case("XMLParser")          // "xmlparser"
 ```
 
 ### camel_case
@@ -659,13 +659,13 @@ user_input
 
 ## String Concatenation
 
-Use string interpolation or the `+` operator for concatenation:
+Use string interpolation for concatenation. The `+` operator works but produces a type warning:
 
 ```tova
-// Interpolation (preferred)
+// Interpolation (preferred -- no warnings)
 greeting = "Hello, {name}!"
 
-// Plus operator
+// Plus operator (works but produces a compiler warning)
 "hello" + " " + "world"   // "hello world"
 ```
 

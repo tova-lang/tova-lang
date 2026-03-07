@@ -30,7 +30,7 @@ table = read(db, "SELECT * FROM users")
 ```tova
 table.rows       // Number of rows (Int)
 table.columns    // Column names ([String])
-table.shape      // (rows, columns) tuple
+table.shape      // [rows, columns]
 ```
 
 ### Immutability
@@ -96,14 +96,14 @@ table |> where(.start_date <= Date.now() and .end_date >= Date.now())
 After a `join()`, columns from both tables are available:
 
 ```tova
-orders |> join(products, on: .product_id)
+orders |> join(products, left: .product_id, right: .product_id)
   |> derive(.total = .quantity * .price)  // .quantity from orders, .price from products
 ```
 
 After `rename()`, use the new name:
 
 ```tova
-table |> rename(.old_name, .new_name)
+table |> rename("old_name", "new_name")
   |> where(.new_name > 0)  // Use .new_name, not .old_name
 ```
 
@@ -125,7 +125,7 @@ data {
   // Layer 2: Clean
   pipeline clean = raw
     |> drop_nil(.customer_id)
-    |> drop_duplicates(.order_id)
+    |> drop_duplicates(by: .order_id)
     |> cast(.price, Float)
     |> derive(.status = .status |> upper() |> trim())
 
@@ -244,10 +244,10 @@ stream("huge_file.csv", batch: 10000)
 
 ```tova
 // Remove duplicate rows based on a key column
-table |> drop_duplicates(.id)
+table |> drop_duplicates(by: .id)
 
 // Keep first occurrence (default)
-table |> drop_duplicates(.email)
+table |> drop_duplicates(by: .email)
 ```
 
 ### Nil Handling
@@ -293,8 +293,8 @@ table |> where(.score > 0 and .verified == true)
 ### Renaming Columns
 
 ```tova
-table |> rename(.old_name, .new_name)
-table |> rename(.unit_cost, .cost)
+table |> rename("old_name", "new_name")
+table |> rename("unit_cost", "cost")
 ```
 
 ## Aggregation
@@ -343,7 +343,7 @@ table
   |> pivot(index: .month, columns: .category, values: .revenue)
 
 // Wide → Long: collapse columns back to rows
-wide_table |> unpivot(index: .month, name: "category", value: "revenue")
+wide_table |> unpivot(id: "_index", columns: ["electronics", "clothing", "food"])
 ```
 
 ### Multi-Level Aggregation
@@ -404,10 +404,10 @@ Between refreshes, server functions reading `enriched` get the cached result.
 
 ```tova
 // Inner join (default): only matching rows
-orders |> join(products, on: .product_id)
+orders |> join(products, left: .product_id, right: .product_id)
 
 // Left join: all rows from left, matching from right
-orders |> join(products, on: .product_id, type: "left")
+orders |> join(products, left: .product_id, right: .product_id, how: "left")
 ```
 
 ### Key Functions

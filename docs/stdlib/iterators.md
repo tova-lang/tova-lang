@@ -151,14 +151,14 @@ total = iter([1, 2, 3, 4]).reduce(fn(acc, x) acc + x, 0)
 ### first
 
 ```tova
-seq.first() -> T | Nil
+seq.first() -> Option<T>
 ```
 
-Returns the first element, or `nil` if empty.
+Returns `Some(element)` for the first element, or `None` if empty.
 
 ```tova
-iter([10, 20, 30]).first()    // 10
-iter([]).first()               // nil
+iter([10, 20, 30]).first()    // Some(10)
+iter([]).first()               // None
 ```
 
 ### count
@@ -213,13 +213,13 @@ iter([2, 4, 6]).all(fn(x) x % 2 == 0)    // true
 ### find
 
 ```tova
-seq.find(fn) -> T | Nil
+seq.find(fn) -> Option<T>
 ```
 
-Returns the first element matching the predicate, or `nil`.
+Returns `Some(element)` for the first element matching the predicate, or `None`.
 
 ```tova
-iter(users).find(fn(u) u.name == "Alice")
+iter(users).find(fn(u) u.name == "Alice")    // Some({ name: "Alice", ... })
 ```
 
 ---

@@ -4,6 +4,10 @@ The `Table` class provides a tabular data structure for structured data processi
 
 For reading and writing table data, see the [I/O guide](../guide/io.md). For data pipelines and the `data {}` block, see [Tables & Data](../guide/data.md).
 
+::: warning Partial Implementation
+Table query methods (`.where()`, `.select()`, `.derive()`, `.sort_by()`, `.group_by()`, `.join()`, etc.) are not yet available as instance methods. Use the standalone collection functions (`filter`, `sorted`, `map`) on `t.rows` as an alternative.
+:::
+
 ---
 
 ## Constructor
@@ -31,10 +35,18 @@ t = Table([
 ### rows
 
 ```tova
-t.rows -> [Object]
+t.rows -> Int
 ```
 
-The underlying array of row objects.
+The number of rows in the table.
+
+### length
+
+```tova
+t.length -> Int
+```
+
+Alias for `rows`. The number of rows in the table.
 
 ### columns
 
@@ -47,13 +59,58 @@ The column names in order.
 ### shape
 
 ```tova
-t.shape -> (Int, Int)
+t.shape -> [Int, Int]
 ```
 
-Returns `(row_count, column_count)`.
+Returns `[row_count, column_count]`.
 
 ```tova
-t.shape    // (3, 3)
+t.shape    // [3, 3]
+```
+
+---
+
+## Access
+
+### toArray
+
+```tova
+t.toArray() -> [Object]
+```
+
+Returns the underlying rows as an array of objects.
+
+### at
+
+```tova
+t.at(index) -> Object | Nil
+```
+
+Returns the row at the given index. Supports negative indices.
+
+```tova
+first = t.at(0)     // first row
+last = t.at(-1)     // last row
+```
+
+### slice
+
+```tova
+t.slice(start, end) -> Table
+```
+
+Returns a new table with rows from `start` to `end`.
+
+### getColumn
+
+```tova
+t.getColumn(name) -> [Any]
+```
+
+Returns all values of a column as an array.
+
+```tova
+names = t.getColumn("name")   // ["Alice", "Bob", "Carol"]
 ```
 
 ---
@@ -145,24 +202,24 @@ t.group_by(.city)
 grouped.agg(name: agg_fn, ...) -> Table
 ```
 
-Aggregates grouped data. Available aggregation functions:
+Aggregates grouped data. Inside `agg()`, use these aggregation functions (the compiler automatically transforms them to their `agg_*` runtime equivalents):
 
 | Function | Description |
 |----------|-------------|
-| `agg_sum(column)` | Sum of column values |
-| `agg_count()` | Number of rows in each group |
-| `agg_mean(column)` | Mean (average) of column values |
-| `agg_median(column)` | Median of column values |
-| `agg_min(column)` | Minimum column value |
-| `agg_max(column)` | Maximum column value |
+| `sum(.column)` | Sum of column values |
+| `count()` | Number of rows in each group |
+| `mean(.column)` | Mean (average) of column values |
+| `median(.column)` | Median of column values |
+| `min(.column)` | Minimum column value |
+| `max(.column)` | Maximum column value |
 
 ```tova
 summary = t
   |> group_by(.city)
   |> agg(
-    count: agg_count(),
-    avg_age: agg_mean(.age),
-    oldest: agg_max(.age)
+    count: count(),
+    avg_age: mean(.age),
+    oldest: max(.age)
   )
 ```
 
@@ -179,9 +236,8 @@ t.join(other, opts) -> Table
 Joins two tables on matching columns.
 
 Options:
-- `on` -- the column to join on (same name in both tables)
-- `left` / `right` -- column names if they differ
-- `how` -- join type: `"inner"` (default), `"left"`, `"outer"`
+- `left` / `right` -- column names or accessors to join on
+- `how` -- join type: `"inner"` (default), `"left"`
 
 ```tova
 users = Table([
@@ -195,10 +251,11 @@ orders = Table([
   { user_id: 2, amount: 70 }
 ])
 
-result = users.join(orders, left: "id", right: "user_id")
-// Inner join by default
+// Inner join (default)
+result = users |> join(orders, left: "id", right: "user_id")
 
-left_result = users.join(orders, left: "id", right: "user_id", how: "left")
+// Left join — keeps all rows from the left table
+left_result = users |> join(orders, left: "id", right: "user_id", how: "left")
 ```
 
 ---
@@ -208,10 +265,10 @@ left_result = users.join(orders, left: "id", right: "user_id", how: "left")
 ### pivot
 
 ```tova
-t.pivot(index, columns, values) -> Table
+t |> pivot(index: column, columns: column, values: column) -> Table
 ```
 
-Pivots rows into columns.
+Pivots rows into columns. Takes named arguments `index`, `columns`, and `values`.
 
 ```tova
 sales = Table([
@@ -220,18 +277,20 @@ sales = Table([
   { region: "West", quarter: "Q1", revenue: 200 }
 ])
 
-sales.pivot("region", "quarter", "revenue")
-// { region: "East", Q1: 100, Q2: 150 }
-// { region: "West", Q1: 200, Q2: nil }
+sales |> pivot(index: "region", columns: "quarter", values: "revenue")
+// { _index: "East", Q1: 100, Q2: 150 }
+// { _index: "West", Q1: 200, Q2: nil }
 ```
+
+Note: The index column is renamed to `_index` in the output.
 
 ### unpivot
 
 ```tova
-t.unpivot(columns, names) -> Table
+t |> unpivot(id: column, columns: [String]) -> Table
 ```
 
-Converts columns into rows (the inverse of pivot).
+Converts columns into rows (the inverse of pivot). Takes named arguments `id` (the identifier column) and `columns` (column names to unpivot). Returns a table with `id`, `variable`, and `value` columns.
 
 ### explode
 
@@ -260,14 +319,14 @@ t.explode("tags")
 ### drop_duplicates
 
 ```tova
-t.drop_duplicates(columns?) -> Table
+t |> drop_duplicates(by?: column) -> Table
 ```
 
-Removes duplicate rows. Optionally specify columns to check for uniqueness.
+Removes duplicate rows. Optionally specify a column to check for uniqueness via the `by` option. Without `by`, compares entire rows.
 
 ```tova
-t.drop_duplicates()
-t.drop_duplicates(["name", "email"])
+t |> drop_duplicates()
+t |> drop_duplicates(by: .email)
 ```
 
 ### rename
@@ -298,14 +357,13 @@ t.cast("price", "Float")
 ### drop_nil
 
 ```tova
-t.drop_nil(column?) -> Table
+t |> drop_nil(column) -> Table
 ```
 
-Removes rows where the specified column is `nil`. If no column is specified, removes rows where any column is `nil`.
+Removes rows where the specified column is `nil`.
 
 ```tova
-t.drop_nil(.email)
-t.drop_nil()
+t |> drop_nil(.email)
 ```
 
 ### fill_nil
@@ -328,14 +386,14 @@ t.fill_nil(.status, "unknown")
 ### peek
 
 ```tova
-t.peek(n?, title?) -> Table
+t |> peek(n?: Int, title?: String) -> Table
 ```
 
 Prints a preview of the table and returns it (passthrough for pipelines). Shows the first `n` rows (default 10).
 
 ```tova
 data |> peek()
-data |> peek(5, title: "Sample data")
+data |> peek(n: 5, title: "Sample data")
 ```
 
 ### describe
@@ -391,9 +449,9 @@ result = read("sales.csv")
   |> derive(.quarter = date_format(.date, "QQ YYYY"))
   |> group_by(.region)
   |> agg(
-    total: agg_sum(.amount),
-    count: agg_count(),
-    avg: agg_mean(.amount)
+    total: sum(.amount),
+    count: count(),
+    avg: mean(.amount)
   )
   |> sort_by(.total, desc: true)
   |> peek(title: "Revenue by Region")

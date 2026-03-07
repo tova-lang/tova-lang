@@ -33,7 +33,11 @@ fn withdraw(account, amount) {
 assert_eq(a, b, msg?) -> Nil
 ```
 
-Throws an error if `a !== b`. The error message includes both values for easy debugging. An optional `msg` provides additional context.
+Throws an error if `a` and `b` are not strictly equal. The error message includes both values for easy debugging. An optional `msg` provides additional context.
+
+::: warning Reference Equality
+`assert_eq` uses strict equality (`===`), which compares by **reference** for arrays and objects. Two arrays with the same contents are not equal: `assert_eq([1, 2], [1, 2])` will **fail**. Use `assert_eq(json_stringify(a), json_stringify(b))` to compare arrays or objects by value, or compare scalar properties individually.
+:::
 
 ```tova
 assert_eq(2 + 2, 4)                        // passes
@@ -88,7 +92,7 @@ fn test_random() {
 ## assert_throws
 
 ```tova
-assert_throws(func, expected?) -> Nil
+assert_throws(func, expected?) -> Error
 ```
 
 Calls `func` and asserts that it throws an error. If no error is thrown, the assertion fails. The optional `expected` parameter can be:
@@ -99,7 +103,7 @@ Calls `func` and asserts that it throws an error. If no error is thrown, the ass
 ```tova
 assert_throws(fn() divide(1, 0))                        // passes if it throws
 assert_throws(fn() divide(1, 0), "divide by zero")      // passes if message contains "divide by zero"
-assert_throws(fn() parse("abc"), RegExp.new("invalid"))  // passes if message matches /invalid/
+assert_throws(fn() parse("abc"), re("invalid"))           // passes if message matches /invalid/
 ```
 
 ```tova
@@ -145,20 +149,20 @@ Assertions are the primary tool for writing Tova tests. Tova test files use `fn 
 
 ```tova
 fn test_sorted() {
-  assert_eq(sorted([3, 1, 2]), [1, 2, 3])
-  assert_eq(sorted([]), [])
-  assert_eq(sorted([1]), [1])
+  assert_eq(json_stringify(sorted([3, 1, 2])), json_stringify([1, 2, 3]))
+  assert_eq(len(sorted([])), 0)
+  assert_eq(first(sorted([1])), 1)
 }
 
 fn test_reversed() {
-  assert_eq(reversed([1, 2, 3]), [3, 2, 1])
-  assert_eq(reversed([]), [])
+  assert_eq(json_stringify(reversed([1, 2, 3])), json_stringify([3, 2, 1]))
+  assert_eq(len(reversed([])), 0)
 }
 
 fn test_partition() {
   evens, odds = partition([1, 2, 3, 4], fn(x) x % 2 == 0)
-  assert_eq(evens, [2, 4])
-  assert_eq(odds, [1, 3])
+  assert_eq(json_stringify(evens), json_stringify([2, 4]))
+  assert_eq(json_stringify(odds), json_stringify([1, 3]))
 }
 ```
 

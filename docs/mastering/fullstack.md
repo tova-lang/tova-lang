@@ -1101,7 +1101,7 @@ data {
   pipeline in_stock = products |> where(.quantity > 0)
   pipeline by_category = in_stock
     |> group_by(.category)
-    |> agg(count: count(), avg_price: avg(.price))
+    |> agg(count: count(), avg_price: mean(.price))
 }
 
 server {

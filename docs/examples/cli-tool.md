@@ -148,7 +148,7 @@ fn analyze_logs(log_path: String) -> Result<LogReport, String> {
 
   error_messages = errors
     |> select(.message)
-    |> drop_duplicates(.message)
+    |> drop_duplicates(by: .message)
     |> limit(20)
 
   report = LogReport {

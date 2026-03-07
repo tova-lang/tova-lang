@@ -90,11 +90,10 @@ result = await race([
 ```
 
 ```tova
-// Implement a timeout using race
-result = await race([
-  fetch("/api/slow"),
-  sleep(5000) |> fn() Err("Timed out")
-])
+// Implement a timeout using the timeout() function
+result = await try_async(fn() {
+  timeout(fetch("/api/slow"), 5000)
+})
 ```
 
 ### timeout

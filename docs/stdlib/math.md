@@ -246,17 +246,17 @@ to_degrees(PI)    // 180
 
 ## Logarithms & Exponentials
 
-### log
+### ln
 
 ```tova
-log(n) -> Float
+ln(n) -> Float
 ```
 
-Natural logarithm (base e).
+Natural logarithm (base e). Also available as `math.log(n)`.
 
 ```tova
-log(E)        // 1
-log(1)        // 0
+ln(E)         // 1
+ln(1)         // 0
 ```
 
 ### log2, log10
@@ -687,15 +687,15 @@ to_octal(255)      // "377"
 ### to_fixed
 
 ```tova
-to_fixed(n, decimals) -> Float
+to_fixed(n, decimals) -> Number
 ```
 
-Rounds a number to a fixed number of decimal places and returns a number (not a string).
+Rounds a number to a fixed number of decimal places and returns a number (not a string). Returns `Float` when `decimals > 0`, `Int` when `decimals == 0`.
 
 ```tova
-to_fixed(3.14159, 2)    // 3.14
-to_fixed(3.7, 0)         // 4
-to_fixed(1.005, 2)       // 1
+to_fixed(3.14159, 2)    // 3.14  (Float)
+to_fixed(3.7, 0)         // 4    (Int)
+to_fixed(1.005, 2)       // 1.0  (Float, due to IEEE 754 rounding)
 ```
 
 ---

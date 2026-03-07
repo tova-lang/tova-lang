@@ -71,7 +71,7 @@ data {
       .body = .body |> trim()
     )
     |> where(.body |> len() > 100)
-    |> drop_duplicates(.url)
+    |> drop_duplicates(by: .url)
     |> sort_by(.published_at, desc: true)
 
   // AI enrichment pipeline

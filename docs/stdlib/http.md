@@ -283,9 +283,9 @@ resp.body        // "User-agent: *\nDisallow: /admin"
 
 ```tova
 users = http.get("https://api.example.com/users").unwrap().body
-each(users, fn(user) {
-  print("${user.name}: ${user.email}")
-})
+for user in users {
+  print("{user.name}: {user.email}")
+}
 ```
 
 ### POST with JSON Body
@@ -296,7 +296,7 @@ new_user = http.post("https://api.example.com/users", {
   email: "bob@example.com",
   role: "admin"
 }).unwrap()
-print("Created user #${new_user.body.id}")
+print("Created user #{new_user.body.id}")
 ```
 
 ### Bearer Auth
@@ -306,7 +306,7 @@ result = http.get("https://api.example.com/me", {
   bearer: env("AUTH_TOKEN")
 })
 profile = result.unwrap().body
-print("Logged in as ${profile.username}")
+print("Logged in as {profile.username}")
 ```
 
 ### Query Parameters
@@ -316,7 +316,7 @@ result = http.get("https://api.example.com/search", {
   params: { q: "tova lang", page: "1", limit: "20" }
 })
 results = result.unwrap().body
-print("Found ${len(results.items)} results")
+print("Found {len(results.items)} results")
 ```
 
 ### File Upload with FormData
@@ -331,8 +331,8 @@ result = http.post("https://api.example.com/upload", {
   timeout: 60000
 })
 match result {
-  Ok(resp) -> print("Uploaded: ${resp.body.url}")
-  Err(msg) -> print("Upload failed: ${msg}")
+  Ok(resp) => print("Uploaded: {resp.body.url}")
+  Err(msg) => print("Upload failed: {msg}")
 }
 ```
 
@@ -341,15 +341,15 @@ match result {
 ```tova
 result = http.get_stream("https://api.example.com/events")
 match result {
-  Ok(resp) -> {
+  Ok(resp) => {
     reader = resp.body.getReader()
     loop {
       chunk = await reader.read()
       if chunk.done { break }
-      print("Chunk: ${chunk.value}")
+      print("Chunk: {chunk.value}")
     }
   }
-  Err(msg) -> print("Stream error: ${msg}")
+  Err(msg) => print("Stream error: {msg}")
 }
 ```
 
@@ -359,12 +359,12 @@ match result {
 result = http.get("https://api.example.com/users/999")
 
 match result {
-  Err(msg) -> print("Network error: ${msg}")
-  Ok(resp) -> {
+  Err(msg) => print("Network error: {msg}")
+  Ok(resp) => {
     if resp.ok {
-      print("User: ${resp.body.name}")
+      print("User: {resp.body.name}")
     } else {
-      print("HTTP ${resp.status}: user not found")
+      print("HTTP {resp.status}: user not found")
     }
   }
 }
@@ -380,7 +380,7 @@ result = http.get("https://unreliable-api.example.com/data", {
 })
 
 match result {
-  Ok(resp) -> print("Got data after retries: ${resp.body}")
-  Err(msg) -> print("All attempts failed: ${msg}")
+  Ok(resp) => print("Got data after retries: {resp.body}")
+  Err(msg) => print("All attempts failed: {msg}")
 }
 ```

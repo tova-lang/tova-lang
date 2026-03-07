@@ -14,11 +14,11 @@ This is the most important part of the standard library. Master these types and 
 ```tova
 // Result: parsing can fail
 fn parse_int(s) {
-  n = Int.new(s)
-  if n != n {    // NaN check
+  n = to_int(s)
+  if n == nil {
     Err("not a valid integer: {s}")
   } else {
-    Ok(floor(n))
+    Ok(n)
   }
 }
 

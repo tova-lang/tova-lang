@@ -984,28 +984,27 @@ compare(5, 5)        // Equal
 compare("b", "a")    // Greater
 ```
 
-Useful for custom sort functions:
+Useful for key-based sorting:
 
 ```tova
-items |> sorted(fn(a, b) {
-  match compare(a.priority, b.priority) {
-    Equal => compare(a.name, b.name)
-    result => result
-  }
-})
+// Sort by a single key
+items |> sorted(fn(item) item.priority)
+
+// Sort by priority, then by name (use a composite key)
+items |> sorted(fn(item) [item.priority, item.name])
 ```
 
 ### compare_by
 
 ```tova
-compare_by(a, b, fn) -> Ordering
+compare_by(arr, fn) -> List
 ```
 
-Compares two values by applying a key function first, then comparing the results.
+Sorts an array using a comparator function that returns an `Ordering` value.
 
 ```tova
-compare_by(user_a, user_b, fn(u) u.age)    // compare by age
-compare_by("hello", "hi", fn(s) len(s))    // compare by length
+compare_by(users, fn(a, b) compare(a.age, b.age))    // sort by age
+compare_by(words, fn(a, b) compare(len(a), len(b)))   // sort by length
 ```
 
 ---

@@ -188,10 +188,12 @@ time_ago(d) -> String
 Returns a human-readable relative time string. Accepts a `Date` or a Unix timestamp.
 
 ```tova
-time_ago(date_add(now(), -30, "seconds") |> date_from_ts())
+past = date_add(date_from({ year: 2024, month: 1, day: 1 }), -30, "seconds")
+time_ago(past)
 // "30 seconds ago"
 
-time_ago(date_add(date_from({ year: 2024, month: 1, day: 1 }), -5, "minutes"))
+past2 = date_add(date_from({ year: 2024, month: 1, day: 1 }), -5, "minutes")
+time_ago(past2)
 // "5 minutes ago"
 ```
 

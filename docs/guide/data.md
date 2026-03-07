@@ -32,9 +32,9 @@ users: Table<User> = read("users.csv")
 Every Table exposes metadata about its shape:
 
 ```tova
-users.rows       // 3
+users.rows       // 3 (row count)
 users.columns    // ["name", "age", "city"]
-users.shape      // (3, 3) — (rows, columns)
+users.shape      // [3, 3] — [rows, columns]
 ```
 
 ### Accessing Rows
@@ -205,14 +205,8 @@ Join types:
 // Inner join (default) — only matching rows
 orders |> join(products, left: .pid, right: .id)
 
-// Left join — all rows from left table
+// Left join — all rows from left table, nil for unmatched right columns
 orders |> join(products, left: .pid, right: .id, how: "left")
-
-// Right join — all rows from right table
-orders |> join(products, left: .pid, right: .id, how: "right")
-
-// Outer join — all rows from both tables
-orders |> join(products, left: .pid, right: .id, how: "outer")
 ```
 
 ### Reshaping
@@ -222,7 +216,7 @@ orders |> join(products, left: .pid, right: .id, how: "outer")
 wide = data |> pivot(index: .date, columns: .category, values: .amount)
 
 // Unpivot: wide to long
-long = data |> unpivot(id: .name, columns: [.q1, .q2, .q3])
+long = data |> unpivot(id: "name", columns: ["q1", "q2", "q3"])
 
 // Explode: unnest arrays into rows
 flat = data |> explode(.tags)
@@ -243,7 +237,7 @@ unique = users |> drop_duplicates(by: .email)
 ### Renaming Columns
 
 ```tova
-renamed = users |> rename(.email, "email_address")
+renamed = users |> rename("email", "email_address")
 ```
 
 ## Data Cleaning
@@ -296,12 +290,12 @@ sales |> describe()
 // amount │ Float │ 4982     │ 245.3 │ 0.5 │ 9999.0
 ```
 
-### `schema()`
+### `schema_of()`
 
 Inspect column names and types:
 
 ```tova
-sales |> schema()
+sales |> schema_of()
 // Schema:
 //   date: String
 //   region: String
@@ -322,17 +316,17 @@ sales |> schema()
 | `limit` | `\|> limit(10)` | Take first N |
 | `join` | `\|> join(other, left: .id, right: .uid)` | Join tables |
 | `pivot` | `\|> pivot(index: .date, columns: .cat, values: .amt)` | Long to wide |
-| `unpivot` | `\|> unpivot(id: .name, columns: [.q1, .q2])` | Wide to long |
+| `unpivot` | `\|> unpivot(id: "name", columns: ["q1", "q2"])` | Wide to long |
 | `explode` | `\|> explode(.tags)` | Unnest arrays |
 | `union` | `\|> union(other_table)` | Combine tables |
 | `drop_duplicates` | `\|> drop_duplicates(by: .email)` | Remove dupes |
 | `drop_nil` | `\|> drop_nil(.email)` | Remove rows with nil |
 | `fill_nil` | `\|> fill_nil(.city, "Unknown")` | Replace nil values |
 | `cast` | `\|> cast(.age, "Int")` | Convert column type |
-| `rename` | `\|> rename(.old, "new")` | Rename a column |
+| `rename` | `\|> rename("old", "new")` | Rename a column |
 | `peek` | `\|> peek()` | Preview data (transparent) |
 | `describe` | `\|> describe()` | Statistical summary |
-| `schema` | `\|> schema()` | Column types |
+| `schema_of` | `\|> schema_of()` | Column types |
 
 ## Practical Tips
 

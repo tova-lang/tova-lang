@@ -21,10 +21,8 @@ keys({})
 ```
 
 ```tova
-// Check if an object has a specific key
-fn has_key(obj, key) {
-  contains(keys(obj), key)
-}
+// Check if an object has a specific key (see also the built-in has_key function)
+has_key({ name: "Alice" }, "name")   // true
 ```
 
 ### values

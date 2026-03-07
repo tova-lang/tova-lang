@@ -47,12 +47,12 @@ orders = raw_orders
     .order_date = .order_date |> trim()
   )
   |> where(.status != "CANCELLED")
-  |> drop_duplicates(.order_id)
+  |> drop_duplicates(by: .order_id)
   |> sort_by(.order_date)
 
 products = raw_products
   |> drop_nil(.name)
-  |> rename(.unit_cost, .cost)
+  |> rename("unit_cost", "cost")
   |> derive(
     .name = .name |> trim(),
     .category = .category |> lower() |> trim()
@@ -61,7 +61,7 @@ products = raw_products
 // --- Joining ---
 
 order_details = orders
-  |> join(products, on: .product_id)
+  |> join(products, left: .product_id, right: .product_id)
   |> derive(
     .total = .quantity * .price,
     .margin = (.price - .cost) * .quantity
@@ -102,7 +102,7 @@ monthly_category = order_details
 
 // Unpivot back to long format
 monthly_long = monthly_category
-  |> unpivot(index: .month, name: "category", value: "revenue")
+  |> unpivot(id: "_index", columns: ["electronics", "clothing", "food"])
 
 // --- Streaming for Large Files ---
 
@@ -189,7 +189,7 @@ orders = raw_orders
   |> cast(.price, Float)              // Ensure price is numeric
   |> derive(.status = .status |> upper() |> trim())  // Normalize strings
   |> where(.status != "CANCELLED")    // Filter out cancelled
-  |> drop_duplicates(.order_id)       // Remove duplicate orders
+  |> drop_duplicates(by: .order_id)       // Remove duplicate orders
   |> sort_by(.order_date)             // Sort chronologically
 ```
 
@@ -199,7 +199,7 @@ Each operation returns a new table — tables are immutable.
 
 ```tova
 order_details = orders
-  |> join(products, on: .product_id)
+  |> join(products, left: .product_id, right: .product_id)
   |> derive(
     .total = .quantity * .price,
     .margin = (.price - .cost) * .quantity
@@ -234,7 +234,7 @@ monthly_category
 
 // Wide → Long: collapse columns back to rows
 monthly_category
-  |> unpivot(index: .month, name: "category", value: "revenue")
+  |> unpivot(id: "_index", columns: ["electronics", "clothing", "food"])
 ```
 
 ### Streaming Large Files

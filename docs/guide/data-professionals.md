@@ -188,22 +188,22 @@ Combine two tables on matching columns:
 
 ```tova
 // Inner join (default) — only matching rows
-order_details = orders |> join(products, on: .product_id)
+order_details = orders |> join(products, left: .product_id, right: .product_id)
 
 // Left join — all rows from left table
-full_report = orders |> join(products, on: .product_id, how: "left")
+full_report = orders |> join(products, left: .product_id, right: .product_id, how: "left")
 
 // When column names differ between tables
 merged = orders |> join(products, left: .prod_id, right: .product_id)
 ```
 
-Join types: `"inner"` (default), `"left"`, `"right"`, `"outer"`.
+Join types: `"inner"` (default), `"left"`.
 
 After a join, columns from both tables are available:
 
 ```tova
 order_details = orders
-  |> join(products, on: .product_id)
+  |> join(products, left: .product_id, right: .product_id)
   |> derive(
     .total = .quantity * .price,        // .quantity from orders
     .margin = (.price - .cost) * .quantity  // .cost from products
@@ -415,7 +415,7 @@ Common cleaning operations, all pipe-friendly:
 
 ```tova
 // Deduplication
-orders |> drop_duplicates(.order_id)
+orders |> drop_duplicates(by: .order_id)
 
 // Nil handling
 orders |> drop_nil(.email)
@@ -436,7 +436,7 @@ orders |> derive(
 )
 
 // Renaming
-orders |> rename(.unit_cost, .cost)
+orders |> rename("unit_cost", "cost")
 ```
 
 ### Reshaping: Pivot and Unpivot
@@ -468,7 +468,7 @@ data {
   // Layer 2: Clean
   pipeline clean = raw
     |> drop_nil(.customer_id)
-    |> drop_duplicates(.order_id)
+    |> drop_duplicates(by: .order_id)
     |> cast(.price, Float)
     |> derive(.status = .status |> upper() |> trim())
 
@@ -563,7 +563,7 @@ orders = raw_orders
   |> cast(.price, Float)
   |> derive(.status = .status |> upper() |> trim())
   |> where(.status != "CANCELLED")
-  |> drop_duplicates(.order_id)
+  |> drop_duplicates(by: .order_id)
   |> sort_by(.order_date)
 
 products = raw_products
@@ -575,7 +575,7 @@ products = raw_products
 
 // --- Join ---
 order_details = orders
-  |> join(products, on: .product_id)
+  |> join(products, left: .product_id, right: .product_id)
   |> derive(
     .total = .quantity * .price,
     .margin = (.price - .unit_cost) * .quantity
@@ -1269,11 +1269,11 @@ See [Standard Library](/stdlib/) for the complete API reference.
 | Add column | `df['total'] = df['qty'] * df['price']` | `t \|> derive(.total = .qty * .price)` |
 | Group + agg | `df.groupby('region').agg(...)` | `t \|> group_by(.region) \|> agg(...)` |
 | Sort | `df.sort_values('score', ascending=False)` | `t \|> sort_by(.score, desc: true)` |
-| Join | `pd.merge(a, b, on='id')` | `a \|> join(b, on: .id)` |
+| Join | `pd.merge(a, b, on='id')` | `a \|> join(b, left: .id, right: .id)` |
 | Pivot | `df.pivot_table(...)` | `t \|> pivot(index: .date, columns: .cat, values: .amt)` |
 | Handle nulls | `df.dropna(subset=['email'])` | `t \|> drop_nil(.email)` |
 | Fill nulls | `df['col'].fillna(0)` | `t \|> fill_nil(.col, 0)` |
-| Deduplicate | `df.drop_duplicates(subset=['id'])` | `t \|> drop_duplicates(.id)` |
+| Deduplicate | `df.drop_duplicates(subset=['id'])` | `t \|> drop_duplicates(by: .id)` |
 | Describe | `df.describe()` | `t \|> describe()` |
 | Error handling | `try/except` (silent failures) | `Result` with `?` (enforced) |
 | Deploy as API | Flask + CORS + gunicorn + Docker | `server { }` block |

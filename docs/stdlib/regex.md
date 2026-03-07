@@ -2,6 +2,10 @@
 
 Tova provides functions for working with regular expressions. These are essential for validation, text parsing, and data extraction.
 
+::: tip String Quoting for Regex
+Use **single-quoted strings** for regex patterns that contain curly braces (`{n}`, `{2,4}`, etc.), since double-quoted strings treat `{}` as string interpolation. For example: `'\\d{4}'` instead of `"\\d{4}"`.
+:::
+
 ## Testing
 
 ### regex_test
@@ -57,8 +61,8 @@ regex_find_all("a1b2c3", "\\d")
 //  {match: "2", index: 3, groups: []},
 //  {match: "3", index: 5, groups: []}]
 
-// With capture groups
-regex_find_all("2024-01-15, 2024-02-20", "(\\d{4})-(\\d{2})-(\\d{2})")
+// With capture groups (use single quotes for brace quantifiers)
+regex_find_all("2024-01-15, 2024-02-20", '(\\d{4})-(\\d{2})-(\\d{2})')
 // [{match: "2024-01-15", groups: ["2024", "01", "15"]}, ...]
 ```
 
@@ -71,7 +75,7 @@ regex_capture(s, pattern, flags?) -> Result<Object, String>
 Extracts named capture groups as an object. Returns `Err` if no match or no named groups.
 
 ```tova
-result = regex_capture("2024-01-15", "(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
+result = regex_capture("2024-01-15", '(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})')
 groups = result.unwrap()
 groups.year      // "2024"
 groups.month     // "01"
@@ -131,6 +135,7 @@ regex_split("a,b;c:d", "[,;:]")
 
 ## Regex Builder
 
+
 ### regex_builder
 
 ```tova
@@ -188,7 +193,7 @@ date_re = regex_builder()
 ```tova
 // Extract all emails from text
 text
-  |> regex_find_all("[\\w.]+@[\\w.]+\\.[a-z]{2,}")
+  |> regex_find_all('[\\w.]+@[\\w.]+\\.[a-z]{2,}')
   |> map(fn(m) m.match)
 
 // Clean and validate input

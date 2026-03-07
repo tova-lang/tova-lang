@@ -208,7 +208,7 @@ test "spy with implementation" {
 
 | Method | Description |
 |--------|-------------|
-| `.called_with(args)` | Returns `true` if the spy was ever called with the given arguments |
+| `.called_with(...args)` | Returns `true` if the spy was ever called with the given arguments |
 | `.reset()` | Clears all call tracking (resets `called`, `call_count`, `calls`) |
 
 ```tova
