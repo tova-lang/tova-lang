@@ -509,10 +509,10 @@ data_path = path_join(script_location, "data", "users.json")
 For interactive programs and scripts, read from stdin:
 
 ```tova
-// Read a single line from standard input
+// Read all input from standard input (blocks until EOF)
 print("What is your name?")
 user_name = read_stdin()
-print("Hello, {user_name}!")
+print("Hello, {trim(user_name)}!")
 ```
 
 For CLI tools, combine with the `ask()` and `confirm()` stdlib functions (see the CLI block chapter) which handle prompting and validation.

@@ -89,31 +89,24 @@ config |> write("config.json")
 Add data to an existing file without overwriting:
 
 ```tova
-for chunk in stream("huge.csv", batch: 1000) {
-  chunk |> where(.valid) |> write("clean.csv", append: true)
-}
+// Write additional data without overwriting
+new_rows |> write("data.csv", append: true)
 ```
 
 ## Streaming Large Files
 
-The `stream()` function reads a file in batches, yielding one `Table` per batch. This lets you process files that are too large to fit in memory:
+::: warning Not Yet Implemented
+The `stream()` function for batch file processing is planned but not yet available. For now, read files with `read()` or process large files by reading with `fs.read_text()` and splitting manually.
+:::
+
+When available, `stream()` will read a file in batches, yielding one `Table` per batch for processing files too large to fit in memory:
 
 ```tova
+// Planned API:
 for chunk in stream("huge.csv", batch: 1000) {
   chunk
     |> where(.amount > 0)
     |> write("filtered.csv", append: true)
-}
-```
-
-Each chunk is a `Table` with the same columns as the full file. The default batch size is 1,000 rows.
-
-`stream()` supports CSV and JSONL formats:
-
-```tova
-// Stream JSONL
-for chunk in stream("events.jsonl", batch: 500) {
-  process(chunk)
 }
 ```
 
@@ -205,7 +198,7 @@ server {
 
 **Let the extension do the work.** You almost never need to specify format options. Just use the right file extension and `read()`/`write()` handles the rest.
 
-**Use `stream()` for large files.** If a file has more than 100,000 rows, consider streaming it in batches instead of loading it all at once. This keeps memory usage constant regardless of file size.
+**Watch memory on large files.** If a file has more than 100,000 rows, consider processing it in smaller chunks or splitting the file before loading.
 
 **Combine `read()` with pipes.** Since `read()` returns a `Table`, you can immediately pipe into table operations:
 

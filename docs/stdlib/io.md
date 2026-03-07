@@ -43,23 +43,27 @@ Returns `true` if the path is a directory.
 ### fs.ls
 
 ```tova
-fs.ls(dir?) -> [String]
+fs.ls(dir?, opts?) -> [String]
 ```
 
-Lists entries in a directory. Defaults to the current directory.
+Lists entries in a directory. Defaults to the current directory. Pass `opts.full` to get full paths.
 
 ```tova
 files = fs.ls("src/")
 // ["main.tova", "utils.tova", "lib/"]
+
+// Full paths
+full = fs.ls("src/", full: true)
+// ["src/main.tova", "src/utils.tova", "src/lib/"]
 ```
 
 ### fs.mkdir
 
 ```tova
-fs.mkdir(path) -> Nil
+fs.mkdir(path) -> Result<String>
 ```
 
-Creates a directory (and parent directories if needed).
+Creates a directory (and parent directories if needed). Returns `Ok(path)` on success, `Err(message)` on failure.
 
 ```tova
 fs.mkdir("output/reports")
@@ -68,18 +72,18 @@ fs.mkdir("output/reports")
 ### fs.rm
 
 ```tova
-fs.rm(path) -> Nil
+fs.rm(path, opts?) -> Result<String>
 ```
 
-Removes a file or directory.
+Removes a file or directory. Returns `Ok(path)` on success, `Err(message)` on failure. Supports `opts.recursive` and `opts.force`.
 
 ### fs.cp
 
 ```tova
-fs.cp(src, dest) -> Nil
+fs.cp(src, dest, opts?) -> Result<String>
 ```
 
-Copies a file or directory.
+Copies a file or directory. Returns `Ok(dest)` on success, `Err(message)` on failure. Supports `opts.recursive` for directory copies.
 
 ```tova
 fs.cp("template.tova", "new-project/main.tova")
@@ -88,46 +92,55 @@ fs.cp("template.tova", "new-project/main.tova")
 ### fs.mv
 
 ```tova
-fs.mv(src, dest) -> Nil
+fs.mv(src, dest) -> Result<String>
 ```
 
-Moves or renames a file or directory.
+Moves or renames a file or directory. Returns `Ok(dest)` on success, `Err(message)` on failure.
 
 ### fs.read_text
 
 ```tova
-fs.read_text(path) -> String
+fs.read_text(path, encoding?) -> Result<String>
 ```
 
-Reads the entire contents of a file as a string.
+Reads the entire contents of a file as a string. Returns `Ok(content)` on success, `Err(message)` on failure.
 
 ```tova
-content = fs.read_text("README.md")
+content = fs.read_text("README.md").unwrap()
 print(len(content))
+
+// With error handling
+match fs.read_text("README.md") {
+  Ok(text) => print(len(text))
+  Err(msg) => print("Could not read file: {msg}")
+}
 ```
 
 ### fs.write_text
 
 ```tova
-fs.write_text(path, content) -> Nil
+fs.write_text(path, content, opts?) -> Result<String>
 ```
 
-Writes a string to a file, creating it if it does not exist.
+Writes a string to a file, creating it if it does not exist. Returns `Ok(path)` on success, `Err(message)` on failure. Supports `opts.append` for append mode.
 
 ```tova
 fs.write_text("output.txt", "Hello, World!")
+
+// Append to a file
+fs.write_text("log.txt", "New entry\n", append: true)
 ```
 
 ### fs.read_bytes
 
 ```tova
-fs.read_bytes(path) -> Buffer
+fs.read_bytes(path) -> Result<Buffer>
 ```
 
-Reads the entire contents of a file as binary data.
+Reads the entire contents of a file as binary data. Returns `Ok(buffer)` on success, `Err(message)` on failure.
 
 ```tova
-data = fs.read_bytes("image.png")
+data = fs.read_bytes("image.png").unwrap()
 print("Read {len(data)} bytes")
 ```
 
@@ -147,21 +160,21 @@ test_files = fs.glob_files("tests/*.tova")
 ### fs.file_stat
 
 ```tova
-fs.file_stat(path) -> Object
+fs.file_stat(path) -> Result<Object>
 ```
 
-Returns file metadata (size, modified time, etc.).
+Returns file metadata. Returns `Ok({size, mode, mtime, atime, isDir, isFile, isSymlink})` on success, `Err(message)` on failure.
 
 ### fs.file_size
 
 ```tova
-fs.file_size(path) -> Int
+fs.file_size(path) -> Result<Int>
 ```
 
-Returns the file size in bytes.
+Returns the file size in bytes. Returns `Ok(size)` on success, `Err(message)` on failure.
 
 ```tova
-size = fs.file_size("data.csv")
+size = fs.file_size("data.csv").unwrap()
 print("File is {size} bytes")
 ```
 
@@ -209,7 +222,7 @@ path_basename("/home/user/file.tova")   // "file.tova"
 ### path_resolve
 
 ```tova
-path_resolve(...parts) -> String
+path_resolve(path) -> String
 ```
 
 Resolves a path to an absolute path.
@@ -242,18 +255,18 @@ Returns the relative path from `from` to `to`.
 ### symlink
 
 ```tova
-symlink(target, link_path) -> Nil
+symlink(target, link_path) -> Result<Nil>
 ```
 
-Creates a symbolic link.
+Creates a symbolic link. Returns `Ok(null)` on success, `Err(message)` on failure.
 
 ### readlink
 
 ```tova
-readlink(path) -> String
+readlink(path) -> Result<String>
 ```
 
-Returns the target of a symbolic link.
+Returns the target of a symbolic link. Returns `Ok(target)` on success, `Err(message)` on failure.
 
 ### is_symlink
 
@@ -270,14 +283,18 @@ Returns `true` if the path is a symbolic link.
 ### sh
 
 ```tova
-sh(cmd) -> String
+sh(cmd, opts?) -> Result<{stdout: String, stderr: String, exitCode: Int}>
 ```
 
-Runs a command through the system shell and returns the stdout output.
+Runs a command through the system shell. Returns `Ok({stdout, stderr, exitCode})` on success, `Err(message)` on failure. Supports `opts.cwd`, `opts.env`, and `opts.timeout`.
 
 ```tova
-output = sh("ls -la")
-version = sh("git --version")
+match sh("ls -la") {
+  Ok(result) => print(result.stdout)
+  Err(msg) => print("Command failed: {msg}")
+}
+
+version = sh("git --version").unwrap().stdout
 ```
 
 ::: warning
@@ -287,27 +304,34 @@ version = sh("git --version")
 ### exec
 
 ```tova
-exec(cmd, args) -> String
+exec(cmd, args?, opts?) -> Result<{stdout: String, stderr: String, exitCode: Int}>
 ```
 
-Runs a command with an explicit argument list. Arguments are passed directly to the process without shell interpretation, preventing injection vulnerabilities.
+Runs a command with an explicit argument list. Arguments are passed directly to the process without shell interpretation, preventing injection vulnerabilities. Returns `Ok({stdout, stderr, exitCode})` on success, `Err(message)` on failure. Supports `opts.cwd`, `opts.env`, and `opts.timeout`.
 
 ```tova
-output = exec("git", ["log", "--oneline", "-5"])
-result = exec("node", ["--version"])
+match exec("git", ["log", "--oneline", "-5"]) {
+  Ok(r) => print(r.stdout)
+  Err(msg) => print("Command failed: {msg}")
+}
+
+version = exec("node", ["--version"]).unwrap().stdout
 ```
 
 ### spawn
 
 ```tova
-spawn(cmd, args) -> Process
+spawn(cmd, args?, opts?) -> Promise<Result<{stdout: String, stderr: String, exitCode: Int}>>
 ```
 
-Spawns an async child process. Returns a `Process` object for streaming I/O.
+Spawns an async child process. Returns a `Promise` that resolves to `Ok({stdout, stderr, exitCode})` on success, `Err(message)` on failure. Supports `opts.cwd`, `opts.env`, and `opts.shell`.
 
 ```tova
-proc = spawn("python3", ["server.py"])
-await proc.wait()
+result = await spawn("python3", ["server.py"])
+match result {
+  Ok(r) => print("Exited with code {r.exitCode}")
+  Err(msg) => print("Failed to spawn: {msg}")
+}
 ```
 
 ---
@@ -321,14 +345,17 @@ For structured CLI tools with subcommands, typed arguments, and auto-generated h
 ### env
 
 ```tova
-env(key?) -> String | Object
+env(key?, fallback?) -> String | Object | Nil
 ```
 
-Returns an environment variable value, or all environment variables if no key is given.
+Returns an environment variable value, or all environment variables if no key is given. Returns `null` if the key is not set and no fallback is provided.
 
 ```tova
 home = env("HOME")
 all_vars = env()
+
+// With fallback value
+port = env("PORT", "3000")
 ```
 
 ### set_env
@@ -362,15 +389,17 @@ if len(arguments) < 2 {
 ### parse_args
 
 ```tova
-parse_args() -> Object
+parse_args(argv) -> {flags: Object, positional: [String]}
 ```
 
-Parses command-line arguments into a structured object with flags, options, and positional arguments.
+Parses command-line arguments into a structured object with `flags` (named options) and `positional` (positional arguments). Handles `--key value`, `--key=value`, `--flag` (boolean), and `-abc` (short flags).
 
 ```tova
-opts = parse_args()
+opts = parse_args(args())
 // tova run build.tova --output dist --verbose
-// { output: "dist", verbose: true, _: ["build.tova"] }
+// { flags: { output: "dist", verbose: true }, positional: ["build.tova"] }
+
+output_dir = opts.flags.output ?? "build"
 ```
 
 ### exit
@@ -403,31 +432,37 @@ print("Working in: {cwd()}")
 ### chdir
 
 ```tova
-chdir(dir) -> Nil
+chdir(dir) -> Result<String>
 ```
 
-Changes the current working directory.
+Changes the current working directory. Returns `Ok(dir)` on success, `Err(message)` on failure.
 
 ```tova
 chdir("/tmp")
 print(cwd())    // "/tmp"
+
+// With error handling
+match chdir("/nonexistent") {
+  Ok(_) => print("Changed directory")
+  Err(msg) => print("Could not change directory: {msg}")
+}
 ```
 
 ### script_path
 
 ```tova
-script_path() -> String
+script_path() -> String | Nil
 ```
 
-Returns the absolute path of the currently running script.
+Returns the absolute path of the currently running script, or `null` if not available.
 
 ### script_dir
 
 ```tova
-script_dir() -> String
+script_dir() -> String | Nil
 ```
 
-Returns the directory containing the currently running script.
+Returns the directory containing the currently running script, or `null` if not available.
 
 ### on_signal
 
@@ -507,7 +542,7 @@ for file in files {
 ### Environment Configuration
 
 ```tova
-port = env("PORT") ?? "3000" |> to_int()
+port = env("PORT", "3000") |> to_int()
 debug = env("DEBUG") == "true"
-db_url = env("DATABASE_URL") ?? "sqlite:./dev.db"
+db_url = env("DATABASE_URL", "sqlite:./dev.db")
 ```
