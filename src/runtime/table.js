@@ -753,3 +753,56 @@ export function filter_err(table) {
   const rows = table._rows.filter(r => r && r.__tag === 'Err').map(r => r.error);
   return new Table(rows);
 }
+
+// ── Sampling ────────────────────────────────────────────
+
+// Seeded PRNG (xorshift128)
+function _xorshift128(seed) {
+  let s = [seed, seed ^ 0xDEADBEEF, seed ^ 0x12345678, seed ^ 0x87654321];
+  return function() {
+    let t = s[3];
+    t ^= t << 11;
+    t ^= t >>> 8;
+    s[3] = s[2]; s[2] = s[1]; s[1] = s[0];
+    t ^= s[0]; t ^= s[0] >>> 19;
+    s[0] = t;
+    return (t >>> 0) / 4294967296;
+  };
+}
+
+export function table_sample(table, n, opts = {}) {
+  const total = table._rows.length;
+  let k = n < 1 ? Math.floor(n * total) : Math.min(n, total);
+  if (k <= 0) return new Table([], table._columns);
+  if (k >= total) return new Table([...table._rows], table._columns);
+
+  const rng = opts.seed != null ? _xorshift128(opts.seed) : () => Math.random();
+  const indices = Array.from({ length: total }, (_, i) => i);
+  for (let i = 0; i < k; i++) {
+    const j = i + Math.floor(rng() * (total - i));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const rows = [];
+  for (let i = 0; i < k; i++) rows.push(table._rows[indices[i]]);
+  return new Table(rows, table._columns);
+}
+
+export function table_stratified_sample(table, keyFn, n, opts = {}) {
+  const groups = new Map();
+  for (const row of table._rows) {
+    const key = String(typeof keyFn === 'function' ? keyFn(row) : row[keyFn]);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+
+  const allRows = [];
+  let gi = 0;
+  for (const [, groupRows] of groups) {
+    const groupTable = new Table(groupRows, table._columns);
+    const groupOpts = opts.seed != null ? { seed: opts.seed + gi * 7919 } : {};
+    const sampled = table_sample(groupTable, n, groupOpts);
+    allRows.push(...sampled._rows);
+    gi++;
+  }
+  return new Table(allRows, table._columns);
+}

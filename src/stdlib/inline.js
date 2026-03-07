@@ -1485,6 +1485,10 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   }
   return _makeLogger(null);
 })()`,
+  // ── Sampling ──────────────────────────────────────────
+  __xorshift128: `function __xorshift128(seed) { let s = [seed, seed ^ 0xDEADBEEF, seed ^ 0x12345678, seed ^ 0x87654321]; return function() { let t = s[3]; t ^= t << 11; t ^= t >>> 8; s[3] = s[2]; s[2] = s[1]; s[1] = s[0]; t ^= s[0]; t ^= s[0] >>> 19; s[0] = t; return (t >>> 0) / 4294967296; }; }`,
+  table_sample: `function table_sample(table, n, opts) { var total = table._rows.length; var k = n < 1 ? Math.floor(n * total) : Math.min(n, total); if (k <= 0) return Table([], table._columns); if (k >= total) return Table([].concat(table._rows), table._columns); var rng = opts && opts.seed != null ? __xorshift128(opts.seed) : function() { return Math.random(); }; var indices = Array.from({ length: total }, function(_, i) { return i; }); for (var i = 0; i < k; i++) { var j = i + Math.floor(rng() * (total - i)); var tmp = indices[i]; indices[i] = indices[j]; indices[j] = tmp; } var rows = []; for (var i = 0; i < k; i++) rows.push(table._rows[indices[i]]); return Table(rows, table._columns); }`,
+  table_stratified_sample: `function table_stratified_sample(table, keyFn, n, opts) { var groups = new Map(); for (var ri = 0; ri < table._rows.length; ri++) { var row = table._rows[ri]; var key = String(typeof keyFn === 'function' ? keyFn(row) : row[keyFn]); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); } var allRows = []; var gi = 0; groups.forEach(function(gr) { var gt = Table(gr, table._columns); var go = opts && opts.seed != null ? { seed: opts.seed + gi * 7919 } : {}; var s = table_sample(gt, n, go); for (var si = 0; si < s._rows.length; si++) allRows.push(s._rows[si]); gi++; }); return Table(allRows, table._columns); }`,
 };
 
 // All known builtin names for matching
@@ -1548,6 +1552,9 @@ export const STDLIB_DEPS = {
   cache: ['LRUCache', 'Some', 'None'],
   // Window functions require Table
   table_window: ['Table'],
+  // Sampling functions
+  table_sample: ['Table', '__xorshift128'],
+  table_stratified_sample: ['Table', 'table_sample', '__xorshift128'],
 };
 
 // Resolve all transitive dependencies for a set of used names
