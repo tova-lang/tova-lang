@@ -514,6 +514,62 @@ for line in read_lines() {
 
 ---
 
+## Data Formats
+
+The `read()` and `write()` functions support these formats via file extension:
+
+| Extension | Format | Read | Write | Notes |
+|-----------|--------|------|-------|-------|
+| `.csv` | CSV | Yes | Yes | Auto-detects delimiter |
+| `.tsv` | TSV | Yes | Yes | Tab-delimited |
+| `.json` | JSON | Yes | Yes | Array of objects |
+| `.jsonl` | JSON Lines | Yes | Yes | One object per line |
+| `.parquet` | Apache Parquet | Yes | Yes | Via `parquet-wasm` (lazy-loaded) |
+| `.xlsx` | Excel | Yes | Yes | Via `exceljs` (lazy-loaded) |
+
+### Parquet
+
+```tova
+data = read("warehouse.parquet")
+write(table, "output.parquet")
+write(table, "output.parquet", compression: "gzip")   // default: snappy
+```
+
+Compression options: `"snappy"` (default), `"gzip"`, `"none"`.
+
+### Excel
+
+```tova
+data = read("report.xlsx")
+data = read("report.xlsx", sheet: "Q4 Sales")     // by name
+data = read("report.xlsx", sheet: 1)               // by index (1-based)
+write(table, "output.xlsx")
+write(table, "output.xlsx", sheet: "Summary")
+```
+
+### SQLite
+
+```tova
+db = sqlite("app.db")
+db = sqlite(":memory:")
+
+// Query returns a Table
+users = db.query("SELECT * FROM users WHERE active = 1")
+user = db.query("SELECT * FROM users WHERE id = ?", [42])
+
+// Run statements
+db.exec("CREATE TABLE logs (id INTEGER PRIMARY KEY, msg TEXT)")
+db.exec("INSERT INTO logs (msg) VALUES (?)", ["hello"])
+
+// Write a Table to a database table
+write(sales, db, "sales")
+write(sales, db, "sales", append: true)
+
+db.close()
+```
+
+---
+
 ## Examples
 
 ### File Processing Script

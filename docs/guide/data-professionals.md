@@ -9,7 +9,7 @@ This guide walks through Tova's data capabilities by practitioner tier, with wor
 Before diving in, here's what a complete data workflow looks like in Tova:
 
 ```tova
-// Load data (CSV, JSON, JSONL — format auto-detected)
+// Load data (CSV, JSON, JSONL, Parquet, Excel — format auto-detected)
 sales = read("sales.csv")
 
 // Explore
@@ -54,6 +54,11 @@ Tova auto-detects format from the file extension:
 customers = read("customers.csv")
 config = read("settings.json")
 events = read("events.jsonl")
+
+// Parquet and Excel
+analytics = read("warehouse.parquet")
+report = read("quarterly.xlsx")
+report = read("quarterly.xlsx", sheet: "Sales")
 
 // Remote URLs
 api_data = read("https://api.example.com/data.json")
@@ -182,6 +187,28 @@ by_region_quarter = sales
   )
 ```
 
+### Charts
+
+Visualize results with built-in SVG charting -- no external libraries needed:
+
+```tova
+by_region
+  |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
+  |> write_text("revenue_chart.svg")
+
+// Line chart for trends
+sales
+  |> line_chart(x: .date, y: .amount, title: "Sales Trend")
+  |> write_text("trend.svg")
+
+// Histogram for distributions
+orders
+  |> histogram(col: .amount, bins: 15, title: "Order Size Distribution")
+  |> write_text("distribution.svg")
+```
+
+Six chart types: `bar_chart`, `line_chart`, `scatter_chart`, `histogram`, `pie_chart`, `heatmap`. All return SVG strings -- pipe to `write_text()` to save.
+
 ### Joining Tables
 
 Combine two tables on matching columns:
@@ -197,7 +224,7 @@ full_report = orders |> join(products, left: .product_id, right: .product_id, ho
 merged = orders |> join(products, left: .prod_id, right: .product_id)
 ```
 
-Join types: `"inner"` (default), `"left"`.
+Join types: `"inner"` (default), `"left"`, `"right"`, `"outer"`, `"cross"`, `"anti"`, `"semi"`.
 
 After a join, columns from both tables are available:
 
@@ -530,6 +557,39 @@ result = lazy(huge_table)
 ```
 
 The lazy API builds a query plan. Tova can optimize the execution order — pushing filters before derives, for instance.
+
+### SQLite
+
+Connect to SQLite databases for persistent storage or querying existing datasets:
+
+```tova
+db = sqlite(":memory:")
+db.exec("CREATE TABLE metrics (name TEXT, value REAL)")
+db.exec("INSERT INTO metrics VALUES (?, ?)", ["cpu", 72.5])
+
+results = db.query("SELECT * FROM metrics WHERE value > ?", [50])
+peek(results)
+
+// Write a Table directly to a database table
+write(order_details, db, "order_details")
+
+// Append new data
+write(new_orders, db, "order_details", append: true)
+
+db.close()
+```
+
+### Sampling
+
+For large datasets, work with representative subsets:
+
+```tova
+// Random sample
+subset = huge_table |> sample(10000, seed: 42)
+
+// Stratified: proportional representation per group
+balanced = huge_table |> stratified_sample(.category, 500, seed: 42)
+```
 
 ### A Complete Data Engineering Pipeline
 
@@ -1224,8 +1284,9 @@ tova run app.tova          # development mode with hot reload
 
 | Function | Description |
 |----------|-------------|
-| `read(path)` | Auto-detect CSV/JSON/JSONL |
-| `write(table, path)` | Write CSV/JSON/JSONL |
+| `read(path)` | Auto-detect CSV/JSON/JSONL/Parquet/Excel |
+| `write(table, path)` | Write CSV/JSON/JSONL/Parquet/Excel |
+| `sqlite(path)` | Open SQLite database |
 | `read_text(path)` | Read raw text |
 | `write_text(path, content)` | Write raw text |
 | `exists(path)` | File exists check |

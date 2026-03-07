@@ -237,7 +237,7 @@ Joins two tables on matching columns.
 
 Options:
 - `left` / `right` -- column names or accessors to join on
-- `how` -- join type: `"inner"` (default), `"left"`
+- `how` -- join type: `"inner"` (default), `"left"`, `"right"`, `"outer"`, `"cross"`, `"anti"`, `"semi"`
 
 ```tova
 users = Table([
@@ -256,6 +256,15 @@ result = users |> join(orders, left: "id", right: "user_id")
 
 // Left join — keeps all rows from the left table
 left_result = users |> join(orders, left: "id", right: "user_id", how: "left")
+```
+
+```tova
+// All join types
+a |> join(b, left: .id, right: .uid, how: "right")    // all right rows
+a |> join(b, left: .id, right: .uid, how: "outer")    // all rows from both
+a |> join(b, how: "cross")                              // cartesian product
+a |> join(b, left: .id, right: .uid, how: "anti")     // left rows with no match
+a |> join(b, left: .id, right: .uid, how: "semi")     // left rows with a match
 ```
 
 ---
@@ -503,6 +512,100 @@ prices |> window(
   prev_price: lag(.price),
   next_price: lead(.price)
 )
+```
+
+---
+
+## Sampling
+
+### sample
+
+```tova
+t |> sample(n, seed?) -> Table
+```
+
+Returns a random subset of rows. If `n < 1`, treats it as a fraction. Optional `seed` for reproducibility.
+
+```tova
+subset = t |> sample(100)              // 100 random rows
+subset = t |> sample(0.1)             // 10% of rows
+subset = t |> sample(1000, seed: 42)  // reproducible
+```
+
+### stratified_sample
+
+```tova
+t |> stratified_sample(key, n, seed?) -> Table
+```
+
+Samples `n` rows (or fraction) from each group defined by `key`.
+
+```tova
+balanced = t |> stratified_sample(.category, 50)
+balanced = t |> stratified_sample(.region, 0.1, seed: 42)
+```
+
+---
+
+## Visualization
+
+All chart functions take a Table (or array of objects) and return an SVG string.
+
+### bar_chart
+
+```tova
+bar_chart(data, x:, y:, title?, width?, height?, color?, labels?, sort?) -> String
+```
+
+Vertical bar chart. Options: `color` (hex), `labels: true` (show values), `sort: "desc"`.
+
+### line_chart
+
+```tova
+line_chart(data, x:, y:, title?, width?, height?, color?, points?) -> String
+```
+
+Line chart. Supports multi-series via array of y columns: `y: [.revenue, .cost]`.
+
+### scatter_chart
+
+```tova
+scatter_chart(data, x:, y:, title?, width?, height?, color?) -> String
+```
+
+Scatter plot with `<circle>` elements.
+
+### histogram
+
+```tova
+histogram(data, col:, bins?, title?, width?, height?, color?) -> String
+```
+
+Histogram with automatic binning. Default 20 bins.
+
+### pie_chart
+
+```tova
+pie_chart(data, label:, value:, title?, width?, height?) -> String
+```
+
+Pie chart with percentage labels.
+
+### heatmap
+
+```tova
+heatmap(data, x:, y:, value:, title?, width?, height?) -> String
+```
+
+Grid of colored cells. Requires categorical x/y and numeric value.
+
+```tova
+// Example: generate and save a chart
+sales
+  |> group_by(.region)
+  |> agg(revenue: sum(.amount))
+  |> bar_chart(x: .region, y: .revenue, title: "Revenue")
+  |> write_text("chart.svg")
 ```
 
 ---

@@ -17,6 +17,11 @@ users = Table([
 // From a file (format inferred from extension)
 sales = read("sales.csv")
 
+// Parquet and Excel files
+analytics = read("analytics.parquet")
+report = read("quarterly.xlsx")
+report = read("quarterly.xlsx", sheet: "Q4 Sales")
+
 // With a type annotation for compile-time column validation
 type User {
   name: String
@@ -205,8 +210,23 @@ Join types:
 // Inner join (default) — only matching rows
 orders |> join(products, left: .pid, right: .id)
 
-// Left join — all rows from left table, nil for unmatched right columns
+// Left join — all left rows, nil for unmatched right columns
 orders |> join(products, left: .pid, right: .id, how: "left")
+
+// Right join — all right rows, nil for unmatched left columns
+orders |> join(products, left: .pid, right: .id, how: "right")
+
+// Outer join — all rows from both tables
+orders |> join(products, left: .pid, right: .id, how: "outer")
+
+// Cross join — every combination (no keys needed)
+sizes |> join(colors, how: "cross")
+
+// Anti join — left rows with NO match in right (left columns only)
+orders |> join(products, left: .pid, right: .id, how: "anti")
+
+// Semi join — left rows WITH a match in right (left columns only, no duplicates)
+orders |> join(products, left: .pid, right: .id, how: "semi")
 ```
 
 ### Reshaping
@@ -227,6 +247,54 @@ flat = data |> explode(.tags)
 ```tova
 combined = table_a |> union(table_b)
 ```
+
+### Sampling
+
+Draw random subsets from a table:
+
+```tova
+// Random sample of 100 rows
+subset = users |> sample(100)
+
+// 10% sample
+subset = users |> sample(0.1)
+
+// Reproducible with a seed
+subset = users |> sample(1000, seed: 42)
+
+// Stratified sample: N rows per group
+subset = users |> stratified_sample(.region, 50)
+subset = users |> stratified_sample(.region, 0.1, seed: 42)
+```
+
+### Visualization
+
+Generate SVG charts from table data:
+
+```tova
+// Bar chart
+sales |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
+
+// Line chart (supports multi-series)
+prices |> line_chart(x: .date, y: .price, title: "Price History")
+
+// Scatter plot
+users |> scatter_chart(x: .age, y: .income, title: "Age vs Income")
+
+// Histogram
+users |> histogram(col: .age, bins: 20, title: "Age Distribution")
+
+// Pie chart
+sales |> pie_chart(label: .category, value: .revenue, title: "Revenue Split")
+
+// Heatmap
+data |> heatmap(x: .month, y: .product, value: .sales, title: "Sales Heatmap")
+
+// Save to file
+sales |> bar_chart(x: .region, y: .revenue) |> write_text("chart.svg")
+```
+
+All chart functions return SVG strings. Default size is 600x400 via viewBox (responsive). Customize with `width`, `height`, `color`, and `labels` options.
 
 ### Deduplication
 
@@ -429,7 +497,7 @@ sales |> schema_of()
 | `agg` | `\|> agg(total: sum(.x))` | Aggregate after group |
 | `sort_by` | `\|> sort_by(.name, desc: true)` | Sort rows |
 | `limit` | `\|> limit(10)` | Take first N |
-| `join` | `\|> join(other, left: .id, right: .uid)` | Join tables |
+| `join` | `\|> join(other, left: .id, right: .uid, how: "left")` | Join tables (inner/left/right/outer/cross/anti/semi) |
 | `pivot` | `\|> pivot(index: .date, columns: .cat, values: .amt)` | Long to wide |
 | `unpivot` | `\|> unpivot(id: "name", columns: ["q1", "q2"])` | Wide to long |
 | `explode` | `\|> explode(.tags)` | Unnest arrays |
@@ -440,6 +508,14 @@ sales |> schema_of()
 | `cast` | `\|> cast(.age, "Int")` | Convert column type |
 | `rename` | `\|> rename("old", "new")` | Rename a column |
 | `window` | `\|> window(partition_by: .col, row_num: row_number())` | Window functions |
+| `sample` | `\|> sample(100, seed: 42)` | Random sample |
+| `stratified_sample` | `\|> stratified_sample(.col, 50)` | Stratified sample |
+| `bar_chart` | `\|> bar_chart(x: .col, y: .val)` | SVG bar chart |
+| `line_chart` | `\|> line_chart(x: .col, y: .val)` | SVG line chart |
+| `scatter_chart` | `\|> scatter_chart(x: .col, y: .val)` | SVG scatter plot |
+| `histogram` | `\|> histogram(col: .col, bins: 20)` | SVG histogram |
+| `pie_chart` | `\|> pie_chart(label: .col, value: .val)` | SVG pie chart |
+| `heatmap` | `\|> heatmap(x: .col, y: .col, value: .val)` | SVG heatmap |
 | `peek` | `\|> peek()` | Preview data (transparent) |
 | `describe` | `\|> describe()` | Statistical summary |
 | `schema_of` | `\|> schema_of()` | Column types |
