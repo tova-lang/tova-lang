@@ -15216,7 +15216,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   flip: `function flip(fn) { return function(a, b, ...rest) { return fn(b, a, ...rest); }; }`,
 
   // ── Encoding (extended) ────────────────────────────────
-  hex_encode: `function hex_encode(s) { let r = ''; for (let i = 0; i < s.length; i++) r += s.charCodeAt(i).toString(16).padStart(2, '0'); return r; }`,
+  hex_encode: `function hex_encode(s) { let r = ''; if (ArrayBuffer.isView(s) || s instanceof ArrayBuffer) { const u = ArrayBuffer.isView(s) ? s : new Uint8Array(s); for (let i = 0; i < u.length; i++) r += u[i].toString(16).padStart(2, '0'); return r; } for (let i = 0; i < s.length; i++) r += s.charCodeAt(i).toString(16).padStart(2, '0'); return r; }`,
   hex_decode: `function hex_decode(s) { let r = ''; for (let i = 0; i < s.length; i += 2) r += String.fromCharCode(parseInt(s.substr(i, 2), 16)); return r; }`,
 
   // ── String (extended) ──────────────────────────────────
@@ -15666,10 +15666,10 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
     var o = opts || {};
     var headers = o.headers ? { ...o.headers } : {};
     if (o.bearer) headers['Authorization'] = 'Bearer ' + o.bearer;
-    if (body && typeof body === 'object' && !(body instanceof ArrayBuffer) && !(body instanceof Uint8Array) && !headers['Content-Type']) {
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(body);
-    }
+    if (o.params) { var _qs = new URLSearchParams(o.params).toString(); if (_qs) url += (url.includes('?') ? '&' : '?') + _qs; }
+    if (typeof FormData !== 'undefined' && body instanceof FormData) { delete headers['Content-Type']; }
+    else if (body && typeof body === 'object' && body.__form) { var _fd = new FormData(); Object.keys(body).forEach(function(k) { if (k !== '__form') _fd.append(k, body[k]); }); body = _fd; delete headers['Content-Type']; }
+    else if (body && typeof body === 'object' && !(body instanceof ArrayBuffer) && !(body instanceof Uint8Array) && !headers['Content-Type']) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
     var timeout = o.timeout || 30000;
     var retries = o.retries || 0;
     var retryDelay = o.retry_delay || 1000;
@@ -15682,6 +15682,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
         clearTimeout(timer);
         var respHeaders = {};
         resp.headers.forEach(function(v, k) { respHeaders[k] = v; });
+        if (o.stream) { return Ok({ status: resp.status, headers: respHeaders, body: resp.body, ok: resp.ok }); }
         var respBody;
         var ct = resp.headers.get('content-type') || '';
         if (ct.includes('application/json')) { try { respBody = await resp.json(); } catch(e) { respBody = await resp.text(); } }
@@ -15698,7 +15699,8 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   put(url, body, opts) { return http._request('PUT', url, body, opts); },
   patch(url, body, opts) { return http._request('PATCH', url, body, opts); },
   delete(url, opts) { return http._request('DELETE', url, null, opts); },
-  head(url, opts) { return http._request('HEAD', url, null, opts); }
+  head(url, opts) { return http._request('HEAD', url, null, opts); },
+  get_stream(url, opts) { return http._request('GET', url, null, Object.assign({}, opts, { stream: true })); }
 })`,
 
   // ── Channel-based async ───────────────────────────────
@@ -16111,6 +16113,8 @@ const STDLIB_DEPS = {
   LazyTable: ['Table', 'table_where', 'table_group_by'],
   // Seq uses Some/None
   Seq: ['Some', 'None'],
+  // Channel uses Some/None
+  Channel: ['Some', 'None'],
   // compare family
   compare: ['Less', 'Equal', 'Greater'],
   compare_by: ['Less', 'Equal', 'Greater'],
@@ -17425,10 +17429,25 @@ class BaseCodegen {
   // Track a builtin and its transitive dependencies from the stdlib dependency graph
   _trackBuiltin(name) {
     this._usedBuiltins.add(name);
-    const deps = STDLIB_DEPS[name];
-    if (deps) {
-      for (const dep of deps) {
-        this._usedBuiltins.add(dep);
+    // Check if this name or any transitive dependency requires Result/Option
+    if (name === 'Ok' || name === 'Err' || name === 'Some' || name === 'None') {
+      this._needsResultOption = true;
+    }
+    // Resolve transitive deps using a queue (e.g., iter -> Seq -> Some/None)
+    const queue = [name];
+    while (queue.length > 0) {
+      const current = queue.pop();
+      const deps = STDLIB_DEPS[current];
+      if (deps) {
+        for (const dep of deps) {
+          if (!this._usedBuiltins.has(dep)) {
+            this._usedBuiltins.add(dep);
+            queue.push(dep); // resolve further transitive deps
+          }
+          if (dep === 'Ok' || dep === 'Err' || dep === 'Some' || dep === 'None') {
+            this._needsResultOption = true;
+          }
+        }
       }
     }
   }
@@ -17552,9 +17571,12 @@ class BaseCodegen {
           return this._paramSubstitutions.get(node.name);
         }
         // Track builtin identifier usage (e.g., None used without call)
+        // Use _trackBuiltin to resolve transitive deps (including Result/Option)
         if (BUILTIN_NAMES.has(node.name)) {
-          this._usedBuiltins.add(node.name);
+          this._trackBuiltin(node.name);
         }
+        // Ok/Err/Some/None are in RESULT_OPTION, not BUILTIN_FUNCTIONS,
+        // so they need a separate check for _needsResultOption
         if (node.name === 'Ok' || node.name === 'Err' || node.name === 'Some' || node.name === 'None') {
           this._needsResultOption = true;
         }
@@ -19232,9 +19254,9 @@ class BaseCodegen {
         const tableArgs = this._genTableCallArgs(right);
         if (tableArgs) {
           const callee = this.genExpression(right.callee);
-          // Track builtin usage
+          // Track builtin usage (with dependency resolution)
           if (right.callee.type === 'Identifier' && BUILTIN_NAMES.has(right.callee.name)) {
-            this._usedBuiltins.add(right.callee.name);
+            this._trackBuiltin(right.callee.name);
           }
           return `${callee}(${[left, ...tableArgs].join(', ')})`;
         }
