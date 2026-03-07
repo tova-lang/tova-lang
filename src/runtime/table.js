@@ -218,57 +218,96 @@ export function table_limit(table, n) {
 }
 
 export function table_join(table, other, opts = {}) {
-  const { left, right, how = 'inner' } = opts;
-  if (!left || !right) throw new Error('join() requires left and right key functions');
+  const { left, right, how } = opts;
 
-  const rows = [];
-  const rightIndex = new Map();
-  for (const r of other._rows) {
-    const key = typeof right === 'function' ? right(r) : r[right];
-    const keyStr = String(key);
-    if (!rightIndex.has(keyStr)) rightIndex.set(keyStr, []);
-    rightIndex.get(keyStr).push(r);
-  }
-
-  const combinedCols = [...new Set([...table._columns, ...other._columns])];
-
-  for (const lr of table._rows) {
-    const key = typeof left === 'function' ? left(lr) : lr[left];
-    const keyStr = String(key);
-    const matches = rightIndex.get(keyStr) || [];
-
-    if (matches.length > 0) {
-      for (const rr of matches) {
+  // Cross join
+  if (how === 'cross') {
+    const rows = [];
+    const cc = [...new Set([...table._columns, ...other._columns])];
+    for (const lr of table._rows) {
+      for (const rr of other._rows) {
         rows.push({ ...lr, ...rr });
       }
+    }
+    return new Table(rows, cc);
+  }
+
+  if (!left || !right) throw new Error('join() requires left and right key functions');
+
+  // Anti join
+  if (how === 'anti') {
+    const ri = new Set();
+    for (const r of other._rows) {
+      ri.add(String(typeof right === 'function' ? right(r) : r[right]));
+    }
+    const rows = [];
+    for (const lr of table._rows) {
+      const k = typeof left === 'function' ? left(lr) : lr[left];
+      if (!ri.has(String(k))) rows.push({ ...lr });
+    }
+    return new Table(rows, [...table._columns]);
+  }
+
+  // Semi join
+  if (how === 'semi') {
+    const ri = new Set();
+    for (const r of other._rows) {
+      ri.add(String(typeof right === 'function' ? right(r) : r[right]));
+    }
+    const rows = [];
+    for (const lr of table._rows) {
+      const k = typeof left === 'function' ? left(lr) : lr[left];
+      if (ri.has(String(k))) rows.push({ ...lr });
+    }
+    return new Table(rows, [...table._columns]);
+  }
+
+  // Right join — swap and do left join
+  if (how === 'right') {
+    const swapped = table_join(other, table, { left: right, right: left, how: 'left' });
+    const cc = [...new Set([...table._columns, ...other._columns])];
+    return new Table(swapped._rows, cc);
+  }
+
+  // Build hash index on right table
+  const ri = new Map();
+  for (const r of other._rows) {
+    const k = typeof right === 'function' ? right(r) : r[right];
+    const ks = String(k);
+    if (!ri.has(ks)) ri.set(ks, []);
+    ri.get(ks).push(r);
+  }
+
+  const cc = [...new Set([...table._columns, ...other._columns])];
+  const rows = [];
+  const matchedRightKeys = how === 'outer' ? new Set() : null;
+
+  for (const lr of table._rows) {
+    const k = typeof left === 'function' ? left(lr) : lr[left];
+    const ms = ri.get(String(k)) || [];
+    if (ms.length > 0) {
+      for (const rr of ms) rows.push({ ...lr, ...rr });
+      if (matchedRightKeys) matchedRightKeys.add(String(k));
     } else if (how === 'left' || how === 'outer') {
       const row = { ...lr };
-      for (const c of other._columns) {
-        if (!(c in row)) row[c] = null;
-      }
+      for (const c of other._columns) { if (!(c in row)) row[c] = null; }
       rows.push(row);
     }
   }
 
-  if (how === 'right' || how === 'outer') {
-    const leftIndex = new Set();
-    for (const lr of table._rows) {
-      const key = typeof left === 'function' ? left(lr) : lr[left];
-      leftIndex.add(String(key));
-    }
-    for (const rr of other._rows) {
-      const key = typeof right === 'function' ? right(rr) : rr[right];
-      if (!leftIndex.has(String(key))) {
-        const row = { ...rr };
-        for (const c of table._columns) {
-          if (!(c in row)) row[c] = null;
-        }
+  // Full outer: add unmatched right rows
+  if (how === 'outer') {
+    for (const r of other._rows) {
+      const k = typeof right === 'function' ? right(r) : r[right];
+      if (!matchedRightKeys.has(String(k))) {
+        const row = { ...r };
+        for (const c of table._columns) { if (!(c in row)) row[c] = null; }
         rows.push(row);
       }
     }
   }
 
-  return new Table(rows, combinedCols);
+  return new Table(rows, cc);
 }
 
 export function table_pivot(table, opts = {}) {
