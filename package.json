@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "apache-arrow": "^21.1.0",
+    "exceljs": "^4.4.0",
     "parquet-wasm": "^0.7.1"
   }
 }

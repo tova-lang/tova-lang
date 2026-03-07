@@ -433,6 +433,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   const fs = await import('fs'); const path = await import('path');
   const ext = path.extname(source).toLowerCase();
   if (ext === '.parquet') return readParquet(source);
+  if (ext === '.xlsx') return readExcel(source, options);
   const text = fs.readFileSync(source, 'utf-8');
   if (ext === '.csv') return __parseCSV(text, options);
   if (ext === '.tsv') return __parseCSV(text, { ...options, delimiter: '\\t' });
@@ -444,6 +445,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   const fs = await import('fs'); const path = await import('path');
   const ext = path.extname(destination).toLowerCase();
   if (ext === '.parquet') { return writeParquet(data, destination, opts); }
+  if (ext === '.xlsx') { return writeExcel(data, destination, opts); }
   const isTable = data && data._rows && data._columns;
   const td = isTable ? data : (Array.isArray(data) ? Table(data) : null);
   let content;
@@ -1558,6 +1560,61 @@ function __chart_empty(w, h, msg) { return '<svg xmlns="http://www.w3.org/2000/s
   fs.writeFileSync(path, parquetBytes);
 }`,
 
+  readExcel: `async function readExcel(path, opts) {
+  var ExcelJS = require('exceljs');
+  var workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(path);
+  var worksheet;
+  if (opts && typeof opts.sheet === 'string') { worksheet = workbook.getWorksheet(opts.sheet); if (!worksheet) throw new Error('Sheet "' + opts.sheet + '" not found'); }
+  else if (opts && typeof opts.sheet === 'number') { var sheets = workbook.worksheets; if (opts.sheet < 1 || opts.sheet > sheets.length) throw new Error('Sheet index out of range'); worksheet = sheets[opts.sheet - 1]; }
+  else { worksheet = workbook.worksheets[0]; }
+  if (!worksheet) throw new Error('No worksheets found');
+  var headerRow = worksheet.getRow(1);
+  var colArr = [];
+  headerRow.eachCell({ includeEmpty: false }, function(cell, colNumber) { colArr[colNumber] = __excelCellValue(cell); });
+  var colMap = [];
+  for (var i = 1; i < colArr.length; i++) { if (colArr[i] !== undefined && colArr[i] !== null) colMap.push({ colNumber: i, name: String(colArr[i]) }); }
+  if (colMap.length === 0) return Table([], []);
+  var columnNames = colMap.map(function(c) { return c.name; });
+  var rows = [];
+  var rowCount = worksheet.rowCount;
+  for (var r = 2; r <= rowCount; r++) {
+    var excelRow = worksheet.getRow(r);
+    var row = {};
+    for (var ci = 0; ci < colMap.length; ci++) { var cm = colMap[ci]; var cell = excelRow.getCell(cm.colNumber); row[cm.name] = __excelCellValue(cell); }
+    rows.push(row);
+  }
+  return Table(rows, columnNames);
+}`,
+
+  writeExcel: `async function writeExcel(tableData, path, opts) {
+  var ExcelJS = require('exceljs');
+  var t = tableData && tableData._rows ? tableData : Table(Array.isArray(tableData) ? tableData : []);
+  var workbook = new ExcelJS.Workbook();
+  var sheetName = (opts && opts.sheet) || 'Sheet1';
+  var worksheet = workbook.addWorksheet(sheetName);
+  var cols = t._columns;
+  if (cols.length > 0) worksheet.addRow(cols);
+  for (var i = 0; i < t._rows.length; i++) {
+    var row = t._rows[i];
+    var values = [];
+    for (var ci = 0; ci < cols.length; ci++) { var v = row[cols[ci]]; values.push(v === undefined ? null : v); }
+    worksheet.addRow(values);
+  }
+  await workbook.xlsx.writeFile(path);
+}`,
+
+  __excelCellValue: `function __excelCellValue(cell) {
+  if (!cell || cell.type === 0) return null;
+  var val = cell.value;
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'object' && val.formula !== undefined) { var result = val.result; return (result === null || result === undefined) ? null : result; }
+  if (typeof val === 'object' && val.richText) { return val.richText.map(function(p) { return p.text; }).join(''); }
+  if (typeof val === 'object' && val.hyperlink) { return val.text || val.hyperlink; }
+  if (typeof val === 'object' && val.error) { return null; }
+  return val;
+}`,
+
   heatmap: `function heatmap(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var valueFn = opts.value; var title = opts.title || ''; var margin = { top: title ? 50 : 40, right: 40, bottom: 60, left: 80 }; var xCats = []; var yCats = []; var xSet = new Set(); var ySet = new Set(); for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); if (!xSet.has(xv)) { xSet.add(xv); xCats.push(xv); } if (!ySet.has(yv)) { ySet.add(yv); yCats.push(yv); } } var grid = {}; var vMn = Infinity; var vMx = -Infinity; for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); var val = Number(valueFn(rows[i])); grid[xv + '|' + yv] = val; if (val < vMn) vMn = val; if (val > vMx) vMx = val; } var vR = vMx - vMn || 1; var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var cellW = plotW / xCats.length; var cellH = plotH / yCats.length; function hc(val) { var t = (val - vMn) / vR; var r = Math.round(255 - t * (255 - 79)); var g = Math.round(255 - t * (255 - 70)); var b = Math.round(255 - t * (255 - 229)); return 'rgb(' + r + ',' + g + ',' + b + ')'; } var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var xi = 0; xi < xCats.length; xi++) { for (var yi = 0; yi < yCats.length; yi++) { var key = xCats[xi] + '|' + yCats[yi]; var val = grid[key]; var rx = margin.left + xi * cellW; var ry = margin.top + yi * cellH; var fill = val !== undefined ? hc(val) : '#f3f4f6'; p.push('<rect x="' + rx + '" y="' + ry + '" width="' + cellW + '" height="' + cellH + '" fill="' + fill + '" stroke="#fff" stroke-width="1"/>'); if (val !== undefined) { var tc = ((val - vMn) / vR) > 0.5 ? '#fff' : '#111'; p.push('<text x="' + (rx + cellW / 2) + '" y="' + (ry + cellH / 2 + 4) + '" text-anchor="middle" font-size="11" fill="' + tc + '">' + __chart_formatNum(val) + '</text>'); } } } for (var xi = 0; xi < xCats.length; xi++) { var lx = margin.left + xi * cellW + cellW / 2; var ly = margin.top + plotH + 16; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_esc(xCats[xi]) + '</text>'); } for (var yi = 0; yi < yCats.length; yi++) { var lx = margin.left - 8; var ly = margin.top + yi * cellH + cellH / 2 + 4; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="end" font-size="11" fill="#666">' + __chart_esc(yCats[yi]) + '</text>'); } p.push('</svg>'); return p.join('\\n'); }`,
 };
 
@@ -1630,8 +1687,10 @@ export const STDLIB_DEPS = {
   // Parquet read/write
   readParquet: ['Table'],
   writeParquet: ['Table'],
-  read: ['Table', '__parseCSV', '__parseJSONL', 'readParquet'],
-  write: ['Table', 'writeParquet'],
+  readExcel: ['Table', '__excelCellValue'],
+  writeExcel: ['Table'],
+  read: ['Table', '__parseCSV', '__parseJSONL', 'readParquet', 'readExcel', '__excelCellValue'],
+  write: ['Table', 'writeParquet', 'writeExcel'],
   // SVG Charting
   __chart_helpers: ['Table'],
   bar_chart: ['Table', '__chart_helpers'],

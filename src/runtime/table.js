@@ -977,3 +977,119 @@ export async function writeParquet(table, path, opts = {}) {
   const parquetBytes = pw.writeParquet(wasmTable, writerProps);
   fs.writeFileSync(path, parquetBytes);
 }
+
+// ── Excel Read/Write ──────────────────────────────────
+
+export async function readExcel(path, opts = {}) {
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(path);
+
+  // Get worksheet by name (string), index (number), or first sheet
+  let worksheet;
+  if (typeof opts.sheet === 'string') {
+    worksheet = workbook.getWorksheet(opts.sheet);
+    if (!worksheet) throw new Error(`Sheet "${opts.sheet}" not found`);
+  } else if (typeof opts.sheet === 'number') {
+    // opts.sheet is 1-based index into the worksheets array
+    const sheets = workbook.worksheets;
+    if (opts.sheet < 1 || opts.sheet > sheets.length) {
+      throw new Error(`Sheet index ${opts.sheet} out of range (1-${sheets.length})`);
+    }
+    worksheet = sheets[opts.sheet - 1];
+  } else {
+    worksheet = workbook.worksheets[0];
+  }
+
+  if (!worksheet) throw new Error('No worksheets found in workbook');
+
+  // Extract header row (row 1)
+  const headerRow = worksheet.getRow(1);
+  const columns = [];
+  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    columns[colNumber] = _excelCellValue(cell);
+  });
+
+  // Filter out empty slots to get contiguous column names, but keep position mapping
+  const colMap = []; // colMap[i] = { colNumber, name }
+  for (let i = 1; i < columns.length; i++) {
+    if (columns[i] !== undefined && columns[i] !== null) {
+      colMap.push({ colNumber: i, name: String(columns[i]) });
+    }
+  }
+
+  if (colMap.length === 0) {
+    return new Table([], []);
+  }
+
+  const columnNames = colMap.map(c => c.name);
+
+  // Iterate data rows (starting from row 2)
+  const rows = [];
+  const rowCount = worksheet.rowCount;
+  for (let r = 2; r <= rowCount; r++) {
+    const excelRow = worksheet.getRow(r);
+    const row = {};
+    for (const { colNumber, name } of colMap) {
+      const cell = excelRow.getCell(colNumber);
+      const val = _excelCellValue(cell);
+      row[name] = val;
+    }
+    rows.push(row);
+  }
+
+  return new Table(rows, columnNames);
+}
+
+function _excelCellValue(cell) {
+  if (!cell || cell.type === 0 /* Null */) return null;
+  const val = cell.value;
+  if (val === null || val === undefined) return null;
+  // Formula cells: use the computed result
+  if (typeof val === 'object' && val.formula !== undefined) {
+    const result = val.result;
+    if (result === null || result === undefined) return null;
+    if (result instanceof Date) return result;
+    return result;
+  }
+  // RichText cells: concatenate text parts
+  if (typeof val === 'object' && val.richText) {
+    return val.richText.map(part => part.text).join('');
+  }
+  // Hyperlink cells: return the text
+  if (typeof val === 'object' && val.hyperlink) {
+    return val.text || val.hyperlink;
+  }
+  // Error cells
+  if (typeof val === 'object' && val.error) {
+    return null;
+  }
+  // Date, number, string, boolean pass through
+  return val;
+}
+
+export async function writeExcel(table, path, opts = {}) {
+  const ExcelJS = require('exceljs');
+  const t = table instanceof Table ? table : new Table(table);
+  const workbook = new ExcelJS.Workbook();
+  const sheetName = opts.sheet || 'Sheet1';
+  const worksheet = workbook.addWorksheet(sheetName);
+
+  // Add header row
+  const cols = t._columns;
+  if (cols.length > 0) {
+    worksheet.addRow(cols);
+  }
+
+  // Add data rows
+  for (const row of t._rows) {
+    const values = cols.map(c => {
+      const v = row[c];
+      if (v === undefined) return null;
+      return v;
+    });
+    worksheet.addRow(values);
+  }
+
+  await workbook.xlsx.writeFile(path);
+}
