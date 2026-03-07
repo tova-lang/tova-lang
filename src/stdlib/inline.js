@@ -1063,6 +1063,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
     var o = opts || {};
     var headers = o.headers ? { ...o.headers } : {};
     if (o.bearer) headers['Authorization'] = 'Bearer ' + o.bearer;
+    if (o.params) { var _qs = new URLSearchParams(o.params).toString(); if (_qs) url += (url.includes('?') ? '&' : '?') + _qs; }
     if (body && typeof body === 'object' && !(body instanceof ArrayBuffer) && !(body instanceof Uint8Array) && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
       body = JSON.stringify(body);

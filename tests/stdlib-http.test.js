@@ -116,6 +116,12 @@ describe('http namespace — compilation tests', () => {
     expect(output).toContain("'manual'");
     expect(output).toContain("'follow'");
   });
+
+  test('http namespace contains URLSearchParams for params option', () => {
+    const output = compile('r = http.get("https://example.com", { params: { page: 1 } })');
+    expect(output).toContain('URLSearchParams');
+    expect(output).toContain('o.params');
+  });
 });
 
 describe('http namespace — shape tests', () => {
@@ -215,6 +221,11 @@ describe('http namespace — integration tests', () => {
           req.headers.forEach((v, k) => { h[k] = v; });
           return new Response(JSON.stringify(h), {
             headers: { 'Content-Type': 'application/json', 'X-Custom': 'test-value' },
+          });
+        }
+        if (url_obj.pathname === '/echo-url') {
+          return new Response(JSON.stringify({ url: req.url, search: url_obj.search }), {
+            headers: { 'Content-Type': 'application/json' },
           });
         }
         return new Response('ok');
@@ -347,5 +358,27 @@ describe('http namespace — integration tests', () => {
     });
     const resp = result.unwrap();
     expect(resp.body['x-test-header']).toBe('test-value-123');
+  });
+
+  test('params option appends query parameters to URL', async () => {
+    if (!httpNs || !server) return;
+    const result = await httpNs.get(`http://localhost:${port}/echo-url`, {
+      params: { foo: 'bar', num: 42 }
+    });
+    const resp = result.unwrap();
+    expect(resp.status).toBe(200);
+    expect(resp.body.search).toContain('foo=bar');
+    expect(resp.body.search).toContain('num=42');
+  });
+
+  test('params option with existing query string appends correctly', async () => {
+    if (!httpNs || !server) return;
+    const result = await httpNs.get(`http://localhost:${port}/echo-url?existing=1`, {
+      params: { added: 'yes' }
+    });
+    const resp = result.unwrap();
+    expect(resp.status).toBe(200);
+    expect(resp.body.search).toContain('existing=1');
+    expect(resp.body.search).toContain('added=yes');
   });
 });
