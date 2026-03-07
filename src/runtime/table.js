@@ -884,3 +884,95 @@ export function tova_sqlite(path) {
     }
   };
 }
+
+// ── Parquet Read/Write ──────────────────────────────
+
+// Infer Arrow type from a JS value for column type detection
+function _inferArrowType(values) {
+  for (const v of values) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'boolean') return 'bool';
+    if (typeof v === 'number') return Number.isInteger(v) ? 'int' : 'float';
+    if (typeof v === 'string') return 'string';
+  }
+  return 'string'; // default for all-null columns
+}
+
+const COMPRESSION_MAP = {
+  snappy: 1,
+  gzip: 2,
+  brotli: 3,
+  zstd: 5,
+  lz4: 6,
+  uncompressed: 0,
+};
+
+export async function readParquet(path) {
+  const fs = await import('fs');
+  const arrow = await import('apache-arrow');
+  const pw = await import('parquet-wasm/node');
+
+  const fileBytes = new Uint8Array(fs.readFileSync(path));
+  const wasmTable = pw.readParquet(fileBytes);
+  const ipcBytes = wasmTable.intoIPCStream();
+  const arrowTable = arrow.tableFromIPC(ipcBytes);
+
+  const columns = arrowTable.schema.fields.map(f => f.name);
+  const rows = [];
+  for (let i = 0; i < arrowTable.numRows; i++) {
+    const row = {};
+    for (const col of columns) {
+      const val = arrowTable.getChild(col).get(i);
+      row[col] = val === undefined ? null : val;
+    }
+    rows.push(row);
+  }
+
+  return new Table(rows, columns);
+}
+
+export async function writeParquet(table, path, opts = {}) {
+  const fs = await import('fs');
+  const arrow = await import('apache-arrow');
+  const pw = await import('parquet-wasm/node');
+
+  const t = table instanceof Table ? table : new Table(table);
+  const columns = t._columns;
+
+  // Build Arrow column vectors with proper type inference
+  const columnVectors = {};
+  for (const col of columns) {
+    const values = t._rows.map(r => {
+      const v = r[col];
+      return v === undefined ? null : v;
+    });
+    const arrowType = _inferArrowType(values);
+
+    if (arrowType === 'int') {
+      columnVectors[col] = arrow.vectorFromArray(values, new arrow.Int32());
+    } else if (arrowType === 'float') {
+      columnVectors[col] = arrow.vectorFromArray(values, new arrow.Float64());
+    } else if (arrowType === 'bool') {
+      columnVectors[col] = arrow.vectorFromArray(values, new arrow.Bool());
+    } else {
+      columnVectors[col] = arrow.vectorFromArray(values, new arrow.Utf8());
+    }
+  }
+
+  const arrowTable = new arrow.Table(columnVectors);
+  const ipcBytes = arrow.tableToIPC(arrowTable, 'stream');
+  const wasmTable = pw.Table.fromIPCStream(ipcBytes);
+
+  // Build writer properties
+  let writerProps = null;
+  const compression = opts.compression || 'snappy';
+  const compCode = COMPRESSION_MAP[compression.toLowerCase()];
+  if (compCode !== undefined) {
+    writerProps = new pw.WriterPropertiesBuilder()
+      .setCompression(compCode)
+      .build();
+  }
+
+  const parquetBytes = pw.writeParquet(wasmTable, writerProps);
+  fs.writeFileSync(path, parquetBytes);
+}

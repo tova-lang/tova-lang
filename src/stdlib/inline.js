@@ -431,7 +431,9 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
     try { const data = JSON.parse(text); if (Array.isArray(data)) return Table(data); return data; } catch { return __parseCSV(text, options); }
   }
   const fs = await import('fs'); const path = await import('path');
-  const ext = path.extname(source).toLowerCase(); const text = fs.readFileSync(source, 'utf-8');
+  const ext = path.extname(source).toLowerCase();
+  if (ext === '.parquet') return readParquet(source);
+  const text = fs.readFileSync(source, 'utf-8');
   if (ext === '.csv') return __parseCSV(text, options);
   if (ext === '.tsv') return __parseCSV(text, { ...options, delimiter: '\\t' });
   if (ext === '.json') { const data = JSON.parse(text); if (Array.isArray(data)) return Table(data); return data; }
@@ -441,6 +443,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   write: `async function write(data, destination, opts) {
   const fs = await import('fs'); const path = await import('path');
   const ext = path.extname(destination).toLowerCase();
+  if (ext === '.parquet') { return writeParquet(data, destination, opts); }
   const isTable = data && data._rows && data._columns;
   const td = isTable ? data : (Array.isArray(data) ? Table(data) : null);
   let content;
@@ -1512,6 +1515,49 @@ function __chart_empty(w, h, msg) { return '<svg xmlns="http://www.w3.org/2000/s
 
   pie_chart: `function pie_chart(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 400; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var labelFn = opts.label; var valueFn = opts.value; var title = opts.title || ''; var colors = opts.colors || __chart_PALETTE; var labels = rows.map(function(r) { return String(labelFn(r)); }); var values = rows.map(function(r) { return Number(valueFn(r)); }); var total = values.reduce(function(a, b) { return a + b; }, 0); if (total === 0) return __chart_empty(width, height, 'No data'); var cx = width / 2; var cy = title ? (height + 30) / 2 : height / 2; var r = Math.min(cx, cy) - 50; var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); var sa = -Math.PI / 2; for (var i = 0; i < values.length; i++) { var sl = (values[i] / total) * 2 * Math.PI; var ea = sa + sl; var x1 = cx + r * Math.cos(sa); var y1 = cy + r * Math.sin(sa); var x2 = cx + r * Math.cos(ea); var y2 = cy + r * Math.sin(ea); var la = sl > Math.PI ? 1 : 0; var c = colors[i % colors.length]; if (values.length === 1) { p.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + c + '"/>'); } else { p.push('<path d="M ' + cx + ' ' + cy + ' L ' + x1 + ' ' + y1 + ' A ' + r + ' ' + r + ' 0 ' + la + ' 1 ' + x2 + ' ' + y2 + ' Z" fill="' + c + '" stroke="#fff" stroke-width="1.5"/>'); } var ma = sa + sl / 2; var lr = r * 0.7; var lx = cx + lr * Math.cos(ma); var ly = cy + lr * Math.sin(ma); var pct = ((values[i] / total) * 100).toFixed(1); p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">' + __chart_esc(labels[i]) + '</text>'); p.push('<text x="' + lx + '" y="' + (ly + 13) + '" text-anchor="middle" font-size="10" fill="#fff">' + pct + '%</text>'); sa = ea; } p.push('</svg>'); return p.join('\\n'); }`,
 
+  // ── Parquet Read/Write ────────────────────────────────────────
+  readParquet: `async function readParquet(path) {
+  var fs = await import('fs'); var arrow = await import('apache-arrow'); var pw = await import('parquet-wasm/node');
+  var fileBytes = new Uint8Array(fs.readFileSync(path));
+  var wasmTable = pw.readParquet(fileBytes);
+  var ipcBytes = wasmTable.intoIPCStream();
+  var arrowTable = arrow.tableFromIPC(ipcBytes);
+  var columns = arrowTable.schema.fields.map(function(f) { return f.name; });
+  var rows = [];
+  for (var i = 0; i < arrowTable.numRows; i++) {
+    var row = {};
+    for (var ci = 0; ci < columns.length; ci++) { var col = columns[ci]; var val = arrowTable.getChild(col).get(i); row[col] = val === undefined ? null : val; }
+    rows.push(row);
+  }
+  return Table(rows, columns);
+}`,
+
+  writeParquet: `async function writeParquet(tableData, path, opts) {
+  var fs = await import('fs'); var arrow = await import('apache-arrow'); var pw = await import('parquet-wasm/node');
+  var t = tableData && tableData._rows ? tableData : Table(Array.isArray(tableData) ? tableData : []);
+  var columns = t._columns;
+  var COMP_MAP = { snappy: 1, gzip: 2, brotli: 3, zstd: 5, lz4: 6, uncompressed: 0 };
+  function _inferType(values) { for (var i = 0; i < values.length; i++) { var v = values[i]; if (v === null || v === undefined) continue; if (typeof v === 'boolean') return 'bool'; if (typeof v === 'number') return Number.isInteger(v) ? 'int' : 'float'; if (typeof v === 'string') return 'string'; } return 'string'; }
+  var colVecs = {};
+  for (var ci = 0; ci < columns.length; ci++) {
+    var col = columns[ci]; var values = t._rows.map(function(r) { var v = r[col]; return v === undefined ? null : v; });
+    var tp = _inferType(values);
+    if (tp === 'int') colVecs[col] = arrow.vectorFromArray(values, new arrow.Int32());
+    else if (tp === 'float') colVecs[col] = arrow.vectorFromArray(values, new arrow.Float64());
+    else if (tp === 'bool') colVecs[col] = arrow.vectorFromArray(values, new arrow.Bool());
+    else colVecs[col] = arrow.vectorFromArray(values, new arrow.Utf8());
+  }
+  var arrowTable = new arrow.Table(colVecs);
+  var ipcBytes = arrow.tableToIPC(arrowTable, 'stream');
+  var wasmTable = pw.Table.fromIPCStream(ipcBytes);
+  var writerProps = null;
+  var comp = (opts && opts.compression) || 'snappy';
+  var compCode = COMP_MAP[comp.toLowerCase()];
+  if (compCode !== undefined) { writerProps = new pw.WriterPropertiesBuilder().setCompression(compCode).build(); }
+  var parquetBytes = pw.writeParquet(wasmTable, writerProps);
+  fs.writeFileSync(path, parquetBytes);
+}`,
+
   heatmap: `function heatmap(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var valueFn = opts.value; var title = opts.title || ''; var margin = { top: title ? 50 : 40, right: 40, bottom: 60, left: 80 }; var xCats = []; var yCats = []; var xSet = new Set(); var ySet = new Set(); for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); if (!xSet.has(xv)) { xSet.add(xv); xCats.push(xv); } if (!ySet.has(yv)) { ySet.add(yv); yCats.push(yv); } } var grid = {}; var vMn = Infinity; var vMx = -Infinity; for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); var val = Number(valueFn(rows[i])); grid[xv + '|' + yv] = val; if (val < vMn) vMn = val; if (val > vMx) vMx = val; } var vR = vMx - vMn || 1; var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var cellW = plotW / xCats.length; var cellH = plotH / yCats.length; function hc(val) { var t = (val - vMn) / vR; var r = Math.round(255 - t * (255 - 79)); var g = Math.round(255 - t * (255 - 70)); var b = Math.round(255 - t * (255 - 229)); return 'rgb(' + r + ',' + g + ',' + b + ')'; } var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var xi = 0; xi < xCats.length; xi++) { for (var yi = 0; yi < yCats.length; yi++) { var key = xCats[xi] + '|' + yCats[yi]; var val = grid[key]; var rx = margin.left + xi * cellW; var ry = margin.top + yi * cellH; var fill = val !== undefined ? hc(val) : '#f3f4f6'; p.push('<rect x="' + rx + '" y="' + ry + '" width="' + cellW + '" height="' + cellH + '" fill="' + fill + '" stroke="#fff" stroke-width="1"/>'); if (val !== undefined) { var tc = ((val - vMn) / vR) > 0.5 ? '#fff' : '#111'; p.push('<text x="' + (rx + cellW / 2) + '" y="' + (ry + cellH / 2 + 4) + '" text-anchor="middle" font-size="11" fill="' + tc + '">' + __chart_formatNum(val) + '</text>'); } } } for (var xi = 0; xi < xCats.length; xi++) { var lx = margin.left + xi * cellW + cellW / 2; var ly = margin.top + plotH + 16; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_esc(xCats[xi]) + '</text>'); } for (var yi = 0; yi < yCats.length; yi++) { var lx = margin.left - 8; var ly = margin.top + yi * cellH + cellH / 2 + 4; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="end" font-size="11" fill="#666">' + __chart_esc(yCats[yi]) + '</text>'); } p.push('</svg>'); return p.join('\\n'); }`,
 };
 
@@ -1581,6 +1627,11 @@ export const STDLIB_DEPS = {
   table_stratified_sample: ['Table', 'table_sample', '__xorshift128'],
   // SQLite connector
   sqlite: ['Table'],
+  // Parquet read/write
+  readParquet: ['Table'],
+  writeParquet: ['Table'],
+  read: ['Table', '__parseCSV', '__parseJSONL', 'readParquet'],
+  write: ['Table', 'writeParquet'],
   // SVG Charting
   __chart_helpers: ['Table'],
   bar_chart: ['Table', '__chart_helpers'],

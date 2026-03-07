@@ -51,5 +51,9 @@
     "@codemirror/view": "^6.39.15",
     "@lezer/highlight": "^1.2.3",
     "codemirror": "^6.0.2"
+  },
+  "dependencies": {
+    "apache-arrow": "^21.1.0",
+    "parquet-wasm": "^0.7.1"
   }
 }
