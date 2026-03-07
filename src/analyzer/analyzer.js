@@ -179,6 +179,17 @@ export class Analyzer {
       'table_union', 'table_drop_duplicates', 'table_rename',
       // Table aggregation helpers
       'agg_sum', 'agg_count', 'agg_mean', 'agg_median', 'agg_min', 'agg_max',
+      // Table window functions
+      'table_window',
+      'win_row_number', 'win_rank', 'win_dense_rank', 'win_percent_rank', 'win_ntile',
+      'win_lag', 'win_lead', 'win_first_value', 'win_last_value',
+      'win_running_sum', 'win_running_count', 'win_running_avg', 'win_running_min', 'win_running_max',
+      'win_moving_avg',
+      // Window function short names (used inside window() calls, codegen adds win_ prefix)
+      'row_number', 'rank', 'dense_rank', 'percent_rank', 'ntile',
+      'lag', 'lead', 'first_value', 'last_value',
+      'running_sum', 'running_count', 'running_avg', 'running_min', 'running_max',
+      'moving_avg',
       // Data exploration
       'peek', 'describe', 'schema_of',
       // Data cleaning
@@ -190,7 +201,7 @@ export class Analyzer {
       // Table operation aliases (short names)
       'where', 'select', 'derive', 'agg', 'sort_by', 'limit',
       'pivot', 'unpivot', 'explode', 'union', 'drop_duplicates', 'rename',
-      'mean', 'median',
+      'mean', 'median', 'window',
       // Strings (new)
       'index_of', 'last_index_of', 'count_of', 'reverse_str', 'substr',
       'is_empty', 'kebab_case', 'center',

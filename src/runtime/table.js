@@ -405,6 +405,200 @@ export function agg_max(fn) {
   };
 }
 
+// ── Window Functions ──────────────────────────────────
+// window() computes values across partitions without collapsing rows.
+// Each win_* factory returns (rows, index, ctx) => value
+
+export function win_row_number() {
+  return (_rows, index) => index + 1;
+}
+
+export function win_rank() {
+  return (_rows, index, ctx) => {
+    if (index === 0) return 1;
+    const cur = ctx.orderValues[index];
+    // Walk backwards to find first row with same value
+    for (let i = index - 1; i >= 0; i--) {
+      if (ctx.orderValues[i] !== cur) return i + 2;
+    }
+    return 1;
+  };
+}
+
+export function win_dense_rank() {
+  return (_rows, index, ctx) => {
+    if (index === 0) return 1;
+    let rank = 1;
+    for (let i = 1; i <= index; i++) {
+      if (ctx.orderValues[i] !== ctx.orderValues[i - 1]) rank++;
+    }
+    return rank;
+  };
+}
+
+export function win_percent_rank() {
+  return (rows, index, ctx) => {
+    const n = ctx.partitionSize;
+    if (n <= 1) return 0;
+    const r = win_rank()(rows, index, ctx);
+    return (r - 1) / (n - 1);
+  };
+}
+
+export function win_ntile(buckets) {
+  return (_rows, index, ctx) => {
+    const n = ctx.partitionSize;
+    return Math.floor(index * buckets / n) + 1;
+  };
+}
+
+export function win_lag(colFn, offset = 1, defaultVal = null) {
+  return (rows, index) => {
+    const target = index - offset;
+    if (target < 0 || target >= rows.length) return defaultVal;
+    return typeof colFn === 'function' ? colFn(rows[target]) : rows[target][colFn];
+  };
+}
+
+export function win_lead(colFn, offset = 1, defaultVal = null) {
+  return (rows, index) => {
+    const target = index + offset;
+    if (target < 0 || target >= rows.length) return defaultVal;
+    return typeof colFn === 'function' ? colFn(rows[target]) : rows[target][colFn];
+  };
+}
+
+export function win_first_value(colFn) {
+  return (rows) => {
+    if (rows.length === 0) return null;
+    return typeof colFn === 'function' ? colFn(rows[0]) : rows[0][colFn];
+  };
+}
+
+export function win_last_value(colFn) {
+  return (rows) => {
+    if (rows.length === 0) return null;
+    const last = rows[rows.length - 1];
+    return typeof colFn === 'function' ? colFn(last) : last[colFn];
+  };
+}
+
+export function win_running_sum(colFn) {
+  return (rows, index) => {
+    let sum = 0;
+    for (let i = 0; i <= index; i++) {
+      sum += typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn];
+    }
+    return sum;
+  };
+}
+
+export function win_running_count() {
+  return (_rows, index) => index + 1;
+}
+
+export function win_running_avg(colFn) {
+  return (rows, index) => {
+    let sum = 0;
+    for (let i = 0; i <= index; i++) {
+      sum += typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn];
+    }
+    return sum / (index + 1);
+  };
+}
+
+export function win_running_min(colFn) {
+  return (rows, index) => {
+    let m = typeof colFn === 'function' ? colFn(rows[0]) : rows[0][colFn];
+    for (let i = 1; i <= index; i++) {
+      const v = typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn];
+      if (v < m) m = v;
+    }
+    return m;
+  };
+}
+
+export function win_running_max(colFn) {
+  return (rows, index) => {
+    let m = typeof colFn === 'function' ? colFn(rows[0]) : rows[0][colFn];
+    for (let i = 1; i <= index; i++) {
+      const v = typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn];
+      if (v > m) m = v;
+    }
+    return m;
+  };
+}
+
+export function win_moving_avg(colFn, windowSize) {
+  return (rows, index) => {
+    const start = Math.max(0, index - windowSize + 1);
+    let sum = 0;
+    for (let i = start; i <= index; i++) {
+      sum += typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn];
+    }
+    return sum / (index - start + 1);
+  };
+}
+
+export function table_window(table, opts, windowFns) {
+  const partitionFn = opts.partition || null;
+  const orderFn = opts.order || null;
+  const desc = opts.desc || false;
+
+  // Group rows into partitions
+  const partitions = new Map();
+  const rowOriginalIndices = [];
+  for (let i = 0; i < table._rows.length; i++) {
+    const row = table._rows[i];
+    const key = partitionFn ? String(typeof partitionFn === 'function' ? partitionFn(row) : row[partitionFn]) : '__all__';
+    if (!partitions.has(key)) partitions.set(key, []);
+    partitions.get(key).push({ row, originalIndex: i });
+  }
+
+  // Sort each partition by order key
+  if (orderFn) {
+    for (const [, items] of partitions) {
+      items.sort((a, b) => {
+        const ka = typeof orderFn === 'function' ? orderFn(a.row) : a.row[orderFn];
+        const kb = typeof orderFn === 'function' ? orderFn(b.row) : b.row[orderFn];
+        let cmp = 0;
+        if (ka < kb) cmp = -1;
+        else if (ka > kb) cmp = 1;
+        return desc ? -cmp : cmp;
+      });
+    }
+  }
+
+  // Compute window functions per partition, store results by original index
+  const results = new Array(table._rows.length);
+  for (let i = 0; i < results.length; i++) results[i] = {};
+
+  for (const [, items] of partitions) {
+    const partRows = items.map(it => it.row);
+    // Pre-compute order values for rank functions
+    const orderValues = orderFn
+      ? partRows.map(r => typeof orderFn === 'function' ? orderFn(r) : r[orderFn])
+      : partRows.map((_, i) => i);
+    const ctx = { orderValues, partitionSize: partRows.length };
+
+    for (const [colName, winFn] of Object.entries(windowFns)) {
+      for (let idx = 0; idx < partRows.length; idx++) {
+        const val = winFn(partRows, idx, ctx);
+        results[items[idx].originalIndex][colName] = val;
+      }
+    }
+  }
+
+  // Build new rows with original columns + window columns
+  const newCols = [...table._columns];
+  for (const colName of Object.keys(windowFns)) {
+    if (!newCols.includes(colName)) newCols.push(colName);
+  }
+
+  const newRows = table._rows.map((r, i) => ({ ...r, ...results[i] }));
+  return new Table(newRows, newCols);
+}
+
 // ── Data Exploration ──────────────────────────────────
 
 export function peek(table, opts = {}) {

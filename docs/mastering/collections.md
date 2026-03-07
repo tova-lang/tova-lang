@@ -819,6 +819,31 @@ renamed = table_rename(employees, "salary", "compensation")
 all_staff = table_union(engineers, marketing_team)
 ```
 
+### Window Functions
+
+Window functions compute values across partitions without collapsing rows. Unlike `group_by` + `agg` (which reduces rows), `window()` adds new columns while preserving every original row:
+
+```tova
+// Rank employees within each department by salary
+ranked = employees |> window(
+  partition_by: .dept,
+  order_by: .salary,
+  desc: true,
+  salary_rank: row_number(),
+  dept_avg: running_avg(.salary)
+)
+
+// Time-series analysis: compare each day to the previous
+daily = sales |> window(
+  order_by: .date,
+  prev_revenue: lag(.revenue),
+  trend: moving_avg(.revenue, 7),
+  cumulative: running_sum(.revenue)
+)
+```
+
+Window functions include ranking (`row_number`, `rank`, `dense_rank`, `percent_rank`, `ntile`), offset access (`lag`, `lead`, `first_value`, `last_value`), and running aggregates (`running_sum`, `running_count`, `running_avg`, `running_min`, `running_max`, `moving_avg`).
+
 ### Lazy Tables
 
 For large datasets, `lazy()` defers computation until you call `collect()`:

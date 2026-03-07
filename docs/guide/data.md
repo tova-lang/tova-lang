@@ -240,6 +240,121 @@ unique = users |> drop_duplicates(by: .email)
 renamed = users |> rename("email", "email_address")
 ```
 
+## Window Functions
+
+Window functions compute values across partitions of rows **without collapsing them** — unlike `group_by` + `agg`, which reduces rows, `window()` adds new columns while keeping every original row.
+
+```tova
+employees
+  |> window(
+    partition_by: .department,
+    order_by: .salary,
+    row_num: row_number(),
+    rnk: rank(),
+    running_total: running_sum(.salary)
+  )
+```
+
+### How It Works
+
+- `partition_by` divides rows into groups (like `group_by`, but rows aren't collapsed)
+- `order_by` sorts rows within each partition
+- All other named arguments define new columns using window functions
+- The result is a new Table with all original columns plus the new window columns
+
+Both `partition_by` and `order_by` are optional. Without `partition_by`, the entire table is one partition. Without `order_by`, rows retain their original order within each partition.
+
+### Ranking Functions
+
+```tova
+ranked = employees |> window(
+  partition_by: .dept,
+  order_by: .salary,
+  row_num: row_number(),        // 1, 2, 3, 4, ...
+  rnk: rank(),                  // 1, 2, 2, 4  (gaps on ties)
+  dense_rnk: dense_rank(),      // 1, 2, 2, 3  (no gaps)
+  pct: percent_rank(),          // 0.0 to 1.0
+  quartile: ntile(4)            // divide into 4 buckets
+)
+```
+
+### Offset Functions
+
+Access values from other rows within the same partition:
+
+```tova
+with_context = sales |> window(
+  partition_by: .product,
+  order_by: .date,
+  prev_revenue: lag(.revenue),              // previous row's value
+  next_revenue: lead(.revenue),             // next row's value
+  prev_2: lag(.revenue, 2, 0),              // 2 rows back, default 0
+  first_rev: first_value(.revenue),         // first in partition
+  last_rev: last_value(.revenue)            // last in partition
+)
+```
+
+### Running Aggregates
+
+Cumulative computations that grow as you move through the partition:
+
+```tova
+cumulative = transactions |> window(
+  partition_by: .account,
+  order_by: .date,
+  total: running_sum(.amount),
+  n: running_count(),
+  avg: running_avg(.amount),
+  low: running_min(.amount),
+  high: running_max(.amount)
+)
+```
+
+### Moving Average
+
+Compute averages over a sliding window of the last N rows:
+
+```tova
+smoothed = prices |> window(
+  order_by: .date,
+  ma_7: moving_avg(.price, 7),     // 7-period moving average
+  ma_30: moving_avg(.price, 30)    // 30-period moving average
+)
+```
+
+### Descending Order
+
+Use `desc: true` to reverse the sort order within partitions:
+
+```tova
+top_ranked = employees |> window(
+  partition_by: .dept,
+  order_by: .salary,
+  desc: true,
+  salary_rank: row_number()   // highest salary = rank 1
+)
+```
+
+### Available Window Functions
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `row_number()` | — | Sequential number in partition (1, 2, 3, ...) |
+| `rank()` | — | Rank with gaps for ties (1, 2, 2, 4) |
+| `dense_rank()` | — | Rank without gaps (1, 2, 2, 3) |
+| `percent_rank()` | — | Relative rank as fraction (0.0 to 1.0) |
+| `ntile(n)` | bucket count | Divide into n equal-sized buckets |
+| `lag(.col, offset?, default?)` | column, offset=1, default=nil | Value from a previous row |
+| `lead(.col, offset?, default?)` | column, offset=1, default=nil | Value from a following row |
+| `first_value(.col)` | column | First value in the partition |
+| `last_value(.col)` | column | Last value in the partition |
+| `running_sum(.col)` | column | Cumulative sum |
+| `running_count()` | — | Cumulative count |
+| `running_avg(.col)` | column | Cumulative average |
+| `running_min(.col)` | column | Running minimum |
+| `running_max(.col)` | column | Running maximum |
+| `moving_avg(.col, n)` | column, window size | Moving average over last n rows |
+
 ## Data Cleaning
 
 Tova provides built-in functions for common cleaning tasks:
@@ -324,6 +439,7 @@ sales |> schema_of()
 | `fill_nil` | `\|> fill_nil(.city, "Unknown")` | Replace nil values |
 | `cast` | `\|> cast(.age, "Int")` | Convert column type |
 | `rename` | `\|> rename("old", "new")` | Rename a column |
+| `window` | `\|> window(partition_by: .col, row_num: row_number())` | Window functions |
 | `peek` | `\|> peek()` | Preview data (transparent) |
 | `describe` | `\|> describe()` | Statistical summary |
 | `schema_of` | `\|> schema_of()` | Column types |

@@ -6,6 +6,11 @@ import {
   agg_sum, agg_count, agg_mean, agg_median, agg_min, agg_max,
   peek, describe as table_describe, schema_of, cast, drop_nil, fill_nil,
   filter_ok, filter_err,
+  table_window,
+  win_row_number, win_rank, win_dense_rank, win_percent_rank, win_ntile,
+  win_lag, win_lead, win_first_value, win_last_value,
+  win_running_sum, win_running_count, win_running_avg, win_running_min, win_running_max,
+  win_moving_avg,
 } from '../src/runtime/table.js';
 
 const testData = [
@@ -1095,5 +1100,251 @@ describe('Data cleaning edge cases', () => {
     expect(result.rows).toBe(2);
     expect(result.at(0).tags).toBe('a');
     expect(result.at(1).tags).toBe('b');
+  });
+});
+
+// ── Window Functions ──────────────────────────────────
+
+describe('table_window', () => {
+  const employees = new Table([
+    { name: 'Alice', dept: 'Eng', salary: 100 },
+    { name: 'Bob', dept: 'Eng', salary: 80 },
+    { name: 'Charlie', dept: 'Sales', salary: 90 },
+    { name: 'Diana', dept: 'Eng', salary: 100 },
+    { name: 'Eve', dept: 'Sales', salary: 70 },
+  ]);
+
+  test('row_number without partition', () => {
+    const result = table_window(employees, {}, { rn: win_row_number() });
+    expect(result.length).toBe(5);
+    expect(result.at(0).rn).toBe(1);
+    expect(result.at(4).rn).toBe(5);
+    // Original columns preserved
+    expect(result.at(0).name).toBe('Alice');
+    expect(result.columns).toContain('rn');
+    expect(result.columns).toContain('name');
+  });
+
+  test('row_number with partition_by', () => {
+    const result = table_window(
+      employees,
+      { partition: r => r.dept },
+      { rn: win_row_number() }
+    );
+    // Each partition gets its own numbering
+    const engRows = result.toArray().filter(r => r.dept === 'Eng');
+    const salesRows = result.toArray().filter(r => r.dept === 'Sales');
+    expect(engRows.map(r => r.rn).sort()).toEqual([1, 2, 3]);
+    expect(salesRows.map(r => r.rn).sort()).toEqual([1, 2]);
+  });
+
+  test('row_number with partition_by and order_by', () => {
+    const result = table_window(
+      employees,
+      { partition: r => r.dept, order: r => r.salary },
+      { rn: win_row_number() }
+    );
+    const engRows = result.toArray().filter(r => r.dept === 'Eng');
+    // Sorted by salary ascending: Bob(80)=1, Alice(100)=2, Diana(100)=3
+    const sorted = engRows.sort((a, b) => a.rn - b.rn);
+    expect(sorted[0].name).toBe('Bob');
+    expect(sorted[0].rn).toBe(1);
+  });
+
+  test('rank with ties', () => {
+    const result = table_window(
+      employees,
+      { partition: r => r.dept, order: r => r.salary },
+      { rnk: win_rank() }
+    );
+    const engRows = result.toArray().filter(r => r.dept === 'Eng').sort((a, b) => a.rnk - b.rnk);
+    // Bob(80)=1, Alice(100)=2, Diana(100)=2 (tied)
+    expect(engRows[0].rnk).toBe(1);
+    expect(engRows[1].rnk).toBe(2);
+    expect(engRows[2].rnk).toBe(2);
+  });
+
+  test('dense_rank with ties', () => {
+    const result = table_window(
+      employees,
+      { partition: r => r.dept, order: r => r.salary },
+      { dr: win_dense_rank() }
+    );
+    const engRows = result.toArray().filter(r => r.dept === 'Eng').sort((a, b) => a.dr - b.dr);
+    // Bob(80)=1, Alice(100)=2, Diana(100)=2 — no gap
+    expect(engRows[0].dr).toBe(1);
+    expect(engRows[1].dr).toBe(2);
+    expect(engRows[2].dr).toBe(2);
+  });
+
+  test('percent_rank', () => {
+    const result = table_window(
+      employees,
+      { partition: r => r.dept, order: r => r.salary },
+      { pr: win_percent_rank() }
+    );
+    const engRows = result.toArray().filter(r => r.dept === 'Eng').sort((a, b) => a.pr - b.pr);
+    // rank 1 → (1-1)/(3-1) = 0, rank 2 → (2-1)/(3-1) = 0.5
+    expect(engRows[0].pr).toBe(0);
+    expect(engRows[1].pr).toBe(0.5);
+  });
+
+  test('percent_rank single row partition', () => {
+    const t = new Table([{ x: 1 }]);
+    const result = table_window(t, {}, { pr: win_percent_rank() });
+    expect(result.at(0).pr).toBe(0);
+  });
+
+  test('ntile', () => {
+    const t = new Table([{ v: 1 }, { v: 2 }, { v: 3 }, { v: 4 }]);
+    const result = table_window(t, { order: r => r.v }, { q: win_ntile(2) });
+    expect(result.at(0).q).toBe(1);
+    expect(result.at(1).q).toBe(1);
+    expect(result.at(2).q).toBe(2);
+    expect(result.at(3).q).toBe(2);
+  });
+
+  test('lag', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, { prev: win_lag(r => r.v) });
+    expect(result.at(0).prev).toBe(null);
+    expect(result.at(1).prev).toBe(10);
+    expect(result.at(2).prev).toBe(20);
+  });
+
+  test('lag with offset and default', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, { prev2: win_lag(r => r.v, 2, -1) });
+    expect(result.at(0).prev2).toBe(-1);
+    expect(result.at(1).prev2).toBe(-1);
+    expect(result.at(2).prev2).toBe(10);
+  });
+
+  test('lead', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, { nxt: win_lead(r => r.v) });
+    expect(result.at(0).nxt).toBe(20);
+    expect(result.at(1).nxt).toBe(30);
+    expect(result.at(2).nxt).toBe(null);
+  });
+
+  test('lead with offset and default', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, { nxt2: win_lead(r => r.v, 2, 99) });
+    expect(result.at(0).nxt2).toBe(30);
+    expect(result.at(1).nxt2).toBe(99);
+    expect(result.at(2).nxt2).toBe(99);
+  });
+
+  test('first_value and last_value', () => {
+    const result = table_window(
+      employees,
+      { partition: r => r.dept, order: r => r.salary },
+      { fv: win_first_value(r => r.name), lv: win_last_value(r => r.name) }
+    );
+    const engRows = result.toArray().filter(r => r.dept === 'Eng');
+    // All Eng rows share same first/last in partition
+    for (const r of engRows) {
+      expect(r.fv).toBe('Bob'); // lowest salary
+      expect(['Alice', 'Diana']).toContain(r.lv); // highest salary (tied)
+    }
+  });
+
+  test('running_sum', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, { rs: win_running_sum(r => r.v) });
+    expect(result.at(0).rs).toBe(10);
+    expect(result.at(1).rs).toBe(30);
+    expect(result.at(2).rs).toBe(60);
+  });
+
+  test('running_count', () => {
+    const t = new Table([{ v: 'a' }, { v: 'b' }, { v: 'c' }]);
+    const result = table_window(t, {}, { rc: win_running_count() });
+    expect(result.at(0).rc).toBe(1);
+    expect(result.at(2).rc).toBe(3);
+  });
+
+  test('running_avg', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, { ra: win_running_avg(r => r.v) });
+    expect(result.at(0).ra).toBe(10);
+    expect(result.at(1).ra).toBe(15);
+    expect(result.at(2).ra).toBe(20);
+  });
+
+  test('running_min and running_max', () => {
+    const t = new Table([{ v: 20 }, { v: 10 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, {
+      rmin: win_running_min(r => r.v),
+      rmax: win_running_max(r => r.v),
+    });
+    // order_by v sorts partition as [10, 20, 30]
+    // Results map back to original row positions
+    const r10 = result.toArray().find(r => r.v === 10); // idx 0 in sorted
+    const r20 = result.toArray().find(r => r.v === 20); // idx 1 in sorted
+    const r30 = result.toArray().find(r => r.v === 30); // idx 2 in sorted
+    expect(r10.rmin).toBe(10); expect(r10.rmax).toBe(10);
+    expect(r20.rmin).toBe(10); expect(r20.rmax).toBe(20);
+    expect(r30.rmin).toBe(10); expect(r30.rmax).toBe(30);
+  });
+
+  test('moving_avg', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }, { v: 40 }]);
+    const result = table_window(t, { order: r => r.v }, { ma: win_moving_avg(r => r.v, 2) });
+    expect(result.at(0).ma).toBe(10);    // only 1 row available
+    expect(result.at(1).ma).toBe(15);    // avg(10,20)
+    expect(result.at(2).ma).toBe(25);    // avg(20,30)
+    expect(result.at(3).ma).toBe(35);    // avg(30,40)
+  });
+
+  test('empty table', () => {
+    const t = new Table([]);
+    const result = table_window(t, {}, { rn: win_row_number() });
+    expect(result.length).toBe(0);
+    expect(result.columns).toContain('rn');
+  });
+
+  test('immutability — original table unchanged', () => {
+    const t = new Table([{ v: 1 }, { v: 2 }]);
+    const result = table_window(t, {}, { rn: win_row_number() });
+    expect(t.columns).toEqual(['v']);
+    expect(t.at(0).rn).toBeUndefined();
+    expect(result.columns).toEqual(['v', 'rn']);
+  });
+
+  test('desc ordering', () => {
+    const t = new Table([{ v: 10 }, { v: 30 }, { v: 20 }]);
+    const result = table_window(t, { order: r => r.v, desc: true }, { rn: win_row_number() });
+    // Ordered desc: 30, 20, 10 — but result preserves original row order
+    // Row with v=30 gets rn=1, v=20 gets rn=2, v=10 gets rn=3
+    const row30 = result.toArray().find(r => r.v === 30);
+    const row10 = result.toArray().find(r => r.v === 10);
+    expect(row30.rn).toBe(1);
+    expect(row10.rn).toBe(3);
+  });
+
+  test('multiple window functions at once', () => {
+    const t = new Table([{ v: 10 }, { v: 20 }, { v: 30 }]);
+    const result = table_window(t, { order: r => r.v }, {
+      rn: win_row_number(),
+      rs: win_running_sum(r => r.v),
+      prev: win_lag(r => r.v),
+    });
+    expect(result.at(1).rn).toBe(2);
+    expect(result.at(1).rs).toBe(30);
+    expect(result.at(1).prev).toBe(10);
+  });
+
+  test('string column accessors', () => {
+    const t = new Table([{ salary: 100 }, { salary: 200 }]);
+    const result = table_window(t, { order: r => r.salary }, {
+      rs: win_running_sum('salary'),
+      prev: win_lag('salary'),
+    });
+    expect(result.at(0).rs).toBe(100);
+    expect(result.at(1).rs).toBe(300);
+    expect(result.at(0).prev).toBe(null);
+    expect(result.at(1).prev).toBe(100);
   });
 });

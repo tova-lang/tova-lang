@@ -1574,10 +1574,15 @@ export class BaseCodegen {
 
     // Check for table operation calls with column expressions
     const hasColumnExprs = node.arguments.some(a => this._containsColumnExpr(a));
-    if (hasColumnExprs || (node.callee.type === 'Identifier' && ['agg', 'table_agg'].includes(node.callee.name))) {
+    if (hasColumnExprs || (node.callee.type === 'Identifier' && ['agg', 'table_agg', 'window', 'table_window'].includes(node.callee.name))) {
       const tableArgs = this._genTableCallArgs(node);
       if (tableArgs) {
-        const callee = this.genExpression(node.callee);
+        let callee = this.genExpression(node.callee);
+        // Remap window → table_window to avoid browser global conflict
+        if (node.callee.type === 'Identifier' && node.callee.name === 'window') {
+          callee = 'table_window';
+          this._usedBuiltins.add('table_window');
+        }
         return `${callee}(${tableArgs.join(', ')})`;
       }
     }
@@ -2010,10 +2015,15 @@ export class BaseCodegen {
     if (right.type === 'CallExpression') {
       // Check for table operations with column expressions
       const hasColumnExprs = right.arguments.some(a => this._containsColumnExpr(a));
-      if (hasColumnExprs || (right.callee.type === 'Identifier' && ['agg', 'table_agg'].includes(right.callee.name))) {
+      if (hasColumnExprs || (right.callee.type === 'Identifier' && ['agg', 'table_agg', 'window', 'table_window'].includes(right.callee.name))) {
         const tableArgs = this._genTableCallArgs(right);
         if (tableArgs) {
-          const callee = this.genExpression(right.callee);
+          let callee = this.genExpression(right.callee);
+          // Remap window → table_window to avoid browser global conflict
+          if (right.callee.type === 'Identifier' && right.callee.name === 'window') {
+            callee = 'table_window';
+            this._usedBuiltins.add('table_window');
+          }
           // Track builtin usage (with dependency resolution)
           if (right.callee.type === 'Identifier' && BUILTIN_NAMES.has(right.callee.name)) {
             this._trackBuiltin(right.callee.name);
@@ -2291,6 +2301,52 @@ export class BaseCodegen {
         return [`{ ${parts.join(', ')} }`];
       }
       return parts;
+    }
+
+    // window() / table_window() — partition_by/order_by/desc are meta, rest are window fns
+    if (calleeName === 'window' || calleeName === 'table_window') {
+      const META_KEYS = new Set(['partition_by', 'order_by', 'desc']);
+      const optParts = [];
+      const winParts = [];
+      for (const a of node.arguments) {
+        if (a.type === 'NamedArgument') {
+          if (META_KEYS.has(a.name)) {
+            // Meta keys: partition_by → partition, order_by → order
+            const key = a.name === 'partition_by' ? 'partition' : a.name === 'order_by' ? 'order' : a.name;
+            if (a.name === 'desc') {
+              optParts.push(`desc: ${this.genExpression(a.value)}`);
+            } else if (this._containsColumnExpr(a.value)) {
+              optParts.push(`${key}: (__row) => ${this._genColumnBody(a.value)}`);
+            } else {
+              optParts.push(`${key}: ${this.genExpression(a.value)}`);
+            }
+          } else {
+            // Window function column
+            const val = a.value;
+            if (val.type === 'CallExpression' && val.callee.type === 'Identifier') {
+              const fnName = val.callee.name;
+              const winFn = `win_${fnName}`;
+              const WIN_FNS = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'ntile',
+                'lag', 'lead', 'first_value', 'last_value',
+                'running_sum', 'running_count', 'running_avg', 'running_min', 'running_max',
+                'moving_avg'];
+              if (WIN_FNS.includes(fnName)) {
+                this._usedBuiltins.add(winFn);
+                const innerArgs = val.arguments.map(ia => {
+                  if (this._containsColumnExpr(ia)) {
+                    return `(__row) => ${this._genColumnBody(ia)}`;
+                  }
+                  return this.genExpression(ia);
+                });
+                winParts.push(`${a.name}: ${winFn}(${innerArgs.join(', ')})`);
+                continue;
+              }
+            }
+            winParts.push(`${a.name}: ${this.genExpression(a.value)}`);
+          }
+        }
+      }
+      return [`{ ${optParts.join(', ')} }`, `{ ${winParts.join(', ')} }`];
     }
 
     // drop_nil/fill_nil — column expression compiles to string or lambda

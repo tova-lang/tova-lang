@@ -44,7 +44,7 @@ Tova's standard library follows a few guiding principles:
 | **Channels** | `Channel.new`, `ch.send`, `ch.receive`, `ch.close` | [Channels](./channels) |
 | **Terminal & CLI** | `color`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gray`, `bold`, `dim`, `underline`, `strikethrough`, `table`, `panel`, `progress`, `spin`, `ask`, `confirm`, `choose`, `choose_many`, `secret` | [Terminal & CLI](./terminal) |
 | **Scripting I/O** | `fs.exists`, `fs.read_text`, `fs.write_text`, `fs.ls`, `fs.mkdir`, `fs.rm`, `fs.glob_files`, `sh`, `exec`, `spawn`, `env`, `args`, `parse_args`, `exit`, `path_join`, `path_basename`, `path_dirname` | [Scripting I/O](./io) |
-| **Tables** | `Table`, `where`, `select`, `derive`, `sort_by`, `group_by`, `agg`, `join`, `pivot`, `unpivot`, `explode`, `peek`, `describe` | [Tables](./tables) |
+| **Tables** | `Table`, `where`, `select`, `derive`, `sort_by`, `group_by`, `agg`, `window`, `join`, `pivot`, `unpivot`, `explode`, `peek`, `describe` | [Tables](./tables) |
 | **Testing** | `Gen.int`, `Gen.float`, `Gen.bool`, `Gen.string`, `Gen.array`, `Gen.oneOf`, `forAll`, `create_spy`, `create_mock` | [Testing](./testing) |
 
 ## Quick Reference

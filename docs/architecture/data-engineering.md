@@ -64,7 +64,7 @@ table |> select(.name, .email)
 table |> sort_by(.created_at, desc: true)
 ```
 
-Inside `derive()`, `where()`, `agg()`, and other table operations, `.column_name` compiles to a row-level accessor function. The expression `.age > 30` becomes `fn(row) row.age > 30`.
+Inside `derive()`, `where()`, `agg()`, `window()`, and other table operations, `.column_name` compiles to a row-level accessor function. The expression `.age > 30` becomes `fn(row) row.age > 30`.
 
 ### Complex Expressions
 
@@ -362,6 +362,87 @@ level2 = level1
     categories: count()
   )
 ```
+
+## Window Functions
+
+Window functions compute values across partitions of rows **without collapsing them**. Unlike `group_by` + `agg` which reduces rows, `window()` adds new columns while preserving every original row.
+
+### Ranking and Ordering
+
+```tova
+// Rank employees within each department
+table |> window(
+  partition_by: .dept,
+  order_by: .salary,
+  desc: true,
+  salary_rank: row_number(),
+  salary_tier: ntile(4)
+)
+
+// Rank with tie handling
+table |> window(
+  order_by: .score,
+  rnk: rank(),          // gaps on ties: 1, 2, 2, 4
+  dense_rnk: dense_rank()  // no gaps: 1, 2, 2, 3
+)
+```
+
+### Running Aggregates
+
+```tova
+// Cumulative totals and counts
+table |> window(
+  partition_by: .account,
+  order_by: .date,
+  running_total: running_sum(.amount),
+  running_avg: running_avg(.amount),
+  txn_number: running_count()
+)
+```
+
+### Row Comparison
+
+```tova
+// Compare each row to its neighbors
+table |> window(
+  order_by: .date,
+  prev_value: lag(.price),
+  next_value: lead(.price),
+  first_in_period: first_value(.price),
+  last_in_period: last_value(.price)
+)
+```
+
+### Moving Averages
+
+```tova
+// Smooth noisy data with a sliding window
+table |> window(
+  order_by: .date,
+  ma_7: moving_avg(.price, 7),
+  ma_30: moving_avg(.price, 30)
+)
+```
+
+### Available Window Functions
+
+| Function | Description |
+|----------|-------------|
+| `row_number()` | Sequential number (1, 2, 3, ...) |
+| `rank()` | Rank with gaps for ties |
+| `dense_rank()` | Rank without gaps |
+| `percent_rank()` | Relative rank (0.0 to 1.0) |
+| `ntile(n)` | Divide into n buckets |
+| `lag(.col, offset?, default?)` | Previous row's value |
+| `lead(.col, offset?, default?)` | Next row's value |
+| `first_value(.col)` | First value in partition |
+| `last_value(.col)` | Last value in partition |
+| `running_sum(.col)` | Cumulative sum |
+| `running_count()` | Cumulative count |
+| `running_avg(.col)` | Cumulative average |
+| `running_min(.col)` | Running minimum |
+| `running_max(.col)` | Running maximum |
+| `moving_avg(.col, n)` | Moving average over last n rows |
 
 ## AI Enrichment at Scale
 

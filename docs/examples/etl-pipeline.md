@@ -223,6 +223,24 @@ by_category = order_details
 
 `group_by` partitions the table, and `agg` computes named aggregate values per group. Available functions: `count()`, `sum()`, `mean()`, `median()`, `min()`, `max()`.
 
+### Window Functions
+
+Unlike `group_by` + `agg` which collapses rows, `window()` computes values across partitions while keeping every row:
+
+```tova
+// Rank orders within each category and compute running totals
+enriched = orders
+  |> window(
+    partition_by: .category,
+    order_by: .date,
+    rank: row_number(),
+    running_revenue: running_sum(.total),
+    prev_order: lag(.total),
+    trend: moving_avg(.total, 7)
+  )
+  |> where(.rank <= 10)   // top 10 per category
+```
+
 ### Pivot and Unpivot
 
 Reshape data between wide and long formats:
@@ -265,7 +283,7 @@ write(table, "output.jsonl")    // JSON Lines (one object per line)
 
 **No blocks needed.** Data scripts don't need `shared {}`, `server {}`, or `browser {}`. Top-level code runs as a script.
 
-**Column expressions.** `.column_name` compiles to a row-level accessor. Inside `derive()`, `where()`, and `agg()`, column expressions are lambdas that operate on each row.
+**Column expressions.** `.column_name` compiles to a row-level accessor. Inside `derive()`, `where()`, `agg()`, and `window()`, column expressions are lambdas that operate on each row.
 
 **Immutable tables.** Every operation returns a new table. The original is never modified. This makes pipelines composable and safe.
 

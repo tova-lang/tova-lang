@@ -423,6 +423,90 @@ schema_of(users)
 
 ---
 
+## Window Functions
+
+### window
+
+```tova
+t |> window(partition_by?: column, order_by?: column, desc?: Bool, ...fns) -> Table
+```
+
+Computes values across partitions of rows without collapsing them. Returns a new Table with all original columns plus new window columns.
+
+Options:
+- `partition_by` -- column to partition rows by (optional; without it, entire table is one partition)
+- `order_by` -- column to sort rows within each partition (optional)
+- `desc` -- sort descending within partitions (default `false`)
+
+All other named arguments define new columns using window functions.
+
+```tova
+result = employees |> window(
+  partition_by: .dept,
+  order_by: .salary,
+  rn: row_number(),
+  rnk: rank(),
+  prev_salary: lag(.salary, 1),
+  running_total: running_sum(.salary)
+)
+```
+
+#### Ranking Functions
+
+| Function | Description |
+|----------|-------------|
+| `row_number()` | Sequential number in partition (1, 2, 3, ...) |
+| `rank()` | Rank with gaps for ties (1, 2, 2, 4) |
+| `dense_rank()` | Rank without gaps (1, 2, 2, 3) |
+| `percent_rank()` | Relative rank as fraction (0.0 to 1.0) |
+| `ntile(n)` | Divide into n equal-sized buckets |
+
+#### Offset Functions
+
+| Function | Description |
+|----------|-------------|
+| `lag(.col, offset?, default?)` | Value from a previous row (default offset=1) |
+| `lead(.col, offset?, default?)` | Value from a following row (default offset=1) |
+| `first_value(.col)` | First value in the partition |
+| `last_value(.col)` | Last value in the partition |
+
+#### Running Aggregates
+
+| Function | Description |
+|----------|-------------|
+| `running_sum(.col)` | Cumulative sum |
+| `running_count()` | Cumulative count |
+| `running_avg(.col)` | Cumulative average |
+| `running_min(.col)` | Running minimum |
+| `running_max(.col)` | Running maximum |
+| `moving_avg(.col, n)` | Moving average over last n rows |
+
+```tova
+// Ranking within departments
+employees |> window(
+  partition_by: .dept,
+  order_by: .salary,
+  desc: true,
+  salary_rank: row_number()
+)
+
+// Running totals and moving averages
+sales |> window(
+  order_by: .date,
+  cumulative: running_sum(.revenue),
+  trend: moving_avg(.revenue, 7)
+)
+
+// Previous/next row comparison
+prices |> window(
+  order_by: .date,
+  prev_price: lag(.price),
+  next_price: lead(.price)
+)
+```
+
+---
+
 ## Combination
 
 ### union
