@@ -806,3 +806,81 @@ export function table_stratified_sample(table, keyFn, n, opts = {}) {
   }
   return new Table(allRows, table._columns);
 }
+
+// ── SQLite Connector ──────────────────────────────────
+
+let _SqliteDatabase = null;
+function _getSqliteDatabase() {
+  if (_SqliteDatabase) return _SqliteDatabase;
+  try {
+    _SqliteDatabase = globalThis.Bun
+      ? require('bun:sqlite').Database
+      : require('better-sqlite3');
+  } catch {
+    throw new Error('SQLite requires Bun (built-in) or "better-sqlite3" package under Node');
+  }
+  return _SqliteDatabase;
+}
+
+export function tova_sqlite(path) {
+  const Database = _getSqliteDatabase();
+  const db = new Database(path);
+
+  function _inferSqliteType(value) {
+    if (value === null || value === undefined) return 'TEXT';
+    if (typeof value === 'boolean') return 'INTEGER';
+    if (typeof value === 'number') return Number.isInteger(value) ? 'INTEGER' : 'REAL';
+    return 'TEXT';
+  }
+
+  return {
+    _isTovaSqlite: true,
+
+    query(sql, params = []) {
+      const stmt = db.prepare(sql);
+      const rows = stmt.all(...params);
+      return new Table(rows);
+    },
+
+    exec(sql, params = []) {
+      const stmt = db.prepare(sql);
+      const result = stmt.run(...params);
+      return { changes: result.changes };
+    },
+
+    writeTable(tableData, tableName, opts = {}) {
+      const t = tableData instanceof Table ? tableData : new Table(tableData);
+      if (t._rows.length === 0) return;
+
+      if (!opts.append) {
+        db.run(`DROP TABLE IF EXISTS "${tableName}"`);
+        const colDefs = t._columns.map(c => {
+          const sampleVal = t._rows[0][c];
+          return `"${c}" ${_inferSqliteType(sampleVal)}`;
+        }).join(', ');
+        db.run(`CREATE TABLE "${tableName}" (${colDefs})`);
+      }
+
+      const placeholders = t._columns.map(() => '?').join(', ');
+      const insertSql = `INSERT INTO "${tableName}" (${t._columns.map(c => `"${c}"`).join(', ')}) VALUES (${placeholders})`;
+      const insert = db.prepare(insertSql);
+
+      const transaction = db.transaction((rows) => {
+        for (const row of rows) {
+          const values = t._columns.map(c => {
+            const v = row[c];
+            if (v === undefined || v === null) return null;
+            if (typeof v === 'boolean') return v ? 1 : 0;
+            return v;
+          });
+          insert.run(...values);
+        }
+      });
+      transaction(t._rows);
+    },
+
+    close() {
+      db.close();
+    }
+  };
+}
