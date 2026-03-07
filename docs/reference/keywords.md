@@ -6,20 +6,17 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 
 | Keyword | Description |
 |---------|-------------|
-| [`ai`](#ai) | Declare an AI provider configuration |
 | [`and`](#and) | Logical AND (keyword form) |
 | [`as`](#as) | Alias in imports |
 | [`async`](#async) | Mark a function as asynchronous |
 | [`await`](#await) | Wait for an async result |
-| [`bench`](#bench) | Define a benchmark block |
 | [`break`](#break) | Exit a loop early |
-| [`catch`](#catch) | Handle errors from a try block |
 | [`browser`](#browser) | Define a browser block |
+| [`catch`](#catch) | Handle errors from a try block |
+| `client` | Deprecated alias for [`browser`](#browser) |
 | [`component`](#component) | Declare a reactive UI component |
 | [`computed`](#computed) | Declare a derived reactive value |
-| [`concurrent`](#concurrent) | Define a structured concurrency block |
 | [`continue`](#continue) | Skip to the next loop iteration |
-| [`data`](#data) | Define a data block for sources, pipelines, and validation |
 | [`defer`](#defer) | Schedule code to run at scope exit |
 | [`derive`](#derive) | Auto-derive trait implementations for a type |
 | [`effect`](#effect) | Declare a reactive side effect |
@@ -38,10 +35,10 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`guard`](#guard) | Assert a condition or execute an else block |
 | [`if`](#if) | Conditional branch |
 | [`impl`](#impl) | Implement methods or traits for a type |
-| [`is`](#is) | Type-checking operator |
 | [`import`](#import) | Bring names from another module into scope |
 | [`in`](#in) | Membership test; iteration target in for loops |
 | [`interface`](#interface) | Define a structural type contract |
+| [`is`](#is) | Type-checking operator |
 | [`let`](#let) | Destructuring binding |
 | [`loop`](#loop) | Infinite loop |
 | [`match`](#match) | Pattern matching expression |
@@ -49,34 +46,31 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`nil`](#nil) | The absence-of-value literal |
 | [`not`](#not) | Logical NOT (keyword form) |
 | [`or`](#or) | Logical OR (keyword form) |
-| [`pipeline`](#pipeline) | Declare a named transform chain in a data block |
 | [`pub`](#pub) | Mark a declaration as public |
-| [`refresh`](#refresh) | Set a refresh policy for a data source |
 | [`return`](#return) | Explicit early return from a function |
 | [`route`](#route) | Define an HTTP route in a server block |
-| [`select`](#select) | Multiplex across channel operations |
 | [`server`](#server) | Define a server-side block |
 | [`shared`](#shared) | Define a block shared between server and browser |
-| [`source`](#source) | Declare a data source in a data block |
-| [`spawn`](#spawn) | Launch a concurrent task inside a `concurrent` block |
 | [`state`](#state) | Declare a reactive state variable |
 | [`steps`](#steps) | Declare wizard steps inside a form block |
 | [`store`](#store) | Declare a reactive store |
-| [`test`](#test) | Define a test block |
 | [`trait`](#trait) | Define a named set of behaviors |
 | [`true`](#true) | Boolean true literal |
 | [`try`](#try) | Begin an error-handling block |
 | [`type`](#type) | Declare a custom type (struct or ADT) |
-| [`validate`](#validate) | Declare validation rules for a type in a data block |
 | [`var`](#var) | Declare a mutable variable |
 | [`when`](#when) | Guard condition in for loops |
 | [`while`](#while) | Loop while a condition is true |
 | [`with`](#with) | Resource management with cleanup |
 | [`yield`](#yield) | Yield a value from a generator |
 
+::: info
+Several identifiers that appear keyword-like are actually **contextual identifiers** -- they are NOT reserved by the lexer and can be used as variable names outside their respective contexts. See [Contextual Identifiers](#contextual-identifiers-block-keywords) and [Data Block Identifiers](#contextual-identifiers-data-block) below.
+:::
+
 ## Contextual Keywords (HTTP Methods)
 
-These identifiers are reserved only within `server` blocks for route declarations:
+These identifiers are recognized only within `server` blocks for route declarations. They are parsed as regular identifiers, not as keyword tokens:
 
 | Keyword | Description |
 |---------|-------------|
@@ -87,6 +81,49 @@ These identifiers are reserved only within `server` blocks for route declaration
 | `PATCH` | HTTP PATCH method |
 | `HEAD` | HTTP HEAD method |
 | `OPTIONS` | HTTP OPTIONS method |
+
+## Contextual Identifiers (Block Keywords)
+
+The following identifiers are NOT reserved keywords. They are detected contextually by the plugin system at the top level only and can be used as variable names in other contexts:
+
+| Identifier | Description |
+|------------|-------------|
+| `test` | Define a test block |
+| `bench` | Define a benchmark block |
+| `security` | Define a security policy block |
+| `cli` | Define a CLI tool block |
+| `edge` | Define an edge/serverless block |
+| `concurrent` | Define a structured concurrency block |
+| `deploy` | Define a deployment configuration block |
+| `theme` | Define a design token theme block |
+| `data` | Define a data block for sources, pipelines, and validation |
+
+## Contextual Identifiers (Concurrency)
+
+These identifiers are recognized only within `concurrent` blocks or as prefix operators in concurrent contexts:
+
+| Identifier | Description |
+|------------|-------------|
+| [`spawn`](#spawn) | Launch a concurrent task inside a `concurrent` block |
+| [`select`](#select) | Multiplex across channel operations |
+
+## Contextual Identifiers (Data Block)
+
+These identifiers are recognized only inside `data` blocks:
+
+| Identifier | Description |
+|------------|-------------|
+| [`ai`](#ai) | Declare an AI provider configuration (inside server blocks) |
+| [`pipeline`](#pipeline) | Declare a named transform chain in a data block |
+| [`source`](#source) | Declare a data source in a data block |
+| [`validate`](#validate) | Declare validation rules for a type in a data block |
+| [`refresh`](#refresh) | Set a refresh policy for a data source |
+
+## Contextual Identifiers (Styling)
+
+| Identifier | Description |
+|------------|-------------|
+| `style` | Define a scoped CSS style block (consumed as a `STYLE_BLOCK` token by the lexer) |
 
 ---
 

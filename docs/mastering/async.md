@@ -169,8 +169,8 @@ Mark a function as `async` to enable `await` inside it:
 
 ```tova
 async fn fetch_data(url) {
-  response = await http_get(url)
-  response.body
+  await sleep(100)  // Simulated network delay
+  { url: url, status: 200, body: "Response from {url}" }
 }
 ```
 
@@ -179,8 +179,8 @@ async fn fetch_data(url) {
 ```tova
 async fn main_flow() {
   // This pauses until the fetch completes
-  data = await fetch_data("https://api.example.com/users")
-  print("Got {len(data)} users")
+  result = await fetch_data("https://api.example.com/users")
+  print("Status: {result.status}")
 }
 
 main_flow()
@@ -588,14 +588,14 @@ concurrent {
 }
 
 // cancel_on_error: abort all if any fails
-concurrent(cancel_on_error) {
+concurrent cancel_on_error {
   data = spawn fetch_critical_data()
   config = spawn load_config()
 }
 // If either fails, the other is cancelled
 
 // first: take the first result, cancel the rest
-concurrent(first) {
+concurrent first {
   result = spawn fetch_from_primary()
   fallback = spawn fetch_from_backup()
 }
@@ -625,8 +625,8 @@ concurrent timeout(3000) {
 | Scenario | Use |
 |----------|-----|
 | Simple parallel operations | `concurrent { }` |
-| Need to cancel on first failure | `concurrent(cancel_on_error) { }` |
-| Race between alternatives | `concurrent(first) { }` |
+| Need to cancel on first failure | `concurrent cancel_on_error { }` |
+| Race between alternatives | `concurrent first { }` |
 | Must complete within a deadline | `concurrent timeout(ms) { }` |
 | Dynamic number of parallel tasks | `Promise.all(items \|> map(fn))` |
 | Fine-grained Promise control | `Promise.all` or `Promise.race` |
@@ -641,19 +641,26 @@ The `select` statement races multiple async operations and executes the branch f
 
 ```tova
 select {
-  msg = await channel.receive() => {
+  msg from channel => {
     print("Got message: {msg}")
   }
-  data = await fetch_data(url) => {
-    print("Got data: {data}")
-  }
-  _ = await sleep(5000) => {
+  timeout(5000) => {
     print("Timed out after 5 seconds")
+  }
+  _ => {
+    print("Default case")
   }
 }
 ```
 
-Each arm is an `await` expression with a handler block. The first operation to complete wins — the rest are cancelled. This is similar to Go's `select` statement.
+Each arm uses one of the following forms:
+- `binding from channel =>` — receive a value from a channel
+- `_ from channel =>` — receive from a channel (discard value)
+- `channel.send(value) =>` — send a value to a channel
+- `timeout(ms) =>` — trigger after a delay
+- `_ =>` — default case
+
+The first operation to complete wins — the rest are cancelled. This is similar to Go's `select` statement.
 
 ### Common select Patterns
 
@@ -661,10 +668,10 @@ Each arm is an `await` expression with a handler block. The first operation to c
 
 ```tova
 select {
-  result = await slow_operation() => {
+  result from data_channel => {
     print("Operation completed: {result}")
   }
-  _ = await sleep(3000) => {
+  timeout(3000) => {
     print("Operation timed out, using default")
   }
 }
@@ -674,30 +681,30 @@ select {
 
 ```tova
 select {
-  data = await download(url) => {
+  data from download_channel => {
     save(data)
   }
-  _ = await cancel_signal.receive() => {
+  _ from cancel_signal => {
     print("Download cancelled by user")
   }
 }
 ```
 
-**First response wins:**
+**Send or timeout:**
 
 ```tova
 select {
-  resp = await fetch(primary_url) => {
-    print("Primary responded: {resp}")
+  output_channel.send(result) => {
+    print("Sent result to output")
   }
-  resp = await fetch(backup_url) => {
-    print("Backup responded: {resp}")
+  timeout(1000) => {
+    print("Send timed out")
   }
 }
 ```
 
-::: tip select vs concurrent(first)
-`select` is for choosing between fundamentally different operations (a fetch vs. a timeout vs. a user action). `concurrent(first)` is for racing similar operations (fetching from multiple mirrors). Use whichever reads more naturally for your use case.
+::: tip select vs concurrent first
+`select` is for choosing between fundamentally different channel operations (a receive vs. a send vs. a timeout). `concurrent first` is for racing similar operations (fetching from multiple mirrors). Use whichever reads more naturally for your use case.
 :::
 
 ## Project: Parallel Data Fetcher

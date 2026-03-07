@@ -678,10 +678,10 @@ Tova infers types aggressively, so you often don't _need_ to write generic annot
 
 ## Generators
 
-Generators produce values lazily using `yield`:
+Generators produce values lazily using `yield`. Any function that contains a `yield` expression is automatically treated as a generator — no special syntax is needed:
 
 ```tova
-fn* naturals() {
+fn naturals() {
   var n = 0
   while true {
     yield n
@@ -689,7 +689,7 @@ fn* naturals() {
   }
 }
 
-fn* take(iter, n_items) {
+fn take(iter, n_items) {
   var count = 0
   for item in iter {
     if count >= n_items { return }

@@ -649,6 +649,10 @@ fn process(name: String | Nil) {
 
 ### Result Narrowing with `.isOk()` / `.isErr()`
 
+::: warning Implementation Status
+The analyzer currently implements narrowing for `.isOk()` and `.isSome()` only. Narrowing for `.isErr()` and `.isNone()` as explicit condition checks is not yet implemented -- however, their behavior is achieved via the `else` branch of `.isOk()` and `.isSome()` respectively.
+:::
+
 ```tova
 fn handle(result: Result<Int, String>) {
   if result.isOk() {
@@ -673,17 +677,17 @@ fn display(maybe_user: Option<User>) {
 }
 ```
 
-### `typeOf()` Narrowing
+### `type_of()` Narrowing
 
-The compiler recognizes `typeOf()` checks and narrows accordingly:
+The compiler recognizes `type_of()` checks and narrows accordingly. `type_of()` is a Tova stdlib function that returns capitalized type name strings: `"String"`, `"Int"`, `"Float"`, `"Bool"`, `"List"`, `"Function"`, `"Object"`, `"Nil"`, or the `__tag` name for ADT variants:
 
 ```tova
 fn serialize(value) {
   if type_of(value) == "String" {
     // value is narrowed to String
     "\"" ++ value ++ "\""
-  } elif type_of(value) == "Number" {
-    // value is narrowed to a numeric type
+  } elif type_of(value) == "Int" {
+    // value is narrowed to Int
     str(value)
   } else {
     "unknown"
@@ -692,6 +696,10 @@ fn serialize(value) {
 ```
 
 ### `is` Operator Narrowing
+
+::: warning Implementation Status
+The `is` operator narrowing is not yet implemented in the analyzer. The `is` keyword works at runtime for type checks, but the compiler does not currently narrow types based on `is` expressions. This is planned for a future release.
+:::
 
 The `is` keyword narrows types in conditional branches:
 
@@ -740,19 +748,23 @@ fn format(value: String | Int | Float) {
 
 ### Narrowing Patterns Summary
 
-| Pattern | Narrows to |
-|---------|-----------|
-| `x != nil` | Non-nil type (strips `Nil` from union) |
-| `x == nil` | `Nil` in consequent; non-nil in alternate |
-| `x.isOk()` | Ok variant in consequent; Err in alternate |
-| `x.isErr()` | Err variant in consequent; Ok in alternate |
-| `x.isSome()` | Some variant in consequent; None in alternate |
-| `x.isNone()` | None in consequent; Some in alternate |
-| `x is Type` | The checked type |
-| `type_of(x) == "String"` | The corresponding Tova type |
-| `guard x != nil else { ... }` | Non-nil for rest of scope |
+| Pattern | Narrows to | Status |
+|---------|-----------|--------|
+| `x != nil` | Non-nil type (strips `Nil` from union) | Implemented |
+| `x == nil` | `Nil` in consequent; non-nil in alternate | Implemented |
+| `x.isOk()` | Ok variant in consequent; Err in alternate | Implemented |
+| `x.isErr()` | Err variant in consequent; Ok in alternate | Use `else` branch of `.isOk()` |
+| `x.isSome()` | Some variant in consequent; None in alternate | Implemented |
+| `x.isNone()` | None in consequent; Some in alternate | Use `else` branch of `.isSome()` |
+| `x is Type` | The checked type | Not yet implemented |
+| `type_of(x) == "String"` | The corresponding Tova type | Implemented (use capitalized type names) |
+| `guard x != nil else { ... }` | Non-nil for rest of scope | Implemented |
 
 ## Refinement Types
+
+::: warning Implementation Status
+Refinement types are parsed by the compiler but semantic analysis is not yet implemented -- the analyzer currently treats `RefinementType` nodes as a no-op (no validation of predicates, no type checking of the `where` body). Runtime validation code is generated, but compile-time checking of refinement constraints is planned for a future release.
+:::
 
 Refinement types add runtime constraints to existing types using a `where` clause. They let you express invariants like "a string that contains @" or "an integer between 0 and 150" directly in the type system.
 

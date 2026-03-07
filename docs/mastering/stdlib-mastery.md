@@ -3,26 +3,29 @@ const regexCode = `// Regex: pattern matching on strings
 text = "Contact us at support@tova.dev or sales@tova.dev"
 
 // Test if a pattern matches
-print(regex_test(r"\\w+@\\w+\\.\\w+", text))   // true
+print(regex_test(text, r"\\w+@\\w+\\.\\w+"))   // true
 
 // Find all matches
-emails = regex_find_all(r"\\w+@\\w+\\.\\w+", text)
+emails = regex_find_all(text, r"\\w+@\\w+\\.\\w+")
 print("Found emails: {emails}")
 
-// Capture groups
+// Capture groups (regex_match returns Result)
 log_line = "2026-03-06 14:30:45 [ERROR] Connection refused"
-match_result = regex_match(r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)", log_line)
-print("Date: {match_result[1]}")
-print("Time: {match_result[2]}")
-print("Level: {match_result[3]}")
-print("Message: {match_result[4]}")
+match_result = regex_match(log_line, r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)")
+match match_result {
+  Ok(m) => {
+    print("Match: {m.match}")
+    print("Groups: {m.groups}")
+  }
+  Err(e) => print("No match: {e}")
+}
 
 // Replace with regex
-cleaned = regex_replace(r"\\s+", " ", "too   many    spaces")
+cleaned = regex_replace("too   many    spaces", r"\\s+", " ")
 print(cleaned)   // "too many spaces"
 
 // Split with regex
-parts = regex_split(r"[,;\\s]+", "one, two; three  four")
+parts = regex_split("one, two; three  four", r"[,;\\s]+")
 print(parts)   // ["one", "two", "three", "four"]`
 
 const datetimeCode = `// Date/Time operations
@@ -174,7 +177,7 @@ pretty = json_pretty(data)
 print("Pretty JSON:")
 print(pretty)
 
-parsed = json_parse(json_str)
+parsed = json_parse(json_str).unwrap()
 print("Parsed name: {parsed.name}")
 print("Parsed scores: {parsed.scores}")`
 
@@ -304,19 +307,14 @@ logs = [
 
 // Parse each log line with regex
 fn parse_log(line) {
-  match_result = regex_match(
-    r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)",
-    line
-  )
-  if match_result != nil {
-    Ok({
-      date: match_result[1],
-      time: match_result[2],
-      level: match_result[3],
-      message: match_result[4]
+  match regex_match(line, r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)") {
+    Ok(m) => Ok({
+      date: m.groups[0],
+      time: m.groups[1],
+      level: m.groups[2],
+      message: m.groups[3]
     })
-  } else {
-    Err("Failed to parse: {line}")
+    Err(_) => Err("Failed to parse: {line}")
   }
 }
 
@@ -359,11 +357,9 @@ print("")
 
 // Extract response times from request logs
 fn extract_response_time(msg) {
-  match_result = regex_match(r"\\((\\d+)ms\\)", msg)
-  if match_result != nil {
-    Some(to_int(match_result[1]))
-  } else {
-    None
+  match regex_match(msg, r"\\((\\d+)ms\\)") {
+    Ok(m) => Some(to_int(m.groups[0]))
+    Err(_) => None
   }
 }
 
@@ -396,49 +392,54 @@ Tova provides a clean regex API through six functions. All patterns use standard
 
 ### regex_test — Does It Match?
 
+All regex functions take the **string first**, then the **pattern**:
+
 ```tova
-print(regex_test(r"\d+", "abc 123"))       // true
-print(regex_test(r"^\d+$", "abc 123"))     // false (not entirely digits)
-print(regex_test(r"^\d+$", "12345"))       // true
+print(regex_test("abc 123", r"\d+"))       // true
+print(regex_test("abc 123", r"^\d+$"))     // false (not entirely digits)
+print(regex_test("12345", r"^\d+$"))       // true
 ```
 
 ### regex_match — Extract Captures
 
-Returns an array where index 0 is the full match and subsequent indices are capture groups:
+Returns a `Result` containing the full match and capture groups:
 
 ```tova
 line = "2026-03-06 14:30:45 [ERROR] Disk full"
-result = regex_match(r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)", line)
+result = regex_match(line, r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)")
 
-print(result[0])   // Full match: entire string
-print(result[1])   // "2026-03-06"
-print(result[2])   // "14:30:45"
-print(result[3])   // "ERROR"
-print(result[4])   // "Disk full"
+match result {
+  Ok(m) => {
+    print(m.match)      // Full match: entire string
+    print(m.groups[0])  // "2026-03-06"
+    print(m.groups[1])  // "14:30:45"
+    print(m.groups[2])  // "ERROR"
+    print(m.groups[3])  // "Disk full"
+  }
+  Err(e) => print("No match")
+}
 ```
 
 ### regex_find_all — Find Every Match
 
 ```tova
 text = "Emails: alice@test.com and bob@work.org"
-emails = regex_find_all(r"\w+@\w+\.\w+", text)
-print(emails)   // ["alice@test.com", "bob@work.org"]
+matches = regex_find_all(text, r"\w+@\w+\.\w+")
+// Returns array of { match, index, groups } objects
 
 // Extract all numbers from text
-numbers = regex_find_all(r"\d+", "Order #42: 3 items at $15 each")
-print(numbers)   // ["42", "3", "15"]
+numbers = regex_find_all("Order #42: 3 items at $15 each", r"\d+")
 ```
 
 ### regex_replace — Find and Replace
 
 ```tova
 // Normalize whitespace
-cleaned = regex_replace(r"\s+", " ", "too   many    spaces")
+cleaned = regex_replace("too   many    spaces", r"\s+", " ")
 print(cleaned)   // "too many spaces"
 
 // Redact sensitive data
-safe = regex_replace(r"\d{4}-\d{4}-\d{4}-(\d{4})", "****-****-****-$1",
-  "Card: 1234-5678-9012-3456")
+safe = regex_replace("Card: 1234-5678-9012-3456", r"\d{4}-\d{4}-\d{4}-(\d{4})", "****-****-****-$1")
 print(safe)   // "Card: ****-****-****-3456"
 ```
 
@@ -446,20 +447,27 @@ print(safe)   // "Card: ****-****-****-3456"
 
 ```tova
 // Split on any combination of whitespace and punctuation
-parts = regex_split(r"[,;\s]+", "one, two; three  four")
+parts = regex_split("one, two; three  four", r"[,;\s]+")
 print(parts)   // ["one", "two", "three", "four"]
 ```
 
 ### regex_capture — Named Captures
 
+Returns a `Result` containing named capture groups:
+
 ```tova
 result = regex_capture(
-  r"(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})",
-  "2026-03-06"
+  "2026-03-06",
+  r"(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})"
 )
-print(result.year)    // "2026"
-print(result.month)   // "03"
-print(result.day)     // "06"
+match result {
+  Ok(groups) => {
+    print(groups.year)    // "2026"
+    print(groups.month)   // "03"
+    print(groups.day)     // "06"
+  }
+  Err(e) => print("No match or no named groups")
+}
 ```
 
 <TryInPlayground :code="regexCode" label="Regex" />
@@ -660,8 +668,8 @@ data = { name: "Alice", scores: [95, 87, 92], active: true }
 json_str = json_stringify(data)
 print(json_str)   // '{"name":"Alice","scores":[95,87,92],"active":true}'
 
-// JSON string to object
-parsed = json_parse(json_str)
+// JSON string to object (returns Result — unwrap or match)
+parsed = json_parse(json_str).unwrap()
 print(parsed.name)      // "Alice"
 print(parsed.scores[0]) // 95
 
@@ -676,7 +684,7 @@ print(pretty)
 ```
 
 ::: tip JSON + Result
-`json_parse` can fail on invalid input. In production code, wrap it in a try-catch or use a safe wrapper that returns `Result`.
+`json_parse` returns a `Result` — `Ok(value)` on success, `Err(message)` on failure. Use `.unwrap()` for trusted input, or `match` to handle errors gracefully.
 :::
 
 ## URL Parsing and Building
@@ -687,7 +695,7 @@ print(pretty)
 result = parse_url("https://api.example.com/users?page=2&limit=10#results")
 match result {
   Ok(parts) => {
-    print(parts.protocol)   // "https:"
+    print(parts.protocol)   // "https"
     print(parts.host)       // "api.example.com"
     print(parts.pathname)   // "/users"
     print(parts.search)     // "?page=2&limit=10"
@@ -740,7 +748,7 @@ print(choice(colors))         // Random element
 print(sample(colors, 2))      // 2 random elements (no repeats)
 
 // Shuffle
-deck = range(1, 53) |> to_array()
+deck = range(1, 53)
 shuffled = shuffle(deck)
 print(shuffled |> take(5))    // First 5 cards of shuffled deck
 ```
@@ -923,15 +931,18 @@ panel("Application Status", "All systems operational\nUptime: 99.9%")
 ### Progress and Spinners
 
 ```tova
-// Progress bar (for known-length operations)
-for i in range(0, 101) {
-  progress(i, 100, "Processing")
+// Progress bar — wraps an iterable with a visual progress bar
+items = range(0, 100)
+for item in progress(items, { label: "Processing" }) {
+  // ... process each item ...
 }
 
-// Spinner (for unknown-length operations)
-spinner = spin("Loading data...")
-// ... do work ...
-// spinner.stop()
+// Spinner — shows animated spinner while an async operation runs
+result = await spin("Loading data...", fn() {
+  // ... do async work ...
+  await fetch_data(url)
+})
+// Spinner auto-completes when the callback finishes
 ```
 
 ### Interactive Input
@@ -963,15 +974,11 @@ logs = [
   "2026-03-06 09:19:30 [WARN] Memory usage: 78%"
 ]
 
-// Parse each line with regex
+// Parse each line with regex (regex_match returns Result)
 fn parse_log(line) {
-  result = regex_match(
-    r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)", line
-  )
-  if result != nil {
-    Ok({ date: result[1], time: result[2], level: result[3], message: result[4] })
-  } else {
-    Err("Parse error")
+  match regex_match(line, r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)") {
+    Ok(m) => Ok({ date: m.groups[0], time: m.groups[1], level: m.groups[2], message: m.groups[3] })
+    Err(_) => Err("Parse error")
   }
 }
 
@@ -995,8 +1002,10 @@ for entry in levels.most_common() {
 
 // Extract response times
 fn extract_ms(msg) {
-  m = regex_match(r"\((\d+)ms\)", msg)
-  if m != nil { Some(to_int(m[1])) } else { None }
+  match regex_match(msg, r"\((\d+)ms\)") {
+    Ok(m) => Some(to_int(m.groups[0]))
+    Err(_) => None
+  }
 }
 
 times = parsed

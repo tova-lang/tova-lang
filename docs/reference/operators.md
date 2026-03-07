@@ -284,13 +284,38 @@ fn process(input: String) -> Result<Data, String> {
 
 `?` on a `Result` returns the `Err` value from the enclosing function. `?` on an `Option` returns `None`. See the [Error Handling guide](/guide/error-handling#error-propagation-with) for details.
 
+## Await and Yield Operators
+
+The `await` prefix operator suspends execution until an async expression resolves:
+
+```tova
+result = await fetch_data(url)
+```
+
+The `yield` prefix operator produces a value from a generator function. Any function containing `yield` is automatically treated as a generator — no special syntax is needed. Use `yield from` to delegate to another generator:
+
+```tova
+fn range_gen(start, end) {
+  for i in start..end {
+    yield i
+  }
+}
+
+fn combined() {
+  yield from range_gen(1, 5)
+  yield from range_gen(10, 15)
+}
+```
+
+Both `await` and `yield` have the same precedence as unary `-` and `...` (spread).
+
 ## Other Operators
 
 | Operator | Name | Usage |
 |----------|------|-------|
 | `:` | Type annotation / object field | `x: Int`, `{name: "Alice"}` |
-| `::` | Slice step | `items[::2]`, `items[1::3]` |
-| `++` | String prefix matching (in `match` patterns) | `"api/" ++ rest` |
+| `::` | Slice step (inside `[]` only) | `items[::2]`, `items[1::3]` |
+| `++` | String prefix matching (in `match` patterns only) | `"api/" ++ rest` |
 | `?` | Error propagation | `parse(input)?` |
 
 ## Operator Precedence
@@ -299,25 +324,26 @@ Operators are listed from **highest** precedence (binds tightest) to **lowest** 
 
 | Level | Operators | Associativity | Description |
 |-------|-----------|---------------|-------------|
-| 13 | `.` `?.` `[]` `()` | Left | Member access, optional chain, subscript, call |
-| 12 | `-` (unary) `...` (spread) | Right | Unary negation, spread |
-| 11 | `**` | Right | Exponentiation |
-| 10 | `*` `/` `%` | Left | Multiplication, division, modulo |
-| 9 | `+` `-` | Left | Addition, subtraction |
-| 8 | `..` `..=` | None | Range (exclusive, inclusive) |
-| 7 | `in` `not in` | Left | Membership test |
-| 6 | `<` `<=` `>` `>=` `==` `!=` `is` `is not` | Left | Comparison, type checking (chainable) |
-| 5 | `not` `!` | Right | Logical NOT |
-| 4 | `and` `&&` | Left | Logical AND |
-| 3 | `or` `\|\|` | Left | Logical OR |
-| 2 | `??` | Left | Null coalescing |
-| 1 | `\|>` | Left | Pipe |
+| 14 | `.` `?.` `[]` `()` `?` | Left | Member access, optional chain, subscript, call, error propagation |
+| 13 | `-` (unary) `...` (spread) `await` `yield` | Right | Unary negation, spread, await, yield |
+| 12 | `**` | Right | Exponentiation |
+| 11 | `*` `/` `%` | Left | Multiplication, division, modulo |
+| 10 | `+` `-` | Left | Addition, subtraction |
+| 9 | `..` `..=` | None | Range (exclusive, inclusive) |
+| 8 | `in` `not in` `is` `is not` | None | Membership test, type checking |
+| 7 | `<` `<=` `>` `>=` `==` `!=` | Left | Comparison (chainable) |
+| 6 | `not` `!` | Right | Logical NOT |
+| 5 | `and` `&&` | Left | Logical AND |
+| 4 | `or` `\|\|` | Left | Logical OR |
+| 3 | `??` | Left | Null coalescing |
+| 2 | `\|>` | Left | Pipe |
 
 ### Precedence Examples
 
 ```tova
-// ** binds tighter than unary -
--2 ** 3          // -(2 ** 3) = -8
+// Unary - binds tighter than **
+-2 ** 3          // (-2) ** 3 = -8
+-2 ** 2          // (-2) ** 2 = 4  (not -(2 ** 2) = -4)
 
 // * binds tighter than +
 2 + 3 * 4        // 2 + (3 * 4) = 14

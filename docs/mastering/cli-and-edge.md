@@ -558,13 +558,16 @@ cli {
     // Panel (boxed section)
     panel("Summary", "3 servers total\n2 running, 1 stopped")
 
-    // Progress bar
-    for i in range(1, 11) {
-      progress(i, 10)
+    // Progress bar — wraps an iterable
+    items = range(1, 11)
+    for item in progress(items, { label: "Processing" }) {
+      // process each item
     }
 
-    // Spinner for long operations
-    spin("Deploying...")
+    // Spinner for long operations (async, takes callback)
+    result = await spin("Deploying...", fn() {
+      // ... deploy logic ...
+    })
   }
 }
 ```
@@ -573,8 +576,8 @@ cli {
 |----------|---------|
 | `table(rows)` | Formatted table with alignment |
 | `panel(title, content)` | Boxed content with a title |
-| `progress(current, total)` | Progress bar |
-| `spin(message)` | Loading spinner |
+| `progress(items, opts)` | Progress bar wrapping an iterable; opts: `{label, width, total}` |
+| `spin(label, fn)` | Async spinner — runs `fn()` with animated spinner, resolves to result |
 
 ### Building Executables
 
@@ -1300,8 +1303,9 @@ cli {
       return
     }
     print(bold("Deploying {app} to {target}..."))
-    spin("Building...")
-    // build logic here
+    await spin("Building...", fn() {
+      // build logic here
+    })
     print(green("Deployed successfully!"))
   }
 

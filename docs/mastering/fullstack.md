@@ -133,20 +133,23 @@ const rpcCode = `// RPC: calling server functions from browser code
 // }
 //
 // browser {
+//   state todos = []
+//   state error = null
+//
 //   async fn load_todos() {
 //     // The compiler generates the fetch call automatically
 //     result = await rpc(get_todos, current_user.id)
 //     match result {
-//       Ok(todos) => set_todos(todos)
-//       Err(msg) => set_error(msg)
+//       Ok(all_todos) => todos = all_todos
+//       Err(msg) => error = msg
 //     }
 //   }
 //
 //   async fn add_todo(title) {
 //     result = await rpc(create_todo, title, current_user.id)
 //     match result {
-//       Ok(todo) => set_todos(append(todos(), [todo]))
-//       Err(msg) => set_error(msg)
+//       Ok(todo) => todos = [...todos, todo]
+//       Err(msg) => error = msg
 //     }
 //   }
 // }
@@ -282,14 +285,14 @@ server {
 }
 
 browser {
-  var todos = signal([])
-  var error = signal(null)
+  state todos = []
+  state error = null
 
   async fn load_todos() {
     result = await rpc(get_todos)
     match result {
-      Ok(data) => set_todos(data)
-      Err(msg) => set_error(msg)
+      Ok(data) => todos = data
+      Err(msg) => error = msg
     }
   }
 
@@ -297,7 +300,7 @@ browser {
     <div>
       <h1>"My Todos"</h1>
       <ul>
-        {todos() |> map(fn(t) <li key={t.id}>{t.title}</li>)}
+        {todos |> map(fn(t) <li key={t.id}>{t.title}</li>)}
       </ul>
     </div>
   }
@@ -569,6 +572,8 @@ The `bind:form` directive connects a `<form>` element to a form block:
 
 ```tova
 browser {
+  state error = null
+
   form signup {
     field name: String { required, minLength(2) }
     field email: String { required, email }
@@ -578,7 +583,7 @@ browser {
     result = await rpc(create_user, signup.values())
     match result {
       Ok(user) => navigate("/dashboard")
-      Err(msg) => set_error(msg)
+      Err(msg) => error = msg
     }
   }
 
@@ -602,6 +607,8 @@ browser {
       <button type="submit" disabled={!signup.valid}>
         "Create Account"
       </button>
+
+      {error && <div class="error">{error}</div>}
     </form>
   }
 }
@@ -757,19 +764,22 @@ server {
 }
 
 browser {
+  state todos = []
+  state error = null
+
   async fn load_todos() {
     result = await rpc(get_todos, current_user.id)
     match result {
-      Ok(todos) => set_todos(todos)
-      Err(msg) => set_error("Failed to load: {msg}")
+      Ok(all_todos) => todos = all_todos
+      Err(msg) => error = "Failed to load: {msg}"
     }
   }
 
   async fn add_todo(title) {
     result = await rpc(create_todo, title, current_user.id)
     match result {
-      Ok(todo) => set_todos(append(todos(), [todo]))
-      Err(msg) => set_error(msg)
+      Ok(todo) => todos = [...todos, todo]
+      Err(msg) => error = msg
     }
   }
 
@@ -777,9 +787,9 @@ browser {
     result = await rpc(toggle_todo, id)
     match result {
       Ok(updated) => {
-        set_todos(todos() |> map(fn(t) if t.id == updated.id { updated } else { t }))
+        todos = todos |> map(fn(t) if t.id == updated.id { updated } else { t })
       }
-      Err(msg) => set_error(msg)
+      Err(msg) => error = msg
     }
   }
 }
@@ -815,17 +825,20 @@ server {
 }
 
 browser {
+  state todos = []
+  state error = null
+
   async fn load_todos() {
     // The JWT token is included automatically
     result = await rpc(get_todos, current_user.id)
     // If the token is expired or invalid, result is Err("Unauthorized")
     match result {
-      Ok(todos) => set_todos(todos)
+      Ok(all_todos) => todos = all_todos
       Err(msg) => {
         if msg == "Unauthorized" {
           navigate("/login")
         } else {
-          set_error(msg)
+          error = msg
         }
       }
     }
@@ -1159,8 +1172,8 @@ User types "Buy groceries" into the form
   |
   v
 8. UI update (browser)
-   set_todos(append(todos(), [new_todo]))
-   Reactive signal triggers re-render
+   todos = [...todos, new_todo]
+   Reactive state update triggers re-render
    New todo appears in the list
 ```
 
@@ -1320,10 +1333,10 @@ server {
 // --- Browser ---
 browser {
   // State
-  var todos = signal([])
-  var current_user = signal(null)
-  var error = signal(null)
-  var loading = signal(false)
+  state todos = []
+  state current_user = null
+  state error = null
+  state loading = false
 
   // Login form
   form login_form {
@@ -1347,75 +1360,75 @@ browser {
 
   // Actions
   async fn handle_login() {
-    set_loading(true)
-    set_error(null)
+    loading = true
+    error = null
     result = await rpc(login, login_form.email.value, login_form.password.value)
     match result {
       Ok(data) => {
-        set_current_user(data.user)
+        current_user = data.user
         localStorage.setItem("token", data.token)
         login_form.reset()
         await load_todos()
       }
-      Err(msg) => set_error(msg)
+      Err(msg) => error = msg
     }
-    set_loading(false)
+    loading = false
   }
 
   async fn load_todos() {
-    set_loading(true)
-    result = await rpc(get_todos, current_user().id)
+    loading = true
+    result = await rpc(get_todos, current_user.id)
     match result {
-      Ok(data) => set_todos(data)
-      Err(msg) => set_error("Failed to load todos: {msg}")
+      Ok(data) => todos = data
+      Err(msg) => error = "Failed to load todos: {msg}"
     }
-    set_loading(false)
+    loading = false
   }
 
   async fn handle_add_todo() {
-    result = await rpc(create_todo, todo_form.title.value, current_user().id)
+    result = await rpc(create_todo, todo_form.title.value, current_user.id)
     match result {
       Ok(todo) => {
-        set_todos(prepend(todos(), todo))
+        todos = [todo, ...todos]
         todo_form.reset()
       }
-      Err(msg) => set_error(msg)
+      Err(msg) => error = msg
     }
   }
 
   async fn handle_toggle(todo_id) {
-    result = await rpc(toggle_todo, todo_id, current_user().id)
+    result = await rpc(toggle_todo, todo_id, current_user.id)
     match result {
       Ok(updated) => {
-        set_todos(todos() |> map(fn(t) {
+        todos = todos |> map(fn(t) {
           if t.id == updated.id { updated } else { t }
-        }))
+        })
       }
-      Err(msg) => set_error(msg)
+      Err(msg) => error = msg
     }
   }
 
   async fn handle_delete(todo_id) {
-    result = await rpc(delete_todo, todo_id, current_user().id)
+    result = await rpc(delete_todo, todo_id, current_user.id)
     match result {
       Ok(_) => {
-        set_todos(todos() |> filter(fn(t) t.id != todo_id))
+        todos = todos |> filter(fn(t) t.id != todo_id)
       }
-      Err(msg) => set_error(msg)
+      Err(msg) => error = msg
     }
   }
 
   fn handle_logout() {
     localStorage.removeItem("token")
-    set_current_user(null)
-    set_todos([])
+    current_user = null
+    todos = []
   }
 
   // Components
   fn LoginPage() {
     <div class="login">
       <h1>"Welcome Back"</h1>
-      {error() && <div class="error">{error()}</div>}
+      {error && <div class="error">{error}</div>}
 
       <form bind:form={login_form} onSubmit={handle_login}>
         <div class="field">
@@ -1437,8 +1450,8 @@ browser {
             <span class="field-error">{login_form.password.error}</span>}
         </div>
 
-        <button type="submit" disabled={!login_form.valid || loading()}>
-          {if loading() { "Signing in..." } else { "Sign In" }}
+        <button type="submit" disabled={!login_form.valid || loading}>
+          {if loading { "Signing in..." } else { "Sign In" }}
         </button>
       </form>
     </div>
@@ -1448,11 +1461,11 @@ browser {
     <div class="todos">
       <header>
         <h1>"My Todos"</h1>
-        <span>"({len(todos())} items)"</span>
+        <span>"({len(todos)} items)"</span>
         <button onClick={handle_logout}>"Logout"</button>
       </header>
 
-      {error() && <div class="error">{error()}</div>}
+      {error && <div class="error">{error}</div>}
 
       <form bind:form={todo_form} onSubmit={handle_add_todo} class="add-form">
         <input value={todo_form.title.value}
@@ -1464,7 +1477,7 @@ browser {
       </form>
 
       <ul class="todo-list">
-        {todos() |> map(fn(todo) {
+        {todos |> map(fn(todo) {
           <li key={todo.id} class={if todo.done { "done" } else { "" }}>
             <input type="checkbox"
                    checked={todo.done}
@@ -1475,14 +1488,14 @@ browser {
         })}
       </ul>
 
-      {len(todos()) == 0 && !loading() &&
+      {len(todos) == 0 && !loading &&
         <p class="empty">"No todos yet. Add one above."</p>}
     </div>
   }
 
   fn render() {
     <div class="app">
-      {if current_user() == null {
+      {if current_user == null {
         <LoginPage />
       } else {
         <TodoList />

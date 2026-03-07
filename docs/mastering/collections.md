@@ -170,9 +170,9 @@ b = [4, 5, 6]
 combined = [...a, ...b]       // [1, 2, 3, 4, 5, 6]
 with_extra = [0, ...a, 99]   // [0, 1, 2, 3, 99]
 
-// range() generates sequences
-one_to_ten = range(1, 11) |> to_array()
-evens = range(0, 20, 2) |> to_array()
+// range() generates sequences (returns an array directly)
+one_to_ten = range(1, 11)
+evens = range(0, 20, 2)
 ```
 
 <TryInPlayground :code="arraysCode" label="Arrays" />
@@ -192,7 +192,7 @@ doubled = numbers |> map(fn(x) x * 2)
 // [2, 4, 6, 8, 10]
 
 names = ["alice", "bob", "charlie"]
-uppercased = names |> map(fn(name) uppercase(name))
+uppercased = names |> map(fn(name) upper(name))
 // ["ALICE", "BOB", "CHARLIE"]
 
 // Extract a field from objects
@@ -303,7 +303,7 @@ items = [1, 2, 3, 4, 5, 3, 2]
 
 // Searching
 items |> contains(3)              // true
-items |> find(fn(x) x > 3)       // Some(4)
+items |> find(fn(x) x > 3)       // 4 (or null if not found)
 items |> index_of(3)              // 2
 
 // Aggregation

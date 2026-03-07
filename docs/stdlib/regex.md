@@ -142,40 +142,42 @@ Creates a fluent builder for constructing complex regular expressions. Methods c
 | Method | Description |
 |--------|-------------|
 | `.literal(str)` | Match exact string (auto-escaped) |
-| `.digit()` | Match a digit (`\d`) |
-| `.digits()` | Match one or more digits (`\d+`) |
-| `.word()` | Match a word character (`\w`) |
-| `.words()` | Match one or more word characters (`\w+`) |
-| `.space()` | Match a whitespace character (`\s`) |
-| `.any()` | Match any character (`.`) |
-| `.group(str)` | Add a capturing group |
-| `.oneOf(str)` | Add a character class (`[...]`) |
+| `.digits(n?)` | Match digits — `\d+` if no argument, `\d{n}` if n given |
+| `.word()` | Match one or more word characters (`\w+`) |
+| `.space()` | Match one or more whitespace characters (`\s+`) |
+| `.any()` | Match any single character (`.`) |
+| `.group(name?)` | Open a capturing group — named `(?<name>...)` if name given, unnamed `(...)` otherwise |
+| `.endGroup()` | Close the current group |
+| `.oneOf(chars)` | Add a character class (`[chars]`) |
 | `.optional()` | Make the previous token optional (`?`) |
 | `.oneOrMore()` | One or more of the previous token (`+`) |
 | `.zeroOrMore()` | Zero or more of the previous token (`*`) |
-| `.start()` | Anchor to start of string (`^`) |
-| `.end()` | Anchor to end of string (`$`) |
-| `.build(flags?)` | Compile to a RegExp |
+| `.startOfLine()` | Anchor to start of string (`^`) |
+| `.endOfLine()` | Anchor to end of string (`$`) |
+| `.flags(str)` | Set regex flags (e.g., `"gi"`) |
+| `.build()` | Compile to a RegExp |
+| `.test(str)` | Build and test against a string (returns `Bool`) |
+| `.match(str)` | Build and match against a string |
 
 ```tova
 // Build an email pattern
 email_re = regex_builder()
-  .words()
+  .word()
   .literal("@")
-  .words()
+  .word()
   .literal(".")
-  .words()
+  .word()
   .build()
 
 // Build a date pattern
 date_re = regex_builder()
-  .start()
-  .group("\\d{4}")
+  .startOfLine()
+  .digits(4)
   .literal("-")
-  .group("\\d{2}")
+  .digits(2)
   .literal("-")
-  .group("\\d{2}")
-  .end()
+  .digits(2)
+  .endOfLine()
   .build()
 ```
 

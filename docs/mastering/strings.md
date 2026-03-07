@@ -568,36 +568,36 @@ phone_pattern = /\d{3}-\d{3}-\d{4}/
 ### Testing Patterns
 
 ```tova
-regex_test(email_pattern, "alice@example.com")   // true
-regex_test(email_pattern, "not-an-email")        // false
-regex_test(phone_pattern, "555-123-4567")        // true
+regex_test("alice@example.com", email_pattern)   // true
+regex_test("not-an-email", email_pattern)        // false
+regex_test("555-123-4567", phone_pattern)        // true
 ```
 
 ### Matching and Capturing
 
 ```tova
-// Find the first match
-result = regex_match(/(\d+)-(\d+)/, "Order 42-7")
-// result: { match: "42-7", groups: ["42", "7"] }
+// Find the first match (returns Result)
+result = regex_match("Order 42-7", /(\d+)-(\d+)/)
+// Ok({ match: "42-7", groups: ["42", "7"] })
 
 // Find all matches
-all = regex_find_all(/\d+/, "I have 3 cats and 12 dogs")
-// all: ["3", "12"]
+all = regex_find_all("I have 3 cats and 12 dogs", /\d+/)
+// [{ match: "3", ... }, { match: "12", ... }]
 
-// Named captures
-parsed = regex_capture(/(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/, "2026-03-05")
-// parsed: { year: "2026", month: "03", day: "05" }
+// Named captures (returns Result)
+parsed = regex_capture("2026-03-05", /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/)
+// Ok({ year: "2026", month: "03", day: "05" })
 ```
 
 ### Replacing with Regex
 
 ```tova
 // Simple replacement
-clean = regex_replace(/\s+/, "hello   world   foo", " ")
+clean = regex_replace("hello   world   foo", /\s+/, " ")
 // "hello world foo"
 
 // Replace all digits with #
-masked = regex_replace(/\d/, "Card: 4111-2222-3333-4444", "#")
+masked = regex_replace("Card: 4111-2222-3333-4444", /\d/, "#")
 // "Card: ####-####-####-####"
 ```
 
@@ -605,11 +605,11 @@ masked = regex_replace(/\d/, "Card: 4111-2222-3333-4444", "#")
 
 ```tova
 // Split on any whitespace
-parts = regex_split(/\s+/, "hello   world\tfoo\nbar")
+parts = regex_split("hello   world\tfoo\nbar", /\s+/)
 // ["hello", "world", "foo", "bar"]
 
 // Split on comma with optional spaces
-items = regex_split(/\s*,\s*/, "a, b , c,d")
+items = regex_split("a, b , c,d", /\s*,\s*/)
 // ["a", "b", "c", "d"]
 ```
 
@@ -621,16 +621,18 @@ For complex patterns, `regex_builder` provides a fluent API to construct regex s
 // Build a URL validation pattern
 url_regex = regex_builder()
   .literal("https://")
-  .one_or_more("[a-zA-Z0-9.-]")
+  .oneOf("a-zA-Z0-9.-")
+  .oneOrMore()
   .literal(".")
-  .between("[a-zA-Z]", 2, 6)
+  .oneOf("a-zA-Z")
+  .oneOrMore()
   .build()
 
-regex_test(url_regex, "https://tova.dev")     // true
-regex_test(url_regex, "not-a-url")            // false
+regex_test("https://tova.dev", url_regex)     // true
+regex_test("not-a-url", url_regex)            // false
 ```
 
-`regex_builder` returns a builder object with methods like `.literal()`, `.one_or_more()`, `.zero_or_more()`, `.between()`, `.optional()`, `.group()`, and `.build()` to produce the final regex. This is more readable than writing raw regex strings for complex patterns.
+`regex_builder` returns a builder object with chainable methods: `.literal(s)`, `.digits(n)`, `.word()`, `.space()`, `.any()`, `.oneOf(chars)`, `.group(name)`, `.endGroup()`, `.optional()`, `.oneOrMore()`, `.zeroOrMore()`, `.startOfLine()`, `.endOfLine()`, `.flags(f)`, `.build()`, `.test(s)`, and `.match(s)`. Quantifier methods like `.oneOrMore()` apply to the preceding element. This is more readable than writing raw regex strings for complex patterns.
 
 ### String Validation Helpers
 

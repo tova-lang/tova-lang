@@ -4,6 +4,7 @@ import { resolve, basename, dirname, join, relative, sep, extname } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, chmodSync, renameSync, watch as fsWatch } from 'fs';
 import { spawn } from 'child_process';
 import { createHash as _cryptoHash } from 'crypto';
+import { createRequire as _createRequire } from 'module';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
@@ -693,6 +694,7 @@ async function runFile(filePath, options = {}) {
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     const stdlib = getRunStdlib();
+    const __tova_require = _createRequire(import.meta.url);
 
     // CLI mode: execute the cli code directly
     if (output.isCli) {
@@ -701,8 +703,8 @@ async function runFile(filePath, options = {}) {
       // Override process.argv for cli dispatch
       const scriptArgs = options.scriptArgs || [];
       code = `process.argv = ["node", ${JSON.stringify(resolved)}, ...${JSON.stringify(scriptArgs)}];\n` + code;
-      const fn = new AsyncFunction('__tova_args', '__tova_filename', '__tova_dirname', code);
-      await fn(scriptArgs, resolved, dirname(resolved));
+      const fn = new AsyncFunction('__tova_args', '__tova_filename', '__tova_dirname', 'require', code);
+      await fn(scriptArgs, resolved, dirname(resolved), __tova_require);
       return;
     }
 
@@ -737,8 +739,8 @@ async function runFile(filePath, options = {}) {
     if (/\bfunction\s+main\s*\(/.test(code)) {
       code += '\nconst __tova_exit = await main(__tova_args); if (typeof __tova_exit === "number") process.exitCode = __tova_exit;\n';
     }
-    const fn = new AsyncFunction('__tova_args', '__tova_filename', '__tova_dirname', code);
-    await fn(scriptArgs, resolved, dirname(resolved));
+    const fn = new AsyncFunction('__tova_args', '__tova_filename', '__tova_dirname', 'require', code);
+    await fn(scriptArgs, resolved, dirname(resolved), __tova_require);
   } catch (err) {
     console.error(richError(source, err, filePath));
     if (process.argv.includes('--debug') || process.env.DEBUG) {

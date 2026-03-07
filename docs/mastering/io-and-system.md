@@ -1,23 +1,29 @@
 <script setup>
 const fileIOCode = `// File I/O: reading and writing files
-// read_text returns the entire file as a string
-content = read_text("data/notes.txt")
-print("File contents:")
-print(content)
+// read_text returns a Result: Ok(content) or Err(message)
+match read_text("data/notes.txt") {
+  Ok(content) => {
+    print("File contents:")
+    print(content)
 
-// read_lines returns an array of lines
-lines = read_lines("data/notes.txt")
-print("Line count: {len(lines)}")
-for i in range(len(lines)) {
-  print("  {i + 1}: {lines[i]}")
+    // Read line by line: split on newlines
+    lines = split(content, "\\n")
+    print("Line count: {len(lines)}")
+    for i in range(len(lines)) {
+      print("  {i + 1}: {lines[i]}")
+    }
+  }
+  Err(msg) => print("Could not read file: {msg}")
 }
 
-// write_text creates or overwrites a file
+// write_text also returns a Result
 write_text("output/greeting.txt", "Hello from Tova!")
 
 // read_bytes for binary data
-bytes = read_bytes("data/image.png")
-print("File size: {len(bytes)} bytes")`
+match read_bytes("data/image.png") {
+  Ok(bytes) => print("File size: {len(bytes)} bytes")
+  Err(msg) => print("Could not read: {msg}")
+}`
 
 const pathOpsCode = `// Path operations: build paths safely
 base = "/home/user/projects"
@@ -97,10 +103,10 @@ print("ISO 8601:  {now_iso()}")
 
 print("")
 print("--- Parsing and Formatting ---")
-date = date_parse("2025-06-15T10:30:00Z")
+date = date_parse("2025-06-15T10:30:00Z").unwrap()
 print("Parsed: {date}")
-print("Formatted: {date_format(date, 'YYYY-MM-DD')}")
-print("Friendly:  {date_format(date, 'MMM D, YYYY')}")
+print("Date only: {date_format(date, 'YYYY-MM-DD')}")
+print("With time: {date_format(date, 'YYYY-MM-DD HH:mm:ss')}")
 
 print("")
 print("--- Date Arithmetic ---")
@@ -110,8 +116,8 @@ print("Tomorrow: {date_format(tomorrow, 'YYYY-MM-DD')}")
 next_week = date_add(now(), 7, "days")
 print("Next week: {date_format(next_week, 'YYYY-MM-DD')}")
 
-past = date_parse("2024-01-01T00:00:00Z")
-days_since = date_diff(now(), past, "days")
+past = date_parse("2024-01-01T00:00:00Z").unwrap()
+days_since = date_diff(past, now(), "days")
 print("Days since Jan 1 2024: {days_since}")
 
 print("")
@@ -135,24 +141,25 @@ print("Pretty:")
 print(pretty)
 
 // Parse
-parsed = json_parse(json_str)
+parsed = json_parse(json_str).unwrap()
 print("Parsed name: {parsed.name}")
 print("Parsed roles: {parsed.roles}")
 
 print("")
 print("--- URL Operations ---")
 // Parse URLs
-parts = parse_url("https://api.example.com:8080/users?page=2&limit=10")
+parts = parse_url("https://api.example.com:8080/users?page=2&limit=10").unwrap()
 print("Protocol: {parts.protocol}")
 print("Host:     {parts.host}")
-print("Port:     {parts.port}")
 print("Path:     {parts.pathname}")
 print("Query:    {parts.search}")
 
 // Build URLs
-built_url = build_url("https://api.example.com", "/search", {
-  q: "tova language",
-  page: "1"
+query = build_query({ q: "tova language", page: "1" })
+built_url = build_url({
+  host: "api.example.com",
+  pathname: "/search",
+  search: query
 })
 print("Built: {built_url}")
 
@@ -185,7 +192,7 @@ log_entries = [
 // Parse a log line into structured data
 fn parse_log_line(line) {
   timestamp_str = substr(line, 0, 20)
-  level = trim(substr(line, 21, 5))
+  level = trim(substr(line, 21, 26))
   message = trim(substr(line, 27))
   { timestamp: timestamp_str, level: level, message: message }
 }
@@ -237,12 +244,11 @@ print("")
 print("--- Response Time Stats ---")
 print("Requests measured: {len(response_times)}")
 if len(response_times) > 0 {
-  avg_time = sum(response_times) / len(response_times)
+  avg_time = round(sum(response_times) / len(response_times))
   print("Average: {avg_time}ms")
   print("Min:     {min(response_times)}ms")
   print("Max:     {max(response_times)}ms")
-  sorted_times = response_times |> sorted()
-  print("Median:  {sorted_times[len(sorted_times) / 2]}ms")
+  print("Median:  {median(response_times)}ms")
 }
 
 // Error summary
@@ -281,21 +287,22 @@ Tova provides several ways to read file contents:
 
 ```tova
 // Read the entire file as a string
-content = read_text("config.toml")
+// read_text returns a Result: Ok(content) or Err(message)
+content = read_text("config.toml").unwrap()
 print(content)
 
-// Read as an array of lines
-lines = read_lines("data.csv")
+// Read line by line: split the file contents
+lines = split(read_text("data.csv").unwrap(), "\n")
 for line in lines {
   print(line)
 }
 
 // Read as raw bytes (for binary files)
-bytes = read_bytes("image.png")
+bytes = read_bytes("image.png").unwrap()
 print("Size: {len(bytes)} bytes")
 ```
 
-`read_text` is the workhorse -- it returns the entire file as a single string. `read_lines` splits on newlines and returns an array, which is convenient when you need to process line by line. `read_bytes` returns raw byte data for binary files.
+`read_text` returns a `Result` -- `Ok(content)` on success, `Err(message)` on failure. Use `.unwrap()` for quick scripts, or `match` for proper error handling. `read_bytes` also returns a `Result` wrapping the raw byte data. For reading lines from standard input, use `read_lines()` (no arguments).
 
 ### Writing Files
 
@@ -308,22 +315,27 @@ lines = ["name,score", "Alice,95", "Bob,87", "Charlie,91"]
 write_text("output/scores.csv", join(lines, "\n"))
 ```
 
-`write_text` creates the file if it does not exist, or overwrites it if it does. To append instead of overwrite, read first, then write the combined content:
+`write_text` returns a `Result` -- `Ok(path)` on success, `Err(message)` on failure. It creates the file if it does not exist, or overwrites it if it does. To append instead of overwrite, read first, then write the combined content:
 
 ```tova
-existing = read_text("log.txt")
+existing = read_text("log.txt").unwrap()
 write_text("log.txt", existing ++ "\nNew entry at {now_iso()}")
 ```
 
 <TryInPlayground :code="fileIOCode" label="File I/O" />
 
 ::: tip Always Handle Missing Files
-In production code, wrap file reads in error handling. Use `exists()` to check first, or handle the error from the read operation:
+In production code, use `match` for proper error handling:
+```tova
+match read_text("config.toml") {
+  Ok(config) => print("Loaded config")
+  Err(msg) => print("Config not found, using defaults")
+}
+```
+Or check existence first with `exists()`:
 ```tova
 if exists("config.toml") {
-  config = read_text("config.toml")
-} else {
-  print("Config not found, using defaults")
+  config = read_text("config.toml").unwrap()
 }
 ```
 :::
@@ -600,20 +612,21 @@ random_float(1.0, 10.0)  // Random float in range
 
 ### Ordering
 
-Tova provides an `Order` type for comparison results, following the convention of many functional languages:
+Tova provides an `Order` type for comparison results, following the convention of many functional languages. The three values are `Less`, `Equal`, and `Greater`:
 
 ```tova
-// Order type: Less, Equal, Greater
-compare(3, 5)      // Less
-compare(5, 5)      // Equal
-compare(7, 5)      // Greater
+// compare returns an Order value -- use with match
+match compare(3, 5) {
+  Less => print("3 is less than 5")
+  Equal => print("equal")
+  Greater => print("3 is greater than 5")
+}
 
-// Custom comparators
-compare_by("alice", "bob", fn(s) len(s))   // Equal (same length)
-compare_by("hi", "hello", fn(s) len(s))    // Less (2 < 5)
-
-// Use with sorted for custom ordering
-users |> sorted(fn(u) u.name)
+// compare_by sorts an array using a custom comparator
+// The comparator function receives two elements and returns an Order
+names = ["charlie", "alice", "bob"]
+by_length = compare_by(names, fn(a, b) compare(len(a), len(b)))
+print(by_length)   // ["bob", "alice", "charlie"] (sorted by length)
 ```
 
 <TryInPlayground :code="mathCode" label="Math Functions" />
@@ -687,15 +700,17 @@ print("ISO: {iso}")   // "2025-03-15T14:30:00.000Z"
 ### Parsing and Formatting
 
 ```tova
-// Parse a date string
-date = date_parse("2025-06-15T10:30:00Z")
+// Parse a date string (returns Result, so unwrap it)
+date = date_parse("2025-06-15T10:30:00Z").unwrap()
 
 // Format a date for display
-date_format(date, "YYYY-MM-DD")         // "2025-06-15"
-date_format(date, "MMM D, YYYY")        // "Jun 15, 2025"
+date_format(date, "YYYY-MM-DD")          // "2025-06-15"
+date_format(date, "MM/DD/YYYY")          // "06/15/2025"
 date_format(date, "HH:mm:ss")           // "10:30:00"
-date_format(date, "dddd, MMMM D YYYY")  // "Sunday, June 15 2025"
+date_format(date, "YYYY-MM-DD HH:mm")   // "2025-06-15 10:30"
 ```
+
+Supported format tokens: `YYYY` (year), `MM` (month), `DD` (day), `HH` (hours), `mm` (minutes), `ss` (seconds). You can also pass the shortcuts `"iso"`, `"date"`, `"time"`, or `"datetime"`.
 
 ### Date Arithmetic
 
@@ -706,13 +721,14 @@ next_month = date_add(now(), 1, "months")
 in_two_hours = date_add(now(), 2, "hours")
 
 // Compute differences between dates
-start = date_parse("2025-01-01T00:00:00Z")
-end_date = date_parse("2025-12-31T23:59:59Z")
+// date_diff(earlier, later, unit) returns later - earlier
+start = date_parse("2025-01-01T00:00:00Z").unwrap()
+end_date = date_parse("2025-12-31T23:59:59Z").unwrap()
 
-days_between = date_diff(end_date, start, "days")
+days_between = date_diff(start, end_date, "days")
 print("Days in 2025: {days_between}")
 
-hours_between = date_diff(end_date, start, "hours")
+hours_between = date_diff(start, end_date, "hours")
 print("Hours in 2025: {hours_between}")
 ```
 
@@ -742,8 +758,8 @@ Under the hood, Tova dates are millisecond timestamps (like JavaScript). The `da
 JSON is the lingua franca of data exchange. Tova makes it effortless:
 
 ```tova
-// Parse a JSON string into a Tova value
-data = json_parse('{"name": "Alice", "age": 30}')
+// Parse a JSON string into a Tova value (returns Result)
+data = json_parse('{"name": "Alice", "age": 30}').unwrap()
 print(data.name)    // "Alice"
 
 // Convert a Tova value to a JSON string
@@ -768,7 +784,7 @@ A common pattern:
 
 ```tova
 // Read a JSON config file
-config = read_text("config.json") |> json_parse()
+config = json_parse(read_text("config.json").unwrap()).unwrap()
 print("Port: {config.port}")
 
 // Modify and write back
@@ -781,9 +797,9 @@ write_text("config.json", json_pretty(updated_config))
 Tova provides URL manipulation functions for building and parsing URLs:
 
 ```tova
-// Parse a URL into its components
-parts = parse_url("https://api.example.com:8080/users?page=2&limit=10")
-print(parts.protocol)   // "https:"
+// Parse a URL into its components (returns Result)
+parts = parse_url("https://api.example.com:8080/users?page=2&limit=10").unwrap()
+print(parts.protocol)   // "https"
 print(parts.host)       // "api.example.com:8080"
 print(parts.pathname)   // "/users"
 print(parts.search)     // "?page=2&limit=10"
@@ -792,15 +808,17 @@ print(parts.search)     // "?page=2&limit=10"
 ### Building URLs
 
 ```tova
-// Build a URL with query parameters
-search_url = build_url("https://api.example.com", "/search", {
-  q: "tova language",
-  page: "1",
-  sort: "relevance"
+// Build a URL from components
+search_url = build_url({
+  host: "api.example.com",
+  pathname: "/search",
+  search: build_query({ q: "tova language", page: "1", sort: "relevance" })
 })
 print(search_url)
-// "https://api.example.com/search?q=tova+language&page=1&sort=relevance"
+// "https://api.example.com/search?q=tova%20language&page=1&sort=relevance"
 ```
+
+`build_url` takes an object with `protocol` (defaults to `"https"`), `host`, `pathname`, `search`, and `hash` fields. Use `build_query` to construct query strings from key-value pairs.
 
 ### URL Encoding and Decoding
 
@@ -858,8 +876,10 @@ for i in range(len(arguments)) {
 // exit(1)   // Failure
 
 // Run a command safely (no shell, array args)
-result = exec("ls", ["-la", "src/"])
-print(result)
+match exec("ls", ["-la", "src/"]) {
+  Ok(r) => print(r.stdout)
+  Err(msg) => print("Command failed: {msg}")
+}
 
 // Get the current working directory
 print("CWD: {cwd()}")
@@ -868,7 +888,7 @@ print("CWD: {cwd()}")
 print("Script dir: {script_dir()}")
 ```
 
-`exec` runs a command **without** a shell by default (the arguments are passed as an array). This is the safer option because it prevents shell injection. The result is a `Result` containing an object with `stdout`, `stderr`, and `exitCode`.
+`exec` runs a command **without** a shell by default (the arguments are passed as an array). This is the safer option because it prevents shell injection. It returns a `Result` containing an object with `stdout`, `stderr`, and `exitCode`.
 
 ### Shell Commands with `sh()`
 
@@ -1041,7 +1061,7 @@ print(share_url)
 
 // On the receiving end, decode it back
 received = base64_decode(param)
-settings = json_parse(received)
+settings = json_parse(received).unwrap()
 print("Theme: {settings.theme}")
 ```
 
@@ -1109,19 +1129,31 @@ log.error("This will show too")
 
 Log levels from least to most severe: `debug` < `info` < `warn` < `error`. Setting the level filters out everything below it.
 
-### Custom Log Formatting
+### Log Formatting
 
-Customize how logs appear with `log.format()`:
+Control how logs appear with `log.format()`:
 
 ```tova
-// Default format: "[LEVEL] message"
-log.info("hello")   // "[INFO] hello"
+// Default format (pretty): "HH:MM:SS LVL message"
+log.info("hello")   // "14:30:00 INF hello"
 
-// Custom format
-log.format(fn(level, message) {
-  "{now_iso()} [{upper(level)}] {message}"
-})
-log.info("hello")   // "2026-03-06T12:00:00Z [INFO] hello"
+// JSON format for machine parsing
+log.format("json")
+log.info("hello")   // {"level":"info","msg":"hello","timestamp":"2026-03-06T14:30:00.000Z"}
+
+// Switch back to pretty format
+log.format("pretty")
+```
+
+### Contextual Logging
+
+Create loggers with persistent context using `log.with()`:
+
+```tova
+// Add context that appears in every message
+request_log = log.with({ request_id: "abc-123", user: "alice" })
+request_log.info("Processing request")
+request_log.error("Validation failed")
 ```
 
 ::: tip print vs. log
@@ -1366,17 +1398,21 @@ async fn producer(channel) {
 }
 
 async fn consumer(channel) {
-  for val in channel {
-    print("Received: {val}")
+  var val = await channel.receive()
+  while val.isSome() {
+    print("Received: {val.unwrap()}")
+    val = await channel.receive()
   }
   print("Channel closed, done receiving")
 }
 
-// Run both concurrently
-await Promise.all([producer(ch), consumer(ch)])
+// Run both concurrently (wrap in async main)
+async fn main() {
+  await Promise.all([producer(ch), consumer(ch)])
+}
 ```
 
-`receive` returns an `Option` -- `Some(value)` when a value is available, or `None` when the channel has been closed and drained. The `for ... in channel` syntax uses the async iterator protocol to keep receiving until the channel closes.
+`receive` returns an `Option` -- `Some(value)` when a value is available, or `None` when the channel has been closed and drained. Loop until `receive()` returns `None` to consume all values.
 
 ### Closing Channels
 
@@ -1390,6 +1426,10 @@ async fn work(channel) {
   await channel.send("second")
   channel.close()
   // await channel.send("third")  // This would throw!
+}
+
+async fn main() {
+  await work(ch)
 }
 ```
 
@@ -1410,29 +1450,35 @@ async fn generate(out) {
   out.close()
 }
 
-// Stage 2: Process each item
-async fn process(input, output) {
-  for item in input {
-    result = upper(item)
-    await output.send(result)
+// Stage 2: Transform each item
+async fn transform(input, output) {
+  var item = await input.receive()
+  while item.isSome() {
+    uppercased = upper(item.unwrap())
+    await output.send(uppercased)
+    item = await input.receive()
   }
   output.close()
 }
 
 // Stage 3: Collect results
-async fn collect_results(input) {
-  var results = []
-  for item in input {
-    results.push(item)
+async fn collect_all(input) {
+  var items = []
+  var item = await input.receive()
+  while item.isSome() {
+    items.push(item.unwrap())
+    item = await input.receive()
   }
-  print("Processed: {results}")
+  print("Processed: {items}")
 }
 
-await Promise.all([
-  generate(input_ch),
-  process(input_ch, output_ch),
-  collect_results(output_ch)
-])
+async fn main() {
+  await Promise.all([
+    generate(input_ch),
+    transform(input_ch, output_ch),
+    collect_all(output_ch)
+  ])
+}
 ```
 
 This pipeline pattern lets you decouple producers from consumers and process items as they become available, without buffering everything in memory.
@@ -1457,7 +1503,7 @@ Each line follows this structure:
 ```tova
 fn parse_log_line(line) {
   timestamp_str = substr(line, 0, 20)
-  level = trim(substr(line, 21, 5))
+  level = trim(substr(line, 21, 26))
   message = trim(substr(line, 27))
   { timestamp: timestamp_str, level: level, message: message }
 }
@@ -1543,13 +1589,11 @@ print("")
 print("--- Response Time Stats ---")
 print("Requests measured: {len(response_times)}")
 if len(response_times) > 0 {
-  avg_time = sum(response_times) / len(response_times)
+  avg_time = round(sum(response_times) / len(response_times))
   print("Average: {avg_time}ms")
   print("Min:     {min(response_times)}ms")
   print("Max:     {max(response_times)}ms")
-  sorted_times = response_times |> sorted()
-  mid = len(sorted_times) / 2
-  print("Median:  {sorted_times[mid]}ms")
+  print("Median:  {median(response_times)}ms")
 }
 
 // List errors and warnings

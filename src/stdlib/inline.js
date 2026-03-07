@@ -613,7 +613,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   flip: `function flip(fn) { return function(a, b, ...rest) { return fn(b, a, ...rest); }; }`,
 
   // ── Encoding (extended) ────────────────────────────────
-  hex_encode: `function hex_encode(s) { let r = ''; for (let i = 0; i < s.length; i++) r += s.charCodeAt(i).toString(16).padStart(2, '0'); return r; }`,
+  hex_encode: `function hex_encode(s) { let r = ''; if (ArrayBuffer.isView(s) || s instanceof ArrayBuffer) { const u = ArrayBuffer.isView(s) ? s : new Uint8Array(s); for (let i = 0; i < u.length; i++) r += u[i].toString(16).padStart(2, '0'); return r; } for (let i = 0; i < s.length; i++) r += s.charCodeAt(i).toString(16).padStart(2, '0'); return r; }`,
   hex_decode: `function hex_decode(s) { let r = ''; for (let i = 0; i < s.length; i += 2) r += String.fromCharCode(parseInt(s.substr(i, 2), 16)); return r; }`,
 
   // ── String (extended) ──────────────────────────────────
@@ -1508,6 +1508,8 @@ export const STDLIB_DEPS = {
   LazyTable: ['Table', 'table_where', 'table_group_by'],
   // Seq uses Some/None
   Seq: ['Some', 'None'],
+  // Channel uses Some/None
+  Channel: ['Some', 'None'],
   // compare family
   compare: ['Less', 'Equal', 'Greater'],
   compare_by: ['Less', 'Equal', 'Greater'],

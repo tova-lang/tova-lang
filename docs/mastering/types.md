@@ -629,12 +629,12 @@ Interfaces define a contract that types must satisfy — a set of methods withou
 
 ```tova
 interface Printable {
-  fn display() -> String
+  fn display(self) -> String
 }
 
 interface Measurable {
-  fn area() -> Float
-  fn perimeter() -> Float
+  fn area(self) -> Float
+  fn perimeter(self) -> Float
 }
 ```
 
@@ -646,12 +646,12 @@ type Circle {
 }
 
 impl Measurable for Circle {
-  fn area() { 3.14159 * self.radius * self.radius }
-  fn perimeter() { 2.0 * 3.14159 * self.radius }
+  fn area(self) { 3.14159 * self.radius * self.radius }
+  fn perimeter(self) { 2.0 * 3.14159 * self.radius }
 }
 
 impl Printable for Circle {
-  fn display() { "Circle(r={self.radius})" }
+  fn display(self) { "Circle(r={self.radius})" }
 }
 ```
 
@@ -674,10 +674,10 @@ Traits are like interfaces but can include **default implementations**:
 
 ```tova
 trait Describable {
-  fn name() -> String
+  fn name(self) -> String
 
   // Default implementation — types can override
-  fn describe() -> String {
+  fn describe(self) -> String {
     "A {self.name()}"
   }
 }
@@ -689,15 +689,15 @@ Types opt in with `impl`:
 type Dog { breed: String }
 
 impl Describable for Dog {
-  fn name() { self.breed }
+  fn name(self) { self.breed }
   // describe() uses the default: "A {self.name()}"
 }
 
 type Robot { model: String, version: Int }
 
 impl Describable for Robot {
-  fn name() { self.model }
-  fn describe() { "{self.model} v{self.version}" }  // Override default
+  fn name(self) { self.model }
+  fn describe(self) { "{self.model} v{self.version}" }  // Override default
 }
 ```
 
@@ -721,15 +721,15 @@ type Vector2 {
 }
 
 impl Vector2 {
-  fn magnitude() -> Float {
+  fn magnitude(self) -> Float {
     sqrt(self.x * self.x + self.y * self.y)
   }
 
-  fn add(other: Vector2) -> Vector2 {
+  fn add(self, other: Vector2) -> Vector2 {
     Vector2(x: self.x + other.x, y: self.y + other.y)
   }
 
-  fn scale(factor: Float) -> Vector2 {
+  fn scale(self, factor: Float) -> Vector2 {
     Vector2(x: self.x * factor, y: self.y * factor)
   }
 }

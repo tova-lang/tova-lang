@@ -4,7 +4,7 @@ title: Language Specification
 
 # Tova Language Specification
 
-Version 0.3.2. This document is the formal reference for the Tova programming language. It covers lexical structure, syntax, type system, evaluation semantics, and the compilation model.
+Version 0.4.0. This document is the formal reference for the Tova programming language. It covers lexical structure, syntax, type system, evaluation semantics, and the compilation model.
 
 ## 1. Lexical Structure
 
@@ -14,7 +14,7 @@ Tova source files are UTF-8 encoded text with the `.tova` extension.
 
 ### 1.2 Line Terminators
 
-Line terminators are `\n` (LF), `\r\n` (CRLF), or `\r` (CR). Newlines are significant: they serve as implicit statement terminators.
+Line terminators are `\n` (LF) and `\r\n` (CRLF). A standalone `\r` (CR) is treated as whitespace, not as a line terminator. Newlines are significant: they serve as implicit statement terminators.
 
 ### 1.3 Comments
 
@@ -40,29 +40,59 @@ The following identifiers are reserved as keywords and may not be used as variab
 and       as        async     await     break     catch
 browser   component computed  continue  defer     derive
 effect    elif      else      export    extern    false
-finally   fn        for       from      guard     if
-impl      import    in        interface is        let
-loop      match     mut       nil       not       or
-pub       return    route     server    shared    state
-store     trait     true      try       type      var
-when      while     with      yield
+field     finally   fn        for       form      from
+group     guard     if        impl      import    in
+interface is        let       loop      match     mut
+nil       not       or        pub       return    route
+server    shared    state     steps     store     trait
+true      try       type      var       when      while
+with      yield
 ```
 
-The following identifiers are contextual keywords, reserved only within `server {}` blocks for route declarations:
+Note: `mut` is reserved but rejected with an error directing users to `var`. `export` is reserved but unused; use `pub` instead. `client` is a deprecated alias for `browser` and is reserved by the lexer (both map to the same token type).
+
+The following identifiers are contextual — they are NOT reserved keywords but are recognized by the plugin system at the top level:
 
 ```
-GET  POST  PUT  DELETE  PATCH
+test  bench  security  cli  edge  concurrent  deploy  theme  data
+```
+
+These can be used as variable names in non-top-level contexts.
+
+The following identifiers are contextual within concurrency blocks:
+
+```
+spawn  select
+```
+
+The following identifiers are contextual within `data {}` blocks:
+
+```
+source  pipeline  validate  refresh
+```
+
+The following identifiers are contextual within `server {}` blocks:
+
+```
+ai
+```
+
+The following identifiers are recognized as HTTP methods within `server {}` route declarations (parsed as regular identifiers, not keyword tokens):
+
+```
+GET  POST  PUT  DELETE  PATCH  HEAD  OPTIONS
 ```
 
 ### 1.6 Identifiers
 
 ```ebnf
-identifier = ( letter | "_" ) { letter | digit | "_" } ;
+identifier = ( letter | "_" ) { letter | digit | "_" | unicode_char } ;
 letter     = "a".."z" | "A".."Z" ;
 digit      = "0".."9" ;
+unicode_char = (* any Unicode Letter, Number, or Mark character beyond ASCII *) ;
 ```
 
-Identifiers are case-sensitive. By convention:
+Identifiers are case-sensitive and support Unicode letters (any character matching `\p{Letter}`, `\p{Number}`, or `\p{Mark}`). By convention:
 - `snake_case` for functions, variables, and parameters
 - `PascalCase` for types, components, and stores
 - `UPPER_SNAKE_CASE` for constants
@@ -104,10 +134,10 @@ Single-quoted strings have no interpolation. Braces are literal.
 #### Triple-Quoted Strings
 
 ```ebnf
-triple_string = '"""' { any_char } '"""' ;
+triple_string = '"""' { any_char | escape | interpolation } '"""' ;
 ```
 
-Triple-quoted strings preserve whitespace and span multiple lines. They support interpolation. Auto-dedent is applied based on the indentation of the closing `"""`.
+Triple-quoted strings preserve whitespace and span multiple lines. They support both escape sequences and interpolation. Auto-dedent is applied based on the indentation of the closing `"""`.
 
 #### F-Strings
 
@@ -116,6 +146,14 @@ f_string = "f" '"' { char | escape | interpolation } '"' ;
 ```
 
 The `f` prefix explicitly marks a string as interpolated. Semantically identical to a regular double-quoted string.
+
+#### Raw Strings
+
+```ebnf
+raw_string = "r" '"' { any_char_except_dquote } '"' ;
+```
+
+Raw strings disable escape sequence processing. Backslashes are literal characters. Useful for regex patterns and file paths.
 
 #### Escape Sequences
 
@@ -128,6 +166,16 @@ The `f` prefix explicitly marks a string as interpolated. Semantically identical
 | `\"` | Double quote |
 | `\'` | Single quote |
 | `\{` | Literal `{` (suppresses interpolation) |
+| `\}` | Literal `}` |
+
+### 1.8a Regex Literals
+
+```ebnf
+regex_literal = "/" regex_pattern "/" [ regex_flags ] ;
+regex_flags   = { "g" | "i" | "m" | "s" | "u" | "y" | "d" | "v" } ;
+```
+
+Regex literals compile to JavaScript `RegExp` objects. The `/` delimiter is context-sensitive — only parsed as a regex when not preceded by a value-producing token.
 
 ### 1.9 Boolean Literals
 
@@ -206,11 +254,12 @@ Both symbol and keyword forms are accepted. The keyword forms (`and`, `or`, `not
 | `..` | Range (exclusive end) |
 | `..=` | Range (inclusive end) |
 | `...` | Spread / rest |
-| `?` | Optional type suffix |
 | `?.` | Optional chaining |
 | `??` | Null coalescing |
 | `?` (postfix) | Error propagation (unwrap-or-return) |
-| `::` | Namespace access |
+| `::` | Slice step (inside `[]` only) |
+| `\|` | Type union separator |
+| `@` | Decorator prefix |
 
 ### 1.12 Delimiters
 
@@ -218,23 +267,31 @@ Both symbol and keyword forms are accepted. The keyword forms (`and`, `or`, `not
 (  )  {  }  [  ]  ,  ;  :
 ```
 
+### 1.12a Shebang
+
+Tova source files may begin with a shebang line (`#!`). The lexer strips the first line if it starts with `#!`:
+
+```
+#!/usr/bin/env tova
+```
+
 ### 1.13 Operator Precedence (Lowest to Highest)
 
 | Level | Operators | Associativity |
 |-------|-----------|---------------|
-| 1 | `\|>` | Left |
-| 2 | `??` | Left |
-| 3 | `or`, `\|\|` | Left |
-| 4 | `and`, `&&` | Left |
-| 5 | `not`, `!` (prefix) | Right (unary) |
-| 6 | `==`, `!=`, `<`, `<=`, `>`, `>=` | Left (chainable) |
-| 7 | `in`, `not in` | Left |
-| 8 | `..`, `..=` | Non-associative |
-| 9 | `+`, `-` | Left |
-| 10 | `*`, `/`, `%` | Left |
-| 11 | `**` | Right |
-| 12 | `-` (unary), `...` (spread) | Right (unary) |
-| 13 | `.`, `()`, `[]`, `?.` | Left (postfix) |
+| 2 | `\|>` | Left |
+| 3 | `??` | Left |
+| 4 | `or`, `\|\|` | Left |
+| 5 | `and`, `&&` | Left |
+| 6 | `not`, `!` (prefix) | Right (unary) |
+| 7 | `==`, `!=`, `<`, `<=`, `>`, `>=` | Left (chainable) |
+| 8 | `in`, `not in`, `is`, `is not` | Non-associative |
+| 9 | `..`, `..=` | Non-associative |
+| 10 | `+`, `-` | Left |
+| 11 | `*`, `/`, `%` | Left |
+| 12 | `**` | Right |
+| 13 | `-` (unary), `...` (spread), `await`, `yield` | Right (unary) |
+| 14 | `.`, `()`, `[]`, `?.`, `?` (postfix) | Left (postfix) |
 
 ## 2. Grammar
 
@@ -244,33 +301,44 @@ Both symbol and keyword forms are accepted. The keyword forms (`and`, `or`, `not
 program = { top_level } EOF ;
 
 top_level = server_block | browser_block | shared_block
-          | data_block | test_block
+          | data_block | security_block | cli_block
+          | edge_block | concurrent_block | deploy_block
+          | theme_block | test_block | bench_block
           | import_declaration | statement ;
 ```
 
-A Tova program is a sequence of top-level blocks and statements.
+A Tova program is a sequence of top-level blocks and statements. Top-level blocks are implemented via a plugin registry system.
 
 ### 2.2 Blocks
 
 ```ebnf
-server_block = "server" [ STRING ] "{" { server_statement } "}" ;
-browser_block = "browser" [ STRING ] "{" { browser_statement } "}" ;
-shared_block = "shared" [ STRING ] "{" { statement } "}" ;
-data_block   = "data"   [ STRING ] "{" { data_statement } "}" ;
-test_block   = "test"   [ STRING ] "{" { statement } "}" ;
+server_block    = "server" [ STRING ] "{" { server_statement } "}" ;
+browser_block   = "browser" [ STRING ] "{" { browser_statement } "}" ;
+shared_block    = "shared" [ STRING ] "{" { statement } "}" ;
+data_block      = "data"   [ STRING ] "{" { data_statement } "}" ;
+test_block      = "test"   [ STRING ] "{" { statement } "}" ;
+bench_block     = "bench"  [ STRING ] "{" { statement } "}" ;
+security_block  = "security" "{" { security_statement } "}" ;
+cli_block       = "cli" "{" { cli_statement } "}" ;
+edge_block      = "edge" [ STRING ] "{" { edge_statement } "}" ;
+concurrent_block = "concurrent" [ concurrent_mode ] "{" { statement } "}" ;
+deploy_block    = "deploy" "{" { deploy_statement } "}" ;
+theme_block     = "theme" "{" { theme_section } "}" ;
 ```
 
-The optional string after the block keyword is a name, used for named server blocks (multi-server architecture).
+The optional string after certain block keywords is a name, used for named blocks (e.g., named server blocks for multi-server architecture, named edge blocks for separate output files).
 
 ### 2.3 Statements
 
 ```ebnf
 statement = assignment | var_declaration | let_destructure
-          | function_declaration | type_declaration
-          | import_declaration | return_statement
-          | if_statement | for_statement | while_statement
+          | decorated_declaration | function_declaration | type_declaration
+          | interface_declaration | trait_declaration | impl_declaration
+          | import_declaration | pub_declaration | return_statement
+          | if_statement | for_statement | while_statement | loop_statement
           | guard_statement | defer_statement
           | try_catch_statement | with_statement
+          | concurrent_block | select_statement
           | expression_statement ;
 ```
 
@@ -289,7 +357,7 @@ Multiple assignment: `a, b = 1, 2` binds `a` to `1` and `b` to `2`.
 #### Destructuring
 
 ```ebnf
-let_destructure = "let" pattern "=" expression ;
+let_destructure = [ "let" ] pattern "=" expression ;
 
 pattern = object_pattern | array_pattern | tuple_pattern ;
 
@@ -356,10 +424,15 @@ if_statement = "if" expression block
                { "elif" expression block }
                [ "else" block ] ;
 
-for_statement = "for" IDENTIFIER [ "," IDENTIFIER ] "in" expression block
+for_statement = [ "async" ] [ IDENTIFIER ":" ] "for" for_target [ "," IDENTIFIER ] "in" expression
+                [ "when" expression ] block
                 [ "else" block ] ;
 
+for_target = IDENTIFIER | array_pattern | object_pattern ;
+
 while_statement = "while" expression block ;
+
+loop_statement = [ IDENTIFIER ":" ] "loop" block ;
 
 guard_statement = "guard" expression "else" block ;
 
@@ -368,15 +441,17 @@ defer_statement = "defer" ( block | expression ) ;
 with_statement = "with" expression "as" IDENTIFIER block ;
 ```
 
-The `for...else` construct: the `else` block runs if the loop completes without a `break`.
+The `for...else` construct: the `else` block runs if the loop completes without a `break`. The optional `when` guard filters elements before the loop body executes. Labels allow `break label` and `continue label` to target specific enclosing loops.
 
 #### Try / Catch / Finally
 
 ```ebnf
 try_catch = "try" block
-            "catch" [ IDENTIFIER ] block
+            [ "catch" [ IDENTIFIER ] block ]
             [ "finally" block ] ;
 ```
+
+At least one of `catch` or `finally` is required.
 
 #### Import
 
@@ -425,6 +500,8 @@ schedule_declaration   = "schedule" STRING "fn" [ IDENTIFIER ] "(" [ param_list 
 background_declaration = "background" "fn" IDENTIFIER "(" [ param_list ] ")" block ;
 
 lifecycle_hook = ( "on_start" | "on_stop" ) "fn" "(" [ param_list ] ")" block ;
+
+ai_config_declaration = "ai" [ STRING ] "{" key_value_list "}" ;
 ```
 
 ### 2.5 Client Statements
@@ -438,6 +515,8 @@ component_declaration = "component" IDENTIFIER [ "(" [ param_list ] ")" ] "{" co
 component_body = { jsx_element | statement | style_block } ;
 
 store_declaration = "store" IDENTIFIER "{" { state_declaration | computed_declaration | function_declaration } "}" ;
+
+form_declaration = "form" IDENTIFIER "{" { form_member } "}" ;
 ```
 
 ### 2.6 Expressions
@@ -475,11 +554,12 @@ arg      = [ IDENTIFIER ":" ] expression | "..." expression ;
 #### Primary Expressions
 
 ```ebnf
-primary = NUMBER | STRING | "true" | "false" | "nil"
+primary = NUMBER | STRING | REGEX | "true" | "false" | "nil"
         | IDENTIFIER
         | "(" expression ")"
         | array_literal | object_literal
-        | lambda | match_expression | if_expression ;
+        | lambda | match_expression | if_expression
+        | await_expression ;
 
 array_literal = "[" [ comprehension | expression_list ] "]" ;
 comprehension = expression "for" IDENTIFIER [ "," IDENTIFIER ] "in" expression [ "if" expression ] ;
@@ -492,8 +572,11 @@ entry = ( IDENTIFIER | STRING | "[" expression "]" ) ":" expression
       | "..." expression ;
 
 lambda = "fn" "(" [ param_list ] ")" ( block | expression )
-       | IDENTIFIER "=>" ( block | expression )
-       | "(" param_list ")" "=>" ( block | expression ) ;
+       | "async" "fn" "(" [ param_list ] ")" ( block | expression )
+       | IDENTIFIER ( "=>" | "->" ) ( block | expression )
+       | "(" [ param_list ] ")" ( "=>" | "->" ) ( block | expression ) ;
+
+await_expression = "await" expression ;
 
 match_expression = "match" expression "{" { match_arm } "}" ;
 match_arm = pattern [ "if" expression ] "=>" ( block | expression ) ;
@@ -508,17 +591,18 @@ pattern = literal_pattern | range_pattern | variant_pattern
         | array_pattern | tuple_pattern | object_pattern
         | string_concat_pattern | wildcard_pattern | binding_pattern ;
 
-literal_pattern       = NUMBER | STRING | "true" | "false" | "nil" ;
-range_pattern         = NUMBER ( ".." | "..=" ) NUMBER ;
-variant_pattern       = IDENTIFIER "(" [ IDENTIFIER { "," IDENTIFIER } ] ")" ;
-array_pattern         = "[" [ pattern_element { "," pattern_element } ] "]" ;
-pattern_element       = IDENTIFIER | "..." IDENTIFIER | "_" ;
+literal_pattern       = [ "-" ] NUMBER | STRING | "true" | "false" | "nil" ;
+range_pattern         = [ "-" ] NUMBER ( ".." | "..=" ) [ "-" ] NUMBER ;
+variant_pattern       = IDENTIFIER [ "(" [ pattern { "," pattern } ] ")" ] ;
+array_pattern         = "[" [ pattern { "," pattern } [ "," "..." IDENTIFIER ] ] "]" ;
 tuple_pattern         = "(" pattern { "," pattern } ")" ;
 object_pattern        = "{" field_pattern { "," field_pattern } "}" ;
-string_concat_pattern = STRING "++" IDENTIFIER ;
+string_concat_pattern = STRING "++" pattern ;
 wildcard_pattern      = "_" ;
 binding_pattern       = IDENTIFIER ;
 ```
+
+Note: Pattern elements are recursive — nested patterns like `Some(Ok(value))`, `[1, [2, 3]]`, and `(a, Some(b))` are valid. Negative number patterns like `-1` are supported. A bare uppercase identifier like `None` matches an enum/variant tag without destructuring.
 
 Pattern matching rules:
 1. Patterns are tried top to bottom.
@@ -571,6 +655,80 @@ jsx_for = "for" IDENTIFIER [ "," IDENTIFIER ] "in" expression
 ```
 
 JSX compiles to DOM creation calls in the Tova reactive runtime. Text inside JSX elements may be unquoted.
+
+### 2.10 Security Block
+
+```ebnf
+security_block = "security" "{" { security_statement } "}" ;
+
+security_statement = "auth" "{" key_value_list "}"
+                   | "role" IDENTIFIER "{" { IDENTIFIER } "}"
+                   | "protect" STRING "{" key_value_list "}"
+                   | "sensitive" "{" key_value_list "}"
+                   | "cors" "{" key_value_list "}"
+                   | "csp" "{" key_value_list "}"
+                   | "rate_limit" "{" key_value_list "}"
+                   | "csrf" "{" key_value_list "}"
+                   | "audit" "{" key_value_list "}"
+                   | "trust_proxy" expression
+                   | "hsts" "{" key_value_list "}" ;
+```
+
+The `security {}` block provides centralized security policy (auth, roles, route protection, CORS, CSP, rate limiting, CSRF, audit logging).
+
+### 2.11 CLI Block
+
+```ebnf
+cli_block = "cli" "{" { cli_statement } "}" ;
+cli_statement = IDENTIFIER ":" expression | cli_command ;
+cli_command = "fn" IDENTIFIER "(" [ cli_param_list ] ")" block ;
+cli_param = ( "--" IDENTIFIER | IDENTIFIER ) [ ":" type_annotation ] [ "=" expression ] ;
+```
+
+CLI blocks generate standalone executable scripts with argument parsing, help text generation, and subcommand support.
+
+### 2.12 Edge Block
+
+```ebnf
+edge_block = "edge" [ STRING ] "{" { edge_statement } "}" ;
+edge_statement = IDENTIFIER ":" expression
+               | ( "kv" | "sql" | "storage" | "queue" | "env" | "secret" ) IDENTIFIER [ ":" type_annotation ] [ "=" expression ]
+               | route_declaration | middleware_declaration
+               | "schedule" STRING "fn" [ IDENTIFIER ] "(" [ param_list ] ")" block
+               | "consume" IDENTIFIER "fn" "(" param_list ")" block ;
+```
+
+Edge blocks support 5 deployment targets: `cloudflare`, `deno`, `vercel`, `lambda`, `bun`. Named blocks (`edge "api" {}`) produce separate output files.
+
+### 2.13 Concurrent Block, Spawn, Select
+
+```ebnf
+concurrent_block = "concurrent" [ concurrent_mode ] block ;
+concurrent_mode = "cancel_on_error" | "first" | "timeout" "(" expression ")" ;
+
+spawn_expression = "spawn" call_expression ;
+
+select_statement = "select" "{" { select_case } "}" ;
+select_case = IDENTIFIER "from" expression "=>" ( block | expression )
+            | expression "." "send" "(" expression ")" "=>" ( block | expression )
+            | "timeout" "(" expression ")" "=>" ( block | expression )
+            | "_" "=>" ( block | expression ) ;
+```
+
+The default concurrent mode is `all` — all spawned tasks must complete. `spawn` is contextual, not a reserved keyword.
+
+### 2.14 Form Declaration
+
+```ebnf
+form_declaration = "form" IDENTIFIER "{" { form_member } "}" ;
+form_member = "field" IDENTIFIER [ ":" type_annotation ] "=" expression [ "{" { validator } "}" ]
+            | "group" IDENTIFIER [ "when" expression ] "{" { form_member } "}"
+            | "array" IDENTIFIER "{" { form_field } "}"
+            | "steps" "{" { "step" STRING "{" { IDENTIFIER } "}" } "}"
+            | "on" "submit" block ;
+```
+
+Form declarations are valid inside `browser {}` blocks and `component` bodies. Fields generate reactive signal triples (value, error, touched).
 
 ## 3. Type System
 
@@ -686,13 +844,13 @@ trait Describable {
 }
 
 impl Printable for User {
-  fn to_string() { "{self.name} <{self.email}>" }
+  fn to_string(self) { "{self.name} <{self.email}>" }
 }
 ```
 
 - **Interfaces** are pure contracts (no default implementations).
 - **Traits** may provide default method bodies.
-- **`impl`** blocks attach methods to types. `self` refers to the receiver.
+- **`impl`** blocks attach methods to types. `self` must be declared as an explicit parameter for instance methods; without it, the method is an associated function (static).
 - The compiler checks that all required methods are provided.
 
 ### 3.9 Derive Macros

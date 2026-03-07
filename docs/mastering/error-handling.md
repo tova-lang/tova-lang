@@ -601,41 +601,6 @@ Without `?`, this would be deeply nested match expressions. The `?` operator is 
 The `?` operator can only be used inside a function that itself returns a Result. Using it elsewhere is a compile error.
 :::
 
-## The `!` Operator — Unwrap or Propagate
-
-The `!` operator (postfix bang) is similar to `?` but works slightly differently. While `?` propagates the error to the caller, `!` unwraps the value directly or crashes with the error:
-
-```tova
-// ? propagates (returns Err from the function)
-fn load(path) {
-  content = read_file(path)?    // Returns Err if read fails
-  Ok(content)
-}
-
-// ! unwraps directly (crashes if Err)
-content = read_file(path)!      // Crashes if read fails
-```
-
-Use `!` when:
-- You're absolutely sure the operation will succeed
-- A failure means something is fundamentally broken (like a missing config file at startup)
-- You're prototyping and want to skip error handling temporarily
-
-```tova
-// At program startup, config MUST exist
-config = load_config("./config.toml")!
-
-// In tests, unwrap expected successes
-test "parse valid input" {
-  result = parse("42")!
-  assert_eq(result, 42)
-}
-```
-
-::: warning `!` Causes Hard Crashes
-`!` is Tova's escape hatch. Like `.expect()`, it crashes the program if the Result is `Err` or the Option is `None`. Prefer `?` in library code and production paths. Reserve `!` for startup code, tests, and genuinely impossible error states.
-:::
-
 ## try/catch: For JavaScript Interop
 
 When calling JavaScript code that might throw, use `try/catch`:
@@ -818,7 +783,7 @@ fn process_payment(order) {
 `with` manages resources that need cleanup — like files, connections, or locks:
 
 ```tova
-with file = open("data.txt") {
+with open("data.txt") as file {
   content = read(file)
   process(content)
 }
@@ -828,7 +793,7 @@ with file = open("data.txt") {
 `with` ensures the resource is cleaned up even if an error occurs inside the block. It's Tova's answer to Python's `with` or C#'s `using`:
 
 ```tova
-with conn = connect("postgres://localhost/mydb") {
+with connect("postgres://localhost/mydb") as conn {
   users = conn.query("SELECT * FROM users")
   for user in users {
     print(user.name)

@@ -189,10 +189,25 @@ export class BaseCodegen {
   // Track a builtin and its transitive dependencies from the stdlib dependency graph
   _trackBuiltin(name) {
     this._usedBuiltins.add(name);
-    const deps = STDLIB_DEPS[name];
-    if (deps) {
-      for (const dep of deps) {
-        this._usedBuiltins.add(dep);
+    // Check if this name or any transitive dependency requires Result/Option
+    if (name === 'Ok' || name === 'Err' || name === 'Some' || name === 'None') {
+      this._needsResultOption = true;
+    }
+    // Resolve transitive deps using a queue (e.g., iter -> Seq -> Some/None)
+    const queue = [name];
+    while (queue.length > 0) {
+      const current = queue.pop();
+      const deps = STDLIB_DEPS[current];
+      if (deps) {
+        for (const dep of deps) {
+          if (!this._usedBuiltins.has(dep)) {
+            this._usedBuiltins.add(dep);
+            queue.push(dep); // resolve further transitive deps
+          }
+          if (dep === 'Ok' || dep === 'Err' || dep === 'Some' || dep === 'None') {
+            this._needsResultOption = true;
+          }
+        }
       }
     }
   }
@@ -316,9 +331,12 @@ export class BaseCodegen {
           return this._paramSubstitutions.get(node.name);
         }
         // Track builtin identifier usage (e.g., None used without call)
+        // Use _trackBuiltin to resolve transitive deps (including Result/Option)
         if (BUILTIN_NAMES.has(node.name)) {
-          this._usedBuiltins.add(node.name);
+          this._trackBuiltin(node.name);
         }
+        // Ok/Err/Some/None are in RESULT_OPTION, not BUILTIN_FUNCTIONS,
+        // so they need a separate check for _needsResultOption
         if (node.name === 'Ok' || node.name === 'Err' || node.name === 'Some' || node.name === 'None') {
           this._needsResultOption = true;
         }
@@ -1996,9 +2014,9 @@ export class BaseCodegen {
         const tableArgs = this._genTableCallArgs(right);
         if (tableArgs) {
           const callee = this.genExpression(right.callee);
-          // Track builtin usage
+          // Track builtin usage (with dependency resolution)
           if (right.callee.type === 'Identifier' && BUILTIN_NAMES.has(right.callee.name)) {
-            this._usedBuiltins.add(right.callee.name);
+            this._trackBuiltin(right.callee.name);
           }
           return `${callee}(${[left, ...tableArgs].join(', ')})`;
         }

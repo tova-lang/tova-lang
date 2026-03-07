@@ -326,7 +326,7 @@ Without `@memoize`, `fibonacci(40)` would make billions of recursive calls. With
 ```tova
 @memoize fn parse_config(path) {
   text = read_text(path)
-  json_parse(text)
+  json_parse(text).unwrap()
 }
 
 // First call reads the file; subsequent calls return the cached result
