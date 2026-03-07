@@ -1536,7 +1536,7 @@ function __chart_empty(w, h, msg) { return '<svg xmlns="http://www.w3.org/2000/s
   var fs = await import('fs'); var arrow = await import('apache-arrow'); var pw = await import('parquet-wasm/node');
   var t = tableData && tableData._rows ? tableData : Table(Array.isArray(tableData) ? tableData : []);
   var columns = t._columns;
-  var COMP_MAP = { snappy: 1, gzip: 2, brotli: 3, zstd: 5, lz4: 6, uncompressed: 0 };
+  var COMP_MAP = { snappy: 1, gzip: 2, brotli: 3, zstd: 5, lz4: 6, uncompressed: 0, none: 0 };
   function _inferType(values) { for (var i = 0; i < values.length; i++) { var v = values[i]; if (v === null || v === undefined) continue; if (typeof v === 'boolean') return 'bool'; if (typeof v === 'number') return Number.isInteger(v) ? 'int' : 'float'; if (typeof v === 'string') return 'string'; } return 'string'; }
   var colVecs = {};
   for (var ci = 0; ci < columns.length; ci++) {

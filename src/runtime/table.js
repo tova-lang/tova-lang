@@ -905,6 +905,7 @@ const COMPRESSION_MAP = {
   zstd: 5,
   lz4: 6,
   uncompressed: 0,
+  none: 0,
 };
 
 export async function readParquet(path) {
