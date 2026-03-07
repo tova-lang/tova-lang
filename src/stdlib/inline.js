@@ -1079,6 +1079,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
         clearTimeout(timer);
         var respHeaders = {};
         resp.headers.forEach(function(v, k) { respHeaders[k] = v; });
+        if (o.stream) { return Ok({ status: resp.status, headers: respHeaders, body: resp.body, ok: resp.ok }); }
         var respBody;
         var ct = resp.headers.get('content-type') || '';
         if (ct.includes('application/json')) { try { respBody = await resp.json(); } catch(e) { respBody = await resp.text(); } }
@@ -1095,7 +1096,8 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   put(url, body, opts) { return http._request('PUT', url, body, opts); },
   patch(url, body, opts) { return http._request('PATCH', url, body, opts); },
   delete(url, opts) { return http._request('DELETE', url, null, opts); },
-  head(url, opts) { return http._request('HEAD', url, null, opts); }
+  head(url, opts) { return http._request('HEAD', url, null, opts); },
+  get_stream(url, opts) { return http._request('GET', url, null, Object.assign({}, opts, { stream: true })); }
 })`,
 
   // ── Channel-based async ───────────────────────────────

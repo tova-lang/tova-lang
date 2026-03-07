@@ -122,6 +122,12 @@ describe('http namespace — compilation tests', () => {
     expect(output).toContain('URLSearchParams');
     expect(output).toContain('o.params');
   });
+
+  test('http namespace is emitted when http.get_stream() is referenced', () => {
+    const output = compile('result = http.get_stream("https://example.com/file")');
+    expect(output).toContain('const http = Object.freeze(');
+    expect(output).toContain('get_stream');
+  });
 });
 
 describe('http namespace — shape tests', () => {
@@ -182,6 +188,10 @@ describe('http namespace — shape tests', () => {
     expect(BUILTIN_FUNCTIONS.http).toContain('FormData');
     expect(BUILTIN_FUNCTIONS.http).toContain('__form');
   });
+
+  test('http entry contains get_stream method', () => {
+    expect(BUILTIN_FUNCTIONS.http).toContain('get_stream');
+  });
 });
 
 describe('http namespace — integration tests', () => {
@@ -232,6 +242,17 @@ describe('http namespace — integration tests', () => {
           return new Response(JSON.stringify({ url: req.url, search: url_obj.search }), {
             headers: { 'Content-Type': 'application/json' },
           });
+        }
+        if (url_obj.pathname === '/stream') {
+          const encoder = new TextEncoder();
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode('chunk1'));
+              controller.enqueue(encoder.encode('chunk2'));
+              controller.close();
+            }
+          });
+          return new Response(stream, { headers: { 'Content-Type': 'text/plain' } });
         }
         return new Response('ok');
       },
@@ -409,5 +430,34 @@ describe('http namespace — integration tests', () => {
     const resp = result.unwrap();
     expect(resp.body.method).toBe('POST');
     expect(resp.body.ct).toContain('multipart/form-data');
+  });
+
+  test('http.get_stream() returns ReadableStream body', async () => {
+    if (!httpNs || !server) return;
+    const result = await httpNs.get_stream(`http://localhost:${port}/stream`);
+    expect(result.__tag).toBe('Ok');
+    const resp = result.unwrap();
+    expect(resp.status).toBe(200);
+    expect(resp.ok).toBe(true);
+    expect(resp.body).toBeDefined();
+    // Read all chunks from the stream
+    const reader = resp.body.getReader();
+    const chunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(new TextDecoder().decode(value));
+    }
+    expect(chunks.join('')).toBe('chunk1chunk2');
+  });
+
+  test('stream: true option on http.get() returns stream', async () => {
+    if (!httpNs || !server) return;
+    const result = await httpNs.get(`http://localhost:${port}/stream`, { stream: true });
+    expect(result.__tag).toBe('Ok');
+    const resp = result.unwrap();
+    expect(resp.body).toBeDefined();
+    // body should be a ReadableStream, not parsed text
+    expect(typeof resp.body).not.toBe('string');
   });
 });
