@@ -177,6 +177,11 @@ describe('http namespace — shape tests', () => {
     expect(BUILTIN_FUNCTIONS.http).toContain("'manual'");
     expect(BUILTIN_FUNCTIONS.http).toContain("'follow'");
   });
+
+  test('http entry contains FormData detection', () => {
+    expect(BUILTIN_FUNCTIONS.http).toContain('FormData');
+    expect(BUILTIN_FUNCTIONS.http).toContain('__form');
+  });
 });
 
 describe('http namespace — integration tests', () => {
@@ -380,5 +385,29 @@ describe('http namespace — integration tests', () => {
     expect(resp.status).toBe(200);
     expect(resp.body.search).toContain('existing=1');
     expect(resp.body.search).toContain('added=yes');
+  });
+
+  test('FormData body skips JSON serialization', async () => {
+    if (!httpNs || !server) return;
+    const form = new FormData();
+    form.append('name', 'tova');
+    form.append('version', '1.0');
+    const result = await httpNs.post(`http://localhost:${port}/echo`, form);
+    const resp = result.unwrap();
+    expect(resp.body.method).toBe('POST');
+    // FormData sets its own content-type with boundary
+    expect(resp.body.ct).toContain('multipart/form-data');
+  });
+
+  test('__form: true converts plain object to FormData', async () => {
+    if (!httpNs || !server) return;
+    const result = await httpNs.post(`http://localhost:${port}/echo`, {
+      __form: true,
+      name: 'tova',
+      version: '1.0'
+    });
+    const resp = result.unwrap();
+    expect(resp.body.method).toBe('POST');
+    expect(resp.body.ct).toContain('multipart/form-data');
   });
 });

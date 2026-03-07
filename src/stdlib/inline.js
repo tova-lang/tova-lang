@@ -1064,10 +1064,9 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
     var headers = o.headers ? { ...o.headers } : {};
     if (o.bearer) headers['Authorization'] = 'Bearer ' + o.bearer;
     if (o.params) { var _qs = new URLSearchParams(o.params).toString(); if (_qs) url += (url.includes('?') ? '&' : '?') + _qs; }
-    if (body && typeof body === 'object' && !(body instanceof ArrayBuffer) && !(body instanceof Uint8Array) && !headers['Content-Type']) {
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(body);
-    }
+    if (typeof FormData !== 'undefined' && body instanceof FormData) { delete headers['Content-Type']; }
+    else if (body && typeof body === 'object' && body.__form) { var _fd = new FormData(); Object.keys(body).forEach(function(k) { if (k !== '__form') _fd.append(k, body[k]); }); body = _fd; delete headers['Content-Type']; }
+    else if (body && typeof body === 'object' && !(body instanceof ArrayBuffer) && !(body instanceof Uint8Array) && !headers['Content-Type']) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
     var timeout = o.timeout || 30000;
     var retries = o.retries || 0;
     var retryDelay = o.retry_delay || 1000;
