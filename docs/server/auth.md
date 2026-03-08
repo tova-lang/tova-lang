@@ -2,6 +2,10 @@
 
 Tova provides built-in support for JWT and API key authentication. Configuration is declarative, and helper functions handle the common tasks of password hashing, token generation, and route protection.
 
+::: tip Auth Block
+For most applications, the [`auth {}` block](/fullstack/auth-block) is the recommended approach. It generates all endpoints, browser components, and security features automatically from a declarative configuration. The manual approach described on this page gives you full control when you need it.
+:::
+
 ## JWT Authentication
 
 ### Configuration

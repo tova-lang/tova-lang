@@ -138,6 +138,7 @@ export default defineConfig({
             { text: 'Shared Block', link: '/fullstack/shared-block' },
             { text: 'Data Block', link: '/fullstack/data-block' },
             { text: 'Security Block', link: '/fullstack/security-block' },
+            { text: 'Auth Block', link: '/fullstack/auth-block' },
             { text: 'CLI Block', link: '/fullstack/cli-block' },
             { text: 'Edge Block', link: '/fullstack/edge-block' },
             { text: 'Server Block', link: '/fullstack/server-block' },

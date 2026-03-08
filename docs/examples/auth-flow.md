@@ -6,6 +6,10 @@ title: Authentication Flow
 
 A server with JWT-based authentication including user registration, login, and protected endpoints.
 
+::: tip Auth Block
+This example shows manual authentication using `server {}` and `browser {}` blocks. For a declarative approach that generates all of this automatically, see the [`auth {}` block](/fullstack/auth-block).
+:::
+
 ## Full Code
 
 Create `auth.tova`:
@@ -463,5 +467,6 @@ Error messages from the server are displayed conditionally using an `if` block i
 
 ## What's Next
 
+- Use the [`auth {}` block](/fullstack/auth-block) for declarative auth with OAuth, magic links, and auto-generated components
 - Add database models with [Database & Models](./database.md)
 - Scale with [Multi-Server Architecture](./multi-server.md)
