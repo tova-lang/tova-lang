@@ -272,7 +272,9 @@ function setupDOM() {
   globalThis.IntersectionObserver = undefined;
 }
 
-setupDOM();
+if (typeof globalThis.document === 'undefined') {
+  setupDOM();
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 0. CSP AUTO-DETECTION (MUST run before configureCSP sets __cspNonce)

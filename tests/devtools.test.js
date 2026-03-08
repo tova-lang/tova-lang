@@ -1,8 +1,12 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import {
   createSignal, createEffect, createComputed, tova_el, render, __enableDevTools,
+  __resetForTesting
 } from '../src/runtime/reactivity.js';
 import { initDevTools, __devtools_hooks_internal } from '../src/runtime/devtools.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Mock DOM ──────────────────────────────────────────────
 function _setParent(child, parent) {

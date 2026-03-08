@@ -3,6 +3,10 @@
  * Targets: testing.js, router.js, rpc.js, db.js, devtools.js, ssr.js, ai.js
  */
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { __resetForTesting } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // =============================================================================
 // MOCK DOM SETUP (shared by testing.js, router.js, devtools.js)

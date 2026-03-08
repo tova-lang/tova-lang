@@ -28,6 +28,27 @@ let flushing = false;
 // Reusable array for flush cycle — avoids allocation on every flush
 let _flushBuf = [];
 
+// Reset module-level mutable state for test isolation.
+// Bun runs all test files in a single process, so Maps like __tovaStyleRefs
+// accumulate entries across files. Call this between tests to prevent pollution.
+export function __resetForTesting() {
+  if (typeof __tovaStyleRefs !== 'undefined') __tovaStyleRefs.clear();
+  if (typeof __tovaFontRefs !== 'undefined') __tovaFontRefs.clear();
+  __cspNonce = null;
+  __tovaHeadTags.length = 0;
+  pendingEffects.clear();
+  currentEffect = null;
+  currentOwner = null;
+  effectStack.length = 0;
+  ownerStack.length = 0;
+  batchDepth = 0;
+  flushing = false;
+  _flushBuf.length = 0;
+  __devtools_hooks = null;
+  __errorBoundaryIdCounter = 0;
+  currentErrorHandler = null;
+}
+
 function flush() {
   if (flushing) return; // prevent re-entrant flush
   flushing = true;

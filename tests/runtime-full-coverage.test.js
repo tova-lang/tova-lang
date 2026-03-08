@@ -10,8 +10,13 @@ import {
   batch, onMount, onUnmount, onCleanup,
   createRef, createContext, provide, inject,
   createErrorBoundary, ErrorBoundary, createRoot,
-  watch, untrack, Dynamic, Portal, lazy, tova_inject_css
+  watch, untrack, Dynamic, Portal, lazy, tova_inject_css,
+  __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state (style refs, CSP nonce, etc.) that may have been
+// polluted by earlier test files in Bun's single-process test runner.
+__resetForTesting();
 import { renderToString, renderPage } from '../src/runtime/ssr.js';
 import {
   defineRoutes, getCurrentRoute, getParams, getPath, getQuery,
