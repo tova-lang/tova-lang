@@ -923,7 +923,7 @@ describe('Lexer — Utility method edge cases', () => {
     expect(lexer.isAlpha('_')).toBe(true);
     expect(lexer.isAlpha('0')).toBe(false);
     expect(lexer.isAlpha(' ')).toBe(false);
-    expect(lexer.isAlpha('$')).toBe(false);
+    expect(lexer.isAlpha('$')).toBe(true);
   });
 
   test('isAlphaNumeric combines digit and alpha', () => {

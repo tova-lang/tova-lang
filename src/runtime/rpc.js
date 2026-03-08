@@ -46,7 +46,11 @@ export async function rpc(functionName, args = []) {
 
   // Build headers
   const headers = { 'Content-Type': 'application/json' };
-  const csrf = getCSRFToken();
+  let csrf = getCSRFToken();
+  if (!csrf && _csrfReadyPromise) {
+    await _csrfReadyPromise;
+    csrf = getCSRFToken();
+  }
   if (csrf) {
     headers[_config.csrfHeader] = csrf;
   }
@@ -178,4 +182,14 @@ export function addRPCInterceptor(interceptor) {
 
 export function setCSRFToken(token) {
   _config.csrfToken = token;
+}
+
+// ─── CSRF Ready Promise ──────────────────────────────────
+// When auth is enabled, the CSRF token fetch is async. Store the promise
+// so rpc() can await it before the first request if no token is available yet.
+
+let _csrfReadyPromise = null;
+
+export function setCsrfReady(promise) {
+  _csrfReadyPromise = promise;
 }

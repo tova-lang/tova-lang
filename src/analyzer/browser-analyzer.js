@@ -27,6 +27,24 @@ export function installBrowserAnalyzer(AnalyzerClass) {
           this._preRegisterBrowserDecls(topNode.body);
         }
       }
+      // Pre-register auth-injected signals and functions when an AuthBlock exists
+      const hasAuthBlock = this.ast.body.some(n => n.type === 'AuthBlock');
+      if (hasAuthBlock) {
+        for (const name of ['$currentUser', '$isAuthenticated', '$authLoading']) {
+          if (!this.currentScope.symbols.has(name)) {
+            const sym = new Symbol(name, 'state', null, true, null);
+            sym._forward = true;
+            try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+          }
+        }
+        for (const name of ['logout', 'LoginForm', 'SignupForm', 'ForgotPasswordForm', 'ResetPasswordForm', 'AuthGuard']) {
+          if (!this.currentScope.symbols.has(name)) {
+            const sym = new Symbol(name, 'function', null, false, null);
+            sym._forward = true;
+            try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+          }
+        }
+      }
     }
 
     try {

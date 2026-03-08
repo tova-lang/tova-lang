@@ -48,6 +48,12 @@ function getThemeCodegen() {
   return _ThemeCodegen;
 }
 
+let _AuthCodegen;
+function getAuthCodegen() {
+  if (!_AuthCodegen) _AuthCodegen = _require('./auth-codegen.js').AuthCodegen;
+  return _AuthCodegen;
+}
+
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
@@ -106,6 +112,7 @@ export class CodeGenerator {
     const edgeBlocks = getBlocks('edge');
     const deployBlocks = getBlocks('deploy');
     const themeBlocks = getBlocks('theme');
+    const authBlocks = getBlocks('auth');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -186,8 +193,8 @@ export class CodeGenerator {
       ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
       : '';
 
-    // Pre-scan server/browser blocks for builtin usage so shared stdlib includes them
-    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks, ...edgeBlocks], sharedGen._usedBuiltins);
+    // Pre-scan server/browser/auth blocks for builtin usage so shared stdlib includes them
+    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks, ...edgeBlocks, ...authBlocks], sharedGen._usedBuiltins);
 
     const helpers = sharedGen.generateHelpers();
 
@@ -233,6 +240,11 @@ export class CodeGenerator {
       ? getThemeCodegen().mergeThemeBlocks(themeBlocks)
       : null;
 
+    // Merge auth blocks into a single config
+    const authConfig = authBlocks.length > 0
+      ? getAuthCodegen().mergeAuthBlocks(authBlocks)
+      : null;
+
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
@@ -253,7 +265,7 @@ export class CodeGenerator {
       const allSharedBlocks = topLevel.length > 0
         ? [...sharedBlocks, { type: 'BlockStatement', body: topLevel }]
         : sharedBlocks;
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, allSharedBlocks, securityConfig);
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, allSharedBlocks, securityConfig, authConfig);
     }
 
     // Collect type validators from shared blocks and top-level for form type inheritance
@@ -284,7 +296,7 @@ export class CodeGenerator {
       const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap, themeConfig);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap, themeConfig, authConfig);
     }
 
     // Generate edge outputs (one per named group)

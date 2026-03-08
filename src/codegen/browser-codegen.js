@@ -2,6 +2,7 @@ import { BaseCodegen } from './base-codegen.js';
 import { getBrowserStdlib, buildSelectiveStdlib, RESULT_OPTION, PROPAGATE } from '../stdlib/inline.js';
 import { SecurityCodegen } from './security-codegen.js';
 import { ThemeCodegen } from './theme-codegen.js';
+import { AuthCodegen } from './auth-codegen.js';
 import { generateValidatorFn, generateFieldSignals, generateFieldAccessor, generateGroupCode, generateArrayCode, generateAsyncValidatorEffect } from './form-codegen.js';
 
 // JS reserved words that cannot be used as variable names
@@ -125,6 +126,19 @@ export class BrowserCodegen extends BaseCodegen {
     return super.genExpression(node);
   }
 
+  // Override to use ?. for property access on signals (null-safe reads)
+  genMemberExpression(node) {
+    if (node.object && node.object.type === 'Identifier' &&
+        (this.stateNames.has(node.object.name) || this.computedNames.has(node.object.name))) {
+      const obj = this.genExpression(node.object);
+      if (node.computed) {
+        return `${obj}?.[${this.genExpression(node.property)}]`;
+      }
+      return `${obj}?.${node.property}`;
+    }
+    return super.genMemberExpression(node);
+  }
+
   // Override to transform state assignments to setter calls
   generateStatement(node) {
     if (!node) return '';
@@ -200,7 +214,7 @@ export class BrowserCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null, themeConfig = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null, themeConfig = null, authConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     this._typeValidators = typeValidatorsMap || {};
     this._themeConfig = themeConfig;
@@ -272,6 +286,16 @@ export class BrowserCodegen extends BaseCodegen {
         lines.push(clientSecurity);
         lines.push('');
       }
+    }
+
+    // Auth block injection
+    if (authConfig) {
+      const authGen = new AuthCodegen();
+      lines.push(authGen.generateBrowserCode(authConfig, this));
+      // Register auth $ signals so they get () reads in reactive contexts
+      this.stateNames.add('$currentUser');
+      this.stateNames.add('$isAuthenticated');
+      this.stateNames.add('$authLoading');
     }
 
     const states = [];
@@ -2313,9 +2337,19 @@ export class BrowserCodegen extends BaseCodegen {
   genJSXIf(node) {
     const cond = this.genExpression(node.condition);
     const consequent = node.consequent.map(c => this.genJSX(c));
-    const thenPart = consequent.length === 1 ? consequent[0] : `tova_fragment([${consequent.join(', ')}])`;
+    let thenPart = consequent.length === 1 ? consequent[0] : `tova_fragment([${consequent.join(', ')}])`;
 
     // Build chained ternary: cond1 ? a : cond2 ? b : cond3 ? c : else
+    // Only wrap in reactive closure if the condition reads signals
+    const needsReactive = this._exprReadsSignal(node.condition) ||
+      (node.alternates && node.alternates.some(a => this._exprReadsSignal(a.condition)));
+
+    // When the outer ternary will be wrapped in () =>, unwrap any single-child
+    // branch parts that are already () => wrapped to avoid double-function:
+    //   () => cond ? () => expr : null  →  () => cond ? expr : null
+    const unwrap = (code) => (needsReactive && code.startsWith('() => ')) ? code.slice(6) : code;
+    thenPart = unwrap(thenPart);
+
     let result = `(${cond}) ? ${thenPart}`;
 
     // elif chains
@@ -2323,22 +2357,21 @@ export class BrowserCodegen extends BaseCodegen {
       for (const alt of node.alternates) {
         const elifCond = this.genExpression(alt.condition);
         const elifBody = alt.body.map(c => this.genJSX(c));
-        const elifPart = elifBody.length === 1 ? elifBody[0] : `tova_fragment([${elifBody.join(', ')}])`;
+        let elifPart = elifBody.length === 1 ? elifBody[0] : `tova_fragment([${elifBody.join(', ')}])`;
+        elifPart = unwrap(elifPart);
         result += ` : (${elifCond}) ? ${elifPart}`;
       }
     }
 
     if (node.alternate) {
       const alt = node.alternate.map(c => this.genJSX(c));
-      const elsePart = alt.length === 1 ? alt[0] : `tova_fragment([${alt.join(', ')}])`;
+      let elsePart = alt.length === 1 ? alt[0] : `tova_fragment([${alt.join(', ')}])`;
+      elsePart = unwrap(elsePart);
       result += ` : ${elsePart}`;
     } else {
       result += ` : null`;
     }
 
-    // Only wrap in reactive closure if the condition reads signals
-    const needsReactive = this._exprReadsSignal(node.condition) ||
-      (node.alternates && node.alternates.some(a => this._exprReadsSignal(a.condition)));
     if (needsReactive) {
       return `() => ${result}`;
     }

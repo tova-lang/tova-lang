@@ -104,12 +104,13 @@ export class SecurityCodegen extends BaseCodegen {
       lines.push('  return [];');
       lines.push('}');
       lines.push('function __hasRole(user, roleName) {');
-      lines.push('  return __getUserRoles(user).includes(roleName);');
+      lines.push('  const rn = roleName.toLowerCase();');
+      lines.push('  return __getUserRoles(user).some(r => r.toLowerCase() === rn);');
       lines.push('}');
       lines.push('function __hasPermission(user, permission) {');
       lines.push('  const userRoles = __getUserRoles(user);');
       lines.push('  for (const r of userRoles) {');
-      lines.push('    const perms = __securityRoles[r];');
+      lines.push('    const perms = __securityRoles[r] || __securityRoles[Object.keys(__securityRoles).find(k => k.toLowerCase() === r.toLowerCase())];');
       lines.push('    if (perms && perms.includes(permission)) return true;');
       lines.push('  }');
       lines.push('  return false;');
@@ -190,15 +191,15 @@ export class SecurityCodegen extends BaseCodegen {
             requireStr = this.genExpression(requireExpr);
           }
         }
-        // Convert glob-style pattern to regex
-        // 1. Replace ** with placeholder, 2. Replace * with placeholder
-        // 3. Escape all regex-special chars (including /), 4. Restore glob placeholders
+        // Convert glob-style pattern to regex for route protection
+        // For route protection, * matches everything (including nested paths)
+        // since protecting /admin/* should also protect /admin/panel/nested
         const regexPattern = pattern
           .replace(/\*\*/g, '\x00GLOBSTAR\x00')
           .replace(/\*/g, '\x00STAR\x00')
           .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')   // escape all regex specials including /
-          .replace(/\x00STAR\x00/g, '[^/]*')         // * matches within one path segment
-          .replace(/\x00GLOBSTAR\x00/g, '.*');        // ** matches across segments
+          .replace(/\x00STAR\x00/g, '.*')            // * matches across all path segments in protect patterns
+          .replace(/\x00GLOBSTAR\x00/g, '.*');        // ** also matches across segments
 
         let rlMax = 'null';
         let rlWindow = 'null';

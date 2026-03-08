@@ -450,8 +450,11 @@ describe('Lexer — Operator edge cases', () => {
     expect(lexThrows('#')).toThrow(/Unexpected character/);
   });
 
-  test('unexpected character $ throws', () => {
-    expect(lexThrows('$')).toThrow(/Unexpected character/);
+  test('$ starts an identifier', () => {
+    const lexer = new Lexer('$foo', '<test>');
+    const tokens = lexer.tokenize();
+    expect(tokens[0].type).toBe('IDENTIFIER');
+    expect(tokens[0].value).toBe('$foo');
   });
 
   test('unexpected character ~ throws', () => {

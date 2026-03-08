@@ -1,5 +1,6 @@
 import { BaseCodegen } from './base-codegen.js';
 import { SecurityCodegen } from './security-codegen.js';
+import { AuthCodegen } from './auth-codegen.js';
 
 export class ServerCodegen extends BaseCodegen {
   _astUsesIdentifier(blocks, name) {
@@ -217,7 +218,7 @@ export class ServerCodegen extends BaseCodegen {
     }
   }
 
-  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = [], securityConfig = null) {
+  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = [], securityConfig = null, topLevelAuthConfig = null) {
     const lines = [];
 
     // Generate security code fragments if security block is present
@@ -1095,13 +1096,19 @@ export class ServerCodegen extends BaseCodegen {
           lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
         }
       }
-      lines.push('function __applySecurityHeaders(headers) {');
+      lines.push('function __applySecurityHeaders(headers, __isInlineHTML) {');
       lines.push('  for (const [k, v] of Object.entries(__securityHeaders)) headers.set(k, v);');
       if (needsHsts) {
         lines.push('  headers.set("Strict-Transport-Security", __hstsHeader["Strict-Transport-Security"]);');
       }
       if (securityFragments && securityFragments.cspCode) {
-        lines.push('  if (typeof __getCspHeader === "function") headers.set("Content-Security-Policy", __getCspHeader());');
+        // Apply CSP to all responses. For inline HTML (dev server), auto-add 'unsafe-inline' to script-src
+        // so the embedded <script> tag works without breaking other CSP directives.
+        lines.push('  if (typeof __getCspHeader === "function") {');
+        lines.push('    let csp = __getCspHeader();');
+        lines.push('    if (__isInlineHTML) { csp = csp.replace(/script-src ([^;]+)/, (m, v) => v.includes("\'unsafe-inline\'") ? m : "script-src " + v + " \'unsafe-inline\'"); }');
+        lines.push('    headers.set("Content-Security-Policy", csp);');
+        lines.push('  }');
       }
       lines.push('}');
       lines.push('');
@@ -1480,13 +1487,13 @@ export class ServerCodegen extends BaseCodegen {
       securityFragments.csrfConfig.enabled &&
       ((securityFragments.csrfConfig.enabled.type === 'BooleanLiteral' && securityFragments.csrfConfig.enabled.value === false) ||
        (securityFragments.csrfConfig.enabled === false));
-    const needsCsrf = !isFastMode && !csrfExplicitlyDisabled && (sessionConfig || authConfig);
+    const needsCsrf = !isFastMode && !csrfExplicitlyDisabled && (sessionConfig || authConfig || topLevelAuthConfig);
     if (needsCsrf) {
       lines.push('// ── CSRF Protection ──');
       lines.push('let __csrfKey = null;');
       lines.push('async function __getCSRFKey() {');
       lines.push('  if (!__csrfKey) {');
-      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : (process.env.CSRF_SECRET || process.env.AUTH_SECRET || ""));');
+      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : (typeof __auth_secret !== "undefined" ? __auth_secret : (process.env.CSRF_SECRET || process.env.AUTH_SECRET || "")));');
       lines.push('    __csrfKey = await crypto.subtle.importKey(');
       lines.push('      "raw", new TextEncoder().encode(secret + ":csrf"),');
       lines.push('      { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]');
@@ -1520,12 +1527,13 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  if (sigBytes.length !== expectedBytes.length) return false;');
       lines.push('  return require("crypto").timingSafeEqual(sigBytes, expectedBytes);');
       lines.push('}');
-      // Fix 9: CSRF exempt patterns
+      // CSRF exempt patterns
       const csrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
-      if (csrfExempt) {
+      const needsAuthExempt = !!topLevelAuthConfig;
+      if (csrfExempt || needsAuthExempt) {
         lines.push('const __csrfExemptPatterns = [');
-        // csrfExempt is an AST node (ArrayLiteral/ArrayExpression)
-        if (csrfExempt.elements) {
+        // User-defined exempt patterns from security block
+        if (csrfExempt && csrfExempt.elements) {
           for (const elem of csrfExempt.elements) {
             if (elem.type === 'StringLiteral' || elem.value) {
               const pattern = elem.value;
@@ -1538,6 +1546,19 @@ export class ServerCodegen extends BaseCodegen {
               lines.push(`  /^${regexPattern}$/,`);
             }
           }
+        }
+        // Auth block endpoints that must be CSRF-exempt (credential-based, no pre-existing session)
+        if (needsAuthExempt) {
+          lines.push('  /^\\/auth\\/login$/,');
+          lines.push('  /^\\/auth\\/signup$/,');
+          lines.push('  /^\\/auth\\/forgot-password$/,');
+          lines.push('  /^\\/auth\\/reset-password$/,');
+          lines.push('  /^\\/auth\\/confirm$/,');
+          lines.push('  /^\\/auth\\/magic-link$/,');
+          lines.push('  /^\\/auth\\/magic-link\\/verify\\/.*/,');
+          lines.push('  /^\\/auth\\/oauth\\/.*/,');
+          lines.push('  /^\\/auth\\/logout$/,');
+          lines.push('  /^\\/auth\\/refresh$/,');
         }
         lines.push('];');
         lines.push('function __isCsrfExempt(path) {');
@@ -3075,6 +3096,63 @@ export class ServerCodegen extends BaseCodegen {
     }
 
     // ════════════════════════════════════════════════════════════
+    // 19b. Auth Block (top-level auth {}) injection
+    // ════════════════════════════════════════════════════════════
+    if (topLevelAuthConfig) {
+      const authGen = new AuthCodegen();
+      lines.push(authGen.generateServerCode(topLevelAuthConfig, this));
+
+      // Merge auth block's protected_route declarations into server protect rules
+      if (topLevelAuthConfig.protectedRoutes && topLevelAuthConfig.protectedRoutes.length > 0) {
+        const hasProtectRules = securityFragments && securityFragments.protectCode;
+        if (!hasProtectRules) {
+          // No security block protect rules — generate __protectRules and __checkProtection
+          lines.push('');
+          lines.push('// ── Route Protection (from auth block) ──');
+          lines.push('const __protectRules = [');
+        } else {
+          // Append to existing __protectRules
+          lines.push('// ── Additional Protected Routes (from auth block) ──');
+        }
+        for (const route of topLevelAuthConfig.protectedRoutes) {
+          const pattern = route.pattern;
+          const regexPattern = pattern
+            .replace(/\*\*/g, '\x00GLOBSTAR\x00')
+            .replace(/\*/g, '\x00STAR\x00')
+            .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')
+            .replace(/\x00STAR\x00/g, '.*')
+            .replace(/\x00GLOBSTAR\x00/g, '.*');
+          const require_ = route.config.require;
+          const requireStr = require_ ? (require_.type === 'Identifier' ? JSON.stringify(require_.name) : '"authenticated"') : '"authenticated"';
+          if (hasProtectRules) {
+            lines.push(`__protectRules.push({ pattern: /^${regexPattern}$/, require: ${requireStr}, rateLimit: { max: null, window: null } });`);
+          } else {
+            lines.push(`  { pattern: /^${regexPattern}$/, require: ${requireStr}, rateLimit: { max: null, window: null } },`);
+          }
+        }
+        if (!hasProtectRules) {
+          lines.push('];');
+          // Also need __checkProtection function
+          lines.push('function __checkProtection(path, user) {');
+          lines.push('  for (const rule of __protectRules) {');
+          lines.push('    if (rule.pattern.test(path)) {');
+          lines.push('      if (rule.require === "authenticated") {');
+          lines.push('        if (!user) return { allowed: false, reason: "Authentication required" };');
+          lines.push('      } else {');
+          lines.push('        if (!user) return { allowed: false, reason: "Authentication required" };');
+          lines.push('        if (!__hasRole(user, rule.require)) return { allowed: false, reason: "Insufficient permissions" };');
+          lines.push('      }');
+          lines.push('      return { allowed: true, rateLimit: rule.rateLimit };');
+          lines.push('    }');
+          lines.push('  }');
+          lines.push('  return { allowed: true, rateLimit: null };');
+          lines.push('}');
+        }
+        lines.push('');
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
     // 20. Middleware chain, Graceful Drain
     // ════════════════════════════════════════════════════════════
     if (globalMiddlewares.length > 0) {
@@ -3263,7 +3341,7 @@ export class ServerCodegen extends BaseCodegen {
 
     // CSRF validation on state-mutating requests
     if (needsCsrf) {
-      const hasCsrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
+      const hasCsrfExempt = (securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt) || topLevelAuthConfig;
       lines.push('  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
       if (hasCsrfExempt) {
         lines.push('   if (!__isCsrfExempt(__pathname)) {');
@@ -3294,6 +3372,9 @@ export class ServerCodegen extends BaseCodegen {
           lines.push('  if (__secUser) __auditLog("auth:success", { method: req.method, path: __pathname }, __secUser);');
           lines.push('  else if (req.headers.get("Authorization")) __auditLog("auth:failure", { method: req.method, path: __pathname, reason: "invalid_token" }, { id: null });');
         }
+      } else if (topLevelAuthConfig) {
+        // Top-level auth {} block provides __auth_authenticate
+        lines.push('  const __secUser = __auth_authenticate(req);');
       } else {
         lines.push('  const __secUser = null;');
       }
@@ -3523,7 +3604,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('      __storeIdempotencyResult(__idk, res.status, __resBody, {});');
       lines.push('    } catch {}');
       lines.push('  }');
-      lines.push('  if (res) __applySecurityHeaders(res.headers);');
+      lines.push('  if (res) __applySecurityHeaders(res.headers, res.headers.get("Content-Type")?.includes("text/html"));');
       lines.push('  return res;');
       lines.push('};');
     } else if (compressionConfig) {

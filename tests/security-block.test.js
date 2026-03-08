@@ -2049,10 +2049,10 @@ describe('Improved glob→regex in protect patterns', () => {
         GET "/api/v1/users" fn(req) { "ok" }
       }
     `);
-    // Should use [^/]* (not .*) for single * — matches within one segment only
+    // In protect patterns, * matches across all sub-paths (like /api/v1/users AND /api/v1/v2/users)
+    // This is intentional for route protection — protecting /api/*/users should catch nested paths too
     const protectLine = result.server.split('\n').find(l => l.includes('pattern:') && l.includes('api'));
-    expect(protectLine).toContain('[^/]*');
-    expect(protectLine).not.toContain('.*');
+    expect(protectLine).toContain('.*');
   });
 
   test('** matches across path segments', () => {

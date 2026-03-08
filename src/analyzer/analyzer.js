@@ -1679,6 +1679,11 @@ export class Analyzer {
     let rateLimitDecl = null;
     let csrfDecl = null;
 
+    // Check for top-level AuthBlock (independent auth block, not security sub-block)
+    for (const node of this.ast.body) {
+      if (node.type === 'AuthBlock') { hasAuth = true; authDecl = node; break; }
+    }
+
     const roleDecls = []; // track all role declarations for cross-block duplicate detection
     for (const node of this.ast.body) {
       if (node.type !== 'SecurityBlock') continue;
@@ -1739,7 +1744,8 @@ export class Analyzer {
     }
 
     // Fix 2: W_HARDCODED_SECRET — warn if auth secret is a string literal
-    if (authDecl && authDecl.config.secret) {
+    // Only check SecurityAuthDeclaration (which has .config), not top-level AuthBlock
+    if (authDecl && authDecl.config && authDecl.config.secret) {
       const secretNode = authDecl.config.secret;
       if (secretNode.type === 'StringLiteral') {
         this.warnings.push({
@@ -1812,7 +1818,7 @@ export class Analyzer {
     }
 
     // W_LOCALSTORAGE_TOKEN — warn when auth uses default localStorage storage (XSS-vulnerable)
-    if (authDecl && authDecl.authType === 'jwt') {
+    if (authDecl && authDecl.authType === 'jwt' && authDecl.config) {
       const storageNode = authDecl.config.storage;
       const isCookieAuth = storageNode && storageNode.type === 'StringLiteral' && storageNode.value === 'cookie';
       if (!isCookieAuth) {

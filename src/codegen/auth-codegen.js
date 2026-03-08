@@ -73,8 +73,16 @@ export class AuthCodegen {
     lines.push('const __auth_crypto = require("crypto");');
     lines.push('');
 
-    // Auth secret
-    lines.push(`const __auth_secret = ${secretExpr};`);
+    // Helper to build Response with multiple Set-Cookie headers (Set-Cookie cannot be comma-joined)
+    lines.push('function __auth_response(body, status, cookies) {');
+    lines.push('  const h = new Headers({ "Content-Type": "application/json" });');
+    lines.push('  for (const c of cookies) h.append("Set-Cookie", c);');
+    lines.push('  return new Response(JSON.stringify(body), { status, headers: h });');
+    lines.push('}');
+    lines.push('');
+
+    // Auth secret — with dev fallback when env var is not set
+    lines.push(`const __auth_secret = ${secretExpr} || (() => { console.warn("\\x1b[33m⚠ AUTH_SECRET not set — using random dev secret (tokens will not survive restarts)\\x1b[0m"); return __auth_crypto.randomBytes(32).toString("hex"); })();`);
     lines.push(`const __auth_token_expires = ${tokenExpires};`);
     lines.push(`const __auth_refresh_expires = ${refreshExpires};`);
     lines.push('');
@@ -102,13 +110,13 @@ export class AuthCodegen {
     // Email/password endpoints
     if (hasEmail) {
       const emailProvider = providers.find(p => p.providerType === 'email');
-      lines.push(...this._genSignupEndpoint(emailProvider, baseCodegen));
-      lines.push(...this._genLoginEndpoint(emailProvider, baseCodegen));
-      lines.push(...this._genForgotPasswordEndpoint(baseCodegen));
-      lines.push(...this._genResetPasswordEndpoint(baseCodegen));
-
-      // Email confirmation
       const confirmEmail = this._getProviderConfigBool(emailProvider, 'confirm_email', false);
+      const passwordMin = this._getProviderConfigNum(emailProvider, 'password_min', 8);
+      lines.push(...this._genSignupEndpoint(emailProvider, baseCodegen));
+      lines.push(...this._genLoginEndpoint(emailProvider, baseCodegen, storageCookie, confirmEmail));
+      lines.push(...this._genForgotPasswordEndpoint(baseCodegen));
+      lines.push(...this._genResetPasswordEndpoint(baseCodegen, passwordMin));
+
       if (confirmEmail) {
         lines.push(...this._genConfirmEndpoint());
       }
@@ -162,6 +170,18 @@ export class AuthCodegen {
     lines.push('const [$authLoading, set$authLoading] = createSignal(true);');
     lines.push('');
 
+    // CSRF token cache
+    lines.push('let __auth_csrf_token = null;');
+    lines.push('async function __auth_get_csrf() {');
+    lines.push('  if (__auth_csrf_token) return __auth_csrf_token;');
+    lines.push('  try {');
+    lines.push('    const res = await fetch("/csrf-token", { credentials: "include" });');
+    lines.push('    if (res.ok) { const data = await res.json(); __auth_csrf_token = data.token; if (typeof setCSRFToken === "function") setCSRFToken(__auth_csrf_token); return __auth_csrf_token; }');
+    lines.push('  } catch {}');
+    lines.push('  return null;');
+    lines.push('}');
+    lines.push('');
+
     // Auth fetch helper
     lines.push('async function __auth_fetch(url, options = {}) {');
     if (storageCookie) {
@@ -171,6 +191,11 @@ export class AuthCodegen {
       lines.push('  if (token) { options.headers = { ...options.headers, "Authorization": "Bearer " + token }; }');
     }
     lines.push('  options.headers = { ...options.headers, "Content-Type": "application/json" };');
+    // Include CSRF token for state-mutating requests
+    lines.push('  if (options.method && options.method !== "GET" && options.method !== "HEAD") {');
+    lines.push('    const csrf = await __auth_get_csrf();');
+    lines.push('    if (csrf) options.headers["X-Tova-CSRF"] = csrf;');
+    lines.push('  }');
     lines.push('  return fetch(url, options);');
     lines.push('}');
     lines.push('');
@@ -181,6 +206,7 @@ export class AuthCodegen {
     if (!storageCookie) {
       lines.push('  localStorage.removeItem("__tova_auth_token");');
     }
+    lines.push('  if (typeof navigate === "function") navigate("/login");');
     lines.push('  set$currentUser(null);');
     lines.push('  set$isAuthenticated(false);');
     lines.push('  __auth_channel.postMessage({ type: "logout" });');
@@ -207,6 +233,13 @@ export class AuthCodegen {
     lines.push('  set$authLoading(false);');
     lines.push('}');
     lines.push('__auth_refresh();');
+    // Wire auth CSRF token + credentials into RPC module
+    if (storageCookie) {
+      lines.push('if (typeof configureRPC === "function") configureRPC({ credentials: "include" });');
+    }
+    // Wire CSRF promise into RPC module so rpc() can await it before first request
+    lines.push('const __csrf_ready = __auth_get_csrf();');
+    lines.push('if (typeof setCsrfReady === "function") setCsrfReady(__csrf_ready);');
     lines.push('');
 
     // Cross-tab sync
@@ -230,7 +263,7 @@ export class AuthCodegen {
       lines.push('    try {');
       lines.push('      const res = await __auth_fetch("/auth/login", { method: "POST", body: JSON.stringify({ email: email(), password: password() }) });');
       lines.push('      const data = await res.json();');
-      lines.push('      if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }');
+      lines.push('      if (!res.ok) { const msg = data.error && typeof data.error === "object" ? data.error.message : data.error; setError(msg || "Login failed"); setLoading(false); return; }');
       if (!storageCookie) {
         lines.push('      if (data.token) localStorage.setItem("__tova_auth_token", data.token);');
       }
@@ -238,27 +271,26 @@ export class AuthCodegen {
       lines.push('      set$isAuthenticated(true);');
       lines.push('      __auth_channel.postMessage({ type: "login" });');
       lines.push('      if (props?.onSuccess) props.onSuccess(data.user);');
-      lines.push('      if (props?.redirect) window.location.href = props.redirect;');
+      lines.push('      if (props?.redirect) { if (typeof navigate === "function") navigate(props.redirect); else window.location.href = props.redirect; }');
+      lines.push('      else if (typeof navigate === "function") navigate("/dashboard");');
       lines.push('    } catch(err) { setError("Network error"); }');
       lines.push('    setLoading(false);');
       lines.push('  }');
-      lines.push('  return () => {');
-      lines.push('    const form = tova_el("form", { onsubmit: handleSubmit });');
-      lines.push('    const emailInput = tova_el("input", { type: "email", placeholder: "Email", oninput: (e) => setEmail(e.target.value) });');
-      lines.push('    const passInput = tova_el("input", { type: "password", placeholder: "Password", oninput: (e) => setPassword(e.target.value) });');
-      lines.push('    const btn = tova_el("button", { type: "submit" }); btn.textContent = "Log in";');
-      lines.push('    form.append(emailInput, passInput, btn);');
+      lines.push('  const __children = [');
+      lines.push('    tova_el("input", { type: "email", placeholder: "Email", className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3", oninput: (e) => setEmail(e.target.value) }),');
+      lines.push('    tova_el("input", { type: "password", placeholder: "Password", className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3", oninput: (e) => setPassword(e.target.value) }),');
+      lines.push('    () => error() ? tova_el("p", { className: "text-red-500 text-sm mb-3" }, [error()]) : null,');
+      lines.push('    tova_el("button", { type: "submit", className: "w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 font-medium" }, ["Log in"]),');
 
       // OAuth buttons
       for (const op of oauthProviders) {
         const name = op.providerType === 'custom' ? op.name : op.providerType;
         const label = name.charAt(0).toUpperCase() + name.slice(1);
-        lines.push(`    const oauth_${name} = tova_el("a", { href: "/auth/oauth/${name}" }); oauth_${name}.textContent = "Continue with ${label}";`);
-        lines.push(`    form.append(oauth_${name});`);
+        lines.push(`    tova_el("a", { href: "/auth/oauth/${name}", className: "block text-center mt-3 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 no-underline" }, ["Continue with ${label}"]),`);
       }
 
-      lines.push('    return form;');
-      lines.push('  };');
+      lines.push('  ];');
+      lines.push('  return tova_el("form", { onsubmit: handleSubmit, className: "space-y-1" }, __children);');
       lines.push('}');
       lines.push('');
 
@@ -268,27 +300,28 @@ export class AuthCodegen {
       lines.push('  const [password, setPassword] = createSignal("");');
       lines.push('  const [error, setError] = createSignal("");');
       lines.push('  const [loading, setLoading] = createSignal(false);');
+      lines.push('  const [success, setSuccess] = createSignal("");');
       lines.push('  async function handleSubmit(e) {');
       lines.push('    e.preventDefault();');
-      lines.push('    setLoading(true); setError("");');
+      lines.push('    setLoading(true); setError(""); setSuccess("");');
       lines.push('    try {');
       lines.push('      const res = await __auth_fetch("/auth/signup", { method: "POST", body: JSON.stringify({ email: email(), password: password() }) });');
       lines.push('      const data = await res.json();');
-      lines.push('      if (!res.ok) { setError(data.error || "Signup failed"); setLoading(false); return; }');
-      lines.push('      if (data.user) { set$currentUser(data.user); set$isAuthenticated(true); }');
+      lines.push('      if (!res.ok) { const msg = data.error && typeof data.error === "object" ? data.error.message : data.error; setError(msg || "Signup failed"); setLoading(false); return; }');
+      lines.push('      if (data.user) { set$currentUser(data.user); set$isAuthenticated(true); __auth_channel.postMessage({ type: "login" }); }');
+      lines.push('      if (data.message) { setSuccess(data.message); }');
       lines.push('      if (props?.onSuccess) props.onSuccess(data);');
-      lines.push('      if (props?.redirect) window.location.href = props.redirect;');
+      lines.push('      if (props?.redirect && data.user) window.location.href = props.redirect;');
       lines.push('    } catch(err) { setError("Network error"); }');
       lines.push('    setLoading(false);');
       lines.push('  }');
-      lines.push('  return () => {');
-      lines.push('    const form = tova_el("form", { onsubmit: handleSubmit });');
-      lines.push('    const emailInput = tova_el("input", { type: "email", placeholder: "Email", oninput: (e) => setEmail(e.target.value) });');
-      lines.push('    const passInput = tova_el("input", { type: "password", placeholder: "Password", oninput: (e) => setPassword(e.target.value) });');
-      lines.push('    const btn = tova_el("button", { type: "submit" }); btn.textContent = "Sign up";');
-      lines.push('    form.append(emailInput, passInput, btn);');
-      lines.push('    return form;');
-      lines.push('  };');
+      lines.push('  return tova_el("form", { onsubmit: handleSubmit, className: "space-y-1" }, [');
+      lines.push('    tova_el("input", { type: "email", placeholder: "Email", className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3", oninput: (e) => setEmail(e.target.value) }),');
+      lines.push('    tova_el("input", { type: "password", placeholder: "Password", className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3", oninput: (e) => setPassword(e.target.value) }),');
+      lines.push('    () => error() ? tova_el("p", { className: "text-red-500 text-sm mb-3" }, [error()]) : null,');
+      lines.push('    () => success() ? tova_el("p", { className: "text-emerald-600 text-sm mb-3" }, [success()]) : null,');
+      lines.push('    tova_el("button", { type: "submit", className: "w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 font-medium" }, ["Sign up"]),');
+      lines.push('  ]);');
       lines.push('}');
       lines.push('');
 
@@ -301,13 +334,11 @@ export class AuthCodegen {
       lines.push('    await __auth_fetch("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email: email() }) });');
       lines.push('    setSent(true);');
       lines.push('  }');
-      lines.push('  return () => {');
-      lines.push('    const form = tova_el("form", { onsubmit: handleSubmit });');
-      lines.push('    const input = tova_el("input", { type: "email", placeholder: "Email", oninput: (e) => setEmail(e.target.value) });');
-      lines.push('    const btn = tova_el("button", { type: "submit" }); btn.textContent = "Send Reset Link";');
-      lines.push('    form.append(input, btn);');
-      lines.push('    return form;');
-      lines.push('  };');
+      lines.push('  return tova_el("form", { onsubmit: handleSubmit, className: "space-y-1" }, [');
+      lines.push('    tova_el("input", { type: "email", placeholder: "Email", className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3", oninput: (e) => setEmail(e.target.value) }),');
+      lines.push('    () => sent() ? tova_el("p", { className: "text-emerald-600 text-sm mb-3" }, ["Check your email for a reset link."]) : null,');
+      lines.push('    tova_el("button", { type: "submit", className: "w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 font-medium" }, ["Send Reset Link"]),');
+      lines.push('  ]);');
       lines.push('}');
       lines.push('');
 
@@ -322,13 +353,11 @@ export class AuthCodegen {
       lines.push('    if (!res.ok) { const d = await res.json(); setError(d.error || "Reset failed"); return; }');
       lines.push('    if (props?.redirect) window.location.href = props.redirect;');
       lines.push('  }');
-      lines.push('  return () => {');
-      lines.push('    const form = tova_el("form", { onsubmit: handleSubmit });');
-      lines.push('    const input = tova_el("input", { type: "password", placeholder: "New Password", oninput: (e) => setPassword(e.target.value) });');
-      lines.push('    const btn = tova_el("button", { type: "submit" }); btn.textContent = "Reset Password";');
-      lines.push('    form.append(input, btn);');
-      lines.push('    return form;');
-      lines.push('  };');
+      lines.push('  return tova_el("form", { onsubmit: handleSubmit, className: "space-y-1" }, [');
+      lines.push('    tova_el("input", { type: "password", placeholder: "New Password", className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3", oninput: (e) => setPassword(e.target.value) }),');
+      lines.push('    () => error() ? tova_el("p", { className: "text-red-500 text-sm mb-3" }, [error()]) : null,');
+      lines.push('    tova_el("button", { type: "submit", className: "w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 font-medium" }, ["Reset Password"]),');
+      lines.push('  ]);');
       lines.push('}');
       lines.push('');
     }
@@ -337,7 +366,10 @@ export class AuthCodegen {
     lines.push('function AuthGuard(props) {');
     lines.push('  return () => {');
     lines.push('    if ($authLoading()) return props?.loading || null;');
-    lines.push('    if (!$isAuthenticated()) return props?.fallback || null;');
+    lines.push('    if (!$isAuthenticated()) {');
+    lines.push('      if (props?.redirect && typeof navigate === "function") queueMicrotask(() => navigate(props.redirect));');
+    lines.push('      return props?.fallback || null;');
+    lines.push('    }');
     lines.push('    if (props?.require) {');
     lines.push('      const user = $currentUser();');
     lines.push('      if (!user || user.role !== props.require) return props?.fallback || null;');
@@ -370,6 +402,14 @@ export class AuthCodegen {
       lines.push('  }');
       lines.push('  return null;');
       lines.push('}');
+      // Wire route guard into beforeNavigate
+      lines.push('if (typeof beforeNavigate === "function") {');
+      lines.push('  beforeNavigate((to) => {');
+      lines.push('    if ($authLoading()) return;');
+      lines.push('    const redirect = __auth_route_guard(to);');
+      lines.push('    if (redirect) { navigate(redirect); return false; }');
+      lines.push('  });');
+      lines.push('}');
     }
 
     lines.push('');
@@ -394,7 +434,7 @@ export class AuthCodegen {
     return [
       '// Auth tables (SQLite)',
       'const __auth_db = (typeof db !== "undefined" && db) || (() => {',
-      '  const Database = require("bun:sqlite");',
+      '  const { Database } = require("bun:sqlite");',
       '  return new Database(":memory:");',
       '})();',
       '',
@@ -552,7 +592,8 @@ export class AuthCodegen {
     const signupBody = confirmEmail ? [
       '  const confirmToken = __auth_crypto.randomBytes(32).toString("hex");',
       '  __auth_db.run("INSERT INTO __auth_email_confirmations (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)", [__auth_crypto.randomUUID(), id, __auth_hash_token(confirmToken), now + 86400]);',
-      '  return new Response(JSON.stringify({ message: "Check your email to confirm", confirm_token: confirmToken }), { status: 201, headers: { "Content-Type": "application/json" } });',
+      '  console.log("\\x1b[36m[auth] Confirm token for " + email + ": " + confirmToken + "\\x1b[0m");',
+      '  return new Response(JSON.stringify({ message: "Check your email to confirm your account" }), { status: 201, headers: { "Content-Type": "application/json" } });',
     ].join('\n') : [
       '  const token = __auth_sign_jwt({ sub: id, email, role: "user" });',
       '  return new Response(JSON.stringify({ token, user }), { status: 201, headers: { "Content-Type": "application/json" } });',
@@ -579,11 +620,11 @@ export class AuthCodegen {
     ];
   }
 
-  _genLoginEndpoint(emailProvider, baseCodegen) {
+  _genLoginEndpoint(emailProvider, baseCodegen, storageCookie = true, confirmEmail = false) {
     const maxAttempts = this._getProviderConfigNum(emailProvider, 'max_attempts', 5);
     const lockoutDuration = this._getProviderConfigNum(emailProvider, 'lockout_duration', 900);
 
-    return [
+    const lines = [
       '',
       '// POST /auth/login',
       '__addRoute("POST", "/auth/login", async (req) => {',
@@ -595,6 +636,14 @@ export class AuthCodegen {
       '  const user = __auth_db.query("SELECT * FROM __auth_users WHERE email = ?").get(email);',
       '  if (!user || !user.password_hash) return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers: { "Content-Type": "application/json" } });',
       '  if (user.locked_until && user.locked_until > Math.floor(Date.now() / 1000)) return new Response(JSON.stringify({ error: "Account locked" }), { status: 423, headers: { "Content-Type": "application/json" } });',
+    ];
+
+    // Enforce email confirmation before login when confirm_email is enabled
+    if (confirmEmail) {
+      lines.push('  if (!user.email_confirmed) return new Response(JSON.stringify({ error: "Please confirm your email before logging in" }), { status: 403, headers: { "Content-Type": "application/json" } });');
+    }
+
+    lines.push(
       '  if (!__auth_verify_password(password, user.password_hash)) {',
       '    const attempts = (user.failed_attempts || 0) + 1;',
       `    if (attempts >= ${maxAttempts}) {`,
@@ -610,33 +659,74 @@ export class AuthCodegen {
       '  const refreshToken = __auth_crypto.randomBytes(32).toString("hex");',
       '  __auth_db.run("INSERT INTO __auth_refresh_tokens (id, user_id, token_hash, family, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)", [__auth_crypto.randomUUID(), user.id, __auth_hash_token(refreshToken), family, Math.floor(Date.now() / 1000) + __auth_refresh_expires, Math.floor(Date.now() / 1000)]);',
       '  if (__auth_hook_login) await __auth_hook_login({ id: user.id, email: user.email, role: user.role });',
-      '  return new Response(JSON.stringify({ token, refresh_token: refreshToken, user: { id: user.id, email: user.email, role: user.role } }), { status: 200, headers: { "Content-Type": "application/json" } });',
-      '});',
-    ];
+    );
+
+    if (storageCookie) {
+      // Cookie mode: tokens go in HttpOnly cookies, NOT in the response body
+      lines.push(
+        '  const __isLocalhost = req.url.includes("://localhost") || req.url.includes("://127.0.0.1");',
+        '  const __secureSuffix = __isLocalhost ? "" : " Secure;";',
+        '  return __auth_response({ user: { id: user.id, email: user.email, role: user.role } }, 200, [',
+        '    "__tova_auth=" + token + "; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=" + __auth_token_expires + "; Path=/",',
+        '    "__tova_auth_refresh=" + refreshToken + "; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=" + __auth_refresh_expires + "; Path=/auth/refresh"',
+        '  ]);',
+      );
+    } else {
+      // localStorage mode: tokens in response body
+      lines.push(
+        '  return new Response(JSON.stringify({ token, refresh_token: refreshToken, user: { id: user.id, email: user.email, role: user.role } }), { status: 200, headers: { "Content-Type": "application/json" } });',
+      );
+    }
+
+    lines.push('});');
+    return lines;
   }
 
   _genLogoutEndpoint(storageCookie) {
-    const cookieHeader = storageCookie
-      ? ', "Set-Cookie": "__tova_auth=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/"'
-      : '';
-    return [
+    const lines = [
       '',
       '// POST /auth/logout',
       '__addRoute("POST", "/auth/logout", async (req) => {',
-      '  const user = __auth_authenticate(req);',
-      '  if (user && __auth_hook_logout) await __auth_hook_logout(user);',
-      `  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json"${cookieHeader} } });`,
-      '});',
+      '  const __jwt = __auth_authenticate(req);',
+      '  if (__jwt && __auth_hook_logout) {',
+      '    const user = __auth_db.query("SELECT id, email, role FROM __auth_users WHERE id = ?").get(__jwt.sub);',
+      '    if (user) await __auth_hook_logout(user);',
+      '  }',
     ];
+    if (storageCookie) {
+      lines.push(
+        '  const __isLocalhost = req.url.includes("://localhost") || req.url.includes("://127.0.0.1");',
+        '  const __secureSuffix = __isLocalhost ? "" : " Secure;";',
+        '  return __auth_response({ ok: true }, 200, [',
+        '    "__tova_auth=; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=0; Path=/",',
+        '    "__tova_auth_refresh=; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=0; Path=/auth/refresh"',
+        '  ]);',
+      );
+    } else {
+      lines.push(
+        '  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });',
+      );
+    }
+    lines.push('});');
+    return lines;
   }
 
   _genRefreshEndpoint(storageCookie) {
-    return [
+    const lines = [
       '',
       '// POST /auth/refresh',
       '__addRoute("POST", "/auth/refresh", async (req) => {',
-      '  const body = await req.json();',
-      '  const { refresh_token } = body;',
+    ];
+
+    if (storageCookie) {
+      // In cookie mode, read refresh token from cookie
+      lines.push('  const refresh_token = __auth_get_cookie(req, "__tova_auth_refresh");');
+    } else {
+      lines.push('  const body = await req.json();');
+      lines.push('  const { refresh_token } = body;');
+    }
+
+    lines.push(
       '  if (!refresh_token) return new Response(JSON.stringify({ error: "Refresh token required" }), { status: 400, headers: { "Content-Type": "application/json" } });',
       '  const tokenHash = __auth_hash_token(refresh_token);',
       '  const stored = __auth_db.query("SELECT * FROM __auth_refresh_tokens WHERE token_hash = ?").get(tokenHash);',
@@ -651,9 +741,25 @@ export class AuthCodegen {
       '  const token = __auth_sign_jwt({ sub: user.id, email: user.email, role: user.role });',
       '  const newRefresh = __auth_crypto.randomBytes(32).toString("hex");',
       '  __auth_db.run("INSERT INTO __auth_refresh_tokens (id, user_id, token_hash, family, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)", [__auth_crypto.randomUUID(), user.id, __auth_hash_token(newRefresh), stored.family, Math.floor(Date.now() / 1000) + __auth_refresh_expires, Math.floor(Date.now() / 1000)]);',
-      '  return new Response(JSON.stringify({ token, refresh_token: newRefresh }), { status: 200, headers: { "Content-Type": "application/json" } });',
-      '});',
-    ];
+    );
+
+    if (storageCookie) {
+      lines.push(
+        '  const __isLocalhost = req.url.includes("://localhost") || req.url.includes("://127.0.0.1");',
+        '  const __secureSuffix = __isLocalhost ? "" : " Secure;";',
+        '  return __auth_response({ ok: true }, 200, [',
+        '    "__tova_auth=" + token + "; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=" + __auth_token_expires + "; Path=/",',
+        '    "__tova_auth_refresh=" + newRefresh + "; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=" + __auth_refresh_expires + "; Path=/auth/refresh"',
+        '  ]);',
+      );
+    } else {
+      lines.push(
+        '  return new Response(JSON.stringify({ token, refresh_token: newRefresh }), { status: 200, headers: { "Content-Type": "application/json" } });',
+      );
+    }
+
+    lines.push('});');
+    return lines;
   }
 
   _genMeEndpoint(storageCookie) {
@@ -699,12 +805,13 @@ export class AuthCodegen {
       '  if (!user) return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });',
       '  const resetToken = __auth_crypto.randomBytes(32).toString("hex");',
       '  __auth_db.run("INSERT INTO __auth_password_resets (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)", [__auth_crypto.randomUUID(), user.id, __auth_hash_token(resetToken), Math.floor(Date.now() / 1000) + 3600]);',
-      '  return new Response(JSON.stringify({ ok: true, reset_token: resetToken }), { status: 200, headers: { "Content-Type": "application/json" } });',
+      '  console.log("\\x1b[36m[auth] Reset token for " + email + ": " + resetToken + "\\x1b[0m");',
+      '  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });',
       '});',
     ];
   }
 
-  _genResetPasswordEndpoint(baseCodegen) {
+  _genResetPasswordEndpoint(baseCodegen, passwordMin = 8) {
     return [
       '',
       '// POST /auth/reset-password',
@@ -712,6 +819,7 @@ export class AuthCodegen {
       '  const body = await req.json();',
       '  const { token, password } = body;',
       '  if (!token || !password) return new Response(JSON.stringify({ error: "Token and password required" }), { status: 400, headers: { "Content-Type": "application/json" } });',
+      `  if (password.length < ${passwordMin}) return new Response(JSON.stringify({ error: "Password must be at least ${passwordMin} characters" }), { status: 400, headers: { "Content-Type": "application/json" } });`,
       '  const tokenHash = __auth_hash_token(token);',
       '  const stored = __auth_db.query("SELECT * FROM __auth_password_resets WHERE token_hash = ? AND expires_at > ? AND used = 0").get(tokenHash, Math.floor(Date.now() / 1000));',
       '  if (!stored) return new Response(JSON.stringify({ error: "Invalid or expired token" }), { status: 400, headers: { "Content-Type": "application/json" } });',
@@ -747,7 +855,7 @@ export class AuthCodegen {
       '    status: 302,',
       '    headers: {',
       '      "Location": authUrl,',
-      `      "Set-Cookie": "__tova_oauth_state=" + state + ":" + code_verifier + "; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/auth/oauth/${name}/callback"`,
+      `      "Set-Cookie": "__tova_oauth_state=" + state + ":" + code_verifier + "; HttpOnly;" + (req.url.includes("://localhost") || req.url.includes("://127.0.0.1") ? "" : " Secure;") + " SameSite=Lax; Max-Age=600; Path=/auth/oauth/${name}/callback"`,
       '    }',
       '  });',
       '});',
@@ -760,10 +868,6 @@ export class AuthCodegen {
     const clientSecret = this._resolveProviderConfig(provider, 'client_secret', baseCodegen);
     const tokenUrl = this._getOAuthTokenUrl(provider, baseCodegen);
     const profileUrl = this._getOAuthProfileUrl(provider, baseCodegen);
-
-    const cookieLine = storageCookie
-      ? `  headers["Set-Cookie"] = "__tova_auth=" + jwt + "; HttpOnly; Secure; SameSite=Lax; Max-Age=" + __auth_token_expires + "; Path=/";`
-      : '';
 
     const callbackLines = [
       '',
@@ -822,7 +926,13 @@ export class AuthCodegen {
       `  const headers = { "Location": ${storageCookie ? '"/"' : '"/?token=" + jwt'} };`,
     );
 
-    if (cookieLine) callbackLines.push(cookieLine);
+    if (storageCookie) {
+      callbackLines.push(
+        '  const __isLocalhost = req.url.includes("://localhost") || req.url.includes("://127.0.0.1");',
+        '  const __secureSuffix = __isLocalhost ? "" : " Secure;";',
+        '  headers["Set-Cookie"] = "__tova_auth=" + jwt + "; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=" + __auth_token_expires + "; Path=/";',
+      );
+    }
 
     callbackLines.push(
       '  return new Response(null, { status: 302, headers });',
@@ -854,10 +964,6 @@ export class AuthCodegen {
   }
 
   _genMagicLinkVerify(provider, storageCookie) {
-    const cookieLine = storageCookie
-      ? '  headers["Set-Cookie"] = "__tova_auth=" + jwt + "; HttpOnly; Secure; SameSite=Lax; Max-Age=" + __auth_token_expires + "; Path=/";'
-      : '';
-
     const verifyLines = [
       '',
       '// GET /auth/magic-link/verify/:token',
@@ -877,10 +983,16 @@ export class AuthCodegen {
       '  }',
       '  const jwt = __auth_sign_jwt({ sub: user.id, email: user.email, role: user.role });',
       '  if (__auth_hook_login) await __auth_hook_login({ id: user.id, email: user.email, role: user.role });',
-      '  const headers = { "Location": "/?token=" + jwt, "Content-Type": "application/json" };',
+      `  const headers = { "Location": ${storageCookie ? '"/"' : '"/?token=" + jwt'}, "Content-Type": "application/json" };`,
     ];
 
-    if (cookieLine) verifyLines.push(cookieLine);
+    if (storageCookie) {
+      verifyLines.push(
+        '  const __isLocalhost = req.url.includes("://localhost") || req.url.includes("://127.0.0.1");',
+        '  const __secureSuffix = __isLocalhost ? "" : " Secure;";',
+        '  headers["Set-Cookie"] = "__tova_auth=" + jwt + "; HttpOnly;" + __secureSuffix + " SameSite=Lax; Max-Age=" + __auth_token_expires + "; Path=/";',
+      );
+    }
 
     verifyLines.push(
       '  return new Response(null, { status: 302, headers });',

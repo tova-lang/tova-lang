@@ -1972,6 +1972,620 @@ ${inlineClient}
 
 // ─── Template Definitions ────────────────────────────────────
 
+// ─── Auth template content (fullstack + auth) ───────────────────────
+function fullstackAuthContent(name) {
+  return `// ${name} — Built with Tova
+// Full-stack app with authentication and security
+
+shared {
+  type User {
+    id: String
+    email: String
+    role: String
+  }
+}
+
+security {
+  cors {
+    origins: ["http://localhost:3000"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    credentials: true
+  }
+
+  csrf {
+    enabled: true
+  }
+
+  rate_limit {
+    window: 60
+    max: 100
+  }
+
+  csp {
+    default_src: ["self"]
+    script_src: ["self", "https://cdn.tailwindcss.com"]
+    style_src: ["self", "unsafe-inline"]
+    img_src: ["self", "data:", "https:"]
+    connect_src: ["self"]
+  }
+}
+
+auth {
+  secret: env("AUTH_SECRET")
+  token_expires: 900
+  refresh_expires: 604800
+  storage: "cookie"
+
+  provider email {
+    confirm_email: true
+    password_min: 8
+    max_attempts: 5
+    lockout_duration: 900
+  }
+
+  on signup fn(user) {
+    print("New user signed up: " + user.email)
+  }
+
+  on login fn(user) {
+    print("User logged in: " + user.email)
+  }
+
+  on logout fn(user) {
+    print("User logged out: " + user.id)
+  }
+
+  protected_route "/dashboard" { redirect: "/login" }
+  protected_route "/dashboard/*" { redirect: "/login" }
+  protected_route "/settings" { redirect: "/login" }
+}
+
+server {
+  fn get_message() {
+    { text: "Hello from ${name}!", timestamp: Date.new().toLocaleTimeString() }
+  }
+
+  route GET "/api/message" => get_message
+}
+
+browser {
+  state message = ""
+  state timestamp = ""
+  state refreshing = false
+
+  effect {
+    result = server.get_message()
+    message = result.text
+    timestamp = result.timestamp
+  }
+
+  fn handle_refresh() {
+    refreshing = true
+    result = server.get_message()
+    message = result.text
+    timestamp = result.timestamp
+    refreshing = false
+  }
+
+  // \u2500\u2500\u2500 Navigation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component NavBar {
+    <nav class="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <Link href="/" class="flex items-center gap-2 no-underline">
+          <div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+            <span class="text-white font-bold text-sm">"T"</span>
+          </div>
+          <span class="font-bold text-gray-900 text-lg">"${name}"</span>
+        </Link>
+        <div class="flex items-center gap-4">
+          <Link href="/" exactActiveClass="text-emerald-600 font-semibold" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Home"</Link>
+          if $isAuthenticated {
+            <Link href="/dashboard" activeClass="text-emerald-600 font-semibold" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Dashboard"</Link>
+            <div class="flex items-center gap-3 ml-2 pl-4 border-l border-gray-200">
+              <span class="text-sm text-gray-500">
+                if $currentUser != null {
+                  {$currentUser.email}
+                }
+              </span>
+              <button
+                on:click={fn() { logout() }}
+                class="text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                "Sign Out"
+              </button>
+            </div>
+          } else {
+            <Link href="/login" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Login"</Link>
+            <Link href="/signup" class="text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-1.5 rounded-lg no-underline transition-colors">"Sign Up"</Link>
+          }
+        </div>
+      </div>
+    </nav>
+  }
+
+  // \u2500\u2500\u2500 Pages \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component FeatureCard(icon, title, description) {
+    <div class="group relative bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:border-emerald-100 transition-all duration-300">
+      <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-lg mb-4 group-hover:bg-emerald-100 transition-colors">
+        "{icon}"
+      </div>
+      <h3 class="font-semibold text-gray-900 mb-1">"{title}"</h3>
+      <p class="text-sm text-gray-500 leading-relaxed">"{description}"</p>
+    </div>
+  }
+
+  component HomePage {
+    <main class="max-w-5xl mx-auto px-6">
+      <div class="py-20 text-center">
+        <div class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
+          <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+          "Secure by Default"
+        </div>
+        <h1 class="text-5xl font-bold text-gray-900 tracking-tight mb-4">"Welcome to " <span class="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">"${name}"</span></h1>
+        <p class="text-xl text-gray-500 max-w-2xl mx-auto mb-10">"A full-stack app with authentication. Edit " <code class="text-sm bg-gray-100 text-emerald-600 px-2 py-1 rounded-md font-mono">"src/app.tova"</code> " to get started."</p>
+
+        if $isAuthenticated {
+          <Link href="/dashboard" class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-3 rounded-xl no-underline transition-colors">
+            "Go to Dashboard"
+          </Link>
+        } else {
+          <div class="flex items-center justify-center gap-4">
+            <Link href="/signup" class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-3 rounded-xl no-underline transition-colors">"Get Started"</Link>
+            <Link href="/login" class="inline-block bg-white border border-gray-200 hover:border-gray-300 text-gray-700 font-medium px-6 py-3 rounded-xl no-underline transition-colors">"Sign In"</Link>
+          </div>
+        }
+
+        if timestamp != "" {
+          <p class="text-xs text-gray-400 mt-6">"Server time: " "{timestamp}"</p>
+        }
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pb-20">
+        <FeatureCard
+          icon="\u2699"
+          title="Full-Stack"
+          description="Server and client in one file. Shared types, RPC calls, and reactive UI."
+        />
+        <FeatureCard
+          icon="\uD83D\uDD12"
+          title="Auth Built-in"
+          description="Email signup, login, password reset, and JWT sessions \u2014 secure by default."
+        />
+        <FeatureCard
+          icon="\uD83D\uDEE1"
+          title="Security Hardened"
+          description="CORS, CSRF, CSP, rate limiting, brute-force lockout, and HttpOnly cookies."
+        />
+      </div>
+    </main>
+  }
+
+  // \u2500\u2500\u2500 Auth Pages \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component LoginPage {
+    <main class="max-w-md mx-auto px-6 py-16">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">"Sign In"</h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <LoginForm />
+        <div class="mt-6 text-center">
+          <Link href="/forgot-password" class="text-sm text-emerald-600 hover:text-emerald-700 no-underline">"Forgot your password?"</Link>
+        </div>
+        <div class="mt-4 text-center">
+          <span class="text-sm text-gray-500">"Don't have an account? "</span>
+          <Link href="/signup" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Sign Up"</Link>
+        </div>
+      </div>
+    </main>
+  }
+
+  component SignupPage {
+    <main class="max-w-md mx-auto px-6 py-16">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">"Create Account"</h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <SignupForm />
+        <div class="mt-4 text-center">
+          <span class="text-sm text-gray-500">"Already have an account? "</span>
+          <Link href="/login" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Sign In"</Link>
+        </div>
+      </div>
+    </main>
+  }
+
+  component ForgotPasswordPage {
+    <main class="max-w-md mx-auto px-6 py-16">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">"Reset Password"</h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <ForgotPasswordForm />
+        <div class="mt-4 text-center">
+          <Link href="/login" class="text-sm text-emerald-600 hover:text-emerald-700 no-underline">"Back to login"</Link>
+        </div>
+      </div>
+    </main>
+  }
+
+  // \u2500\u2500\u2500 Protected Pages \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component DashboardPage {
+    <AuthGuard redirect="/login">
+      <main class="max-w-5xl mx-auto px-6 py-8">
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-900">"Dashboard"</h2>
+          <p class="text-gray-500">
+            "Welcome back"
+            if $currentUser != null {
+              ", " "{$currentUser.email}"
+            }
+          </p>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 p-8">
+          <div class="text-center">
+            <div class="inline-flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
+              <div class="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-5 py-2.5 rounded-xl font-medium">
+                "{message}"
+              </div>
+              <button
+                on:click={handle_refresh}
+                class="px-4 py-2.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all font-medium text-sm"
+              >
+                if refreshing { "..." } else { "Refresh" }
+              </button>
+            </div>
+            if timestamp != "" {
+              <p class="text-xs text-gray-400 mt-3">"Server time: " "{timestamp}"</p>
+            }
+          </div>
+        </div>
+      </main>
+    </AuthGuard>
+  }
+
+  component SettingsPage {
+    <AuthGuard redirect="/login">
+      <main class="max-w-2xl mx-auto px-6 py-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">"Settings"</h2>
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 class="font-semibold text-gray-900 mb-4">"Account"</h3>
+          if $currentUser != null {
+            <div class="space-y-3">
+              <div>
+                <span class="text-sm text-gray-500">"Email: "</span>
+                <span class="text-sm font-medium text-gray-900">{$currentUser.email}</span>
+              </div>
+              <div>
+                <span class="text-sm text-gray-500">"Role: "</span>
+                <span class="text-sm font-medium text-gray-900">{$currentUser.role}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </main>
+    </AuthGuard>
+  }
+
+  component NotFoundPage {
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <h1 class="text-6xl font-bold text-gray-200 mb-4">"404"</h1>
+      <p class="text-lg text-gray-500 mb-6">"Page not found"</p>
+      <Link href="/" class="text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Go home"</Link>
+    </div>
+  }
+
+  // \u2500\u2500\u2500 Router \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  createRouter({
+    routes: {
+      "/": HomePage,
+      "/login": LoginPage,
+      "/signup": SignupPage,
+      "/forgot-password": ForgotPasswordPage,
+      "/dashboard": DashboardPage,
+      "/settings": SettingsPage,
+      "404": NotFoundPage,
+    },
+    scroll: "auto",
+  })
+
+  component App {
+    <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50">
+      <NavBar />
+      <Router />
+      <div class="border-t border-gray-100 py-8 text-center">
+        <p class="text-sm text-gray-400">"Built with " <a href="https://github.com/tova-lang/tova-lang" class="text-emerald-500 hover:text-emerald-600 transition-colors">"Tova"</a></p>
+      </div>
+    </div>
+  }
+}
+`;
+}
+
+// ─── Auth template content (SPA + auth) ──────────────────────────
+function spaAuthContent(name) {
+  return `// ${name} — Built with Tova
+// Single-page app with authentication, nested routes, and dynamic params
+
+shared {
+  type User {
+    id: String
+    email: String
+    role: String
+  }
+}
+
+security {
+  cors {
+    origins: ["http://localhost:3000"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    credentials: true
+  }
+
+  csrf {
+    enabled: true
+  }
+
+  rate_limit {
+    window: 60
+    max: 100
+  }
+
+  csp {
+    default_src: ["self"]
+    script_src: ["self", "https://cdn.tailwindcss.com"]
+    style_src: ["self", "unsafe-inline"]
+    img_src: ["self", "data:", "https:"]
+    connect_src: ["self"]
+  }
+}
+
+auth {
+  secret: env("AUTH_SECRET")
+  token_expires: 900
+  refresh_expires: 604800
+  storage: "cookie"
+
+  provider email {
+    confirm_email: true
+    password_min: 8
+    max_attempts: 5
+    lockout_duration: 900
+  }
+
+  on signup fn(user) {
+    print("New user signed up: " + user.email)
+  }
+
+  on login fn(user) {
+    print("User logged in: " + user.email)
+  }
+
+  on logout fn(user) {
+    print("User logged out: " + user.id)
+  }
+
+  protected_route "/dashboard" { redirect: "/login" }
+  protected_route "/profile/*" { redirect: "/login" }
+}
+
+server {
+  // Auth endpoints (signup, login, logout, etc.) are generated automatically
+  fn health_check() {
+    { status: "ok" }
+  }
+
+  route GET "/api/health" => health_check
+}
+
+browser {
+  // \u2500\u2500\u2500 Navigation bar with auth-aware links \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component NavBar {
+    <nav class="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <Link href="/" class="flex items-center gap-2 no-underline">
+          <div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+            <span class="text-white font-bold text-sm">"T"</span>
+          </div>
+          <span class="font-bold text-gray-900 text-lg">"${name}"</span>
+        </Link>
+        <div class="flex items-center gap-4">
+          <Link href="/" exactActiveClass="text-emerald-600 font-semibold" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Home"</Link>
+          if $isAuthenticated {
+            <Link href="/dashboard" activeClass="text-emerald-600 font-semibold" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Dashboard"</Link>
+            <Link href="/profile" activeClass="text-emerald-600 font-semibold" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Profile"</Link>
+            <div class="flex items-center gap-3 ml-2 pl-4 border-l border-gray-200">
+              <span class="text-sm text-gray-500">
+                if $currentUser != null {
+                  {$currentUser.email}
+                }
+              </span>
+              <button
+                on:click={fn() { logout() }}
+                class="text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                "Sign Out"
+              </button>
+            </div>
+          } else {
+            <Link href="/login" class="text-sm font-medium text-gray-500 hover:text-gray-900 no-underline">"Login"</Link>
+            <Link href="/signup" class="text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-1.5 rounded-lg no-underline transition-colors">"Sign Up"</Link>
+          }
+        </div>
+      </div>
+    </nav>
+  }
+
+  // \u2500\u2500\u2500 Home page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component HomePage {
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <div class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
+        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+        "Secure SPA"
+      </div>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">"Welcome to " <span class="text-emerald-600">"${name}"</span></h1>
+      <p class="text-lg text-gray-500 mb-8">"A single-page app with authentication, nested routes, and dynamic params."</p>
+      if $isAuthenticated {
+        <Link href="/dashboard" class="inline-block bg-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-emerald-700 transition-colors no-underline">"Go to Dashboard"</Link>
+      } else {
+        <div class="flex items-center justify-center gap-4">
+          <Link href="/signup" class="inline-block bg-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-emerald-700 transition-colors no-underline">"Get Started"</Link>
+          <Link href="/login" class="inline-block bg-white text-gray-700 border border-gray-200 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors no-underline">"Sign In"</Link>
+        </div>
+      }
+    </div>
+  }
+
+  // \u2500\u2500\u2500 Auth Pages \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component LoginPage {
+    <main class="max-w-md mx-auto px-6 py-16">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">"Sign In"</h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <LoginForm />
+        <div class="mt-6 text-center">
+          <Link href="/forgot-password" class="text-sm text-emerald-600 hover:text-emerald-700 no-underline">"Forgot your password?"</Link>
+        </div>
+        <div class="mt-4 text-center">
+          <span class="text-sm text-gray-500">"Don't have an account? "</span>
+          <Link href="/signup" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Sign Up"</Link>
+        </div>
+      </div>
+    </main>
+  }
+
+  component SignupPage {
+    <main class="max-w-md mx-auto px-6 py-16">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">"Create Account"</h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <SignupForm />
+        <div class="mt-4 text-center">
+          <span class="text-sm text-gray-500">"Already have an account? "</span>
+          <Link href="/login" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Sign In"</Link>
+        </div>
+      </div>
+    </main>
+  }
+
+  component ForgotPasswordPage {
+    <main class="max-w-md mx-auto px-6 py-16">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">"Reset Password"</h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <ForgotPasswordForm />
+        <div class="mt-4 text-center">
+          <Link href="/login" class="text-sm text-emerald-600 hover:text-emerald-700 no-underline">"Back to login"</Link>
+        </div>
+      </div>
+    </main>
+  }
+
+  // \u2500\u2500\u2500 Dashboard (protected) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component DashboardPage {
+    <AuthGuard redirect="/login">
+      <main class="max-w-5xl mx-auto px-6 py-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">"Dashboard"</h2>
+        <p class="text-gray-500 mb-8">
+          "Welcome back"
+          if $currentUser != null {
+            ", " "{$currentUser.email}"
+          }
+        </p>
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+          <p class="text-gray-600">"This is a protected page. Only authenticated users can see this."</p>
+        </div>
+      </main>
+    </AuthGuard>
+  }
+
+  // \u2500\u2500\u2500 Profile layout with nested routes + Outlet \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component ProfileLayout {
+    <AuthGuard redirect="/login">
+      <div class="max-w-5xl mx-auto px-6 py-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">"Profile"</h2>
+        <div class="flex gap-8">
+          <aside class="w-48 flex-shrink-0">
+            <div class="flex flex-col gap-1">
+              <Link href="/profile/account" activeClass="bg-emerald-50 text-emerald-700" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 no-underline transition-colors">"Account"</Link>
+              <Link href="/profile/security" activeClass="bg-emerald-50 text-emerald-700" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 no-underline transition-colors">"Security"</Link>
+            </div>
+          </aside>
+          <div class="flex-1 min-w-0">
+            <Outlet />
+          </div>
+        </div>
+      </div>
+    </AuthGuard>
+  }
+
+  component AccountSettings {
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">"Account Settings"</h3>
+      if $currentUser != null {
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
+            <div class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">{$currentUser.email}</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">"Role"</label>
+            <div class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">{$currentUser.role}</div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  component SecuritySettings {
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">"Security Settings"</h3>
+      <p class="text-gray-600 mb-4">"Manage your password and security preferences."</p>
+      <div class="pt-4 border-t border-gray-100">
+        <Link href="/forgot-password" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Change Password"</Link>
+      </div>
+    </div>
+  }
+
+  // \u2500\u2500\u2500 404 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  component NotFoundPage {
+    <div class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <h1 class="text-6xl font-bold text-gray-200 mb-4">"404"</h1>
+      <p class="text-lg text-gray-500 mb-6">"Page not found"</p>
+      <Link href="/" class="text-emerald-600 hover:text-emerald-700 font-medium no-underline">"Go home"</Link>
+    </div>
+  }
+
+  // \u2500\u2500\u2500 Router \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  createRouter({
+    routes: {
+      "/": HomePage,
+      "/login": LoginPage,
+      "/signup": SignupPage,
+      "/forgot-password": ForgotPasswordPage,
+      "/dashboard": { component: DashboardPage, meta: { title: "Dashboard" } },
+      "/profile": {
+        component: ProfileLayout,
+        children: {
+          "/account": { component: AccountSettings, meta: { title: "Account" } },
+          "/security": { component: SecuritySettings, meta: { title: "Security" } },
+        },
+      },
+      "404": NotFoundPage,
+    },
+    scroll: "auto",
+  })
+
+  // \u2500\u2500\u2500 Update document title from route meta \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  afterNavigate(fn(current) {
+    if current.meta != undefined {
+      if current.meta.title != undefined {
+        document.title = "{current.meta.title} | ${name}"
+      }
+    }
+  })
+
+  component App {
+    <div class="min-h-screen bg-gray-50">
+      <NavBar />
+      <Router />
+    </div>
+  }
+}
+`;
+}
+
 const PROJECT_TEMPLATES = {
   fullstack: {
     label: 'Full-stack app',
@@ -2136,6 +2750,9 @@ browser {
 }
 `,
     nextSteps: name => `    cd ${name}\n    tova dev`,
+    hasAuthOption: true,
+    authContent: fullstackAuthContent,
+    authNextSteps: name => `    cd ${name}\n    tova dev\n\n  ${color.dim('Auth is ready! Sign up at')} ${color.cyan('http://localhost:3000/signup')}`,
   },
   spa: {
     label: 'Single-page app',
@@ -2341,6 +2958,9 @@ browser {
 }
 `,
     nextSteps: name => `    cd ${name}\n    tova dev`,
+    hasAuthOption: true,
+    authContent: spaAuthContent,
+    authNextSteps: name => `    cd ${name}\n    tova dev\n\n  ${color.dim('Auth is ready! Sign up at')} ${color.cyan('http://localhost:3000/signup')}`,
   },
   site: {
     label: 'Static site',
@@ -2541,7 +3161,7 @@ async function newProject(rawArgs) {
 
   if (!name) {
     console.error(color.red('Error: No project name specified'));
-    console.error('Usage: tova new <project-name> [--template fullstack|spa|site|api|script|library|blank]');
+    console.error('Usage: tova new <project-name> [--template fullstack|spa|site|api|script|library|blank] [--auth]');
     process.exit(1);
   }
 
@@ -2589,7 +3209,30 @@ async function newProject(rawArgs) {
   }
 
   const template = PROJECT_TEMPLATES[templateName];
-  console.log(`\n  ${color.bold('Creating new Tova project:')} ${color.cyan(name)} ${color.dim(`(${template.label})`)}\n`);
+  const authFlag = rawArgs.includes('--auth');
+
+  // Ask about auth if template supports it
+  // Only prompt interactively when template was selected via picker (not --template flag)
+  let withAuth = false;
+  if (template.hasAuthOption) {
+    if (authFlag) {
+      withAuth = true;
+    } else if (!templateFlag) {
+      // Interactive mode — template was selected via picker, so ask about auth
+      const { createInterface: createRl } = await import('readline');
+      const rl2 = createRl({ input: process.stdin, output: process.stdout });
+      const authAnswer = await new Promise(resolve => {
+        rl2.question(`  Include authentication? ${color.dim('[y/N]')}: `, ans => {
+          rl2.close();
+          resolve(ans.trim().toLowerCase());
+        });
+      });
+      withAuth = authAnswer === 'y' || authAnswer === 'yes';
+    }
+  }
+
+  const templateLabel = withAuth ? `${template.label} + Auth` : template.label;
+  console.log(`\n  ${color.bold('Creating new Tova project:')} ${color.cyan(name)} ${color.dim(`(${templateLabel})`)}\n`);
 
   // Create directories
   mkdirSync(projectDir, { recursive: true });
@@ -2644,19 +3287,22 @@ async function newProject(rawArgs) {
   createdFiles.push('tova.toml');
 
   // .gitignore
-  writeFileSync(join(projectDir, '.gitignore'), `node_modules/
+  let gitignoreContent = `node_modules/
 .tova-out/
 package.json
 bun.lock
 *.db
 *.db-shm
 *.db-wal
-`);
+`;
+  if (withAuth) gitignoreContent += `.env\n`;
+  writeFileSync(join(projectDir, '.gitignore'), gitignoreContent);
   createdFiles.push('.gitignore');
 
   // Template source file
-  if (template.file && template.content) {
-    writeFileSync(join(projectDir, template.file), template.content(projectName));
+  const contentFn = withAuth && template.authContent ? template.authContent : template.content;
+  if (template.file && contentFn) {
+    writeFileSync(join(projectDir, template.file), contentFn(projectName));
     createdFiles.push(template.file);
   }
 
@@ -2668,6 +3314,16 @@ bun.lock
       writeFileSync(extraPath, extra.content(projectName));
       createdFiles.push(extra.path);
     }
+  }
+
+  // Auth files (.env + .env.example)
+  if (withAuth) {
+    const { randomBytes } = await import('crypto');
+    const authSecret = randomBytes(32).toString('hex');
+    writeFileSync(join(projectDir, '.env'), `# Auto-generated for development \u2014 do not commit this file\nAUTH_SECRET=${authSecret}\n`);
+    writeFileSync(join(projectDir, '.env.example'), `# Auth secret \u2014 used to sign JWT tokens\n# For production, generate a new one:\n#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"\nAUTH_SECRET=change-me-to-a-random-secret\n`);
+    createdFiles.push('.env');
+    createdFiles.push('.env.example');
   }
 
   // README
@@ -2724,7 +3380,8 @@ tova add github.com/yourname/${projectName}
   } catch {}
 
   console.log(`\n  ${color.green('Done!')} Next steps:\n`);
-  console.log(color.cyan(template.nextSteps(name)));
+  const nextStepsFn = withAuth && template.authNextSteps ? template.authNextSteps : template.nextSteps;
+  console.log(nextStepsFn(name));
   console.log('');
 }
 

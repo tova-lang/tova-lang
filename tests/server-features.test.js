@@ -5561,12 +5561,12 @@ describe('Security — Security Headers', () => {
 
   test('__applySecurityHeaders function is generated', () => {
     const result = compile(fullServer);
-    expect(result.server).toContain('function __applySecurityHeaders(headers)');
+    expect(result.server).toContain('function __applySecurityHeaders(headers, __isInlineHTML)');
   });
 
   test('security headers are applied in idempotent fetch wrapper', () => {
     const result = compile(fullServer);
-    expect(result.server).toContain('__applySecurityHeaders(res.headers)');
+    expect(result.server).toContain('__applySecurityHeaders(res.headers,');
   });
 
   test('HSTS header is added when TLS is configured', () => {

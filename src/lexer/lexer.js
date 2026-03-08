@@ -86,7 +86,7 @@ export class Lexer {
   }
 
   isAlpha(ch) {
-    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_') return true;
+    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || ch === '$') return true;
     // Unicode letter support
     if (ch > '\x7f') return Lexer.UNICODE_LETTER_RE.test(ch);
     return false;
@@ -864,7 +864,7 @@ export class Lexer {
     // Fast path: scan ASCII identifier using index advancement (no string concat)
     while (this.pos < this.length) {
       const ch = this.source[this.pos];
-      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || (ch >= '0' && ch <= '9')) {
+      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || ch === '$' || (ch >= '0' && ch <= '9')) {
         this.pos++;
         this.column++;
       } else if (ch > '\x7f' && Lexer.UNICODE_ALPHANUM_RE.test(ch)) {
