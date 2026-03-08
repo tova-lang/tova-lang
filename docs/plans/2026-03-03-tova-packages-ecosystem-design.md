@@ -232,6 +232,7 @@ schedule.at("2025-01-01T00:00", fn)
 
 ### 2.6 `tova/template` — String Templating
 
+<!-- {% raw %} -->
 ```
 template("Hello {{name}}", {name: "World"})
 ```
@@ -243,6 +244,7 @@ Features: `{{#each items}}`, `{{#if cond}}`, `{{> partial}}`, `{{{raw}}}` (unesc
 `{{name | upper}}` (filters), `compile(str)` (precompile for reuse).
 
 </div>
+<!-- {% endraw %} -->
 
 Auto HTML-escapes by default.
 

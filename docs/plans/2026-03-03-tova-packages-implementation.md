@@ -652,12 +652,14 @@ Core: `retry()`, `breaker()`, `limiter()`, `with_timeout()`, `batch()`, `schedul
 
 **Files:** `lib.tova` + `parser.tova` (template syntax parser) + `compiler.tova` (precompilation)
 
+<!-- {% raw %} -->
 <!-- prettier-ignore -->
 <div v-pre>
 
 Mustache-style: `{{var}}`, `{{#each items}}`, `{{#if cond}}`, `{{> partial}}`, `{{{raw}}}`, `{{val | filter}}`
 
 </div>
+<!-- {% endraw %} -->
 
 ### Task 4.3: `tova/plot` — Visualization
 

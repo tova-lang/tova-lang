@@ -143,10 +143,12 @@ Multiple `use:` directives can be applied to the same element:
 
 Apply CSS transitions when elements enter or leave the DOM:
 
+<!-- {% raw %} -->
 ```tova
 <div transition:fade>Fades in and out</div>
 <div transition:slide={{duration: 300}}>Slides</div>
 ```
+<!-- {% endraw %} -->
 
 See [Transitions](/reactivity/transitions) for full documentation including directional and custom transitions.
 

@@ -271,11 +271,13 @@ Pass a CSS string to the `style` attribute:
 
 Pass a JavaScript-style object for programmatic styles:
 
+<!-- {% raw %} -->
 ```tova
 <div style={{ color: text_color, fontSize: "14px", opacity: if visible { 1 } else { 0 } }}>
   Dynamic styling
 </div>
 ```
+<!-- {% endraw %} -->
 
 Style object properties use camelCase (matching the DOM `style` API): `fontSize` not `font-size`, `backgroundColor` not `background-color`.
 

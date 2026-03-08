@@ -28,6 +28,7 @@ Four built-in transitions are available:
 
 Pass an object to customize transition behavior:
 
+<!-- {% raw %} -->
 ```tova
 <div transition:fade={{duration: 500, easing: "ease-in-out"}}>
   Slow fade
@@ -41,6 +42,7 @@ Pass an object to customize transition behavior:
   Flies in from offset
 </div>
 ```
+<!-- {% endraw %} -->
 
 **Common options:**
 
@@ -67,6 +69,7 @@ Pass an object to customize transition behavior:
 
 Use `in:` and `out:` to apply different transitions for entering and leaving:
 
+<!-- {% raw %} -->
 ```tova
 // Fade in, slide out
 <div in:fade out:slide>Content</div>
@@ -80,19 +83,23 @@ Use `in:` and `out:` to apply different transitions for entering and leaving:
 // Only animate on leave
 <div out:fade>Appears instantly but fades out</div>
 ```
+<!-- {% endraw %} -->
 
 ### Combining with Configuration
 
+<!-- {% raw %} -->
 ```tova
 <div in:fade={{duration: 300}} out:slide={{duration: 500, axis: "x"}}>
   Fades in over 300ms, slides out horizontally over 500ms
 </div>
 ```
+<!-- {% endraw %} -->
 
 ## Custom Transitions
 
 For transitions beyond the built-in set, define a custom transition function:
 
+<!-- {% raw %} -->
 ```tova
 fn typewriter(el, config, phase) {
   duration = config.duration or 500
@@ -111,6 +118,7 @@ fn typewriter(el, config, phase) {
 
 <p transition:typewriter={{duration: 1000}}>Hello, World!</p>
 ```
+<!-- {% endraw %} -->
 
 ### Custom Transition API
 
@@ -129,6 +137,7 @@ It can:
 
 Custom transitions are referenced by variable name (not string):
 
+<!-- {% raw %} -->
 ```tova
 // Built-in: referenced by string internally
 <div transition:fade>...</div>
@@ -136,6 +145,7 @@ Custom transitions are referenced by variable name (not string):
 // Custom: referenced by variable
 <div transition:typewriter={{duration: 800}}>...</div>
 ```
+<!-- {% endraw %} -->
 
 The compiler detects non-builtin names and passes them as variable references rather than strings.
 
@@ -215,6 +225,7 @@ When items are added to or removed from the list, each item animates with the sp
 
 ### Configuration
 
+<!-- {% raw %} -->
 ```tova
 <TransitionGroup name="slide" tag="ul" config={{duration: 300, axis: "x"}}>
   for item in items key={item.id} {
@@ -222,6 +233,7 @@ When items are added to or removed from the list, each item animates with the sp
   }
 </TransitionGroup>
 ```
+<!-- {% endraw %} -->
 
 ### How It Works
 
