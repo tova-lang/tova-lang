@@ -270,10 +270,8 @@ function createMockDocument() {
   };
 }
 
-// Install mock DOM globally for render/mount tests
-if (typeof globalThis.document === 'undefined') {
-  globalThis.document = createMockDocument();
-}
+// Always install mock DOM — prevents cross-file pollution from execution ordering
+globalThis.document = createMockDocument();
 
 describe('Reactivity — render', () => {
   test('render null returns text node', () => {

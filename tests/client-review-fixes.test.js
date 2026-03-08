@@ -140,28 +140,26 @@ function createMockNode(nodeType, text) {
   };
 }
 
-// Ensure mock DOM is available
-if (typeof globalThis.document === 'undefined') {
-  globalThis.document = {
-    createElement(tag) { return createMockElement(tag); },
-    createTextNode(text) { return createMockNode(3, text); },
-    createComment(text) { return createMockNode(8, text); },
-    createDocumentFragment() {
-      return {
-        nodeType: 11,
-        children: [],
-        get childNodes() { return this.children; },
-        get firstChild() { return this.children[0] || null; },
-        ...childMethods,
-      };
-    },
-    getElementById(id) { return createMockElement('div'); },
-    addEventListener() {},
-    title: 'Test Page',
-    body: createMockElement('body'),
-    head: createMockElement('head'),
-  };
-}
+// Always install mock DOM — prevents cross-file pollution from execution ordering
+globalThis.document = {
+  createElement(tag) { return createMockElement(tag); },
+  createTextNode(text) { return createMockNode(3, text); },
+  createComment(text) { return createMockNode(8, text); },
+  createDocumentFragment() {
+    return {
+      nodeType: 11,
+      children: [],
+      get childNodes() { return this.children; },
+      get firstChild() { return this.children[0] || null; },
+      ...childMethods,
+    };
+  },
+  getElementById(id) { return createMockElement('div'); },
+  addEventListener() {},
+  title: 'Test Page',
+  body: createMockElement('body'),
+  head: createMockElement('head'),
+};
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY FIXES

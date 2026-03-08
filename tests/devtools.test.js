@@ -133,9 +133,8 @@ function createMockDocument() {
   };
 }
 
-if (typeof globalThis.document === 'undefined') {
-  globalThis.document = createMockDocument();
-}
+// Always install mock DOM — prevents cross-file pollution from execution ordering
+globalThis.document = createMockDocument();
 
 // ─── Tests ──────────────────────────────────────────────────
 

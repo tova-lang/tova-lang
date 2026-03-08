@@ -137,27 +137,27 @@ function createMockNode(nodeType, text) {
   };
 }
 
-if (typeof globalThis.document === 'undefined') {
-  globalThis.document = {
-    createElement(tag) { return createMockElement(tag); },
-    createTextNode(text) { return createMockNode(3, text); },
-    createComment(text) { return createMockNode(8, text); },
-    createDocumentFragment() {
-      return {
-        nodeType: 11,
-        children: [],
-        get childNodes() { return this.children; },
-        get firstChild() { return this.children[0] || null; },
-        ...childMethods,
-      };
-    },
-    getElementById(id) { return createMockElement('div'); },
-    querySelector(sel) { return createMockElement('div'); },
-    addEventListener() {},
-    body: createMockElement('body'),
-    head: createMockElement('head'),
-  };
-}
+// Always install our own mock DOM — other test files (e.g. reactivity-100)
+// may have replaced globalThis.document with an incompatible mock.
+globalThis.document = {
+  createElement(tag) { return createMockElement(tag); },
+  createTextNode(text) { return createMockNode(3, text); },
+  createComment(text) { return createMockNode(8, text); },
+  createDocumentFragment() {
+    return {
+      nodeType: 11,
+      children: [],
+      get childNodes() { return this.children; },
+      get firstChild() { return this.children[0] || null; },
+      ...childMethods,
+    };
+  },
+  getElementById(id) { return createMockElement('div'); },
+  querySelector(sel) { return createMockElement('div'); },
+  addEventListener() {},
+  body: createMockElement('body'),
+  head: createMockElement('head'),
+};
 
 // ═══════════════════════════════════════════════════════════════
 // REACTIVITY RUNTIME TESTS
