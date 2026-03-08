@@ -11,8 +11,13 @@ import {
   batch, onMount, onUnmount, onCleanup, onBeforeUpdate,
   createRef, createContext, provide, inject,
   createErrorBoundary, ErrorBoundary, createRoot,
-  watch, untrack, Dynamic, Portal, lazy, Suspense, __tova_action, tova_inject_css, tova_transition
+  watch, untrack, Dynamic, Portal, lazy, Suspense, __tova_action, tova_inject_css, tova_transition,
+  __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
+
 import { renderToString, renderPage } from '../src/runtime/ssr.js';
 import {
   defineRoutes, getCurrentRoute, getParams, getPath, getQuery,

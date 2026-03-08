@@ -10,11 +10,14 @@ import {
   batch, onMount, onUnmount, onCleanup,
   createRef, createContext, provide, inject,
   createErrorBoundary, createRoot,
-  watch, untrack
+  watch, untrack, __resetForTesting
 } from '../src/runtime/reactivity.js';
 import {
   defineRoutes, getCurrentRoute, navigate
 } from '../src/runtime/router.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── DOM Mock ─────────────────────────────────────────────────
 // Same mock infrastructure as the other test files.

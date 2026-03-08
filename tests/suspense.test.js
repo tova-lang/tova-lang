@@ -4,9 +4,12 @@
 import { describe, test, expect } from 'bun:test';
 import {
   createSignal, createEffect, createComputed, createRoot,
-  Suspense, lazy, tova_el, tova_fragment
+  Suspense, lazy, tova_el, tova_fragment, __resetForTesting
 } from '../src/runtime/reactivity.js';
 import { BrowserCodegen } from '../src/codegen/browser-codegen.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── DOM Mock ───────────────────────────────────────────────
 

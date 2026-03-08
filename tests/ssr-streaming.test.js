@@ -4,7 +4,11 @@ import {
 } from '../src/runtime/ssr.js';
 import {
   tova_el, tova_fragment, ErrorBoundary, createSignal,
+  __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // Helper to read a ReadableStream to string
 async function streamToString(stream) {

@@ -8,8 +8,11 @@ import {
   createSignal, createEffect, createComputed, tova_el, tova_fragment, render,
   mount, batch, onMount, onUnmount, onCleanup, createRef, createContext,
   provide, inject, createRoot, watch, untrack, tova_inject_css,
-  Head, createResource
+  Head, createResource, __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Minimal DOM mock ─────────────────────────────────────
 

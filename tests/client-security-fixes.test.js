@@ -8,8 +8,11 @@ import {
   mount, batch, onMount, onUnmount, onCleanup, createRef, createContext,
   provide, inject, createRoot, watch, untrack, tova_inject_css, tova_keyed,
   Head, createResource, Portal, lazy, Suspense, TransitionGroup,
-  createForm, configureCSP,
+  createForm, configureCSP, __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Minimal DOM mock ─────────────────────────────────────
 

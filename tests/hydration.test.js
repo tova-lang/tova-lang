@@ -1,9 +1,12 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 import {
   createSignal, createEffect, tova_el, tova_fragment, render, mount, hydrate,
-  hydrateWhenVisible,
+  hydrateWhenVisible, __resetForTesting
 } from '../src/runtime/reactivity.js';
 import { renderToString, resetSSRIdCounter } from '../src/runtime/ssr.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Mock DOM ──────────────────────────────────────────────
 function _setParent(child, parent) {

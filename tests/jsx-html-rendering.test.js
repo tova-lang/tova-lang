@@ -3,8 +3,11 @@
 // and DOM render() for runtime property verification.
 
 import { describe, test, expect } from 'bun:test';
-import { tova_el, tova_fragment } from '../src/runtime/reactivity.js';
+import { tova_el, tova_fragment, __resetForTesting } from '../src/runtime/reactivity.js';
 import { renderToString } from '../src/runtime/ssr.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Block-level Elements ───────────────────────────────────
 

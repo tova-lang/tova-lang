@@ -1,7 +1,10 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { createSignal, createEffect, createComputed, tova_el, tova_fragment, render, mount, hydrate, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy } from '../src/runtime/reactivity.js';
+import { createSignal, createEffect, createComputed, tova_el, tova_fragment, render, mount, hydrate, batch, onMount, onUnmount, onCleanup, createRef, createContext, provide, inject, createErrorBoundary, createRoot, watch, untrack, Dynamic, Portal, lazy, __resetForTesting } from '../src/runtime/reactivity.js';
 import { renderToString, renderPage } from '../src/runtime/ssr.js';
 import { defineRoutes, getCurrentRoute, getParams, getPath, getQuery, onRouteChange, navigate, Router, Link, Redirect } from '../src/runtime/router.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Reactivity ───────────────────────────────────────────
 

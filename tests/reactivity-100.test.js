@@ -13,7 +13,11 @@ import {
   createForm,
   __enableDevTools,
   pushComponentName, popComponentName,
+  __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Mock DOM Environment ─────────────────────────────────────
 

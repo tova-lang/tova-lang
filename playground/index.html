@@ -11066,6 +11066,17 @@ class Analyzer {
       'table_union', 'table_drop_duplicates', 'table_rename',
       // Table aggregation helpers
       'agg_sum', 'agg_count', 'agg_mean', 'agg_median', 'agg_min', 'agg_max',
+      // Table window functions
+      'table_window',
+      'win_row_number', 'win_rank', 'win_dense_rank', 'win_percent_rank', 'win_ntile',
+      'win_lag', 'win_lead', 'win_first_value', 'win_last_value',
+      'win_running_sum', 'win_running_count', 'win_running_avg', 'win_running_min', 'win_running_max',
+      'win_moving_avg',
+      // Window function short names (used inside window() calls, codegen adds win_ prefix)
+      'row_number', 'rank', 'dense_rank', 'percent_rank', 'ntile',
+      'lag', 'lead', 'first_value', 'last_value',
+      'running_sum', 'running_count', 'running_avg', 'running_min', 'running_max',
+      'moving_avg',
       // Data exploration
       'peek', 'describe', 'schema_of',
       // Data cleaning
@@ -11077,7 +11088,7 @@ class Analyzer {
       // Table operation aliases (short names)
       'where', 'select', 'derive', 'agg', 'sort_by', 'limit',
       'pivot', 'unpivot', 'explode', 'union', 'drop_duplicates', 'rename',
-      'mean', 'median',
+      'mean', 'median', 'window',
       // Strings (new)
       'index_of', 'last_index_of', 'count_of', 'reverse_str', 'substr',
       'is_empty', 'kebab_case', 'center',
@@ -14875,7 +14886,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   table_agg: `function table_agg(grouped, aggregations) { if (!grouped || !grouped.__grouped) throw new Error('agg() must be called after group_by()'); const rows = []; for (const [, { key, rows: gr }] of grouped.groups) { const row = typeof key === 'object' && key !== null ? { ...key } : { _group: key }; for (const [n, fn] of Object.entries(aggregations)) { row[n] = fn(gr); } rows.push(row); } return Table(rows, rows.length > 0 ? Object.keys(rows[0]) : []); }`,
   table_sort_by: `function table_sort_by(table, keyFn, opts) { const desc = opts && opts.desc; const rows = [...table._rows].sort((a, b) => { const ka = typeof keyFn === 'function' ? keyFn(a) : a[keyFn]; const kb = typeof keyFn === 'function' ? keyFn(b) : b[keyFn]; let c = ka < kb ? -1 : ka > kb ? 1 : 0; return desc ? -c : c; }); return Table(rows, table._columns); }`,
   table_limit: `function table_limit(table, n) { return Table(table._rows.slice(0, n), table._columns); }`,
-  table_join: `function table_join(table, other, opts) { const { left, right, how } = opts || {}; if (!left || !right) throw new Error('join() requires left and right key functions'); const rows = []; const ri = new Map(); for (const r of other._rows) { const k = typeof right === 'function' ? right(r) : r[right]; const ks = String(k); if (!ri.has(ks)) ri.set(ks, []); ri.get(ks).push(r); } const cc = [...new Set([...table._columns, ...other._columns])]; for (const lr of table._rows) { const k = typeof left === 'function' ? left(lr) : lr[left]; const ms = ri.get(String(k)) || []; if (ms.length > 0) { for (const rr of ms) rows.push({ ...lr, ...rr }); } else if (how === 'left' || how === 'outer') { const row = { ...lr }; for (const c of other._columns) { if (!(c in row)) row[c] = null; } rows.push(row); } } return Table(rows, cc); }`,
+  table_join: `function table_join(table, other, opts) { const { left, right, how } = opts || {}; if (how === 'cross') { const rows = []; const cc = [...new Set([...table._columns, ...other._columns])]; for (const lr of table._rows) { for (const rr of other._rows) { rows.push({ ...lr, ...rr }); } } return Table(rows, cc); } if (!left || !right) throw new Error('join() requires left and right key functions'); if (how === 'anti') { const ri = new Set(); for (const r of other._rows) { ri.add(String(typeof right === 'function' ? right(r) : r[right])); } const rows = []; for (const lr of table._rows) { const k = typeof left === 'function' ? left(lr) : lr[left]; if (!ri.has(String(k))) rows.push({ ...lr }); } return Table(rows, [...table._columns]); } if (how === 'semi') { const ri = new Set(); for (const r of other._rows) { ri.add(String(typeof right === 'function' ? right(r) : r[right])); } const rows = []; for (const lr of table._rows) { const k = typeof left === 'function' ? left(lr) : lr[left]; if (ri.has(String(k))) rows.push({ ...lr }); } return Table(rows, [...table._columns]); } if (how === 'right') { const sw = table_join(other, table, { left: right, right: left, how: 'left' }); const cc = [...new Set([...table._columns, ...other._columns])]; return Table(sw._rows, cc); } const ri = new Map(); for (const r of other._rows) { const k = typeof right === 'function' ? right(r) : r[right]; const ks = String(k); if (!ri.has(ks)) ri.set(ks, []); ri.get(ks).push(r); } const cc = [...new Set([...table._columns, ...other._columns])]; const rows = []; const mrk = how === 'outer' ? new Set() : null; for (const lr of table._rows) { const k = typeof left === 'function' ? left(lr) : lr[left]; const ms = ri.get(String(k)) || []; if (ms.length > 0) { for (const rr of ms) rows.push({ ...lr, ...rr }); if (mrk) mrk.add(String(k)); } else if (how === 'left' || how === 'outer') { const row = { ...lr }; for (const c of other._columns) { if (!(c in row)) row[c] = null; } rows.push(row); } } if (how === 'outer') { for (const r of other._rows) { const k = typeof right === 'function' ? right(r) : r[right]; if (!mrk.has(String(k))) { const row = { ...r }; for (const c of table._columns) { if (!(c in row)) row[c] = null; } rows.push(row); } } } return Table(rows, cc); }`,
   table_pivot: `function table_pivot(table, opts) { const { index, columns: colFn, values: valFn } = opts || {}; const pm = new Map(); const ac = new Set(); for (const row of table._rows) { const ik = typeof index === 'function' ? index(row) : row[index]; const col = typeof colFn === 'function' ? colFn(row) : row[colFn]; const val = typeof valFn === 'function' ? valFn(row) : row[valFn]; const ks = String(ik); if (!pm.has(ks)) pm.set(ks, { _index: ik }); pm.get(ks)[String(col)] = val; ac.add(String(col)); } return Table([...pm.values()], ['_index', ...ac]); }`,
   table_unpivot: `function table_unpivot(table, opts) { const { id, columns: uc } = opts || {}; const cn = uc.filter(c => typeof c === 'string'); const rows = []; for (const row of table._rows) { const iv = typeof id === 'function' ? id(row) : row[id]; for (const col of cn) rows.push({ id: iv, variable: col, value: row[col] }); } return Table(rows, ['id', 'variable', 'value']); }`,
   table_explode: `function table_explode(table, colFn) { const rows = []; for (const row of table._rows) { const arr = typeof colFn === 'function' ? colFn(row) : row[colFn]; if (Array.isArray(arr)) { const cn = typeof colFn === 'string' ? colFn : null; for (const val of arr) { const r = { ...row }; if (cn) r[cn] = val; rows.push(r); } } else { rows.push({ ...row }); } } return Table(rows, table._columns); }`,
@@ -14987,6 +14998,24 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   agg_min: `function agg_min(fn) { return (rows) => { if (rows.length === 0) return null; let m = typeof fn === 'function' ? fn(rows[0]) : rows[0][fn]; for (let i = 1; i < rows.length; i++) { const v = typeof fn === 'function' ? fn(rows[i]) : rows[i][fn]; if (v < m) m = v; } return m; }; }`,
   agg_max: `function agg_max(fn) { return (rows) => { if (rows.length === 0) return null; let m = typeof fn === 'function' ? fn(rows[0]) : rows[0][fn]; for (let i = 1; i < rows.length; i++) { const v = typeof fn === 'function' ? fn(rows[i]) : rows[i][fn]; if (v > m) m = v; } return m; }; }`,
 
+  // ── Window functions ─────────────────────────────────
+  win_row_number: `function win_row_number() { return (_rows, index) => index + 1; }`,
+  win_rank: `function win_rank() { return (_rows, index, ctx) => { if (index === 0) return 1; const cur = ctx.orderValues[index]; for (let i = index - 1; i >= 0; i--) { if (ctx.orderValues[i] !== cur) return i + 2; } return 1; }; }`,
+  win_dense_rank: `function win_dense_rank() { return (_rows, index, ctx) => { if (index === 0) return 1; let rank = 1; for (let i = 1; i <= index; i++) { if (ctx.orderValues[i] !== ctx.orderValues[i - 1]) rank++; } return rank; }; }`,
+  win_percent_rank: `function win_percent_rank() { return (rows, index, ctx) => { const n = ctx.partitionSize; if (n <= 1) return 0; const cur = ctx.orderValues[index]; let r = 1; if (index > 0) { for (let i = index - 1; i >= 0; i--) { if (ctx.orderValues[i] !== cur) { r = i + 2; break; } } } return (r - 1) / (n - 1); }; }`,
+  win_ntile: `function win_ntile(buckets) { return (_rows, index, ctx) => Math.floor(index * buckets / ctx.partitionSize) + 1; }`,
+  win_lag: `function win_lag(colFn, offset, defaultVal) { if (offset === undefined) offset = 1; if (defaultVal === undefined) defaultVal = null; return (rows, index) => { const t = index - offset; if (t < 0 || t >= rows.length) return defaultVal; return typeof colFn === 'function' ? colFn(rows[t]) : rows[t][colFn]; }; }`,
+  win_lead: `function win_lead(colFn, offset, defaultVal) { if (offset === undefined) offset = 1; if (defaultVal === undefined) defaultVal = null; return (rows, index) => { const t = index + offset; if (t < 0 || t >= rows.length) return defaultVal; return typeof colFn === 'function' ? colFn(rows[t]) : rows[t][colFn]; }; }`,
+  win_first_value: `function win_first_value(colFn) { return (rows) => { if (rows.length === 0) return null; return typeof colFn === 'function' ? colFn(rows[0]) : rows[0][colFn]; }; }`,
+  win_last_value: `function win_last_value(colFn) { return (rows) => { if (rows.length === 0) return null; const last = rows[rows.length - 1]; return typeof colFn === 'function' ? colFn(last) : last[colFn]; }; }`,
+  win_running_sum: `function win_running_sum(colFn) { return (rows, index) => { let s = 0; for (let i = 0; i <= index; i++) s += typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn]; return s; }; }`,
+  win_running_count: `function win_running_count() { return (_rows, index) => index + 1; }`,
+  win_running_avg: `function win_running_avg(colFn) { return (rows, index) => { let s = 0; for (let i = 0; i <= index; i++) s += typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn]; return s / (index + 1); }; }`,
+  win_running_min: `function win_running_min(colFn) { return (rows, index) => { let m = typeof colFn === 'function' ? colFn(rows[0]) : rows[0][colFn]; for (let i = 1; i <= index; i++) { const v = typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn]; if (v < m) m = v; } return m; }; }`,
+  win_running_max: `function win_running_max(colFn) { return (rows, index) => { let m = typeof colFn === 'function' ? colFn(rows[0]) : rows[0][colFn]; for (let i = 1; i <= index; i++) { const v = typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn]; if (v > m) m = v; } return m; }; }`,
+  win_moving_avg: `function win_moving_avg(colFn, windowSize) { return (rows, index) => { const start = Math.max(0, index - windowSize + 1); let s = 0; for (let i = start; i <= index; i++) s += typeof colFn === 'function' ? colFn(rows[i]) : rows[i][colFn]; return s / (index - start + 1); }; }`,
+  table_window: `function table_window(table, opts, windowFns) { const partFn = opts.partition || null; const ordFn = opts.order || null; const desc = opts.desc || false; const parts = new Map(); for (let i = 0; i < table._rows.length; i++) { const r = table._rows[i]; const k = partFn ? String(typeof partFn === 'function' ? partFn(r) : r[partFn]) : '__all__'; if (!parts.has(k)) parts.set(k, []); parts.get(k).push({ row: r, oi: i }); } if (ordFn) { for (const [, items] of parts) { items.sort((a, b) => { const ka = typeof ordFn === 'function' ? ordFn(a.row) : a.row[ordFn]; const kb = typeof ordFn === 'function' ? ordFn(b.row) : b.row[ordFn]; let c = 0; if (ka < kb) c = -1; else if (ka > kb) c = 1; return desc ? -c : c; }); } } const res = new Array(table._rows.length); for (let i = 0; i < res.length; i++) res[i] = {}; for (const [, items] of parts) { const pr = items.map(it => it.row); const ov = ordFn ? pr.map(r => typeof ordFn === 'function' ? ordFn(r) : r[ordFn]) : pr.map((_, i) => i); const ctx = { orderValues: ov, partitionSize: pr.length }; for (const [cn, wf] of Object.entries(windowFns)) { for (let idx = 0; idx < pr.length; idx++) { res[items[idx].oi][cn] = wf(pr, idx, ctx); } } } const nc = [...table._columns]; for (const cn of Object.keys(windowFns)) { if (!nc.includes(cn)) nc.push(cn); } return new Table(table._rows.map((r, i) => Object.assign({}, r, res[i])), nc); }`,
+
   // ── Data exploration ────────────────────────────────
   peek: `function peek(table, opts) { const o = typeof opts === 'object' ? opts : {}; console.log(table._format ? table._format(o.n || 10, o.title) : String(table)); return table; }`,
   describe: `function describe(table) { const stats = []; for (const col of table._columns) { const vals = table._rows.map(r => r[col]).filter(v => v != null); const st = { Column: col, Type: 'Unknown', 'Non-Null': vals.length }; if (vals.length > 0) { const s = vals[0]; if (typeof s === 'number') { st.Type = Number.isInteger(s) ? 'Int' : 'Float'; st.Mean = vals.reduce((a, b) => a + b, 0) / vals.length; let mn = vals[0], mx = vals[0]; for (let i = 1; i < vals.length; i++) { if (vals[i] < mn) mn = vals[i]; if (vals[i] > mx) mx = vals[i]; } st.Min = mn; st.Max = mx; } else if (typeof s === 'string') { st.Type = 'String'; st.Unique = new Set(vals).size; } else if (typeof s === 'boolean') { st.Type = 'Bool'; } } stats.push(st); } const dt = Table(stats); console.log(dt._format(100, 'describe()')); return dt; }`,
@@ -15016,7 +15045,10 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
     try { const data = JSON.parse(text); if (Array.isArray(data)) return Table(data); return data; } catch { return __parseCSV(text, options); }
   }
   const fs = await import('fs'); const path = await import('path');
-  const ext = path.extname(source).toLowerCase(); const text = fs.readFileSync(source, 'utf-8');
+  const ext = path.extname(source).toLowerCase();
+  if (ext === '.parquet') return readParquet(source);
+  if (ext === '.xlsx') return readExcel(source, options);
+  const text = fs.readFileSync(source, 'utf-8');
   if (ext === '.csv') return __parseCSV(text, options);
   if (ext === '.tsv') return __parseCSV(text, { ...options, delimiter: '\\t' });
   if (ext === '.json') { const data = JSON.parse(text); if (Array.isArray(data)) return Table(data); return data; }
@@ -15026,6 +15058,8 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   write: `async function write(data, destination, opts) {
   const fs = await import('fs'); const path = await import('path');
   const ext = path.extname(destination).toLowerCase();
+  if (ext === '.parquet') { return writeParquet(data, destination, opts); }
+  if (ext === '.xlsx') { return writeExcel(data, destination, opts); }
   const isTable = data && data._rows && data._columns;
   const td = isTable ? data : (Array.isArray(data) ? Table(data) : null);
   let content;
@@ -16070,6 +16104,132 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   }
   return _makeLogger(null);
 })()`,
+  // ── Sampling ──────────────────────────────────────────
+  __xorshift128: `function __xorshift128(seed) { let s = [seed, seed ^ 0xDEADBEEF, seed ^ 0x12345678, seed ^ 0x87654321]; return function() { let t = s[3]; t ^= t << 11; t ^= t >>> 8; s[3] = s[2]; s[2] = s[1]; s[1] = s[0]; t ^= s[0]; t ^= s[0] >>> 19; s[0] = t; return (t >>> 0) / 4294967296; }; }`,
+  table_sample: `function table_sample(table, n, opts) { var total = table._rows.length; var k = n < 1 ? Math.floor(n * total) : Math.min(n, total); if (k <= 0) return Table([], table._columns); if (k >= total) return Table([].concat(table._rows), table._columns); var rng = opts && opts.seed != null ? __xorshift128(opts.seed) : function() { return Math.random(); }; var indices = Array.from({ length: total }, function(_, i) { return i; }); for (var i = 0; i < k; i++) { var j = i + Math.floor(rng() * (total - i)); var tmp = indices[i]; indices[i] = indices[j]; indices[j] = tmp; } var rows = []; for (var i = 0; i < k; i++) rows.push(table._rows[indices[i]]); return Table(rows, table._columns); }`,
+  table_stratified_sample: `function table_stratified_sample(table, keyFn, n, opts) { var groups = new Map(); for (var ri = 0; ri < table._rows.length; ri++) { var row = table._rows[ri]; var key = String(typeof keyFn === 'function' ? keyFn(row) : row[keyFn]); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); } var allRows = []; var gi = 0; groups.forEach(function(gr) { var gt = Table(gr, table._columns); var go = opts && opts.seed != null ? { seed: opts.seed + gi * 7919 } : {}; var s = table_sample(gt, n, go); for (var si = 0; si < s._rows.length; si++) allRows.push(s._rows[si]); gi++; }); return Table(allRows, table._columns); }`,
+
+  // ── SQLite Connector ──────────────────────────────────
+  sqlite: `function sqlite(path) { var Database; try { Database = typeof Bun !== 'undefined' ? require('bun:sqlite').Database : require('better-sqlite3'); } catch(e) { throw new Error('SQLite requires Bun (built-in) or "better-sqlite3" package under Node'); } var db = new Database(path); function _inferType(v) { if (v === null || v === undefined) return 'TEXT'; if (typeof v === 'boolean') return 'INTEGER'; if (typeof v === 'number') return Number.isInteger(v) ? 'INTEGER' : 'REAL'; return 'TEXT'; } return { _isTovaSqlite: true, query: function(sql, params) { var stmt = db.prepare(sql); var rows = params ? stmt.all.apply(stmt, params) : stmt.all(); return Table(rows); }, exec: function(sql, params) { var stmt = db.prepare(sql); var result = params ? stmt.run.apply(stmt, params) : stmt.run(); return { changes: result.changes }; }, writeTable: function(tableData, tableName, opts) { var t = tableData._rows ? tableData : Table(tableData); if (t._rows.length === 0) return; if (!opts || !opts.append) { db.run('DROP TABLE IF EXISTS "' + tableName + '"'); var colDefs = t._columns.map(function(c) { return '"' + c + '" ' + _inferType(t._rows[0][c]); }).join(', '); db.run('CREATE TABLE "' + tableName + '" (' + colDefs + ')'); } var ph = t._columns.map(function() { return '?'; }).join(', '); var cols = t._columns.map(function(c) { return '"' + c + '"'; }).join(', '); var ins = db.prepare('INSERT INTO "' + tableName + '" (' + cols + ') VALUES (' + ph + ')'); var tx = db.transaction(function(rows) { for (var i = 0; i < rows.length; i++) { var vals = t._columns.map(function(c) { var v = rows[i][c]; if (v === undefined || v === null) return null; if (typeof v === 'boolean') return v ? 1 : 0; return v; }); ins.run.apply(ins, vals); } }); tx(t._rows); }, close: function() { db.close(); } }; }`,
+
+  // ── SVG Charting ──────────────────────────────────────────
+  __chart_helpers: `var __chart_PALETTE = ['#4f46e5', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#be185d', '#65a30d'];
+var __chart_DEFAULT_MARGIN = { top: 40, right: 20, bottom: 60, left: 70 };
+function __chart_esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function __chart_getRows(data) { if (data && data._rows) return data._rows; if (Array.isArray(data)) return data; return []; }
+function __chart_niceTicks(mn, mx, count) { if (count === undefined) count = 5; if (mn === mx) { mn = mn - 1; mx = mx + 1; } var range = mx - mn; var roughStep = range / count; var mag = Math.pow(10, Math.floor(Math.log10(roughStep))); var cands = [1, 2, 5, 10]; var step = mag; for (var i = 0; i < cands.length; i++) { if (cands[i] * mag >= roughStep) { step = cands[i] * mag; break; } } var start = Math.floor(mn / step) * step; var ticks = []; for (var v = start; v <= mx + step * 0.5; v += step) { ticks.push(Math.round(v * 1e10) / 1e10); } return ticks; }
+function __chart_formatNum(n) { if (Number.isInteger(n)) return String(n); if (Math.abs(n) >= 1000) return String(Math.round(n)); return n.toFixed(1); }
+function __chart_empty(w, h, msg) { return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" style="font-family:system-ui,sans-serif"><text x="' + (w / 2) + '" y="' + (h / 2) + '" text-anchor="middle" fill="#888" font-size="14">' + __chart_esc(msg || 'No data') + '</text></svg>'; }`,
+
+  bar_chart: `function bar_chart(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var title = opts.title || ''; var clr = opts.color || __chart_PALETTE[0]; var margin = { top: title ? 50 : 40, right: 20, bottom: 60, left: 70 }; var labels = rows.map(function(r) { return String(xFn(r)); }); var values = rows.map(function(r) { return Number(yFn(r)); }); var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var yMax = Math.max.apply(null, values); var ticks = __chart_niceTicks(0, yMax); var scaleMax = ticks[ticks.length - 1]; var barW = plotW / labels.length; var innerW = barW * 0.85; var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var ti = 0; ti < ticks.length; ti++) { var t = ticks[ti]; var ty = margin.top + plotH - (t / scaleMax) * plotH; p.push('<line x1="' + margin.left + '" y1="' + ty + '" x2="' + (margin.left + plotW) + '" y2="' + ty + '" stroke="#e5e7eb" stroke-width="1"/>'); p.push('<text x="' + (margin.left - 8) + '" y="' + (ty + 4) + '" text-anchor="end" font-size="11" fill="#666">' + __chart_formatNum(t) + '</text>'); } for (var i = 0; i < labels.length; i++) { var barH = scaleMax > 0 ? (values[i] / scaleMax) * plotH : 0; var bx = margin.left + i * barW + (barW - innerW) / 2; var by = margin.top + plotH - barH; var bc = Array.isArray(clr) ? clr[i % clr.length] : (opts.colors ? opts.colors[i % opts.colors.length] : clr); p.push('<rect x="' + bx + '" y="' + by + '" width="' + innerW + '" height="' + barH + '" fill="' + bc + '" rx="2"/>'); } p.push('<line x1="' + margin.left + '" y1="' + (margin.top + plotH) + '" x2="' + (margin.left + plotW) + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); var rot = labels.length > 6; for (var i = 0; i < labels.length; i++) { var lx = margin.left + i * barW + barW / 2; var ly = margin.top + plotH + 16; if (rot) { p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="end" font-size="11" fill="#666" transform="rotate(-45 ' + lx + ' ' + ly + ')">' + __chart_esc(labels[i]) + '</text>'); } else { p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_esc(labels[i]) + '</text>'); } } p.push('<line x1="' + margin.left + '" y1="' + margin.top + '" x2="' + margin.left + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); p.push('</svg>'); return p.join('\\n'); }`,
+
+  line_chart: `function line_chart(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var title = opts.title || ''; var clr = opts.color || __chart_PALETTE[0]; var showPts = opts.points || false; var margin = { top: title ? 50 : 40, right: 20, bottom: 60, left: 70 }; var xVals = rows.map(function(r) { return xFn(r); }); var yVals = rows.map(function(r) { return Number(yFn(r)); }); var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var xNum = xVals.every(function(v) { return typeof v === 'number' && !isNaN(v); }); var xPos; if (xNum) { var xMn = Math.min.apply(null, xVals); var xMx = Math.max.apply(null, xVals); var xR = xMx - xMn || 1; xPos = xVals.map(function(v) { return margin.left + ((v - xMn) / xR) * plotW; }); } else { var n = xVals.length; xPos = xVals.map(function(_, i) { return margin.left + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2); }); } var yMn = Math.min.apply(null, yVals); var yMx = Math.max.apply(null, yVals); var ticks = __chart_niceTicks(yMn > 0 ? 0 : yMn, yMx); var sMn = ticks[0]; var sMx = ticks[ticks.length - 1]; var sR = sMx - sMn || 1; var yPos = yVals.map(function(v) { return margin.top + plotH - ((v - sMn) / sR) * plotH; }); var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var ti = 0; ti < ticks.length; ti++) { var t = ticks[ti]; var ty = margin.top + plotH - ((t - sMn) / sR) * plotH; p.push('<line x1="' + margin.left + '" y1="' + ty + '" x2="' + (margin.left + plotW) + '" y2="' + ty + '" stroke="#e5e7eb" stroke-width="1"/>'); p.push('<text x="' + (margin.left - 8) + '" y="' + (ty + 4) + '" text-anchor="end" font-size="11" fill="#666">' + __chart_formatNum(t) + '</text>'); } var pts = xPos.map(function(x, i) { return x + ',' + yPos[i]; }).join(' '); p.push('<polyline points="' + pts + '" fill="none" stroke="' + clr + '" stroke-width="2" stroke-linejoin="round"/>'); if (showPts) { for (var i = 0; i < xPos.length; i++) { p.push('<circle cx="' + xPos[i] + '" cy="' + yPos[i] + '" r="4" fill="' + clr + '"/>'); } } p.push('<line x1="' + margin.left + '" y1="' + (margin.top + plotH) + '" x2="' + (margin.left + plotW) + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); var lStep = Math.max(1, Math.floor(xVals.length / 8)); for (var i = 0; i < xVals.length; i += lStep) { var lx = xPos[i]; var ly = margin.top + plotH + 16; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_esc(String(xVals[i])) + '</text>'); } p.push('<line x1="' + margin.left + '" y1="' + margin.top + '" x2="' + margin.left + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); p.push('</svg>'); return p.join('\\n'); }`,
+
+  scatter_chart: `function scatter_chart(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var title = opts.title || ''; var clr = opts.color || __chart_PALETTE[0]; var rad = opts.r || 5; var margin = { top: title ? 50 : 40, right: 20, bottom: 60, left: 70 }; var xVals = rows.map(function(r) { return Number(xFn(r)); }); var yVals = rows.map(function(r) { return Number(yFn(r)); }); var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var xTk = __chart_niceTicks(Math.min.apply(null, xVals), Math.max.apply(null, xVals)); var yTk = __chart_niceTicks(Math.min.apply(null, yVals), Math.max.apply(null, yVals)); var xMn = xTk[0]; var xMx = xTk[xTk.length - 1]; var yMn = yTk[0]; var yMx = yTk[yTk.length - 1]; var xR = xMx - xMn || 1; var yR = yMx - yMn || 1; var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var i = 0; i < yTk.length; i++) { var t = yTk[i]; var ty = margin.top + plotH - ((t - yMn) / yR) * plotH; p.push('<line x1="' + margin.left + '" y1="' + ty + '" x2="' + (margin.left + plotW) + '" y2="' + ty + '" stroke="#e5e7eb" stroke-width="1"/>'); p.push('<text x="' + (margin.left - 8) + '" y="' + (ty + 4) + '" text-anchor="end" font-size="11" fill="#666">' + __chart_formatNum(t) + '</text>'); } for (var i = 0; i < xTk.length; i++) { var t = xTk[i]; var tx = margin.left + ((t - xMn) / xR) * plotW; p.push('<line x1="' + tx + '" y1="' + margin.top + '" x2="' + tx + '" y2="' + (margin.top + plotH) + '" stroke="#e5e7eb" stroke-width="1"/>'); p.push('<text x="' + tx + '" y="' + (margin.top + plotH + 16) + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_formatNum(t) + '</text>'); } for (var i = 0; i < rows.length; i++) { var cx = margin.left + ((xVals[i] - xMn) / xR) * plotW; var cy = margin.top + plotH - ((yVals[i] - yMn) / yR) * plotH; var cc = Array.isArray(clr) ? clr[i % clr.length] : clr; p.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + rad + '" fill="' + cc + '" opacity="0.7"/>'); } p.push('<line x1="' + margin.left + '" y1="' + (margin.top + plotH) + '" x2="' + (margin.left + plotW) + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); p.push('<line x1="' + margin.left + '" y1="' + margin.top + '" x2="' + margin.left + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); p.push('</svg>'); return p.join('\\n'); }`,
+
+  histogram: `function histogram(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var colFn = opts.col; var title = opts.title || ''; var clr = opts.color || __chart_PALETTE[0]; var numBins = opts.bins || 20; var margin = { top: title ? 50 : 40, right: 20, bottom: 60, left: 70 }; var values = rows.map(function(r) { return Number(colFn(r)); }).filter(function(v) { return !isNaN(v); }); if (values.length === 0) return __chart_empty(width, height, 'No data'); var dMn = Math.min.apply(null, values); var dMx = Math.max.apply(null, values); var bw = (dMx - dMn) / numBins || 1; var bins = []; for (var i = 0; i < numBins; i++) bins.push({ lo: dMn + i * bw, hi: dMn + (i + 1) * bw, count: 0 }); for (var i = 0; i < values.length; i++) { var idx = Math.floor((values[i] - dMn) / bw); if (idx >= numBins) idx = numBins - 1; if (idx < 0) idx = 0; bins[idx].count++; } var maxC = Math.max.apply(null, bins.map(function(b) { return b.count; })); var ticks = __chart_niceTicks(0, maxC); var scaleMax = ticks[ticks.length - 1]; var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var barW = plotW / numBins; var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var ti = 0; ti < ticks.length; ti++) { var t = ticks[ti]; var ty = margin.top + plotH - (scaleMax > 0 ? (t / scaleMax) * plotH : 0); p.push('<line x1="' + margin.left + '" y1="' + ty + '" x2="' + (margin.left + plotW) + '" y2="' + ty + '" stroke="#e5e7eb" stroke-width="1"/>'); p.push('<text x="' + (margin.left - 8) + '" y="' + (ty + 4) + '" text-anchor="end" font-size="11" fill="#666">' + __chart_formatNum(t) + '</text>'); } for (var i = 0; i < bins.length; i++) { var barH = scaleMax > 0 ? (bins[i].count / scaleMax) * plotH : 0; var bx = margin.left + i * barW; var by = margin.top + plotH - barH; p.push('<rect x="' + bx + '" y="' + by + '" width="' + barW + '" height="' + barH + '" fill="' + clr + '" stroke="#fff" stroke-width="0.5"/>'); } p.push('<line x1="' + margin.left + '" y1="' + (margin.top + plotH) + '" x2="' + (margin.left + plotW) + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); var lc = Math.min(numBins + 1, 8); var ls = Math.max(1, Math.floor(numBins / (lc - 1))); for (var i = 0; i <= numBins; i += ls) { var val = dMn + i * bw; var lx = margin.left + i * barW; var ly = margin.top + plotH + 16; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="10" fill="#666">' + __chart_formatNum(val) + '</text>'); } p.push('<line x1="' + margin.left + '" y1="' + margin.top + '" x2="' + margin.left + '" y2="' + (margin.top + plotH) + '" stroke="#9ca3af" stroke-width="1"/>'); p.push('</svg>'); return p.join('\\n'); }`,
+
+  pie_chart: `function pie_chart(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 400; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var labelFn = opts.label; var valueFn = opts.value; var title = opts.title || ''; var colors = opts.colors || __chart_PALETTE; var labels = rows.map(function(r) { return String(labelFn(r)); }); var values = rows.map(function(r) { return Number(valueFn(r)); }); var total = values.reduce(function(a, b) { return a + b; }, 0); if (total === 0) return __chart_empty(width, height, 'No data'); var cx = width / 2; var cy = title ? (height + 30) / 2 : height / 2; var r = Math.min(cx, cy) - 50; var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); var sa = -Math.PI / 2; for (var i = 0; i < values.length; i++) { var sl = (values[i] / total) * 2 * Math.PI; var ea = sa + sl; var x1 = cx + r * Math.cos(sa); var y1 = cy + r * Math.sin(sa); var x2 = cx + r * Math.cos(ea); var y2 = cy + r * Math.sin(ea); var la = sl > Math.PI ? 1 : 0; var c = colors[i % colors.length]; if (values.length === 1) { p.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + c + '"/>'); } else { p.push('<path d="M ' + cx + ' ' + cy + ' L ' + x1 + ' ' + y1 + ' A ' + r + ' ' + r + ' 0 ' + la + ' 1 ' + x2 + ' ' + y2 + ' Z" fill="' + c + '" stroke="#fff" stroke-width="1.5"/>'); } var ma = sa + sl / 2; var lr = r * 0.7; var lx = cx + lr * Math.cos(ma); var ly = cy + lr * Math.sin(ma); var pct = ((values[i] / total) * 100).toFixed(1); p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">' + __chart_esc(labels[i]) + '</text>'); p.push('<text x="' + lx + '" y="' + (ly + 13) + '" text-anchor="middle" font-size="10" fill="#fff">' + pct + '%</text>'); sa = ea; } p.push('</svg>'); return p.join('\\n'); }`,
+
+  // ── Parquet Read/Write ────────────────────────────────────────
+  readParquet: `async function readParquet(path) {
+  var fs = await import('fs'); var arrow = await import('apache-arrow'); var pw = await import('parquet-wasm/node');
+  var fileBytes = new Uint8Array(fs.readFileSync(path));
+  var wasmTable = pw.readParquet(fileBytes);
+  var ipcBytes = wasmTable.intoIPCStream();
+  var arrowTable = arrow.tableFromIPC(ipcBytes);
+  var columns = arrowTable.schema.fields.map(function(f) { return f.name; });
+  var rows = [];
+  for (var i = 0; i < arrowTable.numRows; i++) {
+    var row = {};
+    for (var ci = 0; ci < columns.length; ci++) { var col = columns[ci]; var val = arrowTable.getChild(col).get(i); row[col] = val === undefined ? null : val; }
+    rows.push(row);
+  }
+  return Table(rows, columns);
+}`,
+
+  writeParquet: `async function writeParquet(tableData, path, opts) {
+  var fs = await import('fs'); var arrow = await import('apache-arrow'); var pw = await import('parquet-wasm/node');
+  var t = tableData && tableData._rows ? tableData : Table(Array.isArray(tableData) ? tableData : []);
+  var columns = t._columns;
+  var COMP_MAP = { snappy: 1, gzip: 2, brotli: 3, zstd: 5, lz4: 6, uncompressed: 0, none: 0 };
+  function _inferType(values) { for (var i = 0; i < values.length; i++) { var v = values[i]; if (v === null || v === undefined) continue; if (typeof v === 'boolean') return 'bool'; if (typeof v === 'number') return Number.isInteger(v) ? 'int' : 'float'; if (typeof v === 'string') return 'string'; } return 'string'; }
+  var colVecs = {};
+  for (var ci = 0; ci < columns.length; ci++) {
+    var col = columns[ci]; var values = t._rows.map(function(r) { var v = r[col]; return v === undefined ? null : v; });
+    var tp = _inferType(values);
+    if (tp === 'int') colVecs[col] = arrow.vectorFromArray(values, new arrow.Int32());
+    else if (tp === 'float') colVecs[col] = arrow.vectorFromArray(values, new arrow.Float64());
+    else if (tp === 'bool') colVecs[col] = arrow.vectorFromArray(values, new arrow.Bool());
+    else colVecs[col] = arrow.vectorFromArray(values, new arrow.Utf8());
+  }
+  var arrowTable = new arrow.Table(colVecs);
+  var ipcBytes = arrow.tableToIPC(arrowTable, 'stream');
+  var wasmTable = pw.Table.fromIPCStream(ipcBytes);
+  var writerProps = null;
+  var comp = (opts && opts.compression) || 'snappy';
+  var compCode = COMP_MAP[comp.toLowerCase()];
+  if (compCode !== undefined) { writerProps = new pw.WriterPropertiesBuilder().setCompression(compCode).build(); }
+  var parquetBytes = pw.writeParquet(wasmTable, writerProps);
+  fs.writeFileSync(path, parquetBytes);
+}`,
+
+  readExcel: `async function readExcel(path, opts) {
+  var ExcelJS = require('exceljs');
+  var workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(path);
+  var worksheet;
+  if (opts && typeof opts.sheet === 'string') { worksheet = workbook.getWorksheet(opts.sheet); if (!worksheet) throw new Error('Sheet "' + opts.sheet + '" not found'); }
+  else if (opts && typeof opts.sheet === 'number') { var sheets = workbook.worksheets; if (opts.sheet < 1 || opts.sheet > sheets.length) throw new Error('Sheet index out of range'); worksheet = sheets[opts.sheet - 1]; }
+  else { worksheet = workbook.worksheets[0]; }
+  if (!worksheet) throw new Error('No worksheets found');
+  var headerRow = worksheet.getRow(1);
+  var colArr = [];
+  headerRow.eachCell({ includeEmpty: false }, function(cell, colNumber) { colArr[colNumber] = __excelCellValue(cell); });
+  var colMap = [];
+  for (var i = 1; i < colArr.length; i++) { if (colArr[i] !== undefined && colArr[i] !== null) colMap.push({ colNumber: i, name: String(colArr[i]) }); }
+  if (colMap.length === 0) return Table([], []);
+  var columnNames = colMap.map(function(c) { return c.name; });
+  var rows = [];
+  var rowCount = worksheet.rowCount;
+  for (var r = 2; r <= rowCount; r++) {
+    var excelRow = worksheet.getRow(r);
+    var row = {};
+    for (var ci = 0; ci < colMap.length; ci++) { var cm = colMap[ci]; var cell = excelRow.getCell(cm.colNumber); row[cm.name] = __excelCellValue(cell); }
+    rows.push(row);
+  }
+  return Table(rows, columnNames);
+}`,
+
+  writeExcel: `async function writeExcel(tableData, path, opts) {
+  var ExcelJS = require('exceljs');
+  var t = tableData && tableData._rows ? tableData : Table(Array.isArray(tableData) ? tableData : []);
+  var workbook = new ExcelJS.Workbook();
+  var sheetName = (opts && opts.sheet) || 'Sheet1';
+  var worksheet = workbook.addWorksheet(sheetName);
+  var cols = t._columns;
+  if (cols.length > 0) worksheet.addRow(cols);
+  for (var i = 0; i < t._rows.length; i++) {
+    var row = t._rows[i];
+    var values = [];
+    for (var ci = 0; ci < cols.length; ci++) { var v = row[cols[ci]]; values.push(v === undefined ? null : v); }
+    worksheet.addRow(values);
+  }
+  await workbook.xlsx.writeFile(path);
+}`,
+
+  __excelCellValue: `function __excelCellValue(cell) {
+  if (!cell || cell.type === 0) return null;
+  var val = cell.value;
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'object' && val.formula !== undefined) { var result = val.result; return (result === null || result === undefined) ? null : result; }
+  if (typeof val === 'object' && val.richText) { return val.richText.map(function(p) { return p.text; }).join(''); }
+  if (typeof val === 'object' && val.hyperlink) { return val.text || val.hyperlink; }
+  if (typeof val === 'object' && val.error) { return null; }
+  return val;
+}`,
+
+  heatmap: `function heatmap(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var valueFn = opts.value; var title = opts.title || ''; var margin = { top: title ? 50 : 40, right: 40, bottom: 60, left: 80 }; var xCats = []; var yCats = []; var xSet = new Set(); var ySet = new Set(); for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); if (!xSet.has(xv)) { xSet.add(xv); xCats.push(xv); } if (!ySet.has(yv)) { ySet.add(yv); yCats.push(yv); } } var grid = {}; var vMn = Infinity; var vMx = -Infinity; for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); var val = Number(valueFn(rows[i])); grid[xv + '|' + yv] = val; if (val < vMn) vMn = val; if (val > vMx) vMx = val; } var vR = vMx - vMn || 1; var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var cellW = plotW / xCats.length; var cellH = plotH / yCats.length; function hc(val) { var t = (val - vMn) / vR; var r = Math.round(255 - t * (255 - 79)); var g = Math.round(255 - t * (255 - 70)); var b = Math.round(255 - t * (255 - 229)); return 'rgb(' + r + ',' + g + ',' + b + ')'; } var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var xi = 0; xi < xCats.length; xi++) { for (var yi = 0; yi < yCats.length; yi++) { var key = xCats[xi] + '|' + yCats[yi]; var val = grid[key]; var rx = margin.left + xi * cellW; var ry = margin.top + yi * cellH; var fill = val !== undefined ? hc(val) : '#f3f4f6'; p.push('<rect x="' + rx + '" y="' + ry + '" width="' + cellW + '" height="' + cellH + '" fill="' + fill + '" stroke="#fff" stroke-width="1"/>'); if (val !== undefined) { var tc = ((val - vMn) / vR) > 0.5 ? '#fff' : '#111'; p.push('<text x="' + (rx + cellW / 2) + '" y="' + (ry + cellH / 2 + 4) + '" text-anchor="middle" font-size="11" fill="' + tc + '">' + __chart_formatNum(val) + '</text>'); } } } for (var xi = 0; xi < xCats.length; xi++) { var lx = margin.left + xi * cellW + cellW / 2; var ly = margin.top + plotH + 16; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_esc(xCats[xi]) + '</text>'); } for (var yi = 0; yi < yCats.length; yi++) { var lx = margin.left - 8; var ly = margin.top + yi * cellH + cellH / 2 + 4; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="end" font-size="11" fill="#666">' + __chart_esc(yCats[yi]) + '</text>'); } p.push('</svg>'); return p.join('\\n'); }`,
 };
 
 // All known builtin names for matching
@@ -16131,6 +16291,28 @@ const STDLIB_DEPS = {
   // LRU cache namespace
   LRUCache: ['Some', 'None'],
   cache: ['LRUCache', 'Some', 'None'],
+  // Window functions require Table
+  table_window: ['Table'],
+  // Sampling functions
+  table_sample: ['Table', '__xorshift128'],
+  table_stratified_sample: ['Table', 'table_sample', '__xorshift128'],
+  // SQLite connector
+  sqlite: ['Table'],
+  // Parquet read/write
+  readParquet: ['Table'],
+  writeParquet: ['Table'],
+  readExcel: ['Table', '__excelCellValue'],
+  writeExcel: ['Table'],
+  read: ['Table', '__parseCSV', '__parseJSONL', 'readParquet', 'readExcel', '__excelCellValue'],
+  write: ['Table', 'writeParquet', 'writeExcel'],
+  // SVG Charting
+  __chart_helpers: ['Table'],
+  bar_chart: ['Table', '__chart_helpers'],
+  line_chart: ['Table', '__chart_helpers'],
+  scatter_chart: ['Table', '__chart_helpers'],
+  histogram: ['Table', '__chart_helpers'],
+  pie_chart: ['Table', '__chart_helpers'],
+  heatmap: ['Table', '__chart_helpers'],
 };
 
 // Resolve all transitive dependencies for a set of used names
@@ -18814,10 +18996,15 @@ class BaseCodegen {
 
     // Check for table operation calls with column expressions
     const hasColumnExprs = node.arguments.some(a => this._containsColumnExpr(a));
-    if (hasColumnExprs || (node.callee.type === 'Identifier' && ['agg', 'table_agg'].includes(node.callee.name))) {
+    if (hasColumnExprs || (node.callee.type === 'Identifier' && ['agg', 'table_agg', 'window', 'table_window'].includes(node.callee.name))) {
       const tableArgs = this._genTableCallArgs(node);
       if (tableArgs) {
-        const callee = this.genExpression(node.callee);
+        let callee = this.genExpression(node.callee);
+        // Remap window → table_window to avoid browser global conflict
+        if (node.callee.type === 'Identifier' && node.callee.name === 'window') {
+          callee = 'table_window';
+          this._usedBuiltins.add('table_window');
+        }
         return `${callee}(${tableArgs.join(', ')})`;
       }
     }
@@ -19250,10 +19437,15 @@ class BaseCodegen {
     if (right.type === 'CallExpression') {
       // Check for table operations with column expressions
       const hasColumnExprs = right.arguments.some(a => this._containsColumnExpr(a));
-      if (hasColumnExprs || (right.callee.type === 'Identifier' && ['agg', 'table_agg'].includes(right.callee.name))) {
+      if (hasColumnExprs || (right.callee.type === 'Identifier' && ['agg', 'table_agg', 'window', 'table_window'].includes(right.callee.name))) {
         const tableArgs = this._genTableCallArgs(right);
         if (tableArgs) {
-          const callee = this.genExpression(right.callee);
+          let callee = this.genExpression(right.callee);
+          // Remap window → table_window to avoid browser global conflict
+          if (right.callee.type === 'Identifier' && right.callee.name === 'window') {
+            callee = 'table_window';
+            this._usedBuiltins.add('table_window');
+          }
           // Track builtin usage (with dependency resolution)
           if (right.callee.type === 'Identifier' && BUILTIN_NAMES.has(right.callee.name)) {
             this._trackBuiltin(right.callee.name);
@@ -19531,6 +19723,52 @@ class BaseCodegen {
         return [`{ ${parts.join(', ')} }`];
       }
       return parts;
+    }
+
+    // window() / table_window() — partition_by/order_by/desc are meta, rest are window fns
+    if (calleeName === 'window' || calleeName === 'table_window') {
+      const META_KEYS = new Set(['partition_by', 'order_by', 'desc']);
+      const optParts = [];
+      const winParts = [];
+      for (const a of node.arguments) {
+        if (a.type === 'NamedArgument') {
+          if (META_KEYS.has(a.name)) {
+            // Meta keys: partition_by → partition, order_by → order
+            const key = a.name === 'partition_by' ? 'partition' : a.name === 'order_by' ? 'order' : a.name;
+            if (a.name === 'desc') {
+              optParts.push(`desc: ${this.genExpression(a.value)}`);
+            } else if (this._containsColumnExpr(a.value)) {
+              optParts.push(`${key}: (__row) => ${this._genColumnBody(a.value)}`);
+            } else {
+              optParts.push(`${key}: ${this.genExpression(a.value)}`);
+            }
+          } else {
+            // Window function column
+            const val = a.value;
+            if (val.type === 'CallExpression' && val.callee.type === 'Identifier') {
+              const fnName = val.callee.name;
+              const winFn = `win_${fnName}`;
+              const WIN_FNS = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'ntile',
+                'lag', 'lead', 'first_value', 'last_value',
+                'running_sum', 'running_count', 'running_avg', 'running_min', 'running_max',
+                'moving_avg'];
+              if (WIN_FNS.includes(fnName)) {
+                this._usedBuiltins.add(winFn);
+                const innerArgs = val.arguments.map(ia => {
+                  if (this._containsColumnExpr(ia)) {
+                    return `(__row) => ${this._genColumnBody(ia)}`;
+                  }
+                  return this.genExpression(ia);
+                });
+                winParts.push(`${a.name}: ${winFn}(${innerArgs.join(', ')})`);
+                continue;
+              }
+            }
+            winParts.push(`${a.name}: ${this.genExpression(a.value)}`);
+          }
+        }
+      }
+      return [`{ ${optParts.join(', ')} }`, `{ ${winParts.join(', ')} }`];
     }
 
     // drop_nil/fill_nil — column expression compiles to string or lambda

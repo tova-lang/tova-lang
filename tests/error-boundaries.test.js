@@ -2,7 +2,11 @@ import { describe, test, expect } from 'bun:test';
 import {
   createSignal, createEffect, createErrorBoundary, ErrorBoundary,
   tova_el, tova_fragment, render, createRoot, pushComponentName, popComponentName,
+  __resetForTesting
 } from '../src/runtime/reactivity.js';
+
+// Reset module-level state that may have been polluted by earlier test files.
+__resetForTesting();
 
 // ─── Mock DOM ──────────────────────────────────────────────
 function _setParent(child, parent) {
