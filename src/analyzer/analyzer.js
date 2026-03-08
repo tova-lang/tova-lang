@@ -1920,6 +1920,14 @@ export class Analyzer {
     }
   }
 
+  visitAuthBlock(node) {
+    // Will be implemented in Task 4
+  }
+
+  _validateAuthCrossBlock() {
+    // Will be implemented in Task 4
+  }
+
   // visitBrowserBlock and other browser visitors are in browser-analyzer.js (lazy-loaded)
 
   visitSharedBlock(node) {

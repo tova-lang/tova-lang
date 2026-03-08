@@ -73,6 +73,14 @@ export class EdgeBlock {
   }
 }
 
+export class AuthBlock {
+  constructor(body, loc) {
+    this.type = 'AuthBlock';
+    this.body = body;
+    this.loc = loc;
+  }
+}
+
 export class ConcurrentBlock {
   constructor(mode, timeout, body, loc) {
     this.type = 'ConcurrentBlock';

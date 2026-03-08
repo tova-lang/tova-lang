@@ -14,6 +14,7 @@ import { edgePlugin } from './plugins/edge-plugin.js';
 import { concurrencyPlugin } from './plugins/concurrency-plugin.js';
 import { deployPlugin } from './plugins/deploy-plugin.js';
 import { themePlugin } from './plugins/theme-plugin.js';
+import { authPlugin } from './plugins/auth-plugin.js';
 
 BlockRegistry.register(themePlugin);
 BlockRegistry.register(serverPlugin);
@@ -27,5 +28,6 @@ BlockRegistry.register(benchPlugin);
 BlockRegistry.register(edgePlugin);
 BlockRegistry.register(concurrencyPlugin);
 BlockRegistry.register(deployPlugin);
+BlockRegistry.register(authPlugin);
 
 export { BlockRegistry };
