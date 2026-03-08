@@ -16,6 +16,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      - run: bun install
+      - run: bun scripts/embed-runtime.js
       - run: bun test
 
   build:
@@ -47,6 +49,8 @@ jobs:
         with:
           bun-version: latest
 
+      - run: bun install
+
       - name: Sync version from tag
         run: |
           TAG="${GITHUB_REF_NAME}"
@@ -60,7 +64,7 @@ jobs:
       - name: Build binary
         run: |
           mkdir -p dist
-          bun build --compile --target=${{ matrix.target }} bin/tova.js --outfile dist/${{ matrix.asset }} --external postgres --external mysql2/promise --external bun:sqlite
+          bun build --compile --target=${{ matrix.target }} bin/tova.js --outfile dist/${{ matrix.asset }} --external postgres --external mysql2/promise --external bun:sqlite --external parquet-wasm --external apache-arrow --external exceljs
 
       - name: Compress binary
         run: gzip -9 -k dist/${{ matrix.asset }}
@@ -97,6 +101,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - run: bun install
 
       - name: Sync version from tag
         run: |
