@@ -32,8 +32,8 @@ describe('Codegen — Variables', () => {
     expect(code).toContain('const [a, b] = [1, 2];');
   });
 
-  test('let destructuring', () => {
-    const code = compileShared('let { name, age } = user');
+  test('destructuring', () => {
+    const code = compileShared('{ name, age } = user');
     expect(code).toContain('const { name, age } = user;');
   });
 

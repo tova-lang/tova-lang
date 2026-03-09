@@ -437,12 +437,12 @@ config = {
 print("Config: {config}")
 
 // Destructuring objects
-let {theme, size, enabled} = config
+{theme, size, enabled} = config
 print("Theme: {theme}")
 print("Size: {size}")
 
 // Destructuring arrays
-let [a, b, c] = [10, 20, 30]
+[a, b, c] = [10, 20, 30]
 print("a={a}, b={b}, c={c}")
 
 // Membership testing

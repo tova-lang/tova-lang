@@ -273,9 +273,9 @@ describe('Lexer — Complex expressions', () => {
     ]);
   });
 
-  test('let destructuring', () => {
-    expect(types('let { name, age } = user')).toEqual([
-      TokenType.LET, TokenType.LBRACE, TokenType.IDENTIFIER,
+  test('destructuring', () => {
+    expect(types('{ name, age } = user')).toEqual([
+      TokenType.LBRACE, TokenType.IDENTIFIER,
       TokenType.COMMA, TokenType.IDENTIFIER, TokenType.RBRACE,
       TokenType.ASSIGN, TokenType.IDENTIFIER,
     ]);

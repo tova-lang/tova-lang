@@ -73,7 +73,7 @@ server {
 
   // Create article with validation
   route POST "/api/articles" body: Article => fn(req) {
-    let { title, body, author } = req.body
+    { title, body, author } = req.body
 
     match validate_article(title, body) {
       Err(msg) => respond(400, { error: msg })
@@ -443,7 +443,7 @@ server {
 
   // Register
   route POST "/api/auth/register" body: RegisterRequest => fn(req) {
-    let { username, email, password } = req.body
+    { username, email, password } = req.body
 
     // Validate
     if not validate_email(email) {
@@ -475,7 +475,7 @@ server {
 
   // Login
   route POST "/api/auth/login" body: LoginRequest => fn(req) {
-    let { email, password } = req.body
+    { email, password } = req.body
 
     users = UserModel.where({ email: email })
     if len(users) == 0 {

@@ -431,8 +431,9 @@ describe('Lexer — Operator edge cases', () => {
     expect(types('::')).toEqual([TokenType.DOUBLE_COLON]);
   });
 
-  test('single & outside JSX throws', () => {
-    expect(lexThrows('a & b')).toThrow(/Unexpected character.*&/);
+  test('single & is valid AMPERSAND token for bitwise AND', () => {
+    const tokens = new Lexer('a & b', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'AMPERSAND')).toBe(true);
   });
 
   test('single | is valid BAR token for union types', () => {
@@ -457,8 +458,10 @@ describe('Lexer — Operator edge cases', () => {
     expect(tokens[0].value).toBe('$foo');
   });
 
-  test('unexpected character ~ throws', () => {
-    expect(lexThrows('~')).toThrow(/Unexpected character/);
+  test('~ is valid TILDE token for bitwise NOT', () => {
+    const tokens = new Lexer('~x', '<test>').tokenize();
+    expect(tokens[0].type).toBe('TILDE');
+    expect(tokens[0].value).toBe('~');
   });
 
   test('unexpected character ` throws', () => {
@@ -891,10 +894,9 @@ describe('Lexer — Complex scenarios', () => {
     expect(toks).toContain(TokenType.PERCENT);
   });
 
-  test('let destructuring with array and object', () => {
-    const src = 'let { a, b } = obj\nlet [x, y] = arr';
+  test('destructuring with array and object', () => {
+    const src = '{ a, b } = obj\n[x, y] = arr';
     const tokens = lex(src);
-    expect(tokens.filter(t => t.type === TokenType.LET).length).toBe(2);
     expect(tokens.filter(t => t.type === TokenType.ASSIGN).length).toBe(2);
   });
 

@@ -36,8 +36,9 @@ describe('Lexer — error paths', () => {
     expect(() => new Lexer('`', '<test>').tokenize()).toThrow();
   });
 
-  test('error on lone & character', () => {
-    expect(() => new Lexer('&', '<test>').tokenize()).toThrow('&&');
+  test('lone & character is valid AMPERSAND token for bitwise AND', () => {
+    const tokens = new Lexer('&', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'AMPERSAND')).toBe(true);
   });
 
   test('lone | character is valid BAR token for union types', () => {
@@ -163,7 +164,7 @@ describe('Lexer — Token constructor', () => {
 describe('Parser — destructuring patterns', () => {
   // Line 620: object pattern with alias (key: alias)
   test('object destructuring with alias', () => {
-    const ast = parse('let { name: n } = user');
+    const ast = parse('{ name: n } = user');
     const d = ast.body[0];
     expect(d.pattern.properties[0].key).toBe('name');
     expect(d.pattern.properties[0].value).toBe('n');
@@ -171,14 +172,14 @@ describe('Parser — destructuring patterns', () => {
 
   // Line 623: object pattern with default value
   test('object destructuring with default value', () => {
-    const ast = parse('let { name = "unknown" } = user');
+    const ast = parse('{ name = "unknown" } = user');
     const d = ast.body[0];
     expect(d.pattern.properties[0].defaultValue).not.toBeNull();
   });
 
   // Lines 641-642: array pattern with skip placeholder _
   test('array destructuring with skip placeholder', () => {
-    const ast = parse('let [a, _, c] = triple');
+    const ast = parse('[a, _, c] = triple');
     const d = ast.body[0];
     expect(d.pattern.elements[0]).toBe('a');
     expect(d.pattern.elements[1]).toBeNull();
@@ -317,14 +318,14 @@ describe('Analyzer — duplicate definitions', () => {
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('duplicate let destructure object errors', () => {
-    const ast = parse('let { a } = x\nlet { a } = y');
+  test('duplicate destructure object errors', () => {
+    const ast = parse('{ a } = x\n{ a } = y');
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).toThrow();
   });
 
-  test('duplicate let destructure array errors', () => {
-    const ast = parse('let [a] = x\nlet [a] = y');
+  test('duplicate destructure array errors', () => {
+    const ast = parse('[a] = x\n[a] = y');
     const analyzer = new Analyzer(ast, '<test>');
     expect(() => analyzer.analyze()).toThrow();
   });

@@ -110,7 +110,7 @@
         },
         {
           "name": "keyword.declaration.tova",
-          "match": "\\b(fn|let|var|type|interface|import|from|export|pub|mut|async|await|derive|impl|trait|defer|yield|extern|with|as)\\b"
+          "match": "\\b(fn|var|type|interface|import|from|export|pub|mut|async|await|derive|impl|trait|defer|yield|extern|with|as)\\b"
         },
         {
           "name": "keyword.block.tova",

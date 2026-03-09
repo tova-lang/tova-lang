@@ -88,7 +88,7 @@ server {
   model User
 
   fn login(req) {
-    let { email, password } = req.body
+    { email, password } = req.body
     user = db.get("SELECT * FROM users WHERE email = ?", email)
 
     guard user != nil else {
@@ -159,7 +159,7 @@ Always store hashed passwords in your database, never plaintext:
 
 ```tova
 fn register(req) {
-  let { name, email, password } = req.body
+  { name, email, password } = req.body
   hashed = hash_password(password)
   user = UserModel.create({ name: name, email: email, password_hash: hashed })
   respond(201, { id: user.id, name: user.name, email: user.email })

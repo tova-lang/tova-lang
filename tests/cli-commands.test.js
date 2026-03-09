@@ -5892,7 +5892,7 @@ type Point {
   test('let destructuring compiles', () => {
     const output = compileTova(`
 items = [1, 2, 3]
-let [first, ...rest] = items
+[first, ...rest] = items
 print(first)
 `);
     expect(output.shared).toContain('first');
@@ -7922,7 +7922,7 @@ greeting = "Hello, {name}!"
   test('compiles array destructuring', () => {
     const output = compileTova(`
 items = [1, 2, 3]
-let [first, second, third] = items
+[first, second, third] = items
 `);
     expect(output.shared).toBeDefined();
   });

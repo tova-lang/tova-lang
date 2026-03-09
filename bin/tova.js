@@ -5520,6 +5520,17 @@ function collectExports(ast, filename) {
       if (node.isPublic) publicExports.add(node.name);
     }
     if (node.type === 'ImplDeclaration') { /* impl doesn't export a name */ }
+    if (node.type === 'ReExportDeclaration') {
+      if (node.specifiers) {
+        // Named re-exports: pub { a, b as c } from "module"
+        for (const spec of node.specifiers) {
+          publicExports.add(spec.exported);
+          allNames.add(spec.exported);
+        }
+      }
+      // Wildcard re-exports: pub * from "module" — can't enumerate statically,
+      // but mark as having re-exports so import validation can allow through
+    }
   }
 
   for (const node of ast.body) {

@@ -112,7 +112,7 @@ This is a fast-paced tour of the Tova language. Tova is a general-purpose langua
 
 ## 1. Variables
 
-Bindings are immutable by default. Use `var` for mutable variables. Destructure objects and arrays with pattern syntax (the `let` keyword is optional).
+Bindings are immutable by default. Use `var` for mutable variables. Destructure objects and arrays directly with pattern syntax.
 
 ```tova
 x = 5                   // immutable
@@ -121,9 +121,6 @@ y += 1                  // OK
 
 { name, age } = user        // destructure an object
 [a, b, c] = items           // destructure an array
-
-// `let` is optional — these are equivalent:
-let { name, age } = user
 ```
 
 <TryInPlayground :code="variablesCode" label="Variables" />

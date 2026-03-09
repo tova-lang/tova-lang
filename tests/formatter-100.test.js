@@ -130,8 +130,8 @@ describe('formatNode', () => {
   });
 
   test('LetDestructure (line 46)', () => {
-    const result = format('let { a, b } = obj');
-    expect(result).toContain('let');
+    const result = format('{ a, b } = obj');
+    expect(result).toContain('{ a, b }');
   });
 
   test('TypeAlias (line 49)', () => {
@@ -597,13 +597,13 @@ describe('formatVarDeclaration', () => {
 
 describe('formatLetDestructure', () => {
   test('object destructure (line 129-131)', () => {
-    const result = format('let { a, b } = obj');
-    expect(result).toContain('let { a, b }');
+    const result = format('{ a, b } = obj');
+    expect(result).toContain('{ a, b }');
   });
 
   test('array destructure', () => {
-    const result = format('let [a, b] = items');
-    expect(result).toContain('let [a, b]');
+    const result = format('[a, b] = items');
+    expect(result).toContain('[a, b]');
   });
 });
 

@@ -662,18 +662,20 @@ score /= 3     // score = score / 3 → 70
 
 These only work with `var` variables (mutable bindings).
 
-## `mut`: An Alias for `var`
+## `mut` Is Not Supported
 
-If you're coming from Rust, you might prefer `mut` over `var` for mutable variables. Tova supports both:
+If you're coming from Rust, you might instinctively reach for `mut`. However, `mut` is a **hard error** in Tova. Use `var` instead:
 
 ```tova
-var counter = 0      // Classic Tova style
-mut counter = 0      // Same thing — Rust-flavored
+// This will NOT compile:
+// mut counter = 0   // Error: 'mut' is not supported in Tova. Use 'var' for mutable variables
 
-counter += 1         // Both work identically
+// Use 'var' instead:
+var counter = 0
+counter += 1
 ```
 
-`mut` and `var` are completely interchangeable. Use whichever reads better to you. Most Tova codebases use `var`, but `mut` is available if your team prefers it.
+Tova chose `var` over `mut` to be familiar to developers coming from JavaScript, TypeScript, and other mainstream languages. If you see a `mut` error, simply replace it with `var`.
 
 ## Membership Testing: `in` and `not in`
 

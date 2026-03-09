@@ -39,7 +39,7 @@ This page lists every reserved keyword in the Tova language in alphabetical orde
 | [`in`](#in) | Membership test; iteration target in for loops |
 | [`interface`](#interface) | Define a structural type contract |
 | [`is`](#is) | Type-checking operator |
-| [`let`](#let) | Destructuring binding |
+| [`let`](#let) | Reserved (hard error — destructure directly without a keyword) |
 | [`loop`](#loop) | Infinite loop |
 | [`match`](#match) | Pattern matching expression |
 | [`mut`](#mut) | Reserved (use `var` instead) |
@@ -574,20 +574,21 @@ interface Printable {
 
 ### `let`
 
-Optional keyword for destructuring binding. Both forms are equivalent:
+Reserved keyword that produces a compile-time **hard error**. Tova does not use `let` — destructure directly without any keyword:
 
 ```tova
-// With let (explicit):
-let { name, email } = user
-let [first, ...rest] = items
+// This will NOT compile:
+// let { name, email } = user   // Error: 'let' is not valid in Tova. For destructuring, use { name, email } = user directly
+// let [first, ...rest] = items // Error: 'let' is not valid in Tova. For destructuring, use [first, ...rest] = items directly
 
-// Without let (shorthand — same result):
+// Destructure directly (no keyword needed):
 { name, email } = user
 [first, ...rest] = items
+(x, y) = point
 ```
 
 ::: warning
-`let` is NOT used for simple variable declarations. Use `x = value` for simple bindings and `var x = value` for mutable variables. The `let` keyword is only for destructuring, and even then it is optional.
+`let` is a hard error in Tova with a helpful message directing you to destructure directly. Use `x = value` for simple bindings, `var x = value` for mutable variables, and `{ a, b } = obj` / `[a, b] = list` / `(a, b) = pair` for destructuring.
 :::
 
 ### `loop`

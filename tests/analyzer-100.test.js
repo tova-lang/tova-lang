@@ -3749,10 +3749,10 @@ describe('_inferPipeType flat_map edge case', () => {
 // 64. LetDestructure
 // ========================================================================
 describe('LetDestructure', () => {
-  test('let array destructuring', () => {
+  test('array destructuring', () => {
     const src = `
 fn main() {
-  let [a, b, c] = [1, 2, 3]
+  [a, b, c] = [1, 2, 3]
   print(a)
 }
 `;
@@ -3760,10 +3760,10 @@ fn main() {
     expect(result).toBeDefined();
   });
 
-  test('let object destructuring', () => {
+  test('object destructuring', () => {
     const src = `
 fn main() {
-  let {name, age} = {name: "Alice", age: 30}
+  {name, age} = {name: "Alice", age: 30}
   print(name)
 }
 `;
@@ -4249,10 +4249,10 @@ fn area(s) {
 // 83. LetDestructure with spread
 // ========================================================================
 describe('LetDestructure with spread', () => {
-  test('let array destructuring with spread', () => {
+  test('array destructuring with spread', () => {
     const src = `
 fn main() {
-  let [first, ...rest] = [1, 2, 3, 4]
+  [first, ...rest] = [1, 2, 3, 4]
   print(first)
   print(rest)
 }
@@ -4782,11 +4782,11 @@ fn main() {
     expect(msgs.some(m => m.includes("x"))).toBe(true);
   });
 
-  test('duplicate let destructure binding', () => {
+  test('duplicate destructure binding', () => {
     const src = `
 fn main() {
-  let [a, b] = [1, 2]
-  let [a, c] = [3, 4]
+  [a, b] = [1, 2]
+  [a, c] = [3, 4]
 }
 `;
     const result = analyzeTolerant(src);
@@ -4848,11 +4848,11 @@ trait Showable {
 // 93. LetDestructure object pattern catch path
 // ========================================================================
 describe('LetDestructure object pattern error', () => {
-  test('duplicate binding in let object pattern', () => {
+  test('duplicate binding in object pattern', () => {
     const src = `
 fn main() {
   x = 1
-  let {x, y} = {x: 1, y: 2}
+  {x, y} = {x: 1, y: 2}
 }
 `;
     const result = analyzeTolerant(src);

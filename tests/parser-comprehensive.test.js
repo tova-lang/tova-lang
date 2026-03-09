@@ -274,21 +274,21 @@ describe('Parser Comprehensive -- Pattern matching edge cases', () => {
 // ============================================================
 
 describe('Parser Comprehensive -- Destructuring errors', () => {
-  test('let with non-pattern token throws', () => {
-    // let expects {, [, or ( after it
-    expect(parseThrows('let x = 10')).toThrow(/Use 'x = value' for binding.*'let' is only for destructuring/);
+  test('let keyword throws helpful error', () => {
+    // let is no longer valid syntax; parser gives a helpful message
+    expect(parseThrows('let x = 10')).toThrow(/'let' is not needed in Tova/);
   });
 
-  test('let destructuring without = throws', () => {
-    expect(parseThrows('let { a, b } obj')).toThrow(/Expected '=' in destructuring/);
+  test('let destructuring throws helpful error', () => {
+    expect(parseThrows('let { a, b } = obj')).toThrow(/'let' is not needed in Tova/);
   });
 
-  test('let array destructuring without = throws', () => {
-    expect(parseThrows('let [a, b] obj')).toThrow(/Expected '=' in destructuring/);
+  test('let array destructuring throws helpful error', () => {
+    expect(parseThrows('let [a, b] = arr')).toThrow(/'let' is not needed in Tova/);
   });
 
   test('object pattern with multiple properties and aliases', () => {
-    const ast = parse('let { a: x, b: y, c: z } = obj');
+    const ast = parse('{ a: x, b: y, c: z } = obj');
     const props = ast.body[0].pattern.properties;
     expect(props.length).toBe(3);
     expect(props[0].key).toBe('a');
@@ -300,7 +300,7 @@ describe('Parser Comprehensive -- Destructuring errors', () => {
   });
 
   test('object pattern with mixed defaults and aliases', () => {
-    const ast = parse('let { a = 1, b: y = 2, c } = obj');
+    const ast = parse('{ a = 1, b: y = 2, c } = obj');
     const props = ast.body[0].pattern.properties;
     expect(props[0].key).toBe('a');
     expect(props[0].value).toBe('a');
@@ -313,13 +313,13 @@ describe('Parser Comprehensive -- Destructuring errors', () => {
   });
 
   test('array pattern with many elements', () => {
-    const ast = parse('let [a, b, c, d, e] = arr');
+    const ast = parse('[a, b, c, d, e] = arr');
     expect(ast.body[0].pattern.elements.length).toBe(5);
     expect(ast.body[0].pattern.elements[4]).toBe('e');
   });
 
   test('array pattern with multiple wildcards', () => {
-    const ast = parse('let [_, _, c] = arr');
+    const ast = parse('[_, _, c] = arr');
     expect(ast.body[0].pattern.elements[0]).toBeNull();
     expect(ast.body[0].pattern.elements[1]).toBeNull();
     expect(ast.body[0].pattern.elements[2]).toBe('c');

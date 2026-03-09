@@ -728,6 +728,17 @@ const TokenType = {
   MINUS_ASSIGN: 'MINUS_ASSIGN', // -=
   STAR_ASSIGN: 'STAR_ASSIGN', // *=
   SLASH_ASSIGN: 'SLASH_ASSIGN', // /=
+  AMPERSAND: 'AMPERSAND',       // &
+  CARET: 'CARET',               // ^
+  TILDE: 'TILDE',               // ~
+  LEFT_SHIFT: 'LEFT_SHIFT',     // <<
+  RIGHT_SHIFT: 'RIGHT_SHIFT',   // >>
+  UNSIGNED_RIGHT_SHIFT: 'UNSIGNED_RIGHT_SHIFT', // >>>
+  BIT_AND_ASSIGN: 'BIT_AND_ASSIGN', // &=
+  BIT_OR_ASSIGN: 'BIT_OR_ASSIGN',   // |=
+  BIT_XOR_ASSIGN: 'BIT_XOR_ASSIGN', // ^=
+  LEFT_SHIFT_ASSIGN: 'LEFT_SHIFT_ASSIGN',   // <<=
+  RIGHT_SHIFT_ASSIGN: 'RIGHT_SHIFT_ASSIGN', // >>=
 
   // Delimiters
   LPAREN: 'LPAREN',           // (
@@ -920,7 +931,7 @@ class Lexer {
   }
 
   isAlpha(ch) {
-    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_') return true;
+    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || ch === '$') return true;
     // Unicode letter support
     if (ch > '\x7f') return Lexer.UNICODE_LETTER_RE.test(ch);
     return false;
@@ -1698,7 +1709,7 @@ class Lexer {
     // Fast path: scan ASCII identifier using index advancement (no string concat)
     while (this.pos < this.length) {
       const ch = this.source[this.pos];
-      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || (ch >= '0' && ch <= '9')) {
+      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || ch === '$' || (ch >= '0' && ch <= '9')) {
         this.pos++;
         this.column++;
       } else if (ch > '\x7f' && Lexer.UNICODE_ALPHANUM_RE.test(ch)) {
@@ -1923,6 +1934,20 @@ class Lexer {
         break;
 
       case '<':
+        if (this.peek() === '<') {
+          // Left shift: << or <<=
+          // Only treat as shift if previous token produces a value (avoids `< <JSXTag>`)
+          const prevTok = this.tokens.length > 0 ? this.tokens[this.tokens.length - 1] : null;
+          if (prevTok && Lexer.VALUE_TOKEN_TYPES.has(prevTok.type)) {
+            this.advance(); // consume second <
+            if (this.match('=')) {
+              this.tokens.push(new Token(TokenType.LEFT_SHIFT_ASSIGN, '<<=', startLine, startCol));
+            } else {
+              this.tokens.push(new Token(TokenType.LEFT_SHIFT, '<<', startLine, startCol));
+            }
+            break;
+          }
+        }
         if (this.match('=')) {
           this.tokens.push(new Token(TokenType.LESS_EQUAL, '<=', startLine, startCol));
         } else {
@@ -1974,12 +1999,13 @@ class Lexer {
       case '&':
         if (this.match('&')) {
           this.tokens.push(new Token(TokenType.AND_AND, '&&', startLine, startCol));
+        } else if (this.match('=')) {
+          this.tokens.push(new Token(TokenType.BIT_AND_ASSIGN, '&=', startLine, startCol));
         } else if (this._jsxStack.length > 0) {
-          // Inside JSX, & is valid text - should not reach here normally
-          // but handle gracefully by treating as text
+          // Inside JSX, & is valid text
           this.tokens.push(new Token(TokenType.JSX_TEXT, '&', startLine, startCol));
         } else {
-          this.error(`Unexpected character: '&'. Did you mean '&&'?`);
+          this.tokens.push(new Token(TokenType.AMPERSAND, '&', startLine, startCol));
         }
         break;
 
@@ -1988,6 +2014,8 @@ class Lexer {
           this.tokens.push(new Token(TokenType.PIPE, '|>', startLine, startCol));
         } else if (this.match('|')) {
           this.tokens.push(new Token(TokenType.OR_OR, '||', startLine, startCol));
+        } else if (this.match('=')) {
+          this.tokens.push(new Token(TokenType.BIT_OR_ASSIGN, '|=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.BAR, '|', startLine, startCol));
         }
@@ -2027,6 +2055,18 @@ class Lexer {
 
       case '@':
         this.tokens.push(new Token(TokenType.AT, '@', startLine, startCol));
+        break;
+
+      case '^':
+        if (this.match('=')) {
+          this.tokens.push(new Token(TokenType.BIT_XOR_ASSIGN, '^=', startLine, startCol));
+        } else {
+          this.tokens.push(new Token(TokenType.CARET, '^', startLine, startCol));
+        }
+        break;
+
+      case '~':
+        this.tokens.push(new Token(TokenType.TILDE, '~', startLine, startCol));
         break;
 
       default:
@@ -2605,6 +2645,26 @@ class ImportWildcard {
     this.type = 'ImportWildcard';
     this.local = local;    // namespace binding name
     this.source = source;
+    this.loc = loc;
+  }
+}
+
+// Re-export: pub { a, b as c } from "module"
+class ReExportDeclaration {
+  constructor(specifiers, source, loc) {
+    this.type = 'ReExportDeclaration';
+    this.specifiers = specifiers; // [{imported, exported}] or null for wildcard
+    this.source = source;         // module path string
+    this.loc = loc;
+  }
+}
+
+// Re-export specifier: individual name in pub { a, b as c } from "module"
+class ReExportSpecifier {
+  constructor(imported, exported, loc) {
+    this.type = 'ReExportSpecifier';
+    this.imported = imported;  // original name
+    this.exported = exported;  // re-exported name (same as imported if no alias)
     this.loc = loc;
   }
 }
@@ -3765,7 +3825,7 @@ class AuthProtectedRoute {
 
 // AST namespace shim for parser.js compatibility
 
-const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, AuthBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, FontDeclaration, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase, DeployBlock, DeployConfigField, DeployEnvBlock, DeployDbBlock, ThemeBlock, ThemeSection, ThemeToken, AuthConfigField, AuthProviderDeclaration, AuthHookDeclaration, AuthProtectedRoute };
+const AST = { Program, ServerBlock, BrowserBlock, SharedBlock, SecurityBlock, CliBlock, EdgeBlock, AuthBlock, ConcurrentBlock, Assignment, VarDeclaration, LetDestructure, FunctionDeclaration, Parameter, TypeDeclaration, TypeVariant, TypeField, ImportDeclaration, ImportSpecifier, ImportDefault, ImportWildcard, ReExportDeclaration, ReExportSpecifier, BlockStatement, ReturnStatement, IfStatement, ForStatement, WhileStatement, LoopStatement, IfExpression, TryCatchStatement, BreakStatement, ContinueStatement, GuardStatement, ExpressionStatement, Identifier, NumberLiteral, StringLiteral, TemplateLiteral, BooleanLiteral, NilLiteral, RegexLiteral, ArrayLiteral, ObjectLiteral, BinaryExpression, UnaryExpression, ChainedComparison, LogicalExpression, CallExpression, NamedArgument, MemberExpression, OptionalChain, PipeExpression, LambdaExpression, MatchExpression, MatchArm, RangeExpression, SliceExpression, SpreadExpression, PropagateExpression, ListComprehension, DictComprehension, IsExpression, MembershipExpression, CompoundAssignment, AwaitExpression, InterfaceDeclaration, StringConcatPattern, ObjectPattern, ArrayPattern, WildcardPattern, LiteralPattern, VariantPattern, BindingPattern, RangePattern, TestBlock, BenchBlock, ExternDeclaration, TypeAnnotation, ArrayTypeAnnotation, FunctionTypeAnnotation, UnionTypeAnnotation, ImplDeclaration, TraitDeclaration, TypeAlias, WithStatement, DeferStatement, YieldExpression, TupleExpression, TuplePattern, TupleTypeAnnotation, ColumnExpression, ColumnAssignment, NegatedColumnExpression, DataBlock, SourceDeclaration, PipelineDeclaration, ValidateBlock, RefreshPolicy, RefinementType, StateDeclaration, ComputedDeclaration, EffectDeclaration, ComponentDeclaration, ComponentStyleBlock, StoreDeclaration, JSXElement, JSXAttribute, JSXSpreadAttribute, JSXFragment, JSXText, JSXExpression, JSXFor, JSXIf, JSXMatch, FontDeclaration, RouteDeclaration, MiddlewareDeclaration, HealthCheckDeclaration, CorsDeclaration, ErrorHandlerDeclaration, WebSocketDeclaration, StaticDeclaration, DiscoverDeclaration, AuthDeclaration, MaxBodyDeclaration, RouteGroupDeclaration, RateLimitDeclaration, LifecycleHookDeclaration, SubscribeDeclaration, EnvDeclaration, ScheduleDeclaration, UploadDeclaration, SessionDeclaration, DbDeclaration, TlsDeclaration, CompressionDeclaration, BackgroundJobDeclaration, CacheDeclaration, SseDeclaration, ModelDeclaration, AiConfigDeclaration, SecurityAuthDeclaration, SecurityRoleDeclaration, SecurityProtectDeclaration, SecuritySensitiveDeclaration, SecurityCorsDeclaration, SecurityCspDeclaration, SecurityRateLimitDeclaration, SecurityCsrfDeclaration, SecurityAuditDeclaration, SecurityTrustProxyDeclaration, SecurityHstsDeclaration, CliConfigField, CliCommandDeclaration, CliParam, EdgeConfigField, EdgeKVDeclaration, EdgeSQLDeclaration, EdgeStorageDeclaration, EdgeQueueDeclaration, EdgeEnvDeclaration, EdgeSecretDeclaration, EdgeScheduleDeclaration, EdgeConsumeDeclaration, FormDeclaration, FormFieldDeclaration, FormGroupDeclaration, FormArrayDeclaration, FormValidator, FormStepsDeclaration, FormStep, SpawnExpression, SelectStatement, SelectCase, DeployBlock, DeployConfigField, DeployEnvBlock, DeployDbBlock, ThemeBlock, ThemeSection, ThemeToken, AuthConfigField, AuthProviderDeclaration, AuthHookDeclaration, AuthProtectedRoute };
 
 // ─── src/diagnostics/error-codes.js ────────────────────
 
@@ -7527,7 +7587,7 @@ class Parser {
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
     if (this.check(TokenType.MUT)) this.error("'mut' is not supported in Tova. Use 'var' for mutable variables");
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
-    if (this.check(TokenType.LET)) return this.parseLetDestructure();
+    if (this.check(TokenType.LET)) this.error("'let' is not needed in Tova. Destructure directly: {a, b} = obj, [a, b] = list, or (a, b) = pair");
     if (this.check(TokenType.IF)) return this.parseIfStatement();
     if (this.check(TokenType.FOR)) return this.parseForStatement();
     if (this.check(TokenType.WHILE)) return this.parseWhileStatement();
@@ -7567,6 +7627,13 @@ class Parser {
     if (this.check(TokenType.PUB)) {
       this.error("Duplicate 'pub' modifier");
     }
+    // Re-export: pub { a, b } from "module" or pub * from "module"
+    if (this.check(TokenType.STAR) && this.peek(1).type === TokenType.FROM) {
+      return this.parseReExport(l);
+    }
+    if (this.check(TokenType.LBRACE) && this._looksLikeReExport()) {
+      return this.parseReExport(l);
+    }
     // Handle pub component at top level (parseComponent is installed by browser-parser plugin)
     if (this.check(TokenType.COMPONENT) && typeof this.parseComponent === 'function') {
       const comp = this.parseComponent();
@@ -7576,6 +7643,61 @@ class Parser {
     const stmt = this.parseStatement();
     if (stmt) stmt.isPublic = true;
     return stmt;
+  }
+
+  // Check if pub { ... } is a re-export (identifiers with optional aliases, then } from "...")
+  _looksLikeReExport() {
+    let i = 1; // start after {
+    while (true) {
+      const tok = this.peek(i);
+      if (!tok || tok.type === TokenType.EOF) return false;
+      if (tok.type === TokenType.RBRACE) {
+        // After }, must see FROM
+        const after = this.peek(i + 1);
+        return after && after.type === TokenType.FROM;
+      }
+      // Inside: expect IDENTIFIER, optionally AS IDENTIFIER, then COMMA or RBRACE
+      if (tok.type !== TokenType.IDENTIFIER) return false;
+      i++;
+      const next = this.peek(i);
+      if (next && next.type === TokenType.AS) {
+        i++; // skip as
+        i++; // skip alias identifier
+      }
+      const afterId = this.peek(i);
+      if (!afterId) return false;
+      if (afterId.type === TokenType.COMMA) { i++; continue; }
+      if (afterId.type === TokenType.RBRACE) continue;
+      return false;
+    }
+  }
+
+  parseReExport(l) {
+    if (this.match(TokenType.STAR)) {
+      // pub * from "module"
+      this.expect(TokenType.FROM, "Expected 'from' after 'pub *'");
+      const source = this.expect(TokenType.STRING, "Expected module path string").value;
+      return new AST.ReExportDeclaration(null, source, l);
+    }
+    // pub { a, b as c } from "module"
+    this.expect(TokenType.LBRACE);
+    const specifiers = [];
+    while (!this.check(TokenType.RBRACE)) {
+      const specL = this.loc();
+      const imported = this.expect(TokenType.IDENTIFIER, "Expected export name").value;
+      let exported = imported;
+      if (this.match(TokenType.AS)) {
+        exported = this.expect(TokenType.IDENTIFIER, "Expected alias name after 'as'").value;
+      }
+      specifiers.push(new AST.ReExportSpecifier(imported, exported, specL));
+      if (!this.check(TokenType.RBRACE)) {
+        this.expect(TokenType.COMMA, "Expected ',' or '}' in re-export list");
+      }
+    }
+    this.expect(TokenType.RBRACE);
+    this.expect(TokenType.FROM, "Expected 'from' after re-export specifiers");
+    const source = this.expect(TokenType.STRING, "Expected module path string").value;
+    return new AST.ReExportDeclaration(specifiers, source, l);
   }
 
   parseImplDeclaration() {
@@ -8463,23 +8585,56 @@ class Parser {
       }
       // Destructuring without let: {name, age} = user  or  [a, b] = list
       if (expr.type === 'ObjectLiteral') {
-        const pattern = new AST.ObjectPattern(
-          expr.properties.map(p => {
-            const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
-            // For shorthand {name}, key and value are the same
-            // For rename {name: alias}, value is the alias identifier
-            const val = p.shorthand ? key
-              : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
-            return { key, value: val };
-          }),
-          expr.loc
-        );
+        let pattern;
+        if (expr._isDestructurePattern) {
+          // Already parsed as a destructuring pattern with defaults
+          pattern = new AST.ObjectPattern(
+            expr.properties.map(p => {
+              const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
+              const val = p.shorthand ? key
+                : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
+              return { key, value: val, defaultValue: p.defaultValue || null };
+            }),
+            expr.loc
+          );
+        } else {
+          pattern = new AST.ObjectPattern(
+            expr.properties.map(p => {
+              const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
+              let val, defaultValue = p.defaultValue || null;
+              if (p.shorthand) {
+                // Shorthand with default: { x = 10 } — either via _parseObjectProperty defaultValue or Assignment
+                if (!defaultValue && p.value && p.value.type === 'Assignment' && p.value.targets) {
+                  val = key;
+                  defaultValue = p.value.values[0];
+                } else {
+                  val = key;
+                }
+              } else {
+                // Non-shorthand: { x: y } or { x: y = 10 }
+                if (!defaultValue && p.value && p.value.type === 'Assignment' && p.value.targets) {
+                  // { x: y = 10 } — value parsed as Assignment(y, 10)
+                  val = p.value.targets[0];
+                  if (typeof val !== 'string' && val.name) val = val.name;
+                  defaultValue = p.value.values[0];
+                } else if (p.value && p.value.type === 'Identifier') {
+                  val = p.value.name;
+                } else {
+                  val = key;
+                }
+              }
+              return { key, value: val, defaultValue };
+            }),
+            expr.loc
+          );
+        }
         const value = this.parseExpression();
         return new AST.LetDestructure(pattern, value, l);
       }
       if (expr.type === 'ArrayLiteral') {
         const pattern = new AST.ArrayPattern(
           expr.elements.map(e => {
+            if (e.type === 'Identifier' && e.name === '_') return null;
             if (e.type === 'Identifier') return e.name;
             if (e.type === 'SpreadExpression' && e.argument && e.argument.type === 'Identifier') {
               return '...' + e.argument.name;
@@ -8491,11 +8646,24 @@ class Parser {
         const value = this.parseExpression();
         return new AST.LetDestructure(pattern, value, l);
       }
+      // Tuple destructuring without let: (a, b) = expr
+      if (expr.type === 'TupleExpression') {
+        const pattern = new AST.TuplePattern(
+          expr.elements.map(e => {
+            if (e.type === 'Identifier') return e.name;
+            return '_';
+          }),
+          expr.loc
+        );
+        const value = this.parseExpression();
+        return new AST.LetDestructure(pattern, value, l);
+      }
       this.error("Invalid assignment target");
     }
 
-    // Compound assignment: x += expr
-    const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN);
+    // Compound assignment: x += expr, x &= expr, etc.
+    const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
+      TokenType.BIT_AND_ASSIGN, TokenType.BIT_OR_ASSIGN, TokenType.BIT_XOR_ASSIGN, TokenType.LEFT_SHIFT_ASSIGN, TokenType.RIGHT_SHIFT_ASSIGN);
     if (compoundOp) {
       if (expr.type !== 'Identifier' && expr.type !== 'MemberExpression') {
         this.error("Invalid compound assignment target");
@@ -8620,7 +8788,46 @@ class Parser {
       const operand = this.parseNot();
       return new AST.UnaryExpression('not', operand, true, l);
     }
-    return this.parseComparison();
+    if (this.match(TokenType.TILDE)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const operand = this.parseNot();
+      return new AST.UnaryExpression('~', operand, true, l);
+    }
+    return this.parseBitwiseOr();
+  }
+
+  parseBitwiseOr() {
+    let left = this.parseBitwiseXor();
+    while (this.match(TokenType.BAR)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const right = this.parseBitwiseXor();
+      left = new AST.BinaryExpression('|', left, right, l);
+    }
+    return left;
+  }
+
+  parseBitwiseXor() {
+    let left = this.parseBitwiseAnd();
+    while (this.match(TokenType.CARET)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const right = this.parseBitwiseAnd();
+      left = new AST.BinaryExpression('^', left, right, l);
+    }
+    return left;
+  }
+
+  parseBitwiseAnd() {
+    let left = this.parseComparison();
+    while (this.match(TokenType.AMPERSAND)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const right = this.parseComparison();
+      left = new AST.BinaryExpression('&', left, right, l);
+    }
+    return left;
   }
 
   parseComparison() {
@@ -8687,21 +8894,48 @@ class Parser {
   }
 
   parseRange() {
-    let left = this.parseAddition();
+    let left = this.parseShift();
 
     if (this.check(TokenType.DOT_DOT_EQUAL)) {
       const l = this.loc();
       this.advance();
-      const right = this.parseAddition();
+      const right = this.parseShift();
       return new AST.RangeExpression(left, right, true, l);
     }
     if (this.check(TokenType.DOT_DOT)) {
       const l = this.loc();
       this.advance();
-      const right = this.parseAddition();
+      const right = this.parseShift();
       return new AST.RangeExpression(left, right, false, l);
     }
 
+    return left;
+  }
+
+  parseShift() {
+    let left = this.parseAddition();
+    while (true) {
+      const l = this.loc();
+      if (this.match(TokenType.LEFT_SHIFT)) {
+        const right = this.parseAddition();
+        left = new AST.BinaryExpression('<<', left, right, l);
+      } else if (this.check(TokenType.GREATER) && this.peek(1).type === TokenType.GREATER) {
+        // >> or >>> — consume consecutive > tokens in expression context
+        const firstGt = this.advance(); // consume first >
+        if (this.check(TokenType.GREATER) && this.peek(1).type === TokenType.GREATER) {
+          this.advance(); // consume second >
+          this.advance(); // consume third > (completing >>>)
+          const right = this.parseAddition();
+          left = new AST.BinaryExpression('>>>', left, right, { line: firstGt.line, column: firstGt.column, file: this.filename });
+        } else {
+          this.advance(); // consume second > (completing >>)
+          const right = this.parseAddition();
+          left = new AST.BinaryExpression('>>', left, right, { line: firstGt.line, column: firstGt.column, file: this.filename });
+        }
+      } else {
+        break;
+      }
+    }
     return left;
   }
 
@@ -9072,7 +9306,8 @@ class Parser {
     } else {
       // Parse expression, then check for compound/simple assignment
       const expr = this.parseExpression();
-      const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN);
+      const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
+        TokenType.BIT_AND_ASSIGN, TokenType.BIT_OR_ASSIGN, TokenType.BIT_XOR_ASSIGN, TokenType.LEFT_SHIFT_ASSIGN, TokenType.RIGHT_SHIFT_ASSIGN);
       if (compoundOp) {
         const value = this.parseExpression();
         body = new AST.CompoundAssignment(expr, compoundOp.value, value, l);
@@ -9315,6 +9550,23 @@ class Parser {
       const argument = this.parseUnary();
       return { spread: true, argument };
     }
+    // Destructuring shorthand with default: x = 10
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.ASSIGN) {
+      const key = { type: 'Identifier', name: this.advance().value };
+      this.advance(); // consume =
+      const defaultValue = this.parseExpression();
+      return { key, value: key, shorthand: true, defaultValue };
+    }
+    // Destructuring alias with default: key: alias = expr
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.COLON
+        && this.peek(2).type === TokenType.IDENTIFIER && this.peek(3).type === TokenType.ASSIGN) {
+      const key = { type: 'Identifier', name: this.advance().value };
+      this.advance(); // consume :
+      const alias = { type: 'Identifier', name: this.advance().value };
+      this.advance(); // consume =
+      const defaultValue = this.parseExpression();
+      return { key, value: alias, shorthand: false, defaultValue };
+    }
     const key = this.parseExpression();
     if (this.match(TokenType.COLON)) {
       const value = this.parseExpression();
@@ -9344,6 +9596,17 @@ class Parser {
       }
       this.expect(TokenType.RBRACE, "Expected '}'");
       return new AST.ObjectLiteral(properties, l);
+    }
+
+    // Detect destructuring pattern: { x = val } or { x: y = val }
+    // When IDENTIFIER is followed by ASSIGN, this is a destructuring default, not an object literal
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.ASSIGN) {
+      return this._parseObjectPatternAsLiteral(l);
+    }
+    // { x: y = val } — identifier, colon, identifier, assign — destructuring with alias+default
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.COLON
+        && this.peek(2).type === TokenType.IDENTIFIER && this.peek(3).type === TokenType.ASSIGN) {
+      return this._parseObjectPatternAsLiteral(l);
     }
 
     // Try to parse first key: value pair
@@ -9393,6 +9656,42 @@ class Parser {
     }
 
     this.error("Invalid object literal");
+  }
+
+  // Parse object destructuring pattern as an ObjectLiteral-like node for later conversion
+  // Handles: { a = 1, b: y = 2, c } patterns with defaults
+  // Note: the opening { has already been consumed by parseObjectOrDictComprehension
+  _parseObjectPatternAsLiteral(l) {
+    const properties = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected property name").value;
+      let valueName = key;
+      let defaultValue = null;
+
+      if (this.match(TokenType.COLON)) {
+        valueName = this.expect(TokenType.IDENTIFIER, "Expected alias name").value;
+      }
+      if (this.match(TokenType.ASSIGN)) {
+        defaultValue = this.parseExpression();
+      }
+
+      properties.push({
+        key: { type: 'Identifier', name: key },
+        value: { type: 'Identifier', name: valueName },
+        shorthand: key === valueName,
+        defaultValue: defaultValue
+      });
+      if (!this.match(TokenType.COMMA)) break;
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' in object pattern");
+    return {
+      type: 'ObjectLiteral',
+      properties,
+      loc: l,
+      _isDestructurePattern: true
+    };
   }
 
   parseParenOrArrowLambda() {
@@ -10829,6 +11128,24 @@ function installBrowserAnalyzer(AnalyzerClass) {
           this._preRegisterBrowserDecls(topNode.body);
         }
       }
+      // Pre-register auth-injected signals and functions when an AuthBlock exists
+      const hasAuthBlock = this.ast.body.some(n => n.type === 'AuthBlock');
+      if (hasAuthBlock) {
+        for (const name of ['$currentUser', '$isAuthenticated', '$authLoading']) {
+          if (!this.currentScope.symbols.has(name)) {
+            const sym = new Symbol(name, 'state', null, true, null);
+            sym._forward = true;
+            try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+          }
+        }
+        for (const name of ['logout', 'LoginForm', 'SignupForm', 'ForgotPasswordForm', 'ResetPasswordForm', 'AuthGuard']) {
+          if (!this.currentScope.symbols.has(name)) {
+            const sym = new Symbol(name, 'function', null, false, null);
+            sym._forward = true;
+            try { this.currentScope.define(name, sym); } catch (e) { /* ignore */ }
+          }
+        }
+      }
     }
 
     try {
@@ -11074,6 +11391,7 @@ function installBrowserAnalyzer(AnalyzerClass) {
 
 // Pre-allocated constants for hot-path type checking (avoid per-call allocation)
 const ARITHMETIC_OPS = new Set(['-', '*', '/', '%', '**']);
+const BITWISE_OPS = new Set(['&', '|', '^', '<<', '>>', '>>>']);
 const NUMERIC_TYPES = new Set(['Int', 'Float']);
 
 const _JS_GLOBALS = new Set([
@@ -11591,11 +11909,13 @@ class Analyzer {
           if (lt === 'String' || rt === 'String') return 'String';
           return 'Int';
         }
+        if (BITWISE_OPS.has(expr.operator)) return 'Int';
         if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) return 'Bool';
         return null;
       case 'UnaryExpression':
         if (expr.operator === 'not' || expr.operator === '!') return 'Bool';
         if (expr.operator === '-') return this._inferType(expr.operand);
+        if (expr.operator === '~') return 'Int';
         return null;
       case 'LogicalExpression':
         return 'Bool';
@@ -11832,6 +12152,7 @@ class Analyzer {
       case 'ImportDeclaration': return this.visitImportDeclaration(node);
       case 'ImportDefault': return this.visitImportDefault(node);
       case 'ImportWildcard': return this.visitImportWildcard(node);
+      case 'ReExportDeclaration': return; // re-exports don't define local symbols
       case 'IfStatement': return this.visitIfStatement(node);
       case 'ForStatement': return this.visitForStatement(node);
       case 'WhileStatement': return this.visitWhileStatement(node);
@@ -11941,6 +12262,22 @@ class Analyzer {
         // Argument count and type validation for known functions
         this._checkCallArgCount(node);
         this._checkCallArgTypes(node);
+        // W_UNSAFE_UNWRAP: detect .unwrap() and .expect() on Result/Option
+        if (node.callee.type === 'MemberExpression' && !node.callee.computed) {
+          const methodName = node.callee.property;
+          if (methodName === 'unwrap' || methodName === 'expect') {
+            const objType = this._inferType(node.callee.object);
+            if (objType && (objType.startsWith('Result') || objType.startsWith('Option') ||
+                objType === 'Result' || objType === 'Option')) {
+              this.warn(
+                `Unsafe ${methodName}() call on ${objType} — will panic if value is ${objType.startsWith('Result') ? 'Err' : 'None'}`,
+                node.loc,
+                'consider using unwrapOr(default) or match for safe error handling',
+                { code: 'W_UNSAFE_UNWRAP' }
+              );
+            }
+          }
+        }
         // W_UNSAFE_INTERPOLATION: detect template literals in database calls
         if (node.callee.type === 'MemberExpression' && !node.callee.computed) {
           const prop = node.callee.property;
@@ -11970,6 +12307,49 @@ class Analyzer {
       case 'OptionalChain':
         this.visitExpression(node.object);
         if (node.computed) this.visitExpression(node.property);
+        // Type-aware checks (only for non-computed property access)
+        if (!node.computed && typeof node.property === 'string') {
+          const objType = this._inferType(node.object);
+          if (objType) {
+            // W_NULL_ACCESS: property access on nil
+            if (objType === 'Nil' && node.type !== 'OptionalChain') {
+              this.warn(
+                `Accessing property '${node.property}' on nil value`,
+                node.loc,
+                'this will always fail at runtime',
+                { code: 'W_NULL_ACCESS' }
+              );
+            }
+            // W_NULL_ACCESS: property access on Option without optional chaining
+            else if ((objType === 'Option' || objType.startsWith('Option<')) && node.type !== 'OptionalChain') {
+              this.warn(
+                `Option value may be None — use '?.' or unwrap before accessing '${node.property}'`,
+                node.loc,
+                'consider using ?. for safe access or unwrapOr(default)',
+                { code: 'W_NULL_ACCESS' }
+              );
+            }
+            // W_UNKNOWN_FIELD: access unknown field on user-defined type
+            else {
+              const BUILTIN_TYPES = new Set(['String', 'Int', 'Float', 'Bool', 'Array', 'Result', 'Option', 'Map', 'Set', 'Nil', 'Any']);
+              const baseType = objType.includes('<') ? objType.slice(0, objType.indexOf('<')) : objType;
+              if (!BUILTIN_TYPES.has(baseType) && !objType.startsWith('[') && !objType.startsWith('(')) {
+                const typeStructure = this.typeRegistry.types.get(objType);
+                if (typeStructure instanceof ADTType) {
+                  const fieldType = typeStructure.getFieldType(node.property);
+                  if (!fieldType) {
+                    this.warn(
+                      `Type '${objType}' has no field '${node.property}'`,
+                      node.loc,
+                      `available fields: ${[...new Set([...typeStructure.variants.values()].flatMap(v => [...v.keys()]))].join(', ') || 'none'}`,
+                      { code: 'W_UNKNOWN_FIELD' }
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
         return;
       case 'PipeExpression':
         this.visitExpression(node.left);
@@ -11981,6 +12361,23 @@ class Analyzer {
         return this.visitMatchExpression(node);
       case 'ArrayLiteral':
         for (const el of node.elements) this.visitExpression(el);
+        if (node.elements.length > 1) {
+          const firstType = this._inferType(node.elements[0]);
+          if (firstType && firstType !== 'Any') {
+            for (let i = 1; i < node.elements.length; i++) {
+              const elType = this._inferType(node.elements[i]);
+              if (elType && elType !== 'Any' && !this._typesCompatible(firstType, elType)) {
+                this.warn(
+                  `Array contains mixed types: expected [${firstType}] but found ${elType} at index ${i}`,
+                  node.elements[i].loc || node.loc,
+                  `ensure all elements are ${firstType}`,
+                  { code: 'W209' }
+                );
+                break;
+              }
+            }
+          }
+        }
         return;
       case 'ObjectLiteral':
         for (const prop of node.properties) {
@@ -12739,6 +13136,11 @@ class Analyzer {
     let rateLimitDecl = null;
     let csrfDecl = null;
 
+    // Check for top-level AuthBlock (independent auth block, not security sub-block)
+    for (const node of this.ast.body) {
+      if (node.type === 'AuthBlock') { hasAuth = true; authDecl = node; break; }
+    }
+
     const roleDecls = []; // track all role declarations for cross-block duplicate detection
     for (const node of this.ast.body) {
       if (node.type !== 'SecurityBlock') continue;
@@ -12799,7 +13201,8 @@ class Analyzer {
     }
 
     // Fix 2: W_HARDCODED_SECRET — warn if auth secret is a string literal
-    if (authDecl && authDecl.config.secret) {
+    // Only check SecurityAuthDeclaration (which has .config), not top-level AuthBlock
+    if (authDecl && authDecl.config && authDecl.config.secret) {
       const secretNode = authDecl.config.secret;
       if (secretNode.type === 'StringLiteral') {
         this.warnings.push({
@@ -12872,7 +13275,7 @@ class Analyzer {
     }
 
     // W_LOCALSTORAGE_TOKEN — warn when auth uses default localStorage storage (XSS-vulnerable)
-    if (authDecl && authDecl.authType === 'jwt') {
+    if (authDecl && authDecl.authType === 'jwt' && authDecl.config) {
       const storageNode = authDecl.config.storage;
       const isCookieAuth = storageNode && storageNode.type === 'StringLiteral' && storageNode.value === 'cookie';
       if (!isCookieAuth) {
@@ -12981,11 +13384,119 @@ class Analyzer {
   }
 
   visitAuthBlock(node) {
-    // Will be implemented in Task 4
+    const validHookEvents = new Set(['signup', 'login', 'logout', 'oauth_link']);
+    const providerTypes = new Set();
+    let hasProvider = false;
+
+    for (const stmt of node.body) {
+      if (stmt.type === 'AuthConfigField') {
+        if (stmt.key === 'secret' && stmt.value.type === 'StringLiteral') {
+          this.warnings.push({
+            message: 'Auth secret should use env() — hardcoded secrets are insecure',
+            loc: stmt.loc, code: 'W_AUTH_HARDCODED_SECRET', category: 'auth',
+          });
+        }
+        if (stmt.key === 'token_expires' && stmt.value.type === 'NumberLiteral' && stmt.value.value < 300) {
+          this.warnings.push({
+            message: 'Access token expires too quickly (< 5 minutes) — may cause frequent logouts',
+            loc: stmt.loc, code: 'W_AUTH_SHORT_TOKEN', category: 'auth',
+          });
+        }
+        if (stmt.key === 'refresh_expires' && stmt.value.type === 'NumberLiteral' && stmt.value.value > 2592000) {
+          this.warnings.push({
+            message: 'Refresh token lives longer than 30 days — consider shorter lifetime',
+            loc: stmt.loc, code: 'W_AUTH_LONG_REFRESH', category: 'auth',
+          });
+        }
+        if (stmt.key === 'storage' && stmt.value.type === 'StringLiteral' && stmt.value.value === 'local') {
+          this.warnings.push({
+            message: 'localStorage tokens are vulnerable to XSS — prefer storage: "cookie"',
+            loc: stmt.loc, code: 'W_AUTH_LOCAL_STORAGE', category: 'auth',
+          });
+        }
+      }
+
+      if (stmt.type === 'AuthProviderDeclaration') {
+        hasProvider = true;
+        const key = stmt.providerType + (stmt.name ? ':' + stmt.name : '');
+        if (providerTypes.has(key)) {
+          this.warnings.push({
+            message: `Duplicate auth provider '${key}'`,
+            loc: stmt.loc, code: 'W_AUTH_DUPLICATE_PROVIDER', category: 'auth',
+          });
+        }
+        providerTypes.add(key);
+
+        if (stmt.providerType === 'email') {
+          if (!stmt.config.confirm_email) {
+            this.warnings.push({
+              message: 'Email provider without confirm_email — consider requiring email verification',
+              loc: stmt.loc, code: 'W_AUTH_NO_CONFIRM', category: 'auth',
+            });
+          }
+          if (stmt.config.password_min && stmt.config.password_min.type === 'NumberLiteral' && stmt.config.password_min.value < 8) {
+            this.warnings.push({
+              message: 'Minimum password length less than 8 — weak passwords allowed',
+              loc: stmt.loc, code: 'W_AUTH_WEAK_PASSWORD', category: 'auth',
+            });
+          }
+        }
+      }
+
+      if (stmt.type === 'AuthHookDeclaration') {
+        if (!validHookEvents.has(stmt.event)) {
+          this.warnings.push({
+            message: `Unknown auth hook event '${stmt.event}' — valid: ${[...validHookEvents].join(', ')}`,
+            loc: stmt.loc, code: 'W_AUTH_UNKNOWN_HOOK', category: 'auth',
+          });
+        }
+      }
+
+      if (stmt.type === 'AuthProtectedRoute') {
+        if (!stmt.config.redirect) {
+          this.warnings.push({
+            message: `Protected route '${stmt.pattern}' has no redirect`,
+            loc: stmt.loc, code: 'W_AUTH_PROTECTED_NO_REDIRECT', category: 'auth',
+          });
+        }
+      }
+    }
+
+    if (!hasProvider) {
+      this.warnings.push({
+        message: 'Auth block has no providers — add at least one',
+        loc: node.loc, code: 'W_AUTH_MISSING_PROVIDER', category: 'auth',
+      });
+    }
   }
 
   _validateAuthCrossBlock() {
-    // Will be implemented in Task 4
+    const securityRoles = new Set();
+    for (const node of this.ast.body) {
+      if (node.type === 'SecurityBlock') {
+        for (const stmt of node.body) {
+          if (stmt.type === 'SecurityRoleDeclaration') {
+            securityRoles.add(stmt.name);
+          }
+        }
+      }
+    }
+
+    for (const node of this.ast.body) {
+      if (node.type === 'AuthBlock') {
+        for (const stmt of node.body) {
+          if (stmt.type === 'AuthProtectedRoute' && stmt.config.require) {
+            const roleName = stmt.config.require.type === 'Identifier' ? stmt.config.require.name : null;
+            if (roleName && securityRoles.size > 0 && !securityRoles.has(roleName)) {
+              this.warnings.push({
+                message: `Protected route requires role '${roleName}' not defined in security block`,
+                loc: stmt.loc, code: 'W_AUTH_UNKNOWN_ROLE', category: 'auth',
+              });
+            }
+          }
+        }
+      }
+    }
   }
 
   // visitBrowserBlock and other browser visitors are in browser-analyzer.js (lazy-loaded)
@@ -13057,8 +13568,8 @@ class Analyzer {
           if (!this._typesCompatible(existing.inferredType, newType)) {
             this.strictError(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc, this._conversionHint(existing.inferredType, newType), { code: 'E102' });
           }
-          // Float narrowing warning in strict mode
-          if (this.strict && newType === 'Float' && existing.inferredType === 'Int') {
+          // Float narrowing warning
+          if (newType === 'Float' && existing.inferredType === 'Int') {
             this.warn(`Potential data loss: assigning Float to Int variable '${target}'`, node.loc, "use floor() or round() for explicit conversion", { code: 'W204' });
           }
         }
@@ -14511,6 +15022,14 @@ class Analyzer {
       if (rightType && !NUMERIC_TYPES.has(rightType) && rightType !== 'Any') {
         const hint = rightType === 'String' ? "try toInt(value) or toFloat(value) to parse" : null;
         this.strictError(`Type mismatch: '+' expects numeric type, but got ${rightType}`, node.loc, hint);
+      }
+    } else if (BITWISE_OPS.has(op)) {
+      // Bitwise: both sides must be Int
+      if (leftType && leftType !== 'Int' && leftType !== 'Any') {
+        this.strictError(`Type mismatch: '${op}' expects Int, but got ${leftType}`, node.loc);
+      }
+      if (rightType && rightType !== 'Int' && rightType !== 'Any') {
+        this.strictError(`Type mismatch: '${op}' expects Int, but got ${rightType}`, node.loc);
       }
     }
   }
@@ -17909,6 +18428,7 @@ class BaseCodegen {
       case 'ImportDeclaration': result = this.genImport(node); break;
       case 'ImportDefault': result = this.genImportDefault(node); break;
       case 'ImportWildcard': result = this.genImportWildcard(node); break;
+      case 'ReExportDeclaration': result = this.genReExport(node); break;
       case 'IfStatement': result = this.genIfStatement(node); break;
       case 'ForStatement': result = this.genForStatement(node); break;
       case 'WhileStatement': result = this.genWhileStatement(node); break;
@@ -18293,6 +18813,19 @@ class BaseCodegen {
     this._rewriteImportSource(node);
     this.declareVar(node.local);
     return `${this.i()}import * as ${node.local} from ${JSON.stringify(node.source)};`;
+  }
+
+  genReExport(node) {
+    this._rewriteImportSource(node);
+    if (!node.specifiers) {
+      // pub * from "module" → export * from "module"
+      return `${this.i()}export * from ${JSON.stringify(node.source)};`;
+    }
+    // pub { a, b as c } from "module" → export { a, b as c } from "module"
+    const specs = node.specifiers.map(s =>
+      s.imported === s.exported ? s.imported : `${s.imported} as ${s.exported}`
+    ).join(', ');
+    return `${this.i()}export { ${specs} } from ${JSON.stringify(node.source)};`;
   }
 
   genIfStatement(node) {
@@ -18931,7 +19464,7 @@ class BaseCodegen {
   genBinaryExpression(node) {
     const op = node.operator;
 
-    // Constant folding: arithmetic on two number literals
+    // Constant folding: arithmetic and bitwise on two number literals
     if (node.left.type === 'NumberLiteral' && node.right.type === 'NumberLiteral') {
       const l = node.left.value, r = node.right.value;
       let folded = null;
@@ -18942,6 +19475,12 @@ class BaseCodegen {
         case '/': if (r !== 0) folded = l / r; break;
         case '%': if (r !== 0) folded = l % r; break;
         case '**': folded = l ** r; break;
+        case '&': folded = l & r; break;
+        case '|': folded = l | r; break;
+        case '^': folded = l ^ r; break;
+        case '<<': folded = l << r; break;
+        case '>>': folded = l >> r; break;
+        case '>>>': folded = l >>> r; break;
       }
       if (folded !== null && Number.isFinite(folded)) {
         return folded < 0 ? `(${folded})` : String(folded);
@@ -18978,6 +19517,10 @@ class BaseCodegen {
   }
 
   genUnaryExpression(node) {
+    // Constant folding: bitwise NOT on number literal
+    if (node.operator === '~' && node.operand.type === 'NumberLiteral') {
+      return String(~node.operand.value);
+    }
     const operand = this.genExpression(node.operand);
     if (node.operator === 'not') return `(!${operand})`;
     return `(${node.operator}${operand})`;
@@ -22749,7 +23292,7 @@ class ServerCodegen extends BaseCodegen {
     }
   }
 
-  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = [], securityConfig = null) {
+  generate(serverBlocks, sharedCode, blockName = null, peerBlocks = null, sharedBlocks = [], securityConfig = null, topLevelAuthConfig = null) {
     const lines = [];
 
     // Generate security code fragments if security block is present
@@ -23627,13 +24170,19 @@ class ServerCodegen extends BaseCodegen {
           lines.push('const __hstsHeader = { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" };');
         }
       }
-      lines.push('function __applySecurityHeaders(headers) {');
+      lines.push('function __applySecurityHeaders(headers, __isInlineHTML) {');
       lines.push('  for (const [k, v] of Object.entries(__securityHeaders)) headers.set(k, v);');
       if (needsHsts) {
         lines.push('  headers.set("Strict-Transport-Security", __hstsHeader["Strict-Transport-Security"]);');
       }
       if (securityFragments && securityFragments.cspCode) {
-        lines.push('  if (typeof __getCspHeader === "function") headers.set("Content-Security-Policy", __getCspHeader());');
+        // Apply CSP to all responses. For inline HTML (dev server), auto-add 'unsafe-inline' to script-src
+        // so the embedded <script> tag works without breaking other CSP directives.
+        lines.push('  if (typeof __getCspHeader === "function") {');
+        lines.push('    let csp = __getCspHeader();');
+        lines.push('    if (__isInlineHTML) { csp = csp.replace(/script-src ([^;]+)/, (m, v) => v.includes("\'unsafe-inline\'") ? m : "script-src " + v + " \'unsafe-inline\'"); }');
+        lines.push('    headers.set("Content-Security-Policy", csp);');
+        lines.push('  }');
       }
       lines.push('}');
       lines.push('');
@@ -24012,13 +24561,13 @@ class ServerCodegen extends BaseCodegen {
       securityFragments.csrfConfig.enabled &&
       ((securityFragments.csrfConfig.enabled.type === 'BooleanLiteral' && securityFragments.csrfConfig.enabled.value === false) ||
        (securityFragments.csrfConfig.enabled === false));
-    const needsCsrf = !isFastMode && !csrfExplicitlyDisabled && (sessionConfig || authConfig);
+    const needsCsrf = !isFastMode && !csrfExplicitlyDisabled && (sessionConfig || authConfig || topLevelAuthConfig);
     if (needsCsrf) {
       lines.push('// ── CSRF Protection ──');
       lines.push('let __csrfKey = null;');
       lines.push('async function __getCSRFKey() {');
       lines.push('  if (!__csrfKey) {');
-      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : (process.env.CSRF_SECRET || process.env.AUTH_SECRET || ""));');
+      lines.push('    const secret = typeof __sessionSecret !== "undefined" ? __sessionSecret : (typeof __authSecret !== "undefined" ? __authSecret : (typeof __auth_secret !== "undefined" ? __auth_secret : (process.env.CSRF_SECRET || process.env.AUTH_SECRET || "")));');
       lines.push('    __csrfKey = await crypto.subtle.importKey(');
       lines.push('      "raw", new TextEncoder().encode(secret + ":csrf"),');
       lines.push('      { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]');
@@ -24052,12 +24601,13 @@ class ServerCodegen extends BaseCodegen {
       lines.push('  if (sigBytes.length !== expectedBytes.length) return false;');
       lines.push('  return require("crypto").timingSafeEqual(sigBytes, expectedBytes);');
       lines.push('}');
-      // Fix 9: CSRF exempt patterns
+      // CSRF exempt patterns
       const csrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
-      if (csrfExempt) {
+      const needsAuthExempt = !!topLevelAuthConfig;
+      if (csrfExempt || needsAuthExempt) {
         lines.push('const __csrfExemptPatterns = [');
-        // csrfExempt is an AST node (ArrayLiteral/ArrayExpression)
-        if (csrfExempt.elements) {
+        // User-defined exempt patterns from security block
+        if (csrfExempt && csrfExempt.elements) {
           for (const elem of csrfExempt.elements) {
             if (elem.type === 'StringLiteral' || elem.value) {
               const pattern = elem.value;
@@ -24070,6 +24620,19 @@ class ServerCodegen extends BaseCodegen {
               lines.push(`  /^${regexPattern}$/,`);
             }
           }
+        }
+        // Auth block endpoints that must be CSRF-exempt (credential-based, no pre-existing session)
+        if (needsAuthExempt) {
+          lines.push('  /^\\/auth\\/login$/,');
+          lines.push('  /^\\/auth\\/signup$/,');
+          lines.push('  /^\\/auth\\/forgot-password$/,');
+          lines.push('  /^\\/auth\\/reset-password$/,');
+          lines.push('  /^\\/auth\\/confirm$/,');
+          lines.push('  /^\\/auth\\/magic-link$/,');
+          lines.push('  /^\\/auth\\/magic-link\\/verify\\/.*/,');
+          lines.push('  /^\\/auth\\/oauth\\/.*/,');
+          lines.push('  /^\\/auth\\/logout$/,');
+          lines.push('  /^\\/auth\\/refresh$/,');
         }
         lines.push('];');
         lines.push('function __isCsrfExempt(path) {');
@@ -25607,6 +26170,63 @@ class ServerCodegen extends BaseCodegen {
     }
 
     // ════════════════════════════════════════════════════════════
+    // 19b. Auth Block (top-level auth {}) injection
+    // ════════════════════════════════════════════════════════════
+    if (topLevelAuthConfig) {
+      const authGen = new AuthCodegen();
+      lines.push(authGen.generateServerCode(topLevelAuthConfig, this));
+
+      // Merge auth block's protected_route declarations into server protect rules
+      if (topLevelAuthConfig.protectedRoutes && topLevelAuthConfig.protectedRoutes.length > 0) {
+        const hasProtectRules = securityFragments && securityFragments.protectCode;
+        if (!hasProtectRules) {
+          // No security block protect rules — generate __protectRules and __checkProtection
+          lines.push('');
+          lines.push('// ── Route Protection (from auth block) ──');
+          lines.push('const __protectRules = [');
+        } else {
+          // Append to existing __protectRules
+          lines.push('// ── Additional Protected Routes (from auth block) ──');
+        }
+        for (const route of topLevelAuthConfig.protectedRoutes) {
+          const pattern = route.pattern;
+          const regexPattern = pattern
+            .replace(/\*\*/g, '\x00GLOBSTAR\x00')
+            .replace(/\*/g, '\x00STAR\x00')
+            .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')
+            .replace(/\x00STAR\x00/g, '.*')
+            .replace(/\x00GLOBSTAR\x00/g, '.*');
+          const require_ = route.config.require;
+          const requireStr = require_ ? (require_.type === 'Identifier' ? JSON.stringify(require_.name) : '"authenticated"') : '"authenticated"';
+          if (hasProtectRules) {
+            lines.push(`__protectRules.push({ pattern: /^${regexPattern}$/, require: ${requireStr}, rateLimit: { max: null, window: null } });`);
+          } else {
+            lines.push(`  { pattern: /^${regexPattern}$/, require: ${requireStr}, rateLimit: { max: null, window: null } },`);
+          }
+        }
+        if (!hasProtectRules) {
+          lines.push('];');
+          // Also need __checkProtection function
+          lines.push('function __checkProtection(path, user) {');
+          lines.push('  for (const rule of __protectRules) {');
+          lines.push('    if (rule.pattern.test(path)) {');
+          lines.push('      if (rule.require === "authenticated") {');
+          lines.push('        if (!user) return { allowed: false, reason: "Authentication required" };');
+          lines.push('      } else {');
+          lines.push('        if (!user) return { allowed: false, reason: "Authentication required" };');
+          lines.push('        if (!__hasRole(user, rule.require)) return { allowed: false, reason: "Insufficient permissions" };');
+          lines.push('      }');
+          lines.push('      return { allowed: true, rateLimit: rule.rateLimit };');
+          lines.push('    }');
+          lines.push('  }');
+          lines.push('  return { allowed: true, rateLimit: null };');
+          lines.push('}');
+        }
+        lines.push('');
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
     // 20. Middleware chain, Graceful Drain
     // ════════════════════════════════════════════════════════════
     if (globalMiddlewares.length > 0) {
@@ -25795,7 +26415,7 @@ class ServerCodegen extends BaseCodegen {
 
     // CSRF validation on state-mutating requests
     if (needsCsrf) {
-      const hasCsrfExempt = securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt;
+      const hasCsrfExempt = (securityFragments && securityFragments.csrfConfig && securityFragments.csrfConfig.exempt) || topLevelAuthConfig;
       lines.push('  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {');
       if (hasCsrfExempt) {
         lines.push('   if (!__isCsrfExempt(__pathname)) {');
@@ -25826,6 +26446,9 @@ class ServerCodegen extends BaseCodegen {
           lines.push('  if (__secUser) __auditLog("auth:success", { method: req.method, path: __pathname }, __secUser);');
           lines.push('  else if (req.headers.get("Authorization")) __auditLog("auth:failure", { method: req.method, path: __pathname, reason: "invalid_token" }, { id: null });');
         }
+      } else if (topLevelAuthConfig) {
+        // Top-level auth {} block provides __auth_authenticate
+        lines.push('  const __secUser = __auth_authenticate(req);');
       } else {
         lines.push('  const __secUser = null;');
       }
@@ -26055,7 +26678,7 @@ class ServerCodegen extends BaseCodegen {
       lines.push('      __storeIdempotencyResult(__idk, res.status, __resBody, {});');
       lines.push('    } catch {}');
       lines.push('  }');
-      lines.push('  if (res) __applySecurityHeaders(res.headers);');
+      lines.push('  if (res) __applySecurityHeaders(res.headers, res.headers.get("Content-Type")?.includes("text/html"));');
       lines.push('  return res;');
       lines.push('};');
     } else if (compressionConfig) {
@@ -26611,6 +27234,19 @@ class BrowserCodegen extends BaseCodegen {
     return super.genExpression(node);
   }
 
+  // Override to use ?. for property access on signals (null-safe reads)
+  genMemberExpression(node) {
+    if (node.object && node.object.type === 'Identifier' &&
+        (this.stateNames.has(node.object.name) || this.computedNames.has(node.object.name))) {
+      const obj = this.genExpression(node.object);
+      if (node.computed) {
+        return `${obj}?.[${this.genExpression(node.property)}]`;
+      }
+      return `${obj}?.${node.property}`;
+    }
+    return super.genMemberExpression(node);
+  }
+
   // Override to transform state assignments to setter calls
   generateStatement(node) {
     if (!node) return '';
@@ -26686,7 +27322,7 @@ class BrowserCodegen extends BaseCodegen {
     return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
   }
 
-  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null, themeConfig = null) {
+  generate(browserBlocks, sharedCode, sharedBuiltins = null, securityConfig = null, typeValidatorsMap = null, themeConfig = null, authConfig = null) {
     this._sharedBuiltins = sharedBuiltins || new Set();
     this._typeValidators = typeValidatorsMap || {};
     this._themeConfig = themeConfig;
@@ -26758,6 +27394,16 @@ class BrowserCodegen extends BaseCodegen {
         lines.push(clientSecurity);
         lines.push('');
       }
+    }
+
+    // Auth block injection
+    if (authConfig) {
+      const authGen = new AuthCodegen();
+      lines.push(authGen.generateBrowserCode(authConfig, this));
+      // Register auth $ signals so they get () reads in reactive contexts
+      this.stateNames.add('$currentUser');
+      this.stateNames.add('$isAuthenticated');
+      this.stateNames.add('$authLoading');
     }
 
     const states = [];
@@ -28799,9 +29445,19 @@ class BrowserCodegen extends BaseCodegen {
   genJSXIf(node) {
     const cond = this.genExpression(node.condition);
     const consequent = node.consequent.map(c => this.genJSX(c));
-    const thenPart = consequent.length === 1 ? consequent[0] : `tova_fragment([${consequent.join(', ')}])`;
+    let thenPart = consequent.length === 1 ? consequent[0] : `tova_fragment([${consequent.join(', ')}])`;
 
     // Build chained ternary: cond1 ? a : cond2 ? b : cond3 ? c : else
+    // Only wrap in reactive closure if the condition reads signals
+    const needsReactive = this._exprReadsSignal(node.condition) ||
+      (node.alternates && node.alternates.some(a => this._exprReadsSignal(a.condition)));
+
+    // When the outer ternary will be wrapped in () =>, unwrap any single-child
+    // branch parts that are already () => wrapped to avoid double-function:
+    //   () => cond ? () => expr : null  →  () => cond ? expr : null
+    const unwrap = (code) => (needsReactive && code.startsWith('() => ')) ? code.slice(6) : code;
+    thenPart = unwrap(thenPart);
+
     let result = `(${cond}) ? ${thenPart}`;
 
     // elif chains
@@ -28809,22 +29465,21 @@ class BrowserCodegen extends BaseCodegen {
       for (const alt of node.alternates) {
         const elifCond = this.genExpression(alt.condition);
         const elifBody = alt.body.map(c => this.genJSX(c));
-        const elifPart = elifBody.length === 1 ? elifBody[0] : `tova_fragment([${elifBody.join(', ')}])`;
+        let elifPart = elifBody.length === 1 ? elifBody[0] : `tova_fragment([${elifBody.join(', ')}])`;
+        elifPart = unwrap(elifPart);
         result += ` : (${elifCond}) ? ${elifPart}`;
       }
     }
 
     if (node.alternate) {
       const alt = node.alternate.map(c => this.genJSX(c));
-      const elsePart = alt.length === 1 ? alt[0] : `tova_fragment([${alt.join(', ')}])`;
+      let elsePart = alt.length === 1 ? alt[0] : `tova_fragment([${alt.join(', ')}])`;
+      elsePart = unwrap(elsePart);
       result += ` : ${elsePart}`;
     } else {
       result += ` : null`;
     }
 
-    // Only wrap in reactive closure if the condition reads signals
-    const needsReactive = this._exprReadsSignal(node.condition) ||
-      (node.alternates && node.alternates.some(a => this._exprReadsSignal(a.condition)));
     if (needsReactive) {
       return `() => ${result}`;
     }
@@ -29038,12 +29693,13 @@ class SecurityCodegen extends BaseCodegen {
       lines.push('  return [];');
       lines.push('}');
       lines.push('function __hasRole(user, roleName) {');
-      lines.push('  return __getUserRoles(user).includes(roleName);');
+      lines.push('  const rn = roleName.toLowerCase();');
+      lines.push('  return __getUserRoles(user).some(r => r.toLowerCase() === rn);');
       lines.push('}');
       lines.push('function __hasPermission(user, permission) {');
       lines.push('  const userRoles = __getUserRoles(user);');
       lines.push('  for (const r of userRoles) {');
-      lines.push('    const perms = __securityRoles[r];');
+      lines.push('    const perms = __securityRoles[r] || __securityRoles[Object.keys(__securityRoles).find(k => k.toLowerCase() === r.toLowerCase())];');
       lines.push('    if (perms && perms.includes(permission)) return true;');
       lines.push('  }');
       lines.push('  return false;');
@@ -29124,15 +29780,15 @@ class SecurityCodegen extends BaseCodegen {
             requireStr = this.genExpression(requireExpr);
           }
         }
-        // Convert glob-style pattern to regex
-        // 1. Replace ** with placeholder, 2. Replace * with placeholder
-        // 3. Escape all regex-special chars (including /), 4. Restore glob placeholders
+        // Convert glob-style pattern to regex for route protection
+        // For route protection, * matches everything (including nested paths)
+        // since protecting /admin/* should also protect /admin/panel/nested
         const regexPattern = pattern
           .replace(/\*\*/g, '\x00GLOBSTAR\x00')
           .replace(/\*/g, '\x00STAR\x00')
           .replace(/[.+?^${}()|[\]\\/]/g, '\\$&')   // escape all regex specials including /
-          .replace(/\x00STAR\x00/g, '[^/]*')         // * matches within one path segment
-          .replace(/\x00GLOBSTAR\x00/g, '.*');        // ** matches across segments
+          .replace(/\x00STAR\x00/g, '.*')            // * matches across all path segments in protect patterns
+          .replace(/\x00GLOBSTAR\x00/g, '.*');        // ** also matches across segments
 
         let rlMax = 'null';
         let rlWindow = 'null';
@@ -31229,6 +31885,12 @@ function getDeployCodegen() {
 
 let _ThemeCodegen;
 function getThemeCodegen() { return ThemeCodegen; }
+
+let _AuthCodegen;
+function getAuthCodegen() {
+  if (!_AuthCodegen) _AuthCodegen = _require('./auth-codegen.js').AuthCodegen;
+  return _AuthCodegen;
+}
 class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;
@@ -31287,6 +31949,7 @@ class CodeGenerator {
     const edgeBlocks = getBlocks('edge');
     const deployBlocks = getBlocks('deploy');
     const themeBlocks = getBlocks('theme');
+    const authBlocks = getBlocks('auth');
 
     // Detect module mode: no blocks, only top-level statements
     const hasAnyBlocks = BlockRegistry.all().some(p => getBlocks(p.name).length > 0);
@@ -31367,8 +32030,8 @@ class CodeGenerator {
       ? sharedGen.genBlockStatements({ type: 'BlockStatement', body: topLevel })
       : '';
 
-    // Pre-scan server/browser blocks for builtin usage so shared stdlib includes them
-    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks, ...edgeBlocks], sharedGen._usedBuiltins);
+    // Pre-scan server/browser/auth blocks for builtin usage so shared stdlib includes them
+    this._scanBlocksForBuiltins([...serverBlocks, ...browserBlocks, ...edgeBlocks, ...authBlocks], sharedGen._usedBuiltins);
 
     const helpers = sharedGen.generateHelpers();
 
@@ -31414,6 +32077,11 @@ class CodeGenerator {
       ? getThemeCodegen().mergeThemeBlocks(themeBlocks)
       : null;
 
+    // Merge auth blocks into a single config
+    const authConfig = authBlocks.length > 0
+      ? getAuthCodegen().mergeAuthBlocks(authBlocks)
+      : null;
+
     // Generate server outputs (one per named group)
     const servers = {};
     for (const [name, blocks] of serverGroups) {
@@ -31434,7 +32102,7 @@ class CodeGenerator {
       const allSharedBlocks = topLevel.length > 0
         ? [...sharedBlocks, { type: 'BlockStatement', body: topLevel }]
         : sharedBlocks;
-      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, allSharedBlocks, securityConfig);
+      servers[key] = gen.generate(blocks, combinedShared, name, peerBlocks, allSharedBlocks, securityConfig, authConfig);
     }
 
     // Collect type validators from shared blocks and top-level for form type inheritance
@@ -31465,7 +32133,7 @@ class CodeGenerator {
       const gen = new (getBrowserCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
       const key = name || 'default';
-      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap, themeConfig);
+      browsers[key] = gen.generate(blocks, combinedShared, sharedGen._usedBuiltins, securityConfig, typeValidatorsMap, themeConfig, authConfig);
     }
 
     // Generate edge outputs (one per named group)
@@ -31991,7 +32659,7 @@ const EXAMPLES = [
   {
     "category": "Data Structures",
     "name": "Spread & Destructuring",
-    "code": "// Array spread\nlist_a = [1, 2, 3]\nlist_b = [4, 5, 6]\ncombined = [...list_a, ...list_b]\nprint(\"Combined: {combined}\")\n\n// Object literals\nconfig = {\n  theme: \"blue\",\n  size: \"medium\",\n  enabled: false,\n  level: 42\n}\nprint(\"Config: {config}\")\n\n// Destructuring objects\nlet {theme, size, enabled} = config\nprint(\"Theme: {theme}\")\nprint(\"Size: {size}\")\n\n// Destructuring arrays\nlet [a, b, c] = [10, 20, 30]\nprint(\"a={a}, b={b}, c={c}\")\n\n// Membership testing\nfruits = [\"apple\", \"banana\", \"cherry\"]\nif \"banana\" in fruits {\n  print(\"We have bananas!\")\n}\nif \"grape\" not in fruits {\n  print(\"No grapes available\")\n}\n"
+    "code": "// Array spread\nlist_a = [1, 2, 3]\nlist_b = [4, 5, 6]\ncombined = [...list_a, ...list_b]\nprint(\"Combined: {combined}\")\n\n// Object literals\nconfig = {\n  theme: \"blue\",\n  size: \"medium\",\n  enabled: false,\n  level: 42\n}\nprint(\"Config: {config}\")\n\n// Destructuring objects\n{theme, size, enabled} = config\nprint(\"Theme: {theme}\")\nprint(\"Size: {size}\")\n\n// Destructuring arrays\n[a, b, c] = [10, 20, 30]\nprint(\"a={a}, b={b}, c={c}\")\n\n// Membership testing\nfruits = [\"apple\", \"banana\", \"cherry\"]\nif \"banana\" in fruits {\n  print(\"We have bananas!\")\n}\nif \"grape\" not in fruits {\n  print(\"No grapes available\")\n}\n"
   },
   {
     "category": "Control Flow",

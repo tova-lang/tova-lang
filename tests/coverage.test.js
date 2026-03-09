@@ -423,9 +423,9 @@ describe('Codegen — var multiple assignment', () => {
   });
 });
 
-describe('Codegen — let destructure array', () => {
-  test('let array destructure', () => {
-    const code = compileShared('let [a, b] = pair');
+describe('Codegen — destructure array', () => {
+  test('array destructure', () => {
+    const code = compileShared('[a, b] = pair');
     expect(code).toContain('const [a, b]');
   });
 });

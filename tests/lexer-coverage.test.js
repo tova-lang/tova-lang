@@ -132,11 +132,12 @@ describe('Unterminated single-quoted string', () => {
   });
 });
 
-// ─── 7. Single & without && (Line 469) ─────────────────────────
+// ─── 7. Single & is valid bitwise AND ──────────────────────────
 
-describe('Single ampersand error', () => {
-  test('throws on single & suggesting &&', () => {
-    expect(lexThrows('x & y')).toThrow(/Unexpected character.*&.*&&/);
+describe('Single ampersand as bitwise AND', () => {
+  test('single & is valid AMPERSAND token for bitwise AND', () => {
+    const tokens = new Lexer('x & y', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'AMPERSAND')).toBe(true);
   });
 });
 

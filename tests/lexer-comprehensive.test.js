@@ -661,8 +661,9 @@ describe('Lexer — & and | edge cases in JSX', () => {
     expect(tokens.some(t => t.type === 'BAR')).toBe(true);
   });
 
-  test('single & without & throws outside JSX', () => {
-    expect(lexThrows('a & b')).toThrow(/Unexpected character.*&/);
+  test('single & is valid AMPERSAND token for bitwise AND', () => {
+    const tokens = new Lexer('a & b', '<test>').tokenize();
+    expect(tokens.some(t => t.type === 'AMPERSAND')).toBe(true);
   });
 });
 
@@ -832,9 +833,8 @@ describe('Lexer — Complex multi-feature tokenization', () => {
   });
 
   test('destructuring with defaults', () => {
-    const src = 'let { name, age: userAge = 0 } = user\nlet [first, ...rest] = items';
+    const src = '{ name, age: userAge = 0 } = user\n[first, ...rest] = items';
     const tokens = lex(src);
-    expect(tokens.filter(t => t.type === TokenType.LET).length).toBe(2);
     expect(tokens.some(t => t.type === TokenType.SPREAD)).toBe(true);
   });
 

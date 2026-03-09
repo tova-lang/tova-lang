@@ -14,7 +14,7 @@ server {
   }
 
   fn register_user(req) {
-    let { name, email } = req.body
+    { name, email } = req.body
     user = UserModel.create({ name: name, email: email })
     spawn_job("send_email", email, "Welcome!", "Hello {name}, welcome aboard!")
     respond(201, user)

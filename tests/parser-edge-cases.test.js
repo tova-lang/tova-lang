@@ -773,29 +773,29 @@ describe('Parser — Type declaration edge cases', () => {
 
 describe('Parser — Destructuring edge cases', () => {
   test('object destructuring with alias', () => {
-    const ast = parse('let { name: fullName } = user');
+    const ast = parse('{ name: fullName } = user');
     expect(ast.body[0].pattern.properties[0].key).toBe('name');
     expect(ast.body[0].pattern.properties[0].value).toBe('fullName');
   });
 
   test('object destructuring with default value', () => {
-    const ast = parse('let { age = 0 } = user');
+    const ast = parse('{ age = 0 } = user');
     expect(ast.body[0].pattern.properties[0].defaultValue.value).toBe(0);
   });
 
   test('array destructuring with wildcard', () => {
-    const ast = parse('let [_, second] = pair');
+    const ast = parse('[_, second] = pair');
     expect(ast.body[0].pattern.elements[0]).toBeNull();
     expect(ast.body[0].pattern.elements[1]).toBe('second');
   });
 
   test('empty object destructuring', () => {
-    const ast = parse('let {} = obj');
+    const ast = parse('{} = obj');
     expect(ast.body[0].pattern.properties.length).toBe(0);
   });
 
   test('multiple properties in destructuring', () => {
-    const ast = parse('let { a, b, c, d } = obj');
+    const ast = parse('{ a, b, c, d } = obj');
     expect(ast.body[0].pattern.properties.length).toBe(4);
   });
 });

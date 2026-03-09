@@ -90,16 +90,16 @@ describe('VarDeclaration analysis', () => {
   });
 });
 
-// ─── 6. LetDestructure with ObjectPattern (Line 273) ────────────
+// ─── 6. Destructure with ObjectPattern (Line 273) ────────────
 
-describe('LetDestructure analysis', () => {
+describe('Destructure analysis', () => {
   test('object destructure succeeds', () => {
-    const result = analyze('let { a, b } = obj');
+    const result = analyze('{ a, b } = obj');
     expect(result).toBeDefined();
   });
 
   test('duplicate names in object destructure throws', () => {
-    expect(analyzeThrows('let { a, b } = obj\nlet { a } = obj2')).toThrow(/already defined/);
+    expect(analyzeThrows('{ a, b } = obj\n{ a } = obj2')).toThrow(/already defined/);
   });
 });
 
@@ -107,12 +107,12 @@ describe('LetDestructure analysis', () => {
 
 describe('ArrayPattern analysis', () => {
   test('array destructure succeeds', () => {
-    const result = analyze('let [a, b] = pair');
+    const result = analyze('[a, b] = pair');
     expect(result).toBeDefined();
   });
 
   test('duplicate names in array destructure throws', () => {
-    expect(analyzeThrows('let [a, b] = pair\nlet [a] = other')).toThrow(/already defined/);
+    expect(analyzeThrows('[a, b] = pair\n[a] = other')).toThrow(/already defined/);
   });
 });
 
@@ -559,10 +559,11 @@ describe('Additional analyzer coverage', () => {
     expect(result).toBeDefined();
   });
 
-  test('effect outside browser block throws (at parse level for server)', () => {
+  test('effect outside browser block warns as undefined', () => {
     // effect is only parsed as a special statement inside browser blocks,
-    // so putting it in a server block causes a parse error
-    expect(() => analyze('server { effect { x = 1 } }')).toThrow();
+    // in a server block, 'effect' is treated as an identifier (undefined)
+    const result = analyze('server { effect { x = 1 } }');
+    expect(result.warnings.some(w => w.message.includes("'effect' is not defined"))).toBe(true);
   });
 
   test('route declaration in server block', () => {

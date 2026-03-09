@@ -66,28 +66,28 @@ describe('Codegen Coverage — Multi-target var declaration (lines 166-172)', ()
 });
 
 describe('Codegen Coverage — LetDestructure patterns (lines 176-192)', () => {
-  test('object destructure with rename: let { x: y } = obj', () => {
-    const code = compileShared('let { x: y } = obj');
+  test('object destructure with rename: { x: y } = obj', () => {
+    const code = compileShared('{ x: y } = obj');
     expect(code).toContain('const { x: y } = obj;');
   });
 
-  test('object destructure with default: let { x = 10 } = obj', () => {
-    const code = compileShared('let { x = 10 } = obj');
+  test('object destructure with default: { x = 10 } = obj', () => {
+    const code = compileShared('{ x = 10 } = obj');
     expect(code).toContain('const { x = 10 } = obj;');
   });
 
-  test('object destructure with rename and default: let { x: y = 5 } = obj', () => {
-    const code = compileShared('let { x: y = 5 } = obj');
+  test('object destructure with rename and default: { x: y = 5 } = obj', () => {
+    const code = compileShared('{ x: y = 5 } = obj');
     expect(code).toContain('const { x: y = 5 } = obj;');
   });
 
-  test('array destructure: let [a, b] = pair', () => {
-    const code = compileShared('let [a, b] = pair');
+  test('array destructure: [a, b] = pair', () => {
+    const code = compileShared('[a, b] = pair');
     expect(code).toContain('const [a, b] = pair;');
   });
 
-  test('array destructure with skip: let [a, _, c] = triple', () => {
-    const code = compileShared('let [a, _, c] = triple');
+  test('array destructure with skip: [a, _, c] = triple', () => {
+    const code = compileShared('[a, _, c] = triple');
     expect(code).toContain('const [a, , c] = triple;');
   });
 });

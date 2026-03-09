@@ -318,14 +318,14 @@ describe('Edge — Multiple assignment', () => {
   });
 });
 
-describe('Edge — Let destructuring array', () => {
-  test('let [a, b] = pair generates const destructuring', () => {
-    const code = compileShared('let [a, b] = pair');
+describe('Edge — Destructuring array', () => {
+  test('[a, b] = pair generates const destructuring', () => {
+    const code = compileShared('[a, b] = pair');
     expect(code).toContain('const [a, b] = pair;');
   });
 
-  test('let with object destructuring', () => {
-    const code = compileShared('let { name, age } = user');
+  test('object destructuring', () => {
+    const code = compileShared('{ name, age } = user');
     expect(code).toContain('const { name, age } = user;');
   });
 });

@@ -215,6 +215,26 @@ export class ImportWildcard {
   }
 }
 
+// Re-export: pub { a, b as c } from "module"
+export class ReExportDeclaration {
+  constructor(specifiers, source, loc) {
+    this.type = 'ReExportDeclaration';
+    this.specifiers = specifiers; // [{imported, exported}] or null for wildcard
+    this.source = source;         // module path string
+    this.loc = loc;
+  }
+}
+
+// Re-export specifier: individual name in pub { a, b as c } from "module"
+export class ReExportSpecifier {
+  constructor(imported, exported, loc) {
+    this.type = 'ReExportSpecifier';
+    this.imported = imported;  // original name
+    this.exported = exported;  // re-exported name (same as imported if no alias)
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Statements
 // ============================================================

@@ -1089,6 +1089,20 @@ export class Lexer {
         break;
 
       case '<':
+        if (this.peek() === '<') {
+          // Left shift: << or <<=
+          // Only treat as shift if previous token produces a value (avoids `< <JSXTag>`)
+          const prevTok = this.tokens.length > 0 ? this.tokens[this.tokens.length - 1] : null;
+          if (prevTok && Lexer.VALUE_TOKEN_TYPES.has(prevTok.type)) {
+            this.advance(); // consume second <
+            if (this.match('=')) {
+              this.tokens.push(new Token(TokenType.LEFT_SHIFT_ASSIGN, '<<=', startLine, startCol));
+            } else {
+              this.tokens.push(new Token(TokenType.LEFT_SHIFT, '<<', startLine, startCol));
+            }
+            break;
+          }
+        }
         if (this.match('=')) {
           this.tokens.push(new Token(TokenType.LESS_EQUAL, '<=', startLine, startCol));
         } else {
@@ -1140,12 +1154,13 @@ export class Lexer {
       case '&':
         if (this.match('&')) {
           this.tokens.push(new Token(TokenType.AND_AND, '&&', startLine, startCol));
+        } else if (this.match('=')) {
+          this.tokens.push(new Token(TokenType.BIT_AND_ASSIGN, '&=', startLine, startCol));
         } else if (this._jsxStack.length > 0) {
-          // Inside JSX, & is valid text - should not reach here normally
-          // but handle gracefully by treating as text
+          // Inside JSX, & is valid text
           this.tokens.push(new Token(TokenType.JSX_TEXT, '&', startLine, startCol));
         } else {
-          this.error(`Unexpected character: '&'. Did you mean '&&'?`);
+          this.tokens.push(new Token(TokenType.AMPERSAND, '&', startLine, startCol));
         }
         break;
 
@@ -1154,6 +1169,8 @@ export class Lexer {
           this.tokens.push(new Token(TokenType.PIPE, '|>', startLine, startCol));
         } else if (this.match('|')) {
           this.tokens.push(new Token(TokenType.OR_OR, '||', startLine, startCol));
+        } else if (this.match('=')) {
+          this.tokens.push(new Token(TokenType.BIT_OR_ASSIGN, '|=', startLine, startCol));
         } else {
           this.tokens.push(new Token(TokenType.BAR, '|', startLine, startCol));
         }
@@ -1193,6 +1210,18 @@ export class Lexer {
 
       case '@':
         this.tokens.push(new Token(TokenType.AT, '@', startLine, startCol));
+        break;
+
+      case '^':
+        if (this.match('=')) {
+          this.tokens.push(new Token(TokenType.BIT_XOR_ASSIGN, '^=', startLine, startCol));
+        } else {
+          this.tokens.push(new Token(TokenType.CARET, '^', startLine, startCol));
+        }
+        break;
+
+      case '~':
+        this.tokens.push(new Token(TokenType.TILDE, '~', startLine, startCol));
         break;
 
       default:

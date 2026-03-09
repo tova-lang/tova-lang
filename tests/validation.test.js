@@ -1118,7 +1118,7 @@ describe('6. LSP Integration', () => {
 
 describe('7. Float Narrowing', () => {
 
-  test('Float -> Int assignment warns in strict mode only', () => {
+  test('Float -> Int assignment always warns', () => {
     const src = `
       fn test_fn() {
         var x = 10
@@ -1130,9 +1130,9 @@ describe('7. Float Narrowing', () => {
     const strictWarnings = getWarnings(src, { strict: true });
     expect(strictWarnings.some(w => w.message.includes('Potential data loss'))).toBe(true);
 
-    // Non-strict: no such warning
+    // Non-strict: also warns now
     const normalWarnings = getWarnings(src);
-    expect(normalWarnings.some(w => w.message.includes('Potential data loss'))).toBe(false);
+    expect(normalWarnings.some(w => w.message.includes('Potential data loss'))).toBe(true);
   });
 
   test('Int -> Float is always allowed (widening)', () => {

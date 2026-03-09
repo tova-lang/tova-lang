@@ -1314,12 +1314,12 @@ describe('Error detection', () => {
     expect(analyzeThrows('var x = 1\nvar x = 2')).toThrow(/already defined/);
   });
 
-  test('duplicate let destructure names detected', () => {
-    expect(analyzeThrows('let { a } = obj\nlet { a } = obj2')).toThrow(/already defined/);
+  test('duplicate destructure names detected', () => {
+    expect(analyzeThrows('{ a } = obj\n{ a } = obj2')).toThrow(/already defined/);
   });
 
   test('duplicate array destructure names detected', () => {
-    expect(analyzeThrows('let [a, b] = pair\nlet [a] = other')).toThrow(/already defined/);
+    expect(analyzeThrows('[a, b] = pair\n[a] = other')).toThrow(/already defined/);
   });
 
   test('compound assignment on immutable variable detected', () => {

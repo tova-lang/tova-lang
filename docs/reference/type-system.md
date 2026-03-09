@@ -86,11 +86,11 @@ point.0    // 10
 point.1    // 20
 ```
 
-Tuples are destructured with `let`:
+Tuples are destructured directly (no keyword needed):
 
 ```tova
-let (x, y) = point
-let (name, age, active) = record
+(x, y) = point
+(name, age, active) = record
 ```
 
 ::: tip
@@ -489,11 +489,11 @@ In strict mode, the following produce **errors** instead of warnings:
 | Compound assignment type mismatch | `var s = "hi"; s -= 1` | warning | error |
 | Function argument count mismatch | `add(1, 2, 3)` when `fn add(a, b)` | warning | error |
 
-Strict mode also warns about potential data loss from **float narrowing**:
+The compiler also warns about potential data loss from **float narrowing** in all modes (not just strict mode):
 
 ```tova
 var total = 10
-total = 3.14  // warning: Potential data loss: assigning Float to Int variable
+total = 3.14  // warning W204: Potential data loss: assigning Float to Int variable
 ```
 
 ### Trait Conformance
@@ -559,16 +559,16 @@ needs_float(42)     // OK — Int widens to Float automatically
 
 ### Float-to-Int Narrowing
 
-`Float` is **not** implicitly assignable to `Int` because floating-point-to-integer conversion loses data. The compiler warns and suggests an explicit conversion:
+`Float` is **not** implicitly assignable to `Int` because floating-point-to-integer conversion loses data. The compiler always warns (in all modes, not just strict mode) and suggests an explicit conversion:
 
 ```tova
 fn needs_int(x: Int) -> Int { x * 2 }
 
-needs_int(3.14)     // Warning: type mismatch Float → Int
+needs_int(3.14)     // Warning W204: type mismatch Float → Int
                     // Hint: try floor(value) or round(value) to convert
 ```
 
-In strict mode, this becomes a hard error rather than a warning.
+In strict mode, this warning is upgraded to a hard error.
 
 ### Nil and Option Compatibility
 

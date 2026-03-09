@@ -229,7 +229,7 @@ describe('T3-6: Tuples', () => {
   });
 
   test('tuple destructuring with let', () => {
-    const ast = parse('shared { let (a, b) = get_pair() }');
+    const ast = parse('shared { (a, b) = get_pair() }');
     const letNode = ast.body[0].body[0];
     expect(letNode.type).toBe('LetDestructure');
     expect(letNode.pattern.type).toBe('TuplePattern');
@@ -237,7 +237,7 @@ describe('T3-6: Tuples', () => {
   });
 
   test('tuple destructuring codegen', () => {
-    const code = compileShared('let (a, b) = get_pair()');
+    const code = compileShared('(a, b) = get_pair()');
     expect(code).toContain('const [a, b] = get_pair()');
   });
 
@@ -402,7 +402,7 @@ describe('T3 Integration', () => {
   test('tuple + destructuring', () => {
     const code = compileShared(`
       fn swap(a, b) { (b, a) }
-      let (x, y) = swap(1, 2)
+      (x, y) = swap(1, 2)
     `);
     expect(code).toContain('[b, a]'); // tuple codegen
     expect(code).toContain('const [x, y]'); // destructure codegen

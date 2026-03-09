@@ -516,7 +516,7 @@ class TovaLanguageServer {
 
     // Keywords
     const keywords = [
-      'fn', 'let', 'if', 'elif', 'else', 'for', 'while', 'loop', 'when', 'in',
+      'fn', 'if', 'elif', 'else', 'for', 'while', 'loop', 'when', 'in',
       'return', 'match', 'type', 'import', 'from', 'true', 'false',
       'nil', 'server', 'browser', 'client', 'shared', 'pub', 'mut',
       'try', 'catch', 'finally', 'break', 'continue', 'async', 'await',

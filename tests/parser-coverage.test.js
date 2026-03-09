@@ -282,7 +282,7 @@ describe('Parser Coverage -- Multi-value var declaration', () => {
 
 describe('Parser Coverage -- Object pattern with alias and default', () => {
   test('object pattern with alias (key: value)', () => {
-    const ast = parse('let { x: y } = obj');
+    const ast = parse('{ x: y } = obj');
     const decl = ast.body[0];
     expect(decl.type).toBe('LetDestructure');
     expect(decl.pattern.type).toBe('ObjectPattern');
@@ -294,7 +294,7 @@ describe('Parser Coverage -- Object pattern with alias and default', () => {
   });
 
   test('object pattern with default value', () => {
-    const ast = parse('let { x = 10 } = obj');
+    const ast = parse('{ x = 10 } = obj');
     const decl = ast.body[0];
     expect(decl.pattern.type).toBe('ObjectPattern');
     const prop = decl.pattern.properties[0];
@@ -305,7 +305,7 @@ describe('Parser Coverage -- Object pattern with alias and default', () => {
   });
 
   test('object pattern with alias and default', () => {
-    const ast = parse('let { x: y = 10 } = obj');
+    const ast = parse('{ x: y = 10 } = obj');
     const decl = ast.body[0];
     const prop = decl.pattern.properties[0];
     expect(prop.key).toBe('x');
@@ -320,7 +320,7 @@ describe('Parser Coverage -- Object pattern with alias and default', () => {
 
 describe('Parser Coverage -- Array pattern with skip', () => {
   test('array pattern with underscore skip', () => {
-    const ast = parse('let [a, _, c] = arr');
+    const ast = parse('[a, _, c] = arr');
     const decl = ast.body[0];
     expect(decl.type).toBe('LetDestructure');
     expect(decl.pattern.type).toBe('ArrayPattern');

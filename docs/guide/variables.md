@@ -88,10 +88,10 @@ a, b = b, a   // a is now 2, b is now 1
 
 ## Destructuring
 
-Destructuring pulls values out of objects and arrays into individual variables. You can write it with or without the `let` keyword -- both forms are equivalent and produce identical compiled output.
+Destructuring pulls values out of objects and arrays into individual variables. No keyword prefix is needed -- just write the pattern on the left side of the assignment.
 
 ::: tip
-`let` in Tova is **only** for destructuring. It is **not** used for variable declaration like in JavaScript. Use plain `x = 10` for immutable bindings or `var x = 10` for mutable ones. The `let` keyword is optional -- `{a, b} = obj` and `let {a, b} = obj` mean exactly the same thing.
+Tova does **not** use `let` for destructuring or for anything else. Use plain `x = 10` for immutable bindings, `var x = 10` for mutable ones, and `{ a, b } = obj` for destructuring.
 :::
 
 ### Object Destructuring
@@ -104,9 +104,6 @@ person = { name: "Alice", age: 30, email: "alice@example.com" }
 { name, age } = person
 print(name)   // "Alice"
 print(age)    // 30
-
-// Equivalent — the `let` keyword is optional:
-let { name, age } = person
 ```
 
 You can rename the bindings:

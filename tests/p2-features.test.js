@@ -332,8 +332,8 @@ describe('destructuring without let', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('error suggestions for common mistakes', () => {
-  test('let x = 5 gives helpful error', () => {
-    expect(() => parse(`let x = 5`)).toThrow(/variable binding.*not.*let|'let' is only for destructuring/i);
+  test('let gives helpful error', () => {
+    expect(() => parse(`let x = 5`)).toThrow(/'let' is not needed in Tova/);
   });
 
   test('throw gives helpful warning', () => {

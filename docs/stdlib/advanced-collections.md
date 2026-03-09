@@ -261,8 +261,8 @@ dq.pop_front() -> [T | Nil, Deque]
 Returns a two-element array: the removed value (or `nil` if empty) and a new Deque without that element. Does not mutate the original.
 
 ```tova
-let [val, rest] = dq.pop_front()    // val = 0, rest = Deque([1, 2])
-let [val2, rest2] = dq.pop_back()   // val2 = 2, rest2 = Deque([0, 1])
+[val, rest] = dq.pop_front()    // val = 0, rest = Deque([1, 2])
+[val2, rest2] = dq.pop_back()   // val2 = 2, rest2 = Deque([0, 1])
 ```
 
 #### peek_back / peek_front

@@ -293,7 +293,7 @@ fn add_item(cart, item) {
 }
 
 fn remove_first(list) {
-  let [_, ...rest] = list
+  [_, ...rest] = list
   rest
 }
 ```

@@ -1613,7 +1613,7 @@ describe('Tuple Types', () => {
   });
 
   test('tuple destructuring with let', () => {
-    const code = compileShared(`let (a, b) = (1, 2)`);
+    const code = compileShared(`(a, b) = (1, 2)`);
     expect(code).toContain('[1, 2]');
     expect(code).toMatch(/const \[a, b\]/);
   });

@@ -245,7 +245,7 @@ print("Deque: {dq3.toArray()}")
 print("Front: {dq3.peek_front()}")
 print("Back:  {dq3.peek_back()}")
 
-let [val, rest] = dq3.pop_front()
+[val, rest] = dq3.pop_front()
 print("Popped front: {val}")
 print("Remaining: {rest.toArray()}")`
 
@@ -853,11 +853,11 @@ print(dq3.peek_front())   // 0
 print(dq3.peek_back())    // 4
 
 // Pop returns [value, new_deque]
-let [front, rest] = dq3.pop_front()
+[front, rest] = dq3.pop_front()
 print(front)               // 0
 print(rest.toArray())      // [1, 2, 3, 4]
 
-let [back, rest2] = rest.pop_back()
+[back, rest2] = rest.pop_back()
 print(back)                // 4
 print(rest2.toArray())     // [1, 2, 3]
 ```

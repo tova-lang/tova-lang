@@ -279,6 +279,7 @@ export class BaseCodegen {
       case 'ImportDeclaration': result = this.genImport(node); break;
       case 'ImportDefault': result = this.genImportDefault(node); break;
       case 'ImportWildcard': result = this.genImportWildcard(node); break;
+      case 'ReExportDeclaration': result = this.genReExport(node); break;
       case 'IfStatement': result = this.genIfStatement(node); break;
       case 'ForStatement': result = this.genForStatement(node); break;
       case 'WhileStatement': result = this.genWhileStatement(node); break;
@@ -663,6 +664,19 @@ export class BaseCodegen {
     this._rewriteImportSource(node);
     this.declareVar(node.local);
     return `${this.i()}import * as ${node.local} from ${JSON.stringify(node.source)};`;
+  }
+
+  genReExport(node) {
+    this._rewriteImportSource(node);
+    if (!node.specifiers) {
+      // pub * from "module" → export * from "module"
+      return `${this.i()}export * from ${JSON.stringify(node.source)};`;
+    }
+    // pub { a, b as c } from "module" → export { a, b as c } from "module"
+    const specs = node.specifiers.map(s =>
+      s.imported === s.exported ? s.imported : `${s.imported} as ${s.exported}`
+    ).join(', ');
+    return `${this.i()}export { ${specs} } from ${JSON.stringify(node.source)};`;
   }
 
   genIfStatement(node) {
@@ -1301,7 +1315,7 @@ export class BaseCodegen {
   genBinaryExpression(node) {
     const op = node.operator;
 
-    // Constant folding: arithmetic on two number literals
+    // Constant folding: arithmetic and bitwise on two number literals
     if (node.left.type === 'NumberLiteral' && node.right.type === 'NumberLiteral') {
       const l = node.left.value, r = node.right.value;
       let folded = null;
@@ -1312,6 +1326,12 @@ export class BaseCodegen {
         case '/': if (r !== 0) folded = l / r; break;
         case '%': if (r !== 0) folded = l % r; break;
         case '**': folded = l ** r; break;
+        case '&': folded = l & r; break;
+        case '|': folded = l | r; break;
+        case '^': folded = l ^ r; break;
+        case '<<': folded = l << r; break;
+        case '>>': folded = l >> r; break;
+        case '>>>': folded = l >>> r; break;
       }
       if (folded !== null && Number.isFinite(folded)) {
         return folded < 0 ? `(${folded})` : String(folded);
@@ -1348,6 +1368,10 @@ export class BaseCodegen {
   }
 
   genUnaryExpression(node) {
+    // Constant folding: bitwise NOT on number literal
+    if (node.operator === '~' && node.operand.type === 'NumberLiteral') {
+      return String(~node.operand.value);
+    }
     const operand = this.genExpression(node.operand);
     if (node.operator === 'not') return `(!${operand})`;
     return `(${node.operator}${operand})`;

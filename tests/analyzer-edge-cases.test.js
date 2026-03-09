@@ -79,8 +79,8 @@ describe('Scope and Variable Analysis', () => {
     expect(() => analyze('var x = 1\nx = 2')).not.toThrow();
   });
 
-  test('8. multiple let destructuring in same scope', () => {
-    const { scope } = analyze('let { a, b } = obj\nlet { c, d } = obj2');
+  test('8. multiple destructuring in same scope', () => {
+    const { scope } = analyze('{ a, b } = obj\n{ c, d } = obj2');
     expect(scope.lookup('a')).not.toBeNull();
     expect(scope.lookup('b')).not.toBeNull();
     expect(scope.lookup('c')).not.toBeNull();
@@ -88,14 +88,14 @@ describe('Scope and Variable Analysis', () => {
   });
 
   test('9. array pattern destructuring creates bindings', () => {
-    const { scope } = analyze('let [x, y, z] = triple');
+    const { scope } = analyze('[x, y, z] = triple');
     expect(scope.lookup('x')).not.toBeNull();
     expect(scope.lookup('y')).not.toBeNull();
     expect(scope.lookup('z')).not.toBeNull();
   });
 
   test('10. object pattern destructuring creates bindings', () => {
-    const { scope } = analyze('let { name, age } = person');
+    const { scope } = analyze('{ name, age } = person');
     const nameSym = scope.lookup('name');
     expect(nameSym).not.toBeNull();
     expect(nameSym.kind).toBe('variable');
@@ -560,12 +560,12 @@ describe('Warning/Error Paths', () => {
 // ─── Additional edge cases ──────────────────────────────────
 
 describe('Additional Edge Cases', () => {
-  test('duplicate let destructured names in same scope throws', () => {
-    expect(analyzeThrows('let { a } = x\nlet { a } = y')).toThrow(/already defined/);
+  test('duplicate destructured names in same scope throws', () => {
+    expect(analyzeThrows('{ a } = x\n{ a } = y')).toThrow(/already defined/);
   });
 
   test('duplicate array destructured names in same scope throws', () => {
-    expect(analyzeThrows('let [a, b] = x\nlet [a] = y')).toThrow(/already defined/);
+    expect(analyzeThrows('[a, b] = x\n[a] = y')).toThrow(/already defined/);
   });
 
   test('for-else statement analyzes correctly', () => {

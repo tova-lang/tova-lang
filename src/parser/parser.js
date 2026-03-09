@@ -559,7 +559,7 @@ export class Parser {
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
     if (this.check(TokenType.MUT)) this.error("'mut' is not supported in Tova. Use 'var' for mutable variables");
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
-    if (this.check(TokenType.LET)) return this.parseLetDestructure();
+    if (this.check(TokenType.LET)) this.error("'let' is not needed in Tova. Destructure directly: {a, b} = obj, [a, b] = list, or (a, b) = pair");
     if (this.check(TokenType.IF)) return this.parseIfStatement();
     if (this.check(TokenType.FOR)) return this.parseForStatement();
     if (this.check(TokenType.WHILE)) return this.parseWhileStatement();
@@ -599,6 +599,13 @@ export class Parser {
     if (this.check(TokenType.PUB)) {
       this.error("Duplicate 'pub' modifier");
     }
+    // Re-export: pub { a, b } from "module" or pub * from "module"
+    if (this.check(TokenType.STAR) && this.peek(1).type === TokenType.FROM) {
+      return this.parseReExport(l);
+    }
+    if (this.check(TokenType.LBRACE) && this._looksLikeReExport()) {
+      return this.parseReExport(l);
+    }
     // Handle pub component at top level (parseComponent is installed by browser-parser plugin)
     if (this.check(TokenType.COMPONENT) && typeof this.parseComponent === 'function') {
       const comp = this.parseComponent();
@@ -608,6 +615,61 @@ export class Parser {
     const stmt = this.parseStatement();
     if (stmt) stmt.isPublic = true;
     return stmt;
+  }
+
+  // Check if pub { ... } is a re-export (identifiers with optional aliases, then } from "...")
+  _looksLikeReExport() {
+    let i = 1; // start after {
+    while (true) {
+      const tok = this.peek(i);
+      if (!tok || tok.type === TokenType.EOF) return false;
+      if (tok.type === TokenType.RBRACE) {
+        // After }, must see FROM
+        const after = this.peek(i + 1);
+        return after && after.type === TokenType.FROM;
+      }
+      // Inside: expect IDENTIFIER, optionally AS IDENTIFIER, then COMMA or RBRACE
+      if (tok.type !== TokenType.IDENTIFIER) return false;
+      i++;
+      const next = this.peek(i);
+      if (next && next.type === TokenType.AS) {
+        i++; // skip as
+        i++; // skip alias identifier
+      }
+      const afterId = this.peek(i);
+      if (!afterId) return false;
+      if (afterId.type === TokenType.COMMA) { i++; continue; }
+      if (afterId.type === TokenType.RBRACE) continue;
+      return false;
+    }
+  }
+
+  parseReExport(l) {
+    if (this.match(TokenType.STAR)) {
+      // pub * from "module"
+      this.expect(TokenType.FROM, "Expected 'from' after 'pub *'");
+      const source = this.expect(TokenType.STRING, "Expected module path string").value;
+      return new AST.ReExportDeclaration(null, source, l);
+    }
+    // pub { a, b as c } from "module"
+    this.expect(TokenType.LBRACE);
+    const specifiers = [];
+    while (!this.check(TokenType.RBRACE)) {
+      const specL = this.loc();
+      const imported = this.expect(TokenType.IDENTIFIER, "Expected export name").value;
+      let exported = imported;
+      if (this.match(TokenType.AS)) {
+        exported = this.expect(TokenType.IDENTIFIER, "Expected alias name after 'as'").value;
+      }
+      specifiers.push(new AST.ReExportSpecifier(imported, exported, specL));
+      if (!this.check(TokenType.RBRACE)) {
+        this.expect(TokenType.COMMA, "Expected ',' or '}' in re-export list");
+      }
+    }
+    this.expect(TokenType.RBRACE);
+    this.expect(TokenType.FROM, "Expected 'from' after re-export specifiers");
+    const source = this.expect(TokenType.STRING, "Expected module path string").value;
+    return new AST.ReExportDeclaration(specifiers, source, l);
   }
 
   parseImplDeclaration() {
@@ -1495,23 +1557,56 @@ export class Parser {
       }
       // Destructuring without let: {name, age} = user  or  [a, b] = list
       if (expr.type === 'ObjectLiteral') {
-        const pattern = new AST.ObjectPattern(
-          expr.properties.map(p => {
-            const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
-            // For shorthand {name}, key and value are the same
-            // For rename {name: alias}, value is the alias identifier
-            const val = p.shorthand ? key
-              : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
-            return { key, value: val };
-          }),
-          expr.loc
-        );
+        let pattern;
+        if (expr._isDestructurePattern) {
+          // Already parsed as a destructuring pattern with defaults
+          pattern = new AST.ObjectPattern(
+            expr.properties.map(p => {
+              const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
+              const val = p.shorthand ? key
+                : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
+              return { key, value: val, defaultValue: p.defaultValue || null };
+            }),
+            expr.loc
+          );
+        } else {
+          pattern = new AST.ObjectPattern(
+            expr.properties.map(p => {
+              const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
+              let val, defaultValue = p.defaultValue || null;
+              if (p.shorthand) {
+                // Shorthand with default: { x = 10 } — either via _parseObjectProperty defaultValue or Assignment
+                if (!defaultValue && p.value && p.value.type === 'Assignment' && p.value.targets) {
+                  val = key;
+                  defaultValue = p.value.values[0];
+                } else {
+                  val = key;
+                }
+              } else {
+                // Non-shorthand: { x: y } or { x: y = 10 }
+                if (!defaultValue && p.value && p.value.type === 'Assignment' && p.value.targets) {
+                  // { x: y = 10 } — value parsed as Assignment(y, 10)
+                  val = p.value.targets[0];
+                  if (typeof val !== 'string' && val.name) val = val.name;
+                  defaultValue = p.value.values[0];
+                } else if (p.value && p.value.type === 'Identifier') {
+                  val = p.value.name;
+                } else {
+                  val = key;
+                }
+              }
+              return { key, value: val, defaultValue };
+            }),
+            expr.loc
+          );
+        }
         const value = this.parseExpression();
         return new AST.LetDestructure(pattern, value, l);
       }
       if (expr.type === 'ArrayLiteral') {
         const pattern = new AST.ArrayPattern(
           expr.elements.map(e => {
+            if (e.type === 'Identifier' && e.name === '_') return null;
             if (e.type === 'Identifier') return e.name;
             if (e.type === 'SpreadExpression' && e.argument && e.argument.type === 'Identifier') {
               return '...' + e.argument.name;
@@ -1523,11 +1618,24 @@ export class Parser {
         const value = this.parseExpression();
         return new AST.LetDestructure(pattern, value, l);
       }
+      // Tuple destructuring without let: (a, b) = expr
+      if (expr.type === 'TupleExpression') {
+        const pattern = new AST.TuplePattern(
+          expr.elements.map(e => {
+            if (e.type === 'Identifier') return e.name;
+            return '_';
+          }),
+          expr.loc
+        );
+        const value = this.parseExpression();
+        return new AST.LetDestructure(pattern, value, l);
+      }
       this.error("Invalid assignment target");
     }
 
-    // Compound assignment: x += expr
-    const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN);
+    // Compound assignment: x += expr, x &= expr, etc.
+    const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
+      TokenType.BIT_AND_ASSIGN, TokenType.BIT_OR_ASSIGN, TokenType.BIT_XOR_ASSIGN, TokenType.LEFT_SHIFT_ASSIGN, TokenType.RIGHT_SHIFT_ASSIGN);
     if (compoundOp) {
       if (expr.type !== 'Identifier' && expr.type !== 'MemberExpression') {
         this.error("Invalid compound assignment target");
@@ -1652,7 +1760,46 @@ export class Parser {
       const operand = this.parseNot();
       return new AST.UnaryExpression('not', operand, true, l);
     }
-    return this.parseComparison();
+    if (this.match(TokenType.TILDE)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const operand = this.parseNot();
+      return new AST.UnaryExpression('~', operand, true, l);
+    }
+    return this.parseBitwiseOr();
+  }
+
+  parseBitwiseOr() {
+    let left = this.parseBitwiseXor();
+    while (this.match(TokenType.BAR)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const right = this.parseBitwiseXor();
+      left = new AST.BinaryExpression('|', left, right, l);
+    }
+    return left;
+  }
+
+  parseBitwiseXor() {
+    let left = this.parseBitwiseAnd();
+    while (this.match(TokenType.CARET)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const right = this.parseBitwiseAnd();
+      left = new AST.BinaryExpression('^', left, right, l);
+    }
+    return left;
+  }
+
+  parseBitwiseAnd() {
+    let left = this.parseComparison();
+    while (this.match(TokenType.AMPERSAND)) {
+      const opTok = this.tokens[this.pos - 1];
+      const l = { line: opTok.line, column: opTok.column, file: this.filename };
+      const right = this.parseComparison();
+      left = new AST.BinaryExpression('&', left, right, l);
+    }
+    return left;
   }
 
   parseComparison() {
@@ -1719,21 +1866,48 @@ export class Parser {
   }
 
   parseRange() {
-    let left = this.parseAddition();
+    let left = this.parseShift();
 
     if (this.check(TokenType.DOT_DOT_EQUAL)) {
       const l = this.loc();
       this.advance();
-      const right = this.parseAddition();
+      const right = this.parseShift();
       return new AST.RangeExpression(left, right, true, l);
     }
     if (this.check(TokenType.DOT_DOT)) {
       const l = this.loc();
       this.advance();
-      const right = this.parseAddition();
+      const right = this.parseShift();
       return new AST.RangeExpression(left, right, false, l);
     }
 
+    return left;
+  }
+
+  parseShift() {
+    let left = this.parseAddition();
+    while (true) {
+      const l = this.loc();
+      if (this.match(TokenType.LEFT_SHIFT)) {
+        const right = this.parseAddition();
+        left = new AST.BinaryExpression('<<', left, right, l);
+      } else if (this.check(TokenType.GREATER) && this.peek(1).type === TokenType.GREATER) {
+        // >> or >>> — consume consecutive > tokens in expression context
+        const firstGt = this.advance(); // consume first >
+        if (this.check(TokenType.GREATER) && this.peek(1).type === TokenType.GREATER) {
+          this.advance(); // consume second >
+          this.advance(); // consume third > (completing >>>)
+          const right = this.parseAddition();
+          left = new AST.BinaryExpression('>>>', left, right, { line: firstGt.line, column: firstGt.column, file: this.filename });
+        } else {
+          this.advance(); // consume second > (completing >>)
+          const right = this.parseAddition();
+          left = new AST.BinaryExpression('>>', left, right, { line: firstGt.line, column: firstGt.column, file: this.filename });
+        }
+      } else {
+        break;
+      }
+    }
     return left;
   }
 
@@ -2104,7 +2278,8 @@ export class Parser {
     } else {
       // Parse expression, then check for compound/simple assignment
       const expr = this.parseExpression();
-      const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN);
+      const compoundOp = this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.STAR_ASSIGN, TokenType.SLASH_ASSIGN,
+        TokenType.BIT_AND_ASSIGN, TokenType.BIT_OR_ASSIGN, TokenType.BIT_XOR_ASSIGN, TokenType.LEFT_SHIFT_ASSIGN, TokenType.RIGHT_SHIFT_ASSIGN);
       if (compoundOp) {
         const value = this.parseExpression();
         body = new AST.CompoundAssignment(expr, compoundOp.value, value, l);
@@ -2347,6 +2522,23 @@ export class Parser {
       const argument = this.parseUnary();
       return { spread: true, argument };
     }
+    // Destructuring shorthand with default: x = 10
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.ASSIGN) {
+      const key = { type: 'Identifier', name: this.advance().value };
+      this.advance(); // consume =
+      const defaultValue = this.parseExpression();
+      return { key, value: key, shorthand: true, defaultValue };
+    }
+    // Destructuring alias with default: key: alias = expr
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.COLON
+        && this.peek(2).type === TokenType.IDENTIFIER && this.peek(3).type === TokenType.ASSIGN) {
+      const key = { type: 'Identifier', name: this.advance().value };
+      this.advance(); // consume :
+      const alias = { type: 'Identifier', name: this.advance().value };
+      this.advance(); // consume =
+      const defaultValue = this.parseExpression();
+      return { key, value: alias, shorthand: false, defaultValue };
+    }
     const key = this.parseExpression();
     if (this.match(TokenType.COLON)) {
       const value = this.parseExpression();
@@ -2376,6 +2568,17 @@ export class Parser {
       }
       this.expect(TokenType.RBRACE, "Expected '}'");
       return new AST.ObjectLiteral(properties, l);
+    }
+
+    // Detect destructuring pattern: { x = val } or { x: y = val }
+    // When IDENTIFIER is followed by ASSIGN, this is a destructuring default, not an object literal
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.ASSIGN) {
+      return this._parseObjectPatternAsLiteral(l);
+    }
+    // { x: y = val } — identifier, colon, identifier, assign — destructuring with alias+default
+    if (this.check(TokenType.IDENTIFIER) && this.peek(1).type === TokenType.COLON
+        && this.peek(2).type === TokenType.IDENTIFIER && this.peek(3).type === TokenType.ASSIGN) {
+      return this._parseObjectPatternAsLiteral(l);
     }
 
     // Try to parse first key: value pair
@@ -2425,6 +2628,42 @@ export class Parser {
     }
 
     this.error("Invalid object literal");
+  }
+
+  // Parse object destructuring pattern as an ObjectLiteral-like node for later conversion
+  // Handles: { a = 1, b: y = 2, c } patterns with defaults
+  // Note: the opening { has already been consumed by parseObjectOrDictComprehension
+  _parseObjectPatternAsLiteral(l) {
+    const properties = [];
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      const key = this.expect(TokenType.IDENTIFIER, "Expected property name").value;
+      let valueName = key;
+      let defaultValue = null;
+
+      if (this.match(TokenType.COLON)) {
+        valueName = this.expect(TokenType.IDENTIFIER, "Expected alias name").value;
+      }
+      if (this.match(TokenType.ASSIGN)) {
+        defaultValue = this.parseExpression();
+      }
+
+      properties.push({
+        key: { type: 'Identifier', name: key },
+        value: { type: 'Identifier', name: valueName },
+        shorthand: key === valueName,
+        defaultValue: defaultValue
+      });
+      if (!this.match(TokenType.COMMA)) break;
+    }
+
+    this.expect(TokenType.RBRACE, "Expected '}' in object pattern");
+    return {
+      type: 'ObjectLiteral',
+      properties,
+      loc: l,
+      _isDestructurePattern: true
+    };
   }
 
   parseParenOrArrowLambda() {

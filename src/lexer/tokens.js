@@ -141,6 +141,17 @@ export const TokenType = {
   MINUS_ASSIGN: 'MINUS_ASSIGN', // -=
   STAR_ASSIGN: 'STAR_ASSIGN', // *=
   SLASH_ASSIGN: 'SLASH_ASSIGN', // /=
+  AMPERSAND: 'AMPERSAND',       // &
+  CARET: 'CARET',               // ^
+  TILDE: 'TILDE',               // ~
+  LEFT_SHIFT: 'LEFT_SHIFT',     // <<
+  RIGHT_SHIFT: 'RIGHT_SHIFT',   // >>
+  UNSIGNED_RIGHT_SHIFT: 'UNSIGNED_RIGHT_SHIFT', // >>>
+  BIT_AND_ASSIGN: 'BIT_AND_ASSIGN', // &=
+  BIT_OR_ASSIGN: 'BIT_OR_ASSIGN',   // |=
+  BIT_XOR_ASSIGN: 'BIT_XOR_ASSIGN', // ^=
+  LEFT_SHIFT_ASSIGN: 'LEFT_SHIFT_ASSIGN',   // <<=
+  RIGHT_SHIFT_ASSIGN: 'RIGHT_SHIFT_ASSIGN', // >>=
 
   // Delimiters
   LPAREN: 'LPAREN',           // (

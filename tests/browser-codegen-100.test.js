@@ -897,7 +897,7 @@ describe('Browser Codegen — _containsRPC additional node types', () => {
     const code = compileBrowser(`
 browser {
   fn loadData() {
-    let { name, age } = server.fetchUser()
+    { name, age } = server.fetchUser()
   }
   component App() {
     <div on:click={loadData}>"Click"</div>

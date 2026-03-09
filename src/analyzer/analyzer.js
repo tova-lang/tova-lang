@@ -13,6 +13,7 @@ import { ErrorCode, WarningCode } from '../diagnostics/error-codes.js';
 
 // Pre-allocated constants for hot-path type checking (avoid per-call allocation)
 const ARITHMETIC_OPS = new Set(['-', '*', '/', '%', '**']);
+const BITWISE_OPS = new Set(['&', '|', '^', '<<', '>>', '>>>']);
 const NUMERIC_TYPES = new Set(['Int', 'Float']);
 
 const _JS_GLOBALS = new Set([
@@ -531,11 +532,13 @@ export class Analyzer {
           if (lt === 'String' || rt === 'String') return 'String';
           return 'Int';
         }
+        if (BITWISE_OPS.has(expr.operator)) return 'Int';
         if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) return 'Bool';
         return null;
       case 'UnaryExpression':
         if (expr.operator === 'not' || expr.operator === '!') return 'Bool';
         if (expr.operator === '-') return this._inferType(expr.operand);
+        if (expr.operator === '~') return 'Int';
         return null;
       case 'LogicalExpression':
         return 'Bool';
@@ -772,6 +775,7 @@ export class Analyzer {
       case 'ImportDeclaration': return this.visitImportDeclaration(node);
       case 'ImportDefault': return this.visitImportDefault(node);
       case 'ImportWildcard': return this.visitImportWildcard(node);
+      case 'ReExportDeclaration': return; // re-exports don't define local symbols
       case 'IfStatement': return this.visitIfStatement(node);
       case 'ForStatement': return this.visitForStatement(node);
       case 'WhileStatement': return this.visitWhileStatement(node);
@@ -881,6 +885,22 @@ export class Analyzer {
         // Argument count and type validation for known functions
         this._checkCallArgCount(node);
         this._checkCallArgTypes(node);
+        // W_UNSAFE_UNWRAP: detect .unwrap() and .expect() on Result/Option
+        if (node.callee.type === 'MemberExpression' && !node.callee.computed) {
+          const methodName = node.callee.property;
+          if (methodName === 'unwrap' || methodName === 'expect') {
+            const objType = this._inferType(node.callee.object);
+            if (objType && (objType.startsWith('Result') || objType.startsWith('Option') ||
+                objType === 'Result' || objType === 'Option')) {
+              this.warn(
+                `Unsafe ${methodName}() call on ${objType} — will panic if value is ${objType.startsWith('Result') ? 'Err' : 'None'}`,
+                node.loc,
+                'consider using unwrapOr(default) or match for safe error handling',
+                { code: 'W_UNSAFE_UNWRAP' }
+              );
+            }
+          }
+        }
         // W_UNSAFE_INTERPOLATION: detect template literals in database calls
         if (node.callee.type === 'MemberExpression' && !node.callee.computed) {
           const prop = node.callee.property;
@@ -910,6 +930,49 @@ export class Analyzer {
       case 'OptionalChain':
         this.visitExpression(node.object);
         if (node.computed) this.visitExpression(node.property);
+        // Type-aware checks (only for non-computed property access)
+        if (!node.computed && typeof node.property === 'string') {
+          const objType = this._inferType(node.object);
+          if (objType) {
+            // W_NULL_ACCESS: property access on nil
+            if (objType === 'Nil' && node.type !== 'OptionalChain') {
+              this.warn(
+                `Accessing property '${node.property}' on nil value`,
+                node.loc,
+                'this will always fail at runtime',
+                { code: 'W_NULL_ACCESS' }
+              );
+            }
+            // W_NULL_ACCESS: property access on Option without optional chaining
+            else if ((objType === 'Option' || objType.startsWith('Option<')) && node.type !== 'OptionalChain') {
+              this.warn(
+                `Option value may be None — use '?.' or unwrap before accessing '${node.property}'`,
+                node.loc,
+                'consider using ?. for safe access or unwrapOr(default)',
+                { code: 'W_NULL_ACCESS' }
+              );
+            }
+            // W_UNKNOWN_FIELD: access unknown field on user-defined type
+            else {
+              const BUILTIN_TYPES = new Set(['String', 'Int', 'Float', 'Bool', 'Array', 'Result', 'Option', 'Map', 'Set', 'Nil', 'Any']);
+              const baseType = objType.includes('<') ? objType.slice(0, objType.indexOf('<')) : objType;
+              if (!BUILTIN_TYPES.has(baseType) && !objType.startsWith('[') && !objType.startsWith('(')) {
+                const typeStructure = this.typeRegistry.types.get(objType);
+                if (typeStructure instanceof ADTType) {
+                  const fieldType = typeStructure.getFieldType(node.property);
+                  if (!fieldType) {
+                    this.warn(
+                      `Type '${objType}' has no field '${node.property}'`,
+                      node.loc,
+                      `available fields: ${[...new Set([...typeStructure.variants.values()].flatMap(v => [...v.keys()]))].join(', ') || 'none'}`,
+                      { code: 'W_UNKNOWN_FIELD' }
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
         return;
       case 'PipeExpression':
         this.visitExpression(node.left);
@@ -921,6 +984,23 @@ export class Analyzer {
         return this.visitMatchExpression(node);
       case 'ArrayLiteral':
         for (const el of node.elements) this.visitExpression(el);
+        if (node.elements.length > 1) {
+          const firstType = this._inferType(node.elements[0]);
+          if (firstType && firstType !== 'Any') {
+            for (let i = 1; i < node.elements.length; i++) {
+              const elType = this._inferType(node.elements[i]);
+              if (elType && elType !== 'Any' && !this._typesCompatible(firstType, elType)) {
+                this.warn(
+                  `Array contains mixed types: expected [${firstType}] but found ${elType} at index ${i}`,
+                  node.elements[i].loc || node.loc,
+                  `ensure all elements are ${firstType}`,
+                  { code: 'W209' }
+                );
+                break;
+              }
+            }
+          }
+        }
         return;
       case 'ObjectLiteral':
         for (const prop of node.properties) {
@@ -2111,8 +2191,8 @@ export class Analyzer {
           if (!this._typesCompatible(existing.inferredType, newType)) {
             this.strictError(`Type mismatch: '${target}' is ${existing.inferredType}, but assigned ${newType}`, node.loc, this._conversionHint(existing.inferredType, newType), { code: 'E102' });
           }
-          // Float narrowing warning in strict mode
-          if (this.strict && newType === 'Float' && existing.inferredType === 'Int') {
+          // Float narrowing warning
+          if (newType === 'Float' && existing.inferredType === 'Int') {
             this.warn(`Potential data loss: assigning Float to Int variable '${target}'`, node.loc, "use floor() or round() for explicit conversion", { code: 'W204' });
           }
         }
@@ -3565,6 +3645,14 @@ export class Analyzer {
       if (rightType && !NUMERIC_TYPES.has(rightType) && rightType !== 'Any') {
         const hint = rightType === 'String' ? "try toInt(value) or toFloat(value) to parse" : null;
         this.strictError(`Type mismatch: '+' expects numeric type, but got ${rightType}`, node.loc, hint);
+      }
+    } else if (BITWISE_OPS.has(op)) {
+      // Bitwise: both sides must be Int
+      if (leftType && leftType !== 'Int' && leftType !== 'Any') {
+        this.strictError(`Type mismatch: '${op}' expects Int, but got ${leftType}`, node.loc);
+      }
+      if (rightType && rightType !== 'Int' && rightType !== 'Any') {
+        this.strictError(`Type mismatch: '${op}' expects Int, but got ${rightType}`, node.loc);
       }
     }
   }

@@ -527,29 +527,29 @@ Notice how `eval_expr` and `show` are both recursive — each variant of `Expr` 
 
 <TryInPlayground :code="variantsCode" label="Expression Tree" />
 
-## Patterns in Let Destructuring
+## Patterns in Destructuring
 
-The same patterns you use in `match` also work with `let` for direct destructuring:
+The same patterns you use in `match` also work for direct destructuring. No keyword is needed -- just write the pattern on the left side of the assignment:
 
 ```tova
 // Array destructuring with rest
-let [first, second, ...remaining] = [1, 2, 3, 4, 5]
+[first, second, ...remaining] = [1, 2, 3, 4, 5]
 print(first)        // 1
 print(remaining)    // [3, 4, 5]
 
 // Object destructuring
-let { name, age } = { name: "Alice", age: 30, role: "admin" }
+{ name, age } = { name: "Alice", age: 30, role: "admin" }
 print(name)         // "Alice"
 
 // Nested destructuring
-let { address: { city, country } } = user
+{ address: { city, country } } = user
 print("Lives in {city}, {country}")
 
 // Tuple destructuring
-let (x, y) = get_coordinates()
+(x, y) = get_coordinates()
 ```
 
-`let` destructuring is a convenience for when you know the shape of your data. If the data might not match the pattern, use `match` instead so you can handle both cases.
+Destructuring is a convenience for when you know the shape of your data. If the data might not match the pattern, use `match` instead so you can handle both cases.
 
 ## Match vs. If Chains
 

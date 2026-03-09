@@ -134,14 +134,14 @@ describe('Analyzer — Variables', () => {
     expect(() => analyze('var x = 1\nx += 1')).not.toThrow();
   });
 
-  test('let destructuring object', () => {
-    const { scope } = analyze('let { a, b } = obj');
+  test('destructuring object', () => {
+    const { scope } = analyze('{ a, b } = obj');
     expect(scope.lookup('a')).not.toBeNull();
     expect(scope.lookup('b')).not.toBeNull();
   });
 
-  test('let destructuring array', () => {
-    const { scope } = analyze('let [x, y] = pair');
+  test('destructuring array', () => {
+    const { scope } = analyze('[x, y] = pair');
     expect(scope.lookup('x')).not.toBeNull();
     expect(scope.lookup('y')).not.toBeNull();
   });

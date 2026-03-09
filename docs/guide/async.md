@@ -68,7 +68,7 @@ async fn load_dashboard() {
     fetch_stats()
   ])
 
-  let [user, notifications, stats] = results
+  [user, notifications, stats] = results
   { user, notifications, stats }
 }
 ```
@@ -238,7 +238,7 @@ b = await fetch_b()
 
 // Fast: parallel (total time = max(time_a, time_b))
 results = await Promise.all([fetch_a(), fetch_b()])
-let [a, b] = results
+[a, b] = results
 ```
 
 **Always handle errors.** Every `await` can fail. Wrap fetch calls in `try`/`catch` or return `Result` types to handle failures gracefully.

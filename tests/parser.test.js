@@ -35,15 +35,15 @@ describe('Parser — Assignments', () => {
     expect(ast.body[0].values.length).toBe(2);
   });
 
-  test('let destructuring (object)', () => {
-    const ast = parse('let { name, age } = user');
+  test('object destructuring', () => {
+    const ast = parse('{ name, age } = user');
     expect(ast.body[0].type).toBe('LetDestructure');
     expect(ast.body[0].pattern.type).toBe('ObjectPattern');
     expect(ast.body[0].pattern.properties.length).toBe(2);
   });
 
-  test('let destructuring (array)', () => {
-    const ast = parse('let [a, b] = pair');
+  test('array destructuring', () => {
+    const ast = parse('[a, b] = pair');
     expect(ast.body[0].type).toBe('LetDestructure');
     expect(ast.body[0].pattern.type).toBe('ArrayPattern');
   });

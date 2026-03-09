@@ -906,16 +906,16 @@ describe('T0-2: mut keyword produces parse error', () => {
   });
 });
 
-// ── T0-3: let error message mentions var ────────────────────
+// ── T0-3: let error message ────────────────────
 
-describe('T0-3: let error message mentions var', () => {
-  test('let x = 5 error mentions var', () => {
-    expect(() => parse('let x = 5')).toThrow("var x = value");
-    expect(() => parse('let x = 5')).toThrow("for mutable");
+describe('T0-3: let error message', () => {
+  test('let x = 5 error says let is not needed', () => {
+    expect(() => parse('let x = 5')).toThrow("'let' is not needed in Tova");
+    expect(() => parse('let x = 5')).toThrow("Destructure directly");
   });
 
-  test('let destructuring still works', () => {
-    const ast = parse('let {a, b} = obj');
+  test('destructuring still works without let', () => {
+    const ast = parse('{a, b} = obj');
     expect(ast.body[0].type).toBe('LetDestructure');
   });
 });
