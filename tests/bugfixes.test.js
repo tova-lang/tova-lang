@@ -1635,3 +1635,102 @@ describe('analyzer: MemberExpression assignment targets', () => {
     expect(code).toContain('filled');
   });
 });
+
+// ── Bug Fix: REPL tuple swap TDZ error ──
+// When "a, b = b, a" is compiled independently, it produces "const [a, b] = [b, a];"
+// In the REPL, if a and b already exist in context, this causes a TDZ error because
+// a and b on the RHS reference the const being declared. The fix converts const/let
+// declarations back to reassignments when the variables already exist in context.
+
+describe('REPL variable reassignment fix (tuple swap TDZ)', () => {
+  // Helper: apply the REPL reassignment fix to compiled code given a context
+  function applyReplFix(code, context) {
+    const declaredInCode = new Set();
+    for (const m of code.matchAll(/\bconst\s+([a-zA-Z_]\w*)/g)) declaredInCode.add(m[1]);
+    for (const m of code.matchAll(/\bconst\s+\[\s*([^\]]+)\]/g)) {
+      for (const part of m[1].split(',')) {
+        const id = part.trim().match(/^([a-zA-Z_]\w*)/)?.[1];
+        if (id) declaredInCode.add(id);
+      }
+    }
+    for (const m of code.matchAll(/\blet\s+([a-zA-Z_]\w*)/g)) {
+      declaredInCode.add(m[1]);
+      if (!context.__mutable) context.__mutable = new Set();
+      context.__mutable.add(m[1]);
+    }
+
+    let replCode = code;
+    replCode = replCode.replace(/^(const|let)\s+(\[[^\]]+\])\s*=/gm, (match, kw, targets) => {
+      const names = targets.slice(1, -1).split(',').map(n => n.trim()).filter(Boolean);
+      if (names.length > 0 && names.every(n => n in context)) {
+        for (const n of names) {
+          declaredInCode.delete(n);
+          if (!context.__mutable) context.__mutable = new Set();
+          context.__mutable.add(n);
+        }
+        return `${targets} =`;
+      }
+      return match;
+    });
+    replCode = replCode.replace(/^(const|let)\s+([a-zA-Z_]\w*)\s*=/gm, (match, kw, name) => {
+      if (name in context) {
+        declaredInCode.delete(name);
+        if (!context.__mutable) context.__mutable = new Set();
+        context.__mutable.add(name);
+        return `${name} =`;
+      }
+      return match;
+    });
+    return { replCode, declaredInCode };
+  }
+
+  test('tuple swap: const [a, b] = [b, a] becomes [a, b] = [b, a] when vars exist', () => {
+    const code = compile('a, b = b, a').trim();
+    // Compiled code should contain const [a, b] = [b, a]
+    expect(code).toContain('const [a, b] = [b, a]');
+
+    // Apply REPL fix with existing context
+    const context = { a: 4, b: 5, __mutable: new Set(['a', 'b']) };
+    const { replCode, declaredInCode } = applyReplFix(code, context);
+    // const should be stripped
+    expect(replCode).not.toContain('const [a, b]');
+    expect(replCode).toContain('[a, b] = [b, a]');
+    // a and b should NOT be in declaredInCode (so they're imported from context)
+    expect(declaredInCode.has('a')).toBe(false);
+    expect(declaredInCode.has('b')).toBe(false);
+  });
+
+  test('self-referential: const a = [b, a] becomes a = [b, a] when var exists', () => {
+    const code = compile('a = (b, a)').trim();
+    expect(code).toContain('const a');
+    expect(code).toContain('[b, a]');
+
+    const context = { a: 4, b: 5, __mutable: new Set(['a', 'b']) };
+    const { replCode, declaredInCode } = applyReplFix(code, context);
+    expect(replCode).not.toMatch(/\bconst a\b/);
+    expect(replCode).toContain('a =');
+    expect(declaredInCode.has('a')).toBe(false);
+  });
+
+  test('new declarations are NOT converted to reassignment', () => {
+    const code = compile('x = 10').trim();
+    expect(code).toContain('const x = 10');
+
+    const context = {}; // x does NOT exist in context
+    const { replCode, declaredInCode } = applyReplFix(code, context);
+    // Should stay as const since x is new
+    expect(replCode).toContain('const x = 10');
+    expect(declaredInCode.has('x')).toBe(true);
+  });
+
+  test('mutable var redeclaration: let a = expr becomes a = expr', () => {
+    const code = compile('var a = a + 1').trim();
+    expect(code).toContain('let a');
+
+    const context = { a: 5, __mutable: new Set(['a']) };
+    const { replCode, declaredInCode } = applyReplFix(code, context);
+    expect(replCode).not.toMatch(/\blet a\b/);
+    expect(replCode).toContain('a =');
+    expect(declaredInCode.has('a')).toBe(false);
+  });
+});

@@ -4541,6 +4541,35 @@ async function startRepl() {
           context.__mutable.add(m[1]);
         }
 
+        // Fix REPL reassignment: when compiled code declares variables that
+        // already exist in context, convert to reassignment to avoid TDZ errors.
+        // e.g., "a, b = b, a" compiles to "const [a, b] = [b, a];" but b/a on
+        // the RHS are in TDZ because they're excluded from context destructure.
+        let replCode = code;
+        // Array/tuple destructuring: const [a, b] = [...] → [a, b] = [...]
+        replCode = replCode.replace(/^(const|let)\s+(\[[^\]]+\])\s*=/gm, (match, kw, targets) => {
+          const names = targets.slice(1, -1).split(',').map(n => n.trim()).filter(Boolean);
+          if (names.length > 0 && names.every(n => n in context)) {
+            for (const n of names) {
+              declaredInCode.delete(n);
+              if (!context.__mutable) context.__mutable = new Set();
+              context.__mutable.add(n);
+            }
+            return `${targets} =`;
+          }
+          return match;
+        });
+        // Single variable: const x = expr → x = expr (when x exists in context)
+        replCode = replCode.replace(/^(const|let)\s+([a-zA-Z_]\w*)\s*=/gm, (match, kw, name) => {
+          if (name in context) {
+            declaredInCode.delete(name);
+            if (!context.__mutable) context.__mutable = new Set();
+            context.__mutable.add(name);
+            return `${name} =`;
+          }
+          return match;
+        });
+
         // Save declared variables back to context for persistence across inputs
         const saveNewDecls = declaredInCode.size > 0
           ? [...declaredInCode].map(n => `if(typeof ${n}!=='undefined')__ctx.${n}=${n};`).join('\n')
@@ -4561,17 +4590,17 @@ async function startRepl() {
           (letKeys.length > 0 ? `let {${letKeys.join(',')}} = __ctx;\n` : '');
 
         // Try wrapping last expression statement as a return for value display
-        const lines = code.trim().split('\n');
+        const lines = replCode.trim().split('\n');
         const lastLine = lines[lines.length - 1].trim();
-        let evalCode = code;
+        let evalCode = replCode;
         // For simple assignments (const x = expr;), echo the assigned value
         const constAssignMatch = lastLine.match(/^(const|let)\s+([a-zA-Z_]\w*)\s*=\s*(.+);?$/);
         if (constAssignMatch) {
           const varName = constAssignMatch[2];
           if (allSave) {
-            evalCode = `${code}\n${allSave}\nreturn ${varName};`;
+            evalCode = `${replCode}\n${allSave}\nreturn ${varName};`;
           } else {
-            evalCode = `${code}\nreturn ${varName};`;
+            evalCode = `${replCode}\nreturn ${varName};`;
           }
         } else if (!/^(const |let |var |function |if |for |while |class |try |switch )/.test(lastLine) && !lastLine.endsWith('{')) {
           // Replace the last statement with a return
@@ -4585,7 +4614,7 @@ async function startRepl() {
             evalCode = allButLast + (allButLast ? '\n' : '') + `return (${returnExpr});`;
           }
         } else {
-          evalCode = code + (allSave ? '\n' + allSave : '');
+          evalCode = replCode + (allSave ? '\n' + allSave : '');
         }
         try {
           const fn = new Function('__ctx', `${destructure}${evalCode}`);
@@ -4597,7 +4626,7 @@ async function startRepl() {
           }
         } catch (e) {
           // If return-wrapping fails, fall back to plain execution
-          const fallbackCode = code + (allSave ? '\n' + allSave : '');
+          const fallbackCode = replCode + (allSave ? '\n' + allSave : '');
           const fn = new Function('__ctx', `${destructure}${fallbackCode}`);
           fn(context);
         }
