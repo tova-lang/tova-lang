@@ -19,7 +19,7 @@ This appendix provides the complete EBNF (Extended Backus-Naur Form) grammar for
 
 ### Tokens
 
-```ebnf
+```text
 token = NUMBER | STRING | STRING_TEMPLATE | BOOLEAN | NIL
       | IDENTIFIER | keyword | operator | delimiter
       | REGEX | DOCSTRING | NEWLINE | EOF ;
@@ -53,7 +53,7 @@ http_method = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" ;
 
 ### Number Literals
 
-```ebnf
+```text
 number = decimal_number | hex_number | binary_number | octal_number ;
 
 decimal_number = digit { digit | "_" } [ "." digit { digit | "_" } ]
@@ -72,7 +72,7 @@ oct_digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
 
 ### String Literals
 
-```ebnf
+```text
 string = double_string | single_string | triple_string | raw_string | f_string ;
 
 double_string  = '"' { string_char | escape_seq | interpolation } '"' ;
@@ -93,7 +93,7 @@ interpolation  = "{" expression "}" ;
 
 ### Regex Literals
 
-```ebnf
+```text
 regex_literal = "/" regex_pattern "/" [ regex_flags ] ;
 
 regex_pattern = { regex_char | "[" regex_class "]" } ;
@@ -107,14 +107,14 @@ regex_flags   = { "g" | "i" | "m" | "s" | "u" | "y" | "d" | "v" } ;
 
 ### Identifiers
 
-```ebnf
+```text
 identifier = ( letter | "_" ) { letter | digit | "_" } ;
 letter     = "a".."z" | "A".."Z" ;
 ```
 
 ### Comments
 
-```ebnf
+```text
 line_comment  = "//" { any_char } newline ;
 doc_comment   = "///" { any_char } newline ;
 block_comment = "/*" { any_char | block_comment } "*/" ;
@@ -122,7 +122,7 @@ block_comment = "/*" { any_char | block_comment } "*/" ;
 
 ### Operators and Delimiters
 
-```ebnf
+```text
 operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | "&&" | "||" | "!" | "|>" | "|"
@@ -136,7 +136,7 @@ delimiter = "(" | ")" | "{" | "}" | "[" | "]" | "," | ";" ;
 
 ## Program Structure
 
-```ebnf
+```text
 program = { top_level_statement } EOF ;
 
 top_level_statement = server_block
@@ -180,7 +180,7 @@ bench_block   = "bench"  [ STRING ] "{" { statement } "}" ;
 
 ## Server Statements
 
-```ebnf
+```text
 server_statement = route_declaration
                  | route_group_declaration
                  | middleware_declaration
@@ -262,7 +262,7 @@ subscribe_declaration = "subscribe" STRING "fn" "(" param_list ")" block ;
 
 ## Browser Statements
 
-```ebnf
+```text
 browser_statement = state_declaration
                  | computed_declaration
                  | effect_declaration
@@ -284,7 +284,7 @@ store_declaration = "store" IDENTIFIER "{" { state_declaration | computed_declar
 
 ## Security Block
 
-```ebnf
+```text
 security_block = "security" "{" { security_statement } "}" ;
 
 security_statement = security_auth_declaration
@@ -314,7 +314,7 @@ security_hsts_declaration    = "hsts" "{" object_body "}" ;
 
 ## CLI Block
 
-```ebnf
+```text
 cli_block = "cli" "{" { cli_statement } "}" ;
 
 cli_statement = cli_config_field
@@ -333,7 +333,7 @@ cli_param      = ( "--" IDENTIFIER | IDENTIFIER ) [ ":" type_annotation ] [ "=" 
 
 ## Edge Block
 
-```ebnf
+```text
 edge_block = "edge" [ STRING ] "{" { edge_statement } "}" ;
 
 edge_statement = edge_config_field
@@ -359,7 +359,7 @@ edge_consume_declaration = "consume" IDENTIFIER "fn" "(" param_list ")" block ;
 
 ## Concurrent Block, Spawn, and Select
 
-```ebnf
+```text
 concurrent_block = "concurrent" [ concurrent_mode ] block ;
 concurrent_mode  = "cancel_on_error" | "first" | "timeout" "(" expression ")" ;
 
@@ -387,7 +387,7 @@ default_case = "_" "=>" ( block | expression ) ;
 
 ## Form Declaration
 
-```ebnf
+```text
 form_declaration = "form" IDENTIFIER "{" { form_member } "}" ;
 
 form_member = form_field
@@ -418,7 +418,7 @@ form_validator = IDENTIFIER "(" [ expression_list ] ")" ;
 
 ## Deploy Block
 
-```ebnf
+```text
 deploy_block = "deploy" "{" { deploy_statement } "}" ;
 
 deploy_statement = deploy_config_field
@@ -432,7 +432,7 @@ deploy_db_block     = "db" "{" { IDENTIFIER ":" expression } "}" ;
 
 ## Theme Block
 
-```ebnf
+```text
 theme_block = "theme" "{" { theme_section } "}" ;
 
 theme_section = IDENTIFIER "{" { theme_token } "}" ;
@@ -441,7 +441,7 @@ theme_token   = IDENTIFIER ":" expression ;
 
 ## Statements
 
-```ebnf
+```text
 statement = assignment
           | compound_assignment
           | var_declaration
@@ -562,7 +562,7 @@ block = "{" { statement } "}" ;
 
 ### Precedence (Lowest to Highest)
 
-```ebnf
+```text
 expression     = pipe_expr ;
 
 pipe_expr      = null_coalesce { "|>" pipe_target } ;
@@ -608,7 +608,7 @@ argument       = [ IDENTIFIER ":" ] expression | "..." expression ;
 
 ### Primary Expressions
 
-```ebnf
+```text
 primary = NUMBER
         | STRING
         | STRING_TEMPLATE
@@ -654,7 +654,7 @@ if_expression = "if" expression block
 
 ## Patterns
 
-```ebnf
+```text
 pattern = literal_pattern
         | range_pattern
         | variant_pattern
@@ -682,7 +682,7 @@ binding_pattern  = IDENTIFIER ;
 
 ## Type Annotations
 
-```ebnf
+```text
 type_annotation = union_type ;
 
 union_type     = single_type { "|" single_type } ;
@@ -704,7 +704,7 @@ tuple_or_fn_type = "(" [ type_annotation { "," type_annotation } ] ")"
 
 ### Type Declarations
 
-```ebnf
+```text
 (* See the full type_declaration rule in the Statements section above.
    Supports three forms:
    - Type body:  type Color { Red, Green, Blue }
@@ -717,7 +717,7 @@ tuple_or_fn_type = "(" [ type_annotation { "," type_annotation } ] ")"
 
 ## Destructuring Patterns
 
-```ebnf
+```text
 object_pattern = "{" object_pattern_entry { "," object_pattern_entry } "}" ;
 object_pattern_entry = IDENTIFIER [ ":" IDENTIFIER ] [ "=" expression ] ;
 
@@ -726,7 +726,7 @@ array_pattern  = "[" [ IDENTIFIER { "," IDENTIFIER } [ "," "..." IDENTIFIER ] ] 
 
 ## JSX Grammar
 
-```ebnf
+```text
 jsx_element = jsx_self_closing | jsx_open_close | jsx_fragment ;
 
 jsx_self_closing = "<" jsx_tag { jsx_attribute } "/>" ;

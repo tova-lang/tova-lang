@@ -18,7 +18,7 @@ Line terminators are `\n` (LF) and `\r\n` (CRLF). A standalone `\r` (CR) is trea
 
 ### 1.3 Comments
 
-```ebnf
+```text
 line_comment  = "//" { any_char } NEWLINE ;
 doc_comment   = "///" { any_char } NEWLINE ;
 block_comment = "/*" { any_char | block_comment } "*/" ;
@@ -85,7 +85,7 @@ GET  POST  PUT  DELETE  PATCH  HEAD  OPTIONS
 
 ### 1.6 Identifiers
 
-```ebnf
+```text
 identifier = ( letter | "_" ) { letter | digit | "_" | unicode_char } ;
 letter     = "a".."z" | "A".."Z" ;
 digit      = "0".."9" ;
@@ -99,7 +99,7 @@ Identifiers are case-sensitive and support Unicode letters (any character matchi
 
 ### 1.7 Numeric Literals
 
-```ebnf
+```text
 number = decimal | hex | binary | octal ;
 
 decimal = digit { digit | "_" } [ "." digit { digit | "_" } ]
@@ -116,7 +116,7 @@ Underscores may appear between digits for readability: `1_000_000`, `0xFF_FF`. A
 
 #### Double-Quoted Strings
 
-```ebnf
+```text
 double_string = '"' { char | escape | interpolation } '"' ;
 interpolation = "{" expression "}" ;
 ```
@@ -125,7 +125,7 @@ Double-quoted strings support interpolation. Any expression inside `{...}` is ev
 
 #### Single-Quoted Strings
 
-```ebnf
+```text
 single_string = "'" { char | escape } "'" ;
 ```
 
@@ -133,7 +133,7 @@ Single-quoted strings have no interpolation. Braces are literal.
 
 #### Triple-Quoted Strings
 
-```ebnf
+```text
 triple_string = '"""' { any_char | escape | interpolation } '"""' ;
 ```
 
@@ -141,7 +141,7 @@ Triple-quoted strings preserve whitespace and span multiple lines. They support 
 
 #### F-Strings
 
-```ebnf
+```text
 f_string = "f" '"' { char | escape | interpolation } '"' ;
 ```
 
@@ -149,7 +149,7 @@ The `f` prefix explicitly marks a string as interpolated. Semantically identical
 
 #### Raw Strings
 
-```ebnf
+```text
 raw_string = "r" '"' { any_char_except_dquote } '"' ;
 ```
 
@@ -170,7 +170,7 @@ Raw strings disable escape sequence processing. Backslashes are literal characte
 
 ### 1.8a Regex Literals
 
-```ebnf
+```text
 regex_literal = "/" regex_pattern "/" [ regex_flags ] ;
 regex_flags   = { "g" | "i" | "m" | "s" | "u" | "y" | "d" | "v" } ;
 ```
@@ -297,7 +297,7 @@ Tova source files may begin with a shebang line (`#!`). The lexer strips the fir
 
 ### 2.1 Program
 
-```ebnf
+```text
 program = { top_level } EOF ;
 
 top_level = server_block | browser_block | shared_block
@@ -311,7 +311,7 @@ A Tova program is a sequence of top-level blocks and statements. Top-level block
 
 ### 2.2 Blocks
 
-```ebnf
+```text
 server_block    = "server" [ STRING ] "{" { server_statement } "}" ;
 browser_block   = "browser" [ STRING ] "{" { browser_statement } "}" ;
 shared_block    = "shared" [ STRING ] "{" { statement } "}" ;
@@ -330,7 +330,7 @@ The optional string after certain block keywords is a name, used for named block
 
 ### 2.3 Statements
 
-```ebnf
+```text
 statement = assignment | var_declaration | let_destructure
           | decorated_declaration | function_declaration | type_declaration
           | interface_declaration | trait_declaration | impl_declaration
@@ -344,7 +344,7 @@ statement = assignment | var_declaration | let_destructure
 
 #### Variable Binding
 
-```ebnf
+```text
 assignment     = target { "," target } "=" expression { "," expression } ;
 var_declaration = "var" target { "," target } "=" expression { "," expression } ;
 target          = IDENTIFIER [ ":" type_annotation ] ;
@@ -356,7 +356,7 @@ Multiple assignment: `a, b = 1, 2` binds `a` to `1` and `b` to `2`.
 
 #### Destructuring
 
-```ebnf
+```text
 let_destructure = [ "let" ] pattern "=" expression ;
 
 pattern = object_pattern | array_pattern | tuple_pattern ;
@@ -371,7 +371,7 @@ tuple_pattern  = "(" IDENTIFIER { "," IDENTIFIER } ")" ;
 
 #### Function Declaration
 
-```ebnf
+```text
 function_declaration = [ "async" ] "fn" IDENTIFIER
                        [ "<" type_params ">" ]
                        "(" [ param_list ] ")"
@@ -394,7 +394,7 @@ Functions support:
 
 #### Type Declaration
 
-```ebnf
+```text
 type_declaration = "type" IDENTIFIER [ "<" type_params ">" ]
                    ( "=" type_alias | "{" type_body "}" )
                    [ "derive" "[" IDENTIFIER { "," IDENTIFIER } "]" ] ;
@@ -419,7 +419,7 @@ Types come in several forms:
 
 #### Control Flow
 
-```ebnf
+```text
 if_statement = "if" expression block
                { "elif" expression block }
                [ "else" block ] ;
@@ -445,7 +445,7 @@ The `for...else` construct: the `else` block runs if the loop completes without 
 
 #### Try / Catch / Finally
 
-```ebnf
+```text
 try_catch = "try" block
             [ "catch" [ IDENTIFIER ] block ]
             [ "finally" block ] ;
@@ -455,7 +455,7 @@ At least one of `catch` or `finally` is required.
 
 #### Import
 
-```ebnf
+```text
 import_declaration = "import" ( import_specifiers "from" STRING
                               | IDENTIFIER "from" STRING ) ;
 import_specifiers  = "{" import_spec { "," import_spec } "}" ;
@@ -466,7 +466,7 @@ import_spec        = IDENTIFIER [ "as" IDENTIFIER ] ;
 
 In addition to regular statements, server blocks support:
 
-```ebnf
+```text
 route_declaration = "route" HTTP_METHOD STRING
                     [ "with" decorator_list ]
                     [ "body:" type_annotation ]
@@ -506,7 +506,7 @@ ai_config_declaration = "ai" [ STRING ] "{" key_value_list "}" ;
 
 ### 2.5 Client Statements
 
-```ebnf
+```text
 state_declaration    = "state" IDENTIFIER [ ":" type_annotation ] "=" expression ;
 computed_declaration = "computed" IDENTIFIER "=" expression ;
 effect_declaration   = "effect" block ;
@@ -521,7 +521,7 @@ form_declaration = "form" IDENTIFIER "{" { form_member } "}" ;
 
 ### 2.6 Expressions
 
-```ebnf
+```text
 expression = pipe_expr ;
 
 pipe_expr      = null_coalesce { "|>" pipe_target } ;
@@ -553,7 +553,7 @@ arg      = [ IDENTIFIER ":" ] expression | "..." expression ;
 
 #### Primary Expressions
 
-```ebnf
+```text
 primary = NUMBER | STRING | REGEX | "true" | "false" | "nil"
         | IDENTIFIER
         | "(" expression ")"
@@ -586,7 +586,7 @@ if_expression = "if" expression block { "elif" expression block } "else" block ;
 
 ### 2.7 Patterns
 
-```ebnf
+```text
 pattern = literal_pattern | range_pattern | variant_pattern
         | array_pattern | tuple_pattern | object_pattern
         | string_concat_pattern | wildcard_pattern | binding_pattern ;
@@ -613,7 +613,7 @@ Pattern matching rules:
 
 ### 2.8 Type Annotations
 
-```ebnf
+```text
 type_annotation = simple_type | array_type | function_type | tuple_type | union_type ;
 
 simple_type   = IDENTIFIER [ "<" type_annotation { "," type_annotation } ">" ] [ "?" ] ;
@@ -627,7 +627,7 @@ The `?` suffix denotes an optional type: `String?` is shorthand for `String | Ni
 
 ### 2.9 JSX
 
-```ebnf
+```text
 jsx_element = jsx_self_closing | jsx_open_close | jsx_fragment ;
 
 jsx_self_closing = "<" jsx_tag { jsx_attribute } "/>" ;
@@ -658,7 +658,7 @@ JSX compiles to DOM creation calls in the Tova reactive runtime. Text inside JSX
 
 ### 2.10 Security Block
 
-```ebnf
+```text
 security_block = "security" "{" { security_statement } "}" ;
 
 security_statement = "auth" "{" key_value_list "}"
@@ -678,7 +678,7 @@ The `security {}` block provides centralized security policy (auth, roles, route
 
 ### 2.11 CLI Block
 
-```ebnf
+```text
 cli_block = "cli" "{" { cli_statement } "}" ;
 cli_statement = IDENTIFIER ":" expression | cli_command ;
 cli_command = "fn" IDENTIFIER "(" [ cli_param_list ] ")" block ;
@@ -689,7 +689,7 @@ CLI blocks generate standalone executable scripts with argument parsing, help te
 
 ### 2.12 Edge Block
 
-```ebnf
+```text
 edge_block = "edge" [ STRING ] "{" { edge_statement } "}" ;
 edge_statement = IDENTIFIER ":" expression
                | ( "kv" | "sql" | "storage" | "queue" | "env" | "secret" ) IDENTIFIER [ ":" type_annotation ] [ "=" expression ]
@@ -702,7 +702,7 @@ Edge blocks support 5 deployment targets: `cloudflare`, `deno`, `vercel`, `lambd
 
 ### 2.13 Concurrent Block, Spawn, Select
 
-```ebnf
+```text
 concurrent_block = "concurrent" [ concurrent_mode ] block ;
 concurrent_mode = "cancel_on_error" | "first" | "timeout" "(" expression ")" ;
 
@@ -719,7 +719,7 @@ The default concurrent mode is `all` — all spawned tasks must complete. `spawn
 
 ### 2.14 Form Declaration
 
-```ebnf
+```text
 form_declaration = "form" IDENTIFIER "{" { form_member } "}" ;
 form_member = "field" IDENTIFIER [ ":" type_annotation ] "=" expression [ "{" { validator } "}" ]
             | "group" IDENTIFIER [ "when" expression ] "{" { form_member } "}"

@@ -19,6 +19,9 @@ export default defineConfig({
   title: 'Tova',
   description: 'A modern programming language for scripting, data, AI, and full-stack web',
   base: '/',
+  ignoreDeadLinks: [
+    /\/plans\//,
+  ],
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
   ],
