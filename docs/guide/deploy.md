@@ -277,7 +277,7 @@ fi
 
 Caddy handles HTTPS certificates automatically via Let's Encrypt. The generated Caddyfile configures reverse proxying to your app instances with health checks and load balancing:
 
-```caddy
+```text
 myapp.com {
   reverse_proxy localhost:3000 localhost:3001 localhost:3002 {
     lb_policy round_robin

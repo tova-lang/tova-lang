@@ -274,7 +274,7 @@ const result = __result[0];
 
 WASM modules call host-imported functions provided by the Rust runtime:
 
-```wat
+```text
 (import "tova" "chan_send"    (func $chan_send    (param i32 i64) (result i32)))
 (import "tova" "chan_receive" (func $chan_receive (param i32) (result i64)))
 (import "tova" "chan_close"   (func $chan_close   (param i32)))
