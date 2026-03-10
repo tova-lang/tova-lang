@@ -28,19 +28,33 @@ export default defineConfig({
     siteTitle: 'Tova',
 
     nav: [
-      { text: 'Why Tova?', link: '/why-tova' },
-      { text: 'Guide', link: '/getting-started/' },
-      { text: 'Tutorial', link: '/tutorial' },
-      { text: 'Tutorials', link: '/tutorials/' },
-      { text: 'Mastering Tova', link: '/mastering/' },
-      { text: 'Reference', link: '/reference/syntax' },
-      { text: 'Stdlib', link: '/stdlib/' },
-      { text: 'Examples', link: '/examples/' },
-      { text: 'Packages', link: '/packages/' },
-      { text: 'Tooling', link: '/tooling/cli' },
-      { text: 'Deploy', link: '/guide/deploy' },
       {
-        text: 'App Models',
+        text: 'Guide',
+        items: [
+          { text: 'Why Tova?', link: '/why-tova' },
+          { text: 'Getting Started', link: '/getting-started/' },
+          { text: 'Core Language', link: '/guide/variables' },
+          { text: 'Mastering Tova', link: '/mastering/' },
+        ],
+      },
+      {
+        text: 'Tutorials',
+        items: [
+          { text: 'Quick Start', link: '/tutorial' },
+          { text: 'Data Analytics', link: '/tutorials/data/' },
+          { text: 'Examples', link: '/examples/' },
+        ],
+      },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Syntax & Grammar', link: '/reference/syntax' },
+          { text: 'Standard Library', link: '/stdlib/' },
+          { text: 'Packages', link: '/packages/' },
+        ],
+      },
+      {
+        text: 'Build',
         items: [
           { text: 'Full-Stack Web', link: '/fullstack/architecture' },
           { text: 'Server', link: '/server/routes' },
@@ -48,8 +62,10 @@ export default defineConfig({
           { text: 'CLI Apps', link: '/fullstack/cli-block' },
           { text: 'Edge/Serverless', link: '/fullstack/edge-block' },
           { text: 'Data Pipelines', link: '/fullstack/data-block' },
-          { text: 'Tova for Data Professionals', link: '/guide/data-professionals' },
           { text: 'AI Integration', link: '/guide/ai' },
+          { text: 'For Data Professionals', link: '/guide/data-professionals' },
+          { text: 'Tooling', link: '/tooling/cli' },
+          { text: 'Deploy', link: '/guide/deploy' },
         ],
       },
       { text: 'Playground', link: '/playground' },
