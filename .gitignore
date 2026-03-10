@@ -18,7 +18,9 @@ tova_runtime/*.node
 benchmarks/.go-bins/
 
 # VitePress cache (root-level, created by dev server)
-.vitepress/
+/.vitepress/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 
 # Editor / IDE
 .vscode/
