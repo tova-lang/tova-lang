@@ -68,6 +68,10 @@ users |> where(.age > 25)
 users |> where(fn(r) r.age > 25)
 ```
 
+::: tip Both Syntaxes Work
+Column expressions (`.age > 25`) and lambda syntax (`fn(r) r.age > 25`) are interchangeable. Use `.column` for concise column access, and `fn(r)` when you need complex logic, multiple statements, or variable references from outer scope. The [Data Tutorials](/tutorials/data/) use the explicit `fn(r)` style throughout.
+:::
+
 Column expressions work with all Tova features:
 
 ```tova

@@ -1,0 +1,141 @@
+// ══════════════════════════════════════════════════════════════
+// 02 — Grouping & Aggregation: The bread-and-butter of analytics
+// GROUP BY equivalents, pivot tables, multi-level aggregation
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ GROUPING & AGGREGATION ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+
+  // ── 1. Basic group-by: Department summary ────────────────────
+  print(bold("── Department Summary ──"))
+  dept_summary = employees
+    |> table_group_by("department")
+    |> table_agg({
+      headcount: agg_count(),
+      avg_salary: agg_mean("salary"),
+      max_salary: agg_max("salary"),
+      min_salary: agg_min("salary"),
+      median_salary: agg_median("salary"),
+      avg_score: agg_mean("performance_score")
+    })
+    |> table_sort_by("avg_salary", {desc: true})
+
+  peek(dept_summary, {title: "Department Summary"})
+
+  // ── 2. Group by city ─────────────────────────────────────────
+  print(bold("\n── Headcount by City ──"))
+  city_counts = employees
+    |> table_group_by("city")
+    |> table_agg({
+      headcount: agg_count(),
+      total_payroll: agg_sum("salary"),
+      avg_performance: agg_mean("performance_score")
+    })
+    |> table_sort_by("headcount", {desc: true})
+
+  peek(city_counts, {title: "City Distribution"})
+
+  // ── 3. Sales aggregation by product ──────────────────────────
+  print(bold("\n── Revenue by Product ──"))
+  product_revenue = sales
+    |> table_group_by("product")
+    |> table_agg({
+      total_revenue: agg_sum("amount"),
+      num_deals: agg_count(),
+      avg_deal_size: agg_mean("amount"),
+      total_units: agg_sum("quantity")
+    })
+    |> table_sort_by("total_revenue", {desc: true})
+
+  peek(product_revenue, {title: "Product Revenue"})
+
+  // ── 4. Sales by category and region ──────────────────────────
+  print(bold("\n── Revenue by Category ──"))
+  category_rev = sales
+    |> table_group_by("category")
+    |> table_agg({
+      revenue: agg_sum("amount"),
+      deals: agg_count(),
+      avg_quantity: agg_mean("quantity")
+    })
+
+  peek(category_rev, {title: "Category Revenue"})
+
+  // ── 5. Sales by region ───────────────────────────────────────
+  print(bold("\n── Revenue by Region ──"))
+  region_rev = sales
+    |> table_group_by("region")
+    |> table_agg({
+      revenue: agg_sum("amount"),
+      deals: agg_count(),
+      avg_deal: agg_mean("amount")
+    })
+    |> table_sort_by("revenue", {desc: true})
+
+  peek(region_rev, {title: "Regional Revenue"})
+
+  // ── 6. Sales by customer type ────────────────────────────────
+  print(bold("\n── Revenue by Customer Type ──"))
+  customer_rev = sales
+    |> table_group_by("customer_type")
+    |> table_agg({
+      revenue: agg_sum("amount"),
+      deals: agg_count(),
+      avg_deal_size: agg_mean("amount")
+    })
+    |> table_sort_by("revenue", {desc: true})
+
+  peek(customer_rev, {title: "Customer Type Revenue"})
+
+  // ── 7. Monthly sales trend ───────────────────────────────────
+  print(bold("\n── Monthly Sales Trend ──"))
+  monthly = sales
+    |> table_derive({
+      month: fn(r) r.date.slice(0, 7)
+    })
+    |> table_group_by("month")
+    |> table_agg({
+      revenue: agg_sum("amount"),
+      deals: agg_count()
+    })
+    |> table_sort_by("_group")
+
+  peek(monthly, {title: "Monthly Trend"})
+
+  // ── 8. Department + City cross-tabulation ────────────────────
+  print(bold("\n── Dept × City Headcount (via derive + group) ──"))
+  cross = employees
+    |> table_derive({
+      dept_city: fn(r) "{r.department}|{r.city}"
+    })
+    |> table_group_by("dept_city")
+    |> table_agg({
+      headcount: agg_count(),
+      avg_salary: agg_mean("salary")
+    })
+    |> table_sort_by("headcount", {desc: true})
+
+  peek(cross, {title: "Department × City"})
+
+  // ── 9. Pivot: Region × Category revenue matrix ──────────────
+  print(bold("\n── Pivot: Revenue by Region × Category ──"))
+  pivoted = sales
+    |> table_pivot({
+      index: "region",
+      columns: "category",
+      values: "amount"
+    })
+
+  peek(pivoted, {title: "Region × Category Pivot"})
+
+  // ── 10. Write aggregated results ─────────────────────────────
+  await write(dept_summary, "data/dept_summary.csv")
+  await write(product_revenue, "data/product_revenue.csv")
+  await write(monthly, "data/monthly_trend.csv")
+
+  print(green("\n✓ Wrote dept_summary.csv, product_revenue.csv, monthly_trend.csv"))
+  print(green(bold("\n═══ Grouping & Aggregation: Complete ═══")))
+}

@@ -1,0 +1,104 @@
+// ══════════════════════════════════════════════════════════════
+// 01 — CSV Basics: Load, Inspect, Filter, Sort, Select
+// A data analyst's first look at a new dataset
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ CSV BASICS: Employee Data Exploration ═══\n"))
+
+  // ── 1. Read CSV ──────────────────────────────────────────────
+  employees = await read("data/employees.csv")
+
+  print(green("✓ Loaded employees.csv"))
+  print("  Shape: {employees.shape}")
+  print("  Columns: {employees.columns}\n")
+
+  // ── 2. Inspect the data ──────────────────────────────────────
+  print(bold("── First 5 rows ──"))
+  peek(employees, {n: 5, title: "Employees Preview"})
+
+  print(bold("\n── Schema ──"))
+  schema = schema_of(employees)
+  print(schema)
+
+  print(bold("\n── Statistical Summary ──"))
+  describe(employees)
+
+  // ── 3. Filter: High performers ───────────────────────────────
+  print(bold("\n── High Performers (score >= 4.5) ──"))
+  stars = employees
+    |> table_where(fn(r) r.performance_score >= 4.5)
+    |> table_select("name", "department", "title", "performance_score")
+    |> table_sort_by("performance_score", {desc: true})
+
+  peek(stars, {title: "Top Performers"})
+  print("  Found {stars.rows} star employees\n")
+
+  // ── 4. Filter: Engineering team ──────────────────────────────
+  print(bold("── Engineering Department ──"))
+  eng = employees
+    |> table_where(fn(r) r.department == "Engineering")
+    |> table_sort_by("salary", {desc: true})
+    |> table_select("name", "title", "salary", "city")
+
+  peek(eng, {title: "Engineering Team"})
+
+  // ── 5. Derived columns ──────────────────────────────────────
+  print(bold("\n── Salary Analysis with Derived Columns ──"))
+  salary_analysis = employees
+    |> table_derive({
+      annual_bonus: fn(r) r.salary * 0.15,
+      tax_bracket: fn(r) {
+        match true {
+          _ if r.salary >= 180000 => "High"
+          _ if r.salary >= 120000 => "Mid-High"
+          _ if r.salary >= 90000 => "Mid"
+          _ => "Standard"
+        }
+      },
+      tenure_years: fn(r) {
+        year = parseInt(r.hire_date.split("-")[0])
+        2024 - year
+      }
+    })
+    |> table_select("name", "salary", "annual_bonus", "tax_bracket", "tenure_years")
+    |> table_sort_by("salary", {desc: true})
+
+  peek(salary_analysis, {title: "Salary Breakdown"})
+
+  // ── 6. Limit and slice ───────────────────────────────────────
+  print(bold("\n── Top 3 Earners ──"))
+  top3 = employees
+    |> table_sort_by("salary", {desc: true})
+    |> table_limit(3)
+    |> table_select("name", "title", "salary")
+
+  peek(top3, {title: "Top 3 by Salary"})
+
+  // ── 7. Column rename ────────────────────────────────────────
+  print(bold("\n── Renamed Columns ──"))
+  renamed = employees
+    |> table_select("name", "department", "salary")
+    |> table_rename("name", "employee_name")
+    |> table_rename("department", "dept")
+    |> table_limit(5)
+
+  peek(renamed, {title: "Renamed Columns"})
+
+  // ── 8. Exclude columns ──────────────────────────────────────
+  print(bold("\n── Select with Exclusion ──"))
+  no_salary = employees
+    |> table_select({__exclude: ["salary", "is_remote"]})
+    |> table_limit(5)
+
+  peek(no_salary, {title: "Excluding salary & is_remote"})
+
+  // ── 9. Write results ────────────────────────────────────────
+  await write(stars, "data/high_performers.csv")
+  print(green("\n✓ Wrote high_performers.csv"))
+
+  await write(salary_analysis, "data/salary_analysis.json")
+  print(green("✓ Wrote salary_analysis.json"))
+
+  print(green(bold("\n═══ CSV Basics: All operations completed successfully ═══")))
+}

@@ -1,0 +1,150 @@
+// ══════════════════════════════════════════════════════════════
+// 07 — Excel & Parquet: Production file formats
+// Read/write Excel, Parquet round-trips, format conversion
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ EXCEL & PARQUET OPERATIONS ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+
+  // ═══════════════════════════════════════════════════════════
+  // EXCEL OPERATIONS
+  // ═══════════════════════════════════════════════════════════
+
+  // ── 1. Write employee data to Excel ──────────────────────────
+  print(bold("── Write to Excel ──"))
+  await writeExcel(employees, "data/employees.xlsx")
+  print(green("  ✓ Wrote employees.xlsx"))
+
+  await writeExcel(sales, "data/sales.xlsx", {sheet: "Q1-Q2 Sales"})
+  print(green("  ✓ Wrote sales.xlsx with named sheet"))
+
+  // ── 2. Read Excel back ───────────────────────────────────────
+  print(bold("\n── Read from Excel ──"))
+  emp_from_excel = await readExcel("data/employees.xlsx")
+  print("  Read {emp_from_excel.rows} rows, {len(emp_from_excel.columns)} columns")
+  peek(emp_from_excel, {n: 5, title: "Employees from Excel"})
+
+  sales_from_excel = await readExcel("data/sales.xlsx", {sheet: "Q1-Q2 Sales"})
+  print("  Read {sales_from_excel.rows} sales records from named sheet")
+
+  // ── 3. Verify round-trip integrity ───────────────────────────
+  print(bold("\n── Excel Round-Trip Verification ──"))
+  print("  Original employees: {employees.rows} rows × {len(employees.columns)} cols")
+  print("  From Excel:         {emp_from_excel.rows} rows × {len(emp_from_excel.columns)} cols")
+  print("  Columns match: {employees.columns}")
+
+  // ── 4. Using generic read/write for Excel ────────────────────
+  print(bold("\n── Generic read() for Excel ──"))
+  emp_generic = await read("data/employees.xlsx")
+  print("  read('employees.xlsx') → {emp_generic.rows} rows")
+  peek(emp_generic, {n: 3, title: "Via Generic read()"})
+
+  // ── 5. Transform and write summary to Excel ──────────────────
+  print(bold("\n── Write Summary Report to Excel ──"))
+  dept_report = employees
+    |> table_group_by("department")
+    |> table_agg({
+      headcount: agg_count(),
+      total_payroll: agg_sum("salary"),
+      avg_salary: agg_mean("salary"),
+      top_performer_score: agg_max("performance_score")
+    })
+    |> table_sort_by("total_payroll", {desc: true})
+
+  await writeExcel(dept_report, "data/dept_report.xlsx", {sheet: "Department Summary"})
+  print(green("  ✓ Wrote dept_report.xlsx"))
+  peek(dept_report, {title: "Department Report"})
+
+  // ═══════════════════════════════════════════════════════════
+  // PARQUET OPERATIONS
+  // ═══════════════════════════════════════════════════════════
+
+  // ── 6. Write to Parquet ──────────────────────────────────────
+  print(bold("\n── Write to Parquet ──"))
+  await writeParquet(employees, "data/employees.parquet")
+  print(green("  ✓ Wrote employees.parquet"))
+
+  await writeParquet(sales, "data/sales.parquet", {compression: "gzip"})
+  print(green("  ✓ Wrote sales.parquet (gzip compression)"))
+
+  // ── 7. Read Parquet back ─────────────────────────────────────
+  print(bold("\n── Read from Parquet ──"))
+  emp_from_parquet = await readParquet("data/employees.parquet")
+  print("  Read {emp_from_parquet.rows} rows from Parquet")
+  peek(emp_from_parquet, {n: 5, title: "Employees from Parquet"})
+
+  sales_from_parquet = await readParquet("data/sales.parquet")
+  print("  Read {sales_from_parquet.rows} sales from Parquet")
+
+  // ── 8. Parquet round-trip verification ───────────────────────
+  print(bold("\n── Parquet Round-Trip Verification ──"))
+  print("  Original employees: {employees.rows} rows")
+  print("  From Parquet:       {emp_from_parquet.rows} rows")
+  print("  Columns: {emp_from_parquet.columns}")
+
+  // ── 9. Generic read() for Parquet ────────────────────────────
+  print(bold("\n── Generic read() for Parquet ──"))
+  emp_parquet_generic = await read("data/employees.parquet")
+  print("  read('employees.parquet') → {emp_parquet_generic.rows} rows")
+
+  // ═══════════════════════════════════════════════════════════
+  // FORMAT CONVERSIONS
+  // ═══════════════════════════════════════════════════════════
+
+  // ── 10. CSV → Excel → Parquet pipeline ───────────────────────
+  print(bold("\n── Format Conversion Pipeline ──"))
+  print("  CSV → Excel → Parquet")
+
+  // Read from CSV
+  source = await read("data/employees.csv")
+  print("  1. Read CSV:     {source.rows} rows")
+
+  // Write to Excel
+  await writeExcel(source, "data/converted.xlsx")
+  print("  2. Wrote Excel:  converted.xlsx")
+
+  // Read Excel, write Parquet
+  from_excel = await readExcel("data/converted.xlsx")
+  await writeParquet(from_excel, "data/converted.parquet")
+  print("  3. Wrote Parquet: converted.parquet")
+
+  // Read Parquet back to verify
+  from_parquet = await readParquet("data/converted.parquet")
+  print("  4. Read Parquet: {from_parquet.rows} rows")
+  print(green("  ✓ Full pipeline: CSV → Excel → Parquet verified"))
+
+  // ── 11. Analyze Parquet data ─────────────────────────────────
+  print(bold("\n── Analytics on Parquet Data ──"))
+  parquet_analysis = emp_from_parquet
+    |> table_where(fn(r) r.department == "Engineering")
+    |> table_group_by("city")
+    |> table_agg({
+      eng_count: agg_count(),
+      avg_salary: agg_mean("salary")
+    })
+    |> table_sort_by("avg_salary", {desc: true})
+
+  peek(parquet_analysis, {title: "Engineering by City (from Parquet)"})
+
+  // ── 12. Write final results in all formats ───────────────────
+  print(bold("\n── Write Results in Multiple Formats ──"))
+  final = employees
+    |> table_where(fn(r) r.performance_score >= 4.0)
+    |> table_select("name", "department", "salary", "performance_score")
+    |> table_sort_by("performance_score", {desc: true})
+
+  await write(final, "data/top_performers.csv")
+  await write(final, "data/top_performers.json")
+  await writeExcel(final, "data/top_performers.xlsx")
+  await writeParquet(final, "data/top_performers.parquet")
+
+  print(green("  ✓ top_performers.csv"))
+  print(green("  ✓ top_performers.json"))
+  print(green("  ✓ top_performers.xlsx"))
+  print(green("  ✓ top_performers.parquet"))
+
+  print(green(bold("\n═══ Excel & Parquet: Complete ═══")))
+}

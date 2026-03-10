@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400" style="font-family:system-ui,sans-serif">
+<text x="300" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">Average Salary by Department</text>
+<line x1="70" y1="340" x2="580" y2="340" stroke="#e5e7eb" stroke-width="1"/>
+<text x="62" y="344" text-anchor="end" font-size="11" fill="#666">0</text>
+<line x1="70" y1="243.33333333333334" x2="580" y2="243.33333333333334" stroke="#e5e7eb" stroke-width="1"/>
+<text x="62" y="247.33333333333334" text-anchor="end" font-size="11" fill="#666">50000</text>
+<line x1="70" y1="146.66666666666669" x2="580" y2="146.66666666666669" stroke="#e5e7eb" stroke-width="1"/>
+<text x="62" y="150.66666666666669" text-anchor="end" font-size="11" fill="#666">100000</text>
+<line x1="70" y1="50" x2="580" y2="50" stroke="#e5e7eb" stroke-width="1"/>
+<text x="62" y="54" text-anchor="end" font-size="11" fill="#666">150000</text>
+<rect x="82.75" y="44.77999999999997" width="144.5" height="295.22" fill="#2ECC71" rx="2"/>
+<rect x="252.75" y="113.41333333333333" width="144.5" height="226.58666666666667" fill="#2ECC71" rx="2"/>
+<rect x="422.75" y="133.13333333333333" width="144.5" height="206.86666666666667" fill="#2ECC71" rx="2"/>
+<line x1="70" y1="340" x2="580" y2="340" stroke="#9ca3af" stroke-width="1"/>
+<text x="155" y="356" text-anchor="middle" font-size="11" fill="#666">Engineering</text>
+<text x="325" y="356" text-anchor="middle" font-size="11" fill="#666">Marketing</text>
+<text x="495" y="356" text-anchor="middle" font-size="11" fill="#666">Sales</text>
+<line x1="70" y1="50" x2="70" y2="340" stroke="#9ca3af" stroke-width="1"/>
+</svg>

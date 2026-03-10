@@ -1,0 +1,142 @@
+// ══════════════════════════════════════════════════════════════
+// 10 — Sampling & Reshaping: Statistical sampling, pivot, unpivot, explode
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ SAMPLING & RESHAPING ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+
+  // ═══════════════════════════════════════════════════════════
+  // SAMPLING
+  // ═══════════════════════════════════════════════════════════
+
+  // ── 1. Random sample ─────────────────────────────────────────
+  print(bold("── Random Sample: 5 Employees ──"))
+  sample5 = table_sample(employees, 5, {seed: 42})
+  peek(sample5, {title: "Random Sample (n=5, seed=42)"})
+
+  // ── 2. Reproducible sampling ─────────────────────────────────
+  print(bold("\n── Reproducible Sampling ──"))
+  s1 = table_sample(employees, 3, {seed: 123})
+  s2 = table_sample(employees, 3, {seed: 123})
+
+  names1 = [r.name for r in s1.toArray()]
+  names2 = [r.name for r in s2.toArray()]
+  print("  Sample 1: {names1}")
+  print("  Sample 2: {names2}")
+  print("  Identical: {json_stringify(names1) == json_stringify(names2)}")
+
+  // ── 3. Fractional sampling ───────────────────────────────────
+  print(bold("\n── Fractional Sample: 25% ──"))
+  quarter = table_sample(employees, 0.25, {seed: 42})
+  print("  25% of {employees.rows} = {quarter.rows} rows")
+  peek(quarter, {title: "25% Sample"})
+
+  // ── 4. Stratified sampling: Equal per department ─────────────
+  print(bold("\n── Stratified Sample: 2 per Department ──"))
+  stratified = table_stratified_sample(employees, "department", 2, {seed: 42})
+  peek(stratified, {title: "Stratified Sample (2 per dept)"})
+
+  // Verify distribution
+  for dept in ["Engineering", "Marketing", "Sales"] {
+    dept_count = stratified |> table_where(fn(r) r.department == dept) |> fn(t) t.rows
+    print("  {dept}: {dept_count} employees")
+  }
+
+  // ── 5. Stratified by city ────────────────────────────────────
+  print(bold("\n── Stratified by City ──"))
+  city_strat = table_stratified_sample(employees, "city", 1, {seed: 99})
+  peek(city_strat |> table_select("name", "city", "department"), {title: "1 per City"})
+
+  // ═══════════════════════════════════════════════════════════
+  // RESHAPING
+  // ═══════════════════════════════════════════════════════════
+
+  // ── 6. Pivot: Wide format ────────────────────────────────────
+  print(bold("\n── Pivot: Revenue by Region x Customer Type ──"))
+  pivoted = sales
+    |> table_pivot({
+      index: "region",
+      columns: "customer_type",
+      values: "amount"
+    })
+
+  peek(pivoted, {title: "Pivoted: Region x Customer Type"})
+
+  // ── 7. Pivot: Dept x City headcount ──────────────────────────
+  print(bold("\n── Pivot: Department x City Headcount ──"))
+  dept_pivot = employees
+    |> table_derive({val: fn(r) 1})
+    |> table_pivot({
+      index: "department",
+      columns: "city",
+      values: "val"
+    })
+
+  peek(dept_pivot, {title: "Department x City Headcount"})
+
+  // ── 8. Unpivot: Long format ──────────────────────────────────
+  print(bold("\n── Unpivot: Wide to Long ──"))
+  wide_data = Table([
+    {employee: "Alice", q1_sales: 30000, q2_sales: 45000, q3_sales: 38000},
+    {employee: "Bob", q1_sales: 22000, q2_sales: 18000, q3_sales: 25000},
+    {employee: "Carol", q1_sales: 41000, q2_sales: 52000, q3_sales: 47000}
+  ])
+
+  peek(wide_data, {title: "Wide Format"})
+
+  long_data = table_unpivot(wide_data, {
+    id: "employee",
+    columns: ["q1_sales", "q2_sales", "q3_sales"]
+  })
+
+  peek(long_data, {title: "Long Format (Unpivoted)"})
+
+  // ── 9. Explode: Array columns ────────────────────────────────
+  print(bold("\n── Explode: Expand Array Column ──"))
+  with_skills = Table([
+    {name: "Alice", skills: ["Python", "SQL", "Spark"]},
+    {name: "Bob", skills: ["JavaScript", "React"]},
+    {name: "Carol", skills: ["Python", "R", "SQL", "Tableau"]}
+  ])
+
+  peek(with_skills, {title: "Before Explode"})
+
+  exploded = table_explode(with_skills, "skills")
+  peek(exploded, {title: "After Explode"})
+  print("  {with_skills.rows} rows to {exploded.rows} rows after exploding skills array")
+
+  // ── 10. Explode + Analysis ───────────────────────────────────
+  print(bold("\n── Skill Frequency Analysis ──"))
+  skill_counts = exploded
+    |> table_group_by("skills")
+    |> table_agg({people_with_skill: agg_count()})
+    |> table_sort_by("people_with_skill", {desc: true})
+
+  peek(skill_counts, {title: "Skill Frequency"})
+
+  // ── 11. Reshape workflow: Pivot then Sort ────────────────────
+  print(bold("\n── Full Reshape Workflow ──"))
+  quarterly = Table([
+    {rep: "Eva", quarter: "Q1", revenue: 60000},
+    {rep: "Eva", quarter: "Q2", revenue: 90000},
+    {rep: "Hank", quarter: "Q1", revenue: 2400},
+    {rep: "Hank", quarter: "Q2", revenue: 8400},
+    {rep: "Rosa", quarter: "Q1", revenue: 45000},
+    {rep: "Rosa", quarter: "Q2", revenue: 65000}
+  ])
+
+  // Pivot to wide
+  wide_q = quarterly
+    |> table_pivot({
+      index: "rep",
+      columns: "quarter",
+      values: "revenue"
+    })
+
+  peek(wide_q, {title: "Quarterly Revenue (Wide)"})
+
+  print(green(bold("\n═══ Sampling & Reshaping: Complete ═══")))
+}

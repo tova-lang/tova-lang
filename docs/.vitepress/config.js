@@ -31,6 +31,7 @@ export default defineConfig({
       { text: 'Why Tova?', link: '/why-tova' },
       { text: 'Guide', link: '/getting-started/' },
       { text: 'Tutorial', link: '/tutorial' },
+      { text: 'Tutorials', link: '/tutorials/' },
       { text: 'Mastering Tova', link: '/mastering/' },
       { text: 'Reference', link: '/reference/syntax' },
       { text: 'Stdlib', link: '/stdlib/' },
@@ -112,6 +113,30 @@ export default defineConfig({
             { text: 'Data Professionals', link: '/guide/data-professionals' },
             { text: 'Python Developers', link: '/guide/from-python' },
             { text: 'JavaScript Developers', link: '/guide/from-javascript' },
+          ],
+        },
+      ],
+
+      '/tutorials/': [
+        {
+          text: 'Tutorials',
+          items: [
+            { text: 'Overview', link: '/tutorials/' },
+          ],
+        },
+        {
+          text: 'Data Analytics',
+          items: [
+            { text: 'Overview', link: '/tutorials/data/' },
+            { text: '1. Getting Started', link: '/tutorials/data/getting-started' },
+            { text: '2. Grouping & Aggregation', link: '/tutorials/data/grouping' },
+            { text: '3. Joins & Combining', link: '/tutorials/data/joins' },
+            { text: '4. Window Functions', link: '/tutorials/data/window-functions' },
+            { text: '5. Data Cleaning', link: '/tutorials/data/data-cleaning' },
+            { text: '6. Multi-Format I/O', link: '/tutorials/data/multi-format-io' },
+            { text: '7. Lazy Pipelines', link: '/tutorials/data/lazy-pipelines' },
+            { text: '8. Visualization', link: '/tutorials/data/visualization' },
+            { text: '9. Sampling & Reshaping', link: '/tutorials/data/sampling-reshaping' },
           ],
         },
       ],

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" style="font-family:system-ui,sans-serif">
+<text x="200" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">Revenue by Category</text>
+<path d="M 200 215 L 200 65 A 150 150 0 1 1 84.71531004564993 119.034171383094 Z" fill="#4f46e5" stroke="#fff" stroke-width="1.5"/>
+<text x="244.5618199620337" y="310.0749399246263" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Software</text>
+<text x="244.5618199620337" y="323.0749399246263" text-anchor="middle" font-size="10" fill="#fff">86.0%</text>
+<path d="M 200 215 L 84.71531004564993 119.034171383094 A 150 150 0 0 1 89.08684608994741 114.0135044190314 Z" fill="#059669" stroke="#fff" stroke-width="1.5"/>
+<text x="120.81125535125324" y="146.04970833306373" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Hardware</text>
+<text x="120.81125535125324" y="159.04970833306373" text-anchor="middle" font-size="10" fill="#fff">0.7%</text>
+<path d="M 200 215 L 89.08684608994741 114.0135044190314 A 150 150 0 0 1 199.99999999999997 65 Z" fill="#d97706" stroke="#fff" stroke-width="1.5"/>
+<text x="157.55890803243383" y="118.95962457070156" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Services</text>
+<text x="157.55890803243383" y="131.95962457070158" text-anchor="middle" font-size="10" fill="#fff">13.2%</text>
+</svg>

@@ -1,0 +1,21 @@
+id,name,department,title,salary,hire_date,city,performance_score,is_remote
+1,Alice Chen,Engineering,Senior Engineer,145000,2019-03-15,San Francisco,4.5,true
+2,Bob Martinez,Engineering,Staff Engineer,175000,2017-06-01,San Francisco,4.8,false
+3,Carol White,Marketing,Marketing Manager,110000,2020-01-10,New York,3.9,true
+4,David Kim,Engineering,Junior Engineer,95000,2022-08-20,Austin,3.5,false
+5,Eva Johnson,Sales,Sales Director,160000,2018-04-12,New York,4.7,false
+6,Frank Lee,Marketing,Content Lead,98000,2021-03-05,Chicago,4.1,true
+7,Grace Park,Engineering,Senior Engineer,148000,2019-09-22,Austin,4.3,true
+8,Hank Wilson,Sales,Account Executive,85000,2023-01-15,Chicago,3.2,false
+9,Iris Brown,Engineering,Tech Lead,185000,2016-11-08,San Francisco,4.9,false
+10,Jack Taylor,Sales,Sales Rep,72000,2023-06-01,Austin,3.0,true
+11,Karen Davis,Engineering,Senior Engineer,152000,2018-07-14,New York,4.4,false
+12,Leo Adams,Marketing,SEO Specialist,88000,2022-02-28,Chicago,3.7,true
+13,Mia Thomas,Engineering,Junior Engineer,92000,2023-03-10,Austin,3.3,true
+14,Noah Clark,Sales,Account Executive,88000,2021-09-01,New York,4.0,false
+15,Olivia Wright,Engineering,Staff Engineer,170000,2017-12-01,San Francisco,4.6,true
+16,Pat Harris,Marketing,VP Marketing,195000,2015-05-20,New York,4.8,false
+17,Quinn Scott,Engineering,Principal Engineer,210000,2014-08-15,San Francisco,5.0,false
+18,Rosa Green,Sales,Sales Manager,130000,2019-11-01,Chicago,4.2,false
+19,Sam Nelson,Engineering,Senior Engineer,155000,2020-04-15,Austin,4.1,true
+20,Tina Lopez,Marketing,Designer,95000,2022-05-10,Chicago,3.8,true

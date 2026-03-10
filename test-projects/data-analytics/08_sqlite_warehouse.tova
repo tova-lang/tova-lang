@@ -1,0 +1,102 @@
+// ══════════════════════════════════════════════════════════════
+// 08 — SQLite Warehouse: Load CSV into SQL, query with SQL
+// ETL pipeline: CSV → SQLite → Analytics → Export
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ SQLITE DATA WAREHOUSE ═══\n"))
+
+  // ── 1. Create database and load CSV data ─────────────────────
+  print(bold("── ETL: Load CSVs into SQLite ──"))
+  db = sqlite("data/warehouse.db")
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+  projects = await read("data/projects.csv")
+
+  db.writeTable(employees, "employees")
+  print(green("  Loaded employees: {employees.rows} rows"))
+
+  db.writeTable(sales, "sales")
+  print(green("  Loaded sales: {sales.rows} rows"))
+
+  db.writeTable(projects, "projects")
+  print(green("  Loaded projects: {projects.rows} rows"))
+
+  // ── 2. Basic SQL queries ─────────────────────────────────────
+  print(bold("\n── SQL: Department Headcount ──"))
+  dept_count = db.query("SELECT department, COUNT(*) as headcount, ROUND(AVG(salary)) as avg_salary FROM employees GROUP BY department ORDER BY headcount DESC")
+  peek(dept_count, {title: "Department Headcount (SQL)"})
+
+  // ── 3. SQL with parameters ───────────────────────────────────
+  print(bold("\n── SQL: Parameterized Query ──"))
+  threshold = 140000
+  high_earners = db.query("SELECT name, department, title, salary FROM employees WHERE salary >= ? ORDER BY salary DESC", [threshold])
+  peek(high_earners, {title: "Earners Above ${threshold}"})
+
+  // ── 4. SQL Joins ─────────────────────────────────────────────
+  print(bold("\n── SQL: Join Sales with Employees ──"))
+  sales_report = db.query("SELECT e.name, e.department, SUM(s.amount) as total_revenue, COUNT(s.transaction_id) as deals FROM sales s JOIN employees e ON s.employee_id = e.id GROUP BY e.id ORDER BY total_revenue DESC")
+  peek(sales_report, {title: "Sales by Employee (SQL Join)"})
+
+  // ── 5. SQL Subqueries ────────────────────────────────────────
+  print(bold("\n── SQL: Above-Average Performers ──"))
+  above_avg = db.query("SELECT name, department, salary, performance_score FROM employees WHERE salary > (SELECT AVG(salary) FROM employees) ORDER BY salary DESC")
+  peek(above_avg, {title: "Above-Average Salary"})
+
+  // ── 6. SQL Window Functions ──────────────────────────────────
+  print(bold("\n── SQL: Salary Rank per Department ──"))
+  ranked = db.query("SELECT name, department, salary, RANK() OVER (PARTITION BY department ORDER BY salary DESC) as dept_rank FROM employees ORDER BY department, dept_rank")
+  peek(ranked, {title: "Salary Rank by Department"})
+
+  // ── 7. Complex analytics query ───────────────────────────────
+  print(bold("\n── SQL: Monthly Revenue with Running Total ──"))
+  monthly = db.query("SELECT SUBSTR(date, 1, 7) as month, SUM(amount) as revenue, COUNT(*) as deals, SUM(SUM(amount)) OVER (ORDER BY SUBSTR(date, 1, 7)) as cumulative FROM sales GROUP BY SUBSTR(date, 1, 7) ORDER BY month")
+  peek(monthly, {title: "Monthly Revenue (SQL)"})
+
+  // ── 8. SQL to Table — then Tova analytics ────────────────────
+  print(bold("\n── Hybrid: SQL to Tova Table Operations ──"))
+  eng = db.query("SELECT * FROM employees WHERE department = 'Engineering'")
+
+  // Now use Tova table ops on the SQL result
+  eng_analysis = eng
+    |> table_derive({
+      salary_band: fn(r) {
+        match true {
+          _ if r.salary >= 180000 => "Principal"
+          _ if r.salary >= 150000 => "Senior+"
+          _ if r.salary >= 100000 => "Mid"
+          _ => "Junior"
+        }
+      }
+    })
+    |> table_group_by("salary_band")
+    |> table_agg({
+      count_val: agg_count(),
+      avg_perf: agg_mean("performance_score")
+    })
+
+  peek(eng_analysis, {title: "Engineering Bands (SQL to Tova)"})
+
+  // ── 9. Create derived tables in SQL ──────────────────────────
+  print(bold("\n── SQL: Create Summary Table ──"))
+  db.exec("CREATE TABLE IF NOT EXISTS dept_summary AS SELECT department, COUNT(*) as headcount, ROUND(AVG(salary), 2) as avg_salary, ROUND(AVG(performance_score), 2) as avg_performance, SUM(salary) as total_payroll FROM employees GROUP BY department")
+  print(green("  Created dept_summary table"))
+
+  summary = db.query("SELECT * FROM dept_summary ORDER BY total_payroll DESC")
+  peek(summary, {title: "Department Summary Table"})
+
+  // ── 10. Export SQL results to CSV ────────────────────────────
+  print(bold("\n── Export SQL Results ──"))
+  full_report = db.query("SELECT e.name, e.department, e.salary, COALESCE(SUM(s.amount), 0) as total_sales, COALESCE(COUNT(s.transaction_id), 0) as num_deals FROM employees e LEFT JOIN sales s ON e.id = s.employee_id GROUP BY e.id ORDER BY total_sales DESC")
+
+  await write(full_report, "data/full_report.csv")
+  print(green("  Exported full_report.csv"))
+  peek(full_report, {title: "Full Employee Report"})
+
+  // ── 11. Cleanup ──────────────────────────────────────────────
+  db.close()
+  print(green("\nDatabase closed"))
+
+  print(green(bold("\n═══ SQLite Warehouse: Complete ═══")))
+}

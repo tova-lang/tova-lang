@@ -2328,7 +2328,8 @@ export class BaseCodegen {
     }
 
     // window() / table_window() — partition_by/order_by/desc are meta, rest are window fns
-    if (calleeName === 'window' || calleeName === 'table_window') {
+    // Only apply named-argument rewriting when actual NamedArguments are used
+    if ((calleeName === 'window' || calleeName === 'table_window') && node.arguments.some(a => a.type === 'NamedArgument')) {
       const META_KEYS = new Set(['partition_by', 'order_by', 'desc']);
       const optParts = [];
       const winParts = [];

@@ -1,0 +1,143 @@
+// ══════════════════════════════════════════════════════════════
+// 05 — Data Cleaning: Handle dirty data like production datasets
+// Nulls, duplicates, type casting, validation
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ DATA CLEANING ═══\n"))
+
+  // ── 1. Create dirty dataset ──────────────────────────────────
+  print(bold("── Raw Dirty Data ──"))
+  dirty_data = Table([
+    {name: "Alice", age: "30", revenue: "45000.50", active: "true", email: "alice@co.com"},
+    {name: "Bob", age: "25", revenue: "12000", active: "false", email: "bob@co.com"},
+    {name: "Alice", age: "30", revenue: "45000.50", active: "true", email: "alice@co.com"},
+    {name: "Carol", age: nil, revenue: "8500.75", active: "true", email: nil},
+    {name: "David", age: "42", revenue: nil, active: "false", email: "david@co.com"},
+    {name: "Eve", age: "35", revenue: "92000", active: "true", email: "eve@co.com"},
+    {name: "Frank", age: "28", revenue: "0", active: nil, email: "frank@co.com"},
+    {name: "Carol", age: nil, revenue: "8500.75", active: "true", email: nil},
+    {name: "Grace", age: "31", revenue: "55000", active: "true", email: "grace@co.com"},
+    {name: nil, age: nil, revenue: nil, active: nil, email: nil}
+  ])
+
+  peek(dirty_data, {title: "Raw Dirty Data"})
+  print("  Rows: {dirty_data.rows}")
+  print("  Schema: {schema_of(dirty_data)}\n")
+
+  // ── 2. Remove duplicates ────────────────────────────────────
+  print(bold("── After Deduplication ──"))
+  deduped = table_drop_duplicates(dirty_data)
+  print("  Before: {dirty_data.rows} rows → After: {deduped.rows} rows")
+  peek(deduped, {title: "Deduplicated"})
+
+  // ── 3. Drop rows with null names ─────────────────────────────
+  print(bold("\n── Drop Nil Names ──"))
+  named = drop_nil(deduped, "name")
+  print("  Dropped {deduped.rows - named.rows} rows with nil names")
+  print("  Remaining: {named.rows} rows")
+
+  // ── 4. Fill nil values ───────────────────────────────────────
+  print(bold("\n── Fill Nil Values ──"))
+  filled = named
+    |> fill_nil("age", "0")
+    |> fill_nil("revenue", "0")
+    |> fill_nil("active", "false")
+    |> fill_nil("email", "unknown@placeholder.com")
+
+  peek(filled, {title: "Nil Values Filled"})
+
+  // ── 5. Cast types ────────────────────────────────────────────
+  print(bold("\n── Type Casting ──"))
+  typed = filled
+    |> cast("age", "Int")
+    |> cast("revenue", "Float")
+    |> cast("active", "Bool")
+
+  peek(typed, {title: "After Type Casting"})
+  print("  Schema: {schema_of(typed)}")
+
+  // ── 6. Data validation with derive ───────────────────────────
+  print(bold("\n── Validation Flags ──"))
+  validated = typed
+    |> table_derive({
+      has_email: fn(r) r.email != "unknown@placeholder.com",
+      is_high_value: fn(r) r.revenue > 20000,
+      age_valid: fn(r) r.age > 0 && r.age < 100,
+      all_valid: fn(r) {
+        r.email != "unknown@placeholder.com" && r.age > 0 && r.revenue >= 0
+      }
+    })
+    |> table_select("name", "has_email", "is_high_value", "age_valid", "all_valid")
+
+  peek(validated, {title: "Validation Results"})
+
+  valid_count = validated |> table_where(fn(r) r.all_valid) |> fn(t) t.rows
+  print("  Valid rows: {valid_count} / {validated.rows}")
+
+  // ── 7. Working with Result types ─────────────────────────────
+  print(bold("\n── Result-based Processing ──"))
+
+  fn parse_record(row) {
+    if row.name == nil {
+      Err("Missing name")
+    } elif row.revenue == nil || row.revenue == "nil" {
+      Err("Missing revenue for {row.name}")
+    } else {
+      Ok({
+        name: row.name,
+        revenue: parseFloat(row.revenue) || 0,
+        valid: true
+      })
+    }
+  }
+
+  results = [parse_record(row) for row in dirty_data.toArray()]
+  successes = filter_ok(results)
+  failures = filter_err(results)
+
+  print("  Total records: {len(results)}")
+  print("  Successful: {len(successes)}")
+  print("  Failed: {len(failures)}")
+  print("  Errors: {failures}")
+
+  // ── 8. Clean employee data ───────────────────────────────────
+  print(bold("\n── Clean Employee Dataset ──"))
+  employees = await read("data/employees.csv")
+
+  clean_employees = employees
+    |> cast("salary", "Int")
+    |> cast("performance_score", "Float")
+    |> table_derive({
+      salary_band: fn(r) {
+        match true {
+          _ if r.salary >= 180000 => "L6+"
+          _ if r.salary >= 140000 => "L5"
+          _ if r.salary >= 100000 => "L4"
+          _ if r.salary >= 80000 => "L3"
+          _ => "L2"
+        }
+      },
+      performance_tier: fn(r) {
+        match true {
+          _ if r.performance_score >= 4.5 => "Exceptional"
+          _ if r.performance_score >= 4.0 => "Exceeds"
+          _ if r.performance_score >= 3.5 => "Meets"
+          _ => "Needs Improvement"
+        }
+      }
+    })
+    |> table_select("name", "department", "salary", "salary_band", "performance_score", "performance_tier")
+    |> table_sort_by("salary", {desc: true})
+
+  peek(clean_employees, {title: "Clean Employee Data"})
+
+  // ── 9. Describe the clean data ───────────────────────────────
+  print(bold("\n── Clean Data Summary ──"))
+  describe(clean_employees)
+
+  await write(clean_employees, "data/clean_employees.csv")
+  print(green("\n✓ Wrote clean_employees.csv"))
+
+  print(green(bold("\n═══ Data Cleaning: Complete ═══")))
+}

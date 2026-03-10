@@ -1,0 +1,150 @@
+// ══════════════════════════════════════════════════════════════
+// 09 — Charting: Visualize data with SVG charts
+// Bar, Line, Scatter, Histogram, Pie, Heatmap
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ DATA VISUALIZATION ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+
+  // ── 1. Bar Chart: Headcount by Department ────────────────────
+  print(bold("── Bar Chart: Headcount by Department ──"))
+  dept_counts = employees
+    |> table_group_by("department")
+    |> table_agg({headcount: agg_count()})
+
+  chart_svg = bar_chart(dept_counts, {
+    x: fn(r) r._group,
+    y: fn(r) r.headcount,
+    title: "Headcount by Department",
+    color: "#4A90D9"
+  })
+
+  mkdir("data/charts")
+  write_text("data/charts/dept_headcount.svg", chart_svg)
+  print(green("  Wrote dept_headcount.svg"))
+
+  // ── 2. Bar Chart: Average Salary by Department ───────────────
+  print(bold("\n── Bar Chart: Average Salary ──"))
+  dept_salary = employees
+    |> table_group_by("department")
+    |> table_agg({avg_salary: agg_mean("salary")})
+
+  salary_svg = bar_chart(dept_salary, {
+    x: fn(r) r._group,
+    y: fn(r) Math.round(r.avg_salary),
+    title: "Average Salary by Department",
+    color: "#2ECC71"
+  })
+
+  write_text("data/charts/dept_salary.svg", salary_svg)
+  print(green("  Wrote dept_salary.svg"))
+
+  // ── 3. Line Chart: Monthly Revenue Trend ─────────────────────
+  print(bold("\n── Line Chart: Monthly Revenue ──"))
+  monthly = sales
+    |> table_derive({month: fn(r) r.date.slice(0, 7)})
+    |> table_group_by("month")
+    |> table_agg({revenue: agg_sum("amount")})
+    |> table_sort_by("_group")
+
+  line_svg = line_chart(monthly, {
+    x: fn(r) r._group,
+    y: fn(r) r.revenue,
+    title: "Monthly Revenue Trend",
+    color: "#E74C3C",
+    points: true
+  })
+
+  write_text("data/charts/monthly_revenue.svg", line_svg)
+  print(green("  Wrote monthly_revenue.svg"))
+
+  // ── 4. Scatter Chart: Salary vs Performance ──────────────────
+  print(bold("\n── Scatter Chart: Salary vs Performance ──"))
+  scatter_svg = scatter_chart(employees, {
+    x: fn(r) r.salary,
+    y: fn(r) r.performance_score,
+    title: "Salary vs Performance Score",
+    color: "#9B59B6"
+  })
+
+  write_text("data/charts/salary_vs_perf.svg", scatter_svg)
+  print(green("  Wrote salary_vs_perf.svg"))
+
+  // ── 5. Histogram: Salary Distribution ────────────────────────
+  print(bold("\n── Histogram: Salary Distribution ──"))
+  hist_svg = histogram(employees, {
+    col: fn(r) r.salary,
+    bins: 8,
+    title: "Salary Distribution",
+    color: "#F39C12"
+  })
+
+  write_text("data/charts/salary_histogram.svg", hist_svg)
+  print(green("  Wrote salary_histogram.svg"))
+
+  // ── 6. Pie Chart: Revenue by Category ────────────────────────
+  print(bold("\n── Pie Chart: Revenue by Category ──"))
+  cat_revenue = sales
+    |> table_group_by("category")
+    |> table_agg({revenue: agg_sum("amount")})
+
+  pie_svg = pie_chart(cat_revenue, {
+    label: fn(r) r._group,
+    value: fn(r) r.revenue,
+    title: "Revenue by Category"
+  })
+
+  write_text("data/charts/revenue_by_category.svg", pie_svg)
+  print(green("  Wrote revenue_by_category.svg"))
+
+  // ── 7. Heatmap: Department x City Salary ─────────────────────
+  print(bold("\n── Heatmap: Department x City ──"))
+  dept_city = employees
+    |> table_group_by(fn(r) "{r.department}|{r.city}")
+    |> table_agg({avg_salary: agg_mean("salary")})
+    |> table_derive({
+      department: fn(r) r._group.split("|")[0],
+      city: fn(r) r._group.split("|")[1]
+    })
+
+  heat_svg = heatmap(dept_city, {
+    x: fn(r) r.city,
+    y: fn(r) r.department,
+    value: fn(r) r.avg_salary,
+    title: "Avg Salary: Department x City"
+  })
+
+  write_text("data/charts/dept_city_heatmap.svg", heat_svg)
+  print(green("  Wrote dept_city_heatmap.svg"))
+
+  // ── 8. Bar Chart: Top 5 Sales Reps by Revenue ───────────────
+  print(bold("\n── Bar Chart: Top Sales Reps ──"))
+  rep_sales = sales
+    |> table_group_by("employee_id")
+    |> table_agg({revenue: agg_sum("amount")})
+    |> table_sort_by("revenue", {desc: true})
+    |> table_limit(5)
+
+  // Join with employee names
+  rep_named = table_join(
+    rep_sales,
+    employees |> table_select("id", "name"),
+    {left: fn(r) r._group, right: "id", how: "inner"}
+  )
+
+  top_reps_svg = bar_chart(rep_named, {
+    x: fn(r) r.name,
+    y: fn(r) r.revenue,
+    title: "Top 5 Sales Reps by Revenue",
+    color: "#1ABC9C"
+  })
+
+  write_text("data/charts/top_sales_reps.svg", top_reps_svg)
+  print(green("  Wrote top_sales_reps.svg"))
+
+  print(green(bold("\n═══ Data Visualization: Complete ═══")))
+  print("  Generated 7 SVG charts in data/charts/")
+}

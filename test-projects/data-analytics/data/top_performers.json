@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Quinn Scott",
+    "department": "Engineering",
+    "salary": 210000,
+    "performance_score": 5
+  },
+  {
+    "name": "Iris Brown",
+    "department": "Engineering",
+    "salary": 185000,
+    "performance_score": 4.9
+  },
+  {
+    "name": "Bob Martinez",
+    "department": "Engineering",
+    "salary": 175000,
+    "performance_score": 4.8
+  },
+  {
+    "name": "Pat Harris",
+    "department": "Marketing",
+    "salary": 195000,
+    "performance_score": 4.8
+  },
+  {
+    "name": "Eva Johnson",
+    "department": "Sales",
+    "salary": 160000,
+    "performance_score": 4.7
+  },
+  {
+    "name": "Olivia Wright",
+    "department": "Engineering",
+    "salary": 170000,
+    "performance_score": 4.6
+  },
+  {
+    "name": "Alice Chen",
+    "department": "Engineering",
+    "salary": 145000,
+    "performance_score": 4.5
+  },
+  {
+    "name": "Karen Davis",
+    "department": "Engineering",
+    "salary": 152000,
+    "performance_score": 4.4
+  },
+  {
+    "name": "Grace Park",
+    "department": "Engineering",
+    "salary": 148000,
+    "performance_score": 4.3
+  },
+  {
+    "name": "Rosa Green",
+    "department": "Sales",
+    "salary": 130000,
+    "performance_score": 4.2
+  },
+  {
+    "name": "Frank Lee",
+    "department": "Marketing",
+    "salary": 98000,
+    "performance_score": 4.1
+  },
+  {
+    "name": "Sam Nelson",
+    "department": "Engineering",
+    "salary": 155000,
+    "performance_score": 4.1
+  },
+  {
+    "name": "Noah Clark",
+    "department": "Sales",
+    "salary": 88000,
+    "performance_score": 4
+  }
+]

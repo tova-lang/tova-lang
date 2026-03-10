@@ -1,0 +1,142 @@
+[
+  {
+    "name": "Quinn Scott",
+    "salary": 210000,
+    "annual_bonus": 31500,
+    "tax_bracket": "High",
+    "tenure_years": 10
+  },
+  {
+    "name": "Pat Harris",
+    "salary": 195000,
+    "annual_bonus": 29250,
+    "tax_bracket": "High",
+    "tenure_years": 9
+  },
+  {
+    "name": "Iris Brown",
+    "salary": 185000,
+    "annual_bonus": 27750,
+    "tax_bracket": "High",
+    "tenure_years": 8
+  },
+  {
+    "name": "Bob Martinez",
+    "salary": 175000,
+    "annual_bonus": 26250,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 7
+  },
+  {
+    "name": "Olivia Wright",
+    "salary": 170000,
+    "annual_bonus": 25500,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 7
+  },
+  {
+    "name": "Eva Johnson",
+    "salary": 160000,
+    "annual_bonus": 24000,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 6
+  },
+  {
+    "name": "Sam Nelson",
+    "salary": 155000,
+    "annual_bonus": 23250,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 4
+  },
+  {
+    "name": "Karen Davis",
+    "salary": 152000,
+    "annual_bonus": 22800,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 6
+  },
+  {
+    "name": "Grace Park",
+    "salary": 148000,
+    "annual_bonus": 22200,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 5
+  },
+  {
+    "name": "Alice Chen",
+    "salary": 145000,
+    "annual_bonus": 21750,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 5
+  },
+  {
+    "name": "Rosa Green",
+    "salary": 130000,
+    "annual_bonus": 19500,
+    "tax_bracket": "Mid-High",
+    "tenure_years": 5
+  },
+  {
+    "name": "Carol White",
+    "salary": 110000,
+    "annual_bonus": 16500,
+    "tax_bracket": "Mid",
+    "tenure_years": 4
+  },
+  {
+    "name": "Frank Lee",
+    "salary": 98000,
+    "annual_bonus": 14700,
+    "tax_bracket": "Mid",
+    "tenure_years": 3
+  },
+  {
+    "name": "David Kim",
+    "salary": 95000,
+    "annual_bonus": 14250,
+    "tax_bracket": "Mid",
+    "tenure_years": 2
+  },
+  {
+    "name": "Tina Lopez",
+    "salary": 95000,
+    "annual_bonus": 14250,
+    "tax_bracket": "Mid",
+    "tenure_years": 2
+  },
+  {
+    "name": "Mia Thomas",
+    "salary": 92000,
+    "annual_bonus": 13800,
+    "tax_bracket": "Mid",
+    "tenure_years": 1
+  },
+  {
+    "name": "Leo Adams",
+    "salary": 88000,
+    "annual_bonus": 13200,
+    "tax_bracket": "Standard",
+    "tenure_years": 2
+  },
+  {
+    "name": "Noah Clark",
+    "salary": 88000,
+    "annual_bonus": 13200,
+    "tax_bracket": "Standard",
+    "tenure_years": 3
+  },
+  {
+    "name": "Hank Wilson",
+    "salary": 85000,
+    "annual_bonus": 12750,
+    "tax_bracket": "Standard",
+    "tenure_years": 1
+  },
+  {
+    "name": "Jack Taylor",
+    "salary": 72000,
+    "annual_bonus": 10800,
+    "tax_bracket": "Standard",
+    "tenure_years": 1
+  }
+]

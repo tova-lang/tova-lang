@@ -4,8 +4,8 @@ The `Table` class provides a tabular data structure for structured data processi
 
 For reading and writing table data, see the [I/O guide](../guide/io.md). For data pipelines and the `data {}` block, see [Tables & Data](../guide/data.md).
 
-::: warning Partial Implementation
-Table query methods (`.where()`, `.select()`, `.derive()`, `.sort_by()`, `.group_by()`, `.join()`, etc.) are not yet available as instance methods. Use the standalone collection functions (`filter`, `sorted`, `map`) on `t.rows` as an alternative.
+::: tip Standalone Functions
+Table operations are standalone, pipe-friendly functions: `table_where()`, `table_select()`, `table_derive()`, etc. Use the pipe operator `|>` to chain them, or call them directly with the table as the first argument. See the [Data Tutorials](/tutorials/data/) for hands-on walkthroughs.
 :::
 
 ---

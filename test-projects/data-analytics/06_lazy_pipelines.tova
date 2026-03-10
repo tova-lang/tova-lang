@@ -1,0 +1,130 @@
+// ══════════════════════════════════════════════════════════════
+// 06 — Lazy Pipelines: Deferred execution for complex queries
+// Build query plans, execute on demand
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ LAZY PIPELINES ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+
+  // ── 1. Basic lazy query ──────────────────────────────────────
+  print(bold("── Basic Lazy Query ──"))
+  query = lazy(employees)
+    .where(fn(r) r.department == "Engineering")
+    .select("name", "title", "salary", "performance_score")
+    .sort_by("salary", {desc: true})
+
+  // Nothing executed yet — just a query plan
+  print("  Query built (not yet executed)")
+  print("  Type: {typeof(query)}")
+
+  // Now execute
+  result = collect(query)
+  peek(result, {title: "Engineering Team (Lazy)"})
+
+  // ── 2. Chained lazy with limit ───────────────────────────────
+  print(bold("\n── Top 5 Performers (Lazy) ──"))
+  top_performers = lazy(employees)
+    .where(fn(r) r.performance_score >= 4.0)
+    .select("name", "department", "performance_score", "salary")
+    .sort_by("performance_score", {desc: true})
+    .limit(5)
+    |> collect()
+
+  peek(top_performers, {title: "Top 5 Performers"})
+
+  // ── 3. Lazy with derive ──────────────────────────────────────
+  print(bold("\n── Derived Columns (Lazy) ──"))
+  enriched = lazy(employees)
+    .derive({
+      comp_ratio: fn(r) Math.round(r.salary / 120000 * 100) / 100,
+      senior: fn(r) r.performance_score >= 4.5
+    })
+    .where(fn(r) r.comp_ratio > 1.0)
+    .select("name", "salary", "comp_ratio", "senior")
+    .sort_by("comp_ratio", {desc: true})
+    |> collect()
+
+  peek(enriched, {title: "Above-Market Compensation"})
+
+  // ── 4. Lazy → group_by (materializes) ────────────────────────
+  print(bold("\n── Lazy → Group By ──"))
+  dept_stats = lazy(employees)
+    .where(fn(r) r.is_remote == "true")
+    .group_by("department")
+    |> table_agg({
+      remote_count: agg_count(),
+      avg_salary: agg_mean("salary"),
+      avg_score: agg_mean("performance_score")
+    })
+    |> table_sort_by("remote_count", {desc: true})
+
+  peek(dept_stats, {title: "Remote Workers by Dept"})
+
+  // ── 5. Compose multiple lazy queries ─────────────────────────
+  print(bold("\n── Composing Queries ──"))
+
+  // Reusable base query
+  fn eng_base() {
+    lazy(employees)
+      .where(fn(r) r.department == "Engineering")
+  }
+
+  seniors = eng_base()
+    .where(fn(r) r.performance_score >= 4.0)
+    .select("name", "title", "salary")
+    .sort_by("salary", {desc: true})
+    |> collect()
+
+  juniors = eng_base()
+    .where(fn(r) r.title == "Junior Engineer")
+    .select("name", "salary", "performance_score")
+    |> collect()
+
+  print("  Senior engineers: {seniors.rows}")
+  peek(seniors, {title: "Senior Engineers"})
+
+  print("  Junior engineers: {juniors.rows}")
+  peek(juniors, {title: "Junior Engineers"})
+
+  // ── 6. Lazy sales pipeline ───────────────────────────────────
+  print(bold("\n── Sales Pipeline (Lazy) ──"))
+  big_deals = lazy(sales)
+    .where(fn(r) r.amount >= 15000)
+    .derive({
+      deal_tier: fn(r) if r.amount >= 45000 { "Enterprise" } else { "Mid-Market" }
+    })
+    .select("transaction_id", "product", "amount", "deal_tier", "region", "date")
+    .sort_by("date")
+    |> collect()
+
+  peek(big_deals, {title: "Big Deals Pipeline"})
+
+  // ── 7. Lazy with complex filtering ───────────────────────────
+  print(bold("\n── Complex Filter Chain ──"))
+  sf_senior_eng = lazy(employees)
+    .where(fn(r) r.city == "San Francisco")
+    .where(fn(r) r.department == "Engineering")
+    .where(fn(r) r.salary >= 150000)
+    .select("name", "title", "salary", "performance_score")
+    .sort_by("performance_score", {desc: true})
+    |> collect()
+
+  peek(sf_senior_eng, {title: "SF Senior Engineers (150k+)"})
+
+  // ── 8. Iterate over lazy results ─────────────────────────────
+  print(bold("\n── Iterating Lazy Results ──"))
+  high_earners = lazy(employees)
+    .where(fn(r) r.salary >= 160000)
+    .select("name", "salary")
+    .sort_by("salary", {desc: true})
+
+  print("  High earners (160k+):")
+  for row in high_earners {
+    print("    {row.name}: ${row.salary}")
+  }
+
+  print(green(bold("\n═══ Lazy Pipelines: Complete ═══")))
+}

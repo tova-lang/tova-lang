@@ -1,0 +1,150 @@
+// ══════════════════════════════════════════════════════════════
+// 04 — Window Functions: Advanced analytics without collapsing
+// Ranking, running totals, lag/lead, moving averages
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ WINDOW FUNCTIONS ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+
+  // ── 1. Row numbering within departments ──────────────────────
+  print(bold("── Row Number by Department (salary rank) ──"))
+  ranked = table_window(
+    employees,
+    {partition: "department", order: "salary", desc: true},
+    {rank_in_dept: win_row_number()}
+  )
+    |> table_select("name", "department", "salary", "rank_in_dept")
+    |> table_sort_by(fn(r) "{r.department}-{r.rank_in_dept}")
+
+  peek(ranked, {title: "Salary Rank Within Department"})
+
+  // ── 2. Dense rank: Performance ranking ───────────────────────
+  print(bold("\n── Dense Rank: Company-wide Performance ──"))
+  perf_ranked = table_window(
+    employees,
+    {order: "performance_score", desc: true},
+    {
+      perf_rank: win_dense_rank(),
+      percentile: win_percent_rank()
+    }
+  )
+    |> table_select("name", "department", "performance_score", "perf_rank", "percentile")
+    |> table_limit(10)
+
+  peek(perf_ranked, {title: "Performance Rankings"})
+
+  // ── 3. Ntile: Salary quartiles ───────────────────────────────
+  print(bold("\n── Salary Quartiles (ntile=4) ──"))
+  quartiles = table_window(
+    employees,
+    {order: "salary", desc: true},
+    {salary_quartile: win_ntile(4)}
+  )
+    |> table_derive({
+      quartile_label: fn(r) {
+        match r.salary_quartile {
+          1 => "Top 25%"
+          2 => "Upper Mid"
+          3 => "Lower Mid"
+          4 => "Bottom 25%"
+          _ => "Unknown"
+        }
+      }
+    })
+    |> table_select("name", "salary", "salary_quartile", "quartile_label")
+
+  peek(quartiles, {title: "Salary Quartiles"})
+
+  // ── 4. Running totals on sales ───────────────────────────────
+  print(bold("\n── Running Revenue Total ──"))
+  running = table_window(
+    sales |> table_sort_by("date"),
+    {order: "date"},
+    {
+      cumulative_revenue: win_running_sum("amount"),
+      deal_number: win_running_count(),
+      running_avg_deal: win_running_avg("amount")
+    }
+  )
+    |> table_select("date", "product", "amount", "cumulative_revenue", "deal_number", "running_avg_deal")
+    |> table_limit(10)
+
+  peek(running, {title: "Running Revenue"})
+
+  // ── 5. Lag/Lead: Compare with previous/next ──────────────────
+  print(bold("\n── Lag/Lead: Sale-over-Sale Comparison ──"))
+  comparison = table_window(
+    sales |> table_sort_by("date"),
+    {order: "date"},
+    {
+      prev_amount: win_lag("amount", 1, 0),
+      next_amount: win_lead("amount", 1, 0)
+    }
+  )
+    |> table_derive({
+      change_from_prev: fn(r) r.amount - r.prev_amount,
+      pct_change: fn(r) {
+        if r.prev_amount > 0 {
+          Math.round((r.amount - r.prev_amount) / r.prev_amount * 100)
+        } else {
+          0
+        }
+      }
+    })
+    |> table_select("date", "product", "amount", "prev_amount", "change_from_prev", "pct_change")
+    |> table_limit(10)
+
+  peek(comparison, {title: "Sale-over-Sale Changes"})
+
+  // ── 6. Moving average: Sales trend smoothing ─────────────────
+  print(bold("\n── 3-Period Moving Average ──"))
+  smoothed = table_window(
+    sales |> table_sort_by("date"),
+    {order: "date"},
+    {
+      ma_3: win_moving_avg("amount", 3),
+      running_min: win_running_min("amount"),
+      running_max: win_running_max("amount")
+    }
+  )
+    |> table_select("date", "amount", "ma_3", "running_min", "running_max")
+    |> table_limit(10)
+
+  peek(smoothed, {title: "Moving Average (window=3)"})
+
+  // ── 7. First/Last value in partition ─────────────────────────
+  print(bold("\n── First & Last Hire per Department ──"))
+  hire_bounds = table_window(
+    employees,
+    {partition: "department", order: "hire_date"},
+    {
+      first_hired: win_first_value("name"),
+      last_hired: win_last_value("name")
+    }
+  )
+    |> table_select("name", "department", "hire_date", "first_hired", "last_hired")
+    |> table_drop_duplicates({by: "department"})
+
+  peek(hire_bounds, {title: "First & Last Hires"})
+
+  // ── 8. Rank within region for sales ──────────────────────────
+  print(bold("\n── Sales Rank Within Region ──"))
+  region_rank = table_window(
+    sales,
+    {partition: "region", order: "amount", desc: true},
+    {
+      region_rank: win_rank(),
+      region_pct: win_percent_rank()
+    }
+  )
+    |> table_select("region", "product", "amount", "region_rank", "region_pct")
+    |> table_where(fn(r) r.region_rank <= 3)
+    |> table_sort_by(fn(r) "{r.region}-{r.region_rank}")
+
+  peek(region_rank, {title: "Top 3 Sales per Region"})
+
+  print(green(bold("\n═══ Window Functions: Complete ═══")))
+}

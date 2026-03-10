@@ -1,0 +1,172 @@
+// ══════════════════════════════════════════════════════════════
+// 03 — Joins & Merges: Combining datasets like a pro
+// Inner, Left, Right, Outer, Anti, Semi joins
+// ══════════════════════════════════════════════════════════════
+
+async fn main() {
+  print(bold("═══ JOINS & MERGES ═══\n"))
+
+  employees = await read("data/employees.csv")
+  sales = await read("data/sales.csv")
+  projects = await read("data/projects.csv")
+
+  // ── 1. Inner Join: Employees who made sales ──────────────────
+  print(bold("── Inner Join: Sales with Employee Names ──"))
+  sales_with_names = table_join(
+    sales,
+    employees,
+    {left: "employee_id", right: "id", how: "inner"}
+  )
+    |> table_select("transaction_id", "name", "product", "amount", "date")
+    |> table_sort_by("amount", {desc: true})
+    |> table_limit(10)
+
+  peek(sales_with_names, {title: "Sales with Employee Names (Top 10)"})
+
+  // ── 2. Left Join: All employees with their sales (if any) ───
+  print(bold("\n── Left Join: Employee Sales Summary ──"))
+
+  // First aggregate sales per employee
+  emp_sales = sales
+    |> table_group_by("employee_id")
+    |> table_agg({
+      total_revenue: agg_sum("amount"),
+      deal_count: agg_count(),
+      avg_deal: agg_mean("amount")
+    })
+
+  all_emp_sales = table_join(
+    employees,
+    emp_sales,
+    {left: "id", right: fn(r) r._group, how: "left"}
+  )
+    |> table_select("name", "department", "title", "total_revenue", "deal_count")
+    |> table_sort_by(fn(r) r.total_revenue || 0, {desc: true})
+
+  peek(all_emp_sales, {title: "All Employees with Sales"})
+
+  // ── 3. Anti Join: Employees with NO sales ────────────────────
+  print(bold("\n── Anti Join: Non-Sales Employees ──"))
+
+  // Get distinct employee IDs from sales
+  sales_emp_ids = sales
+    |> table_select("employee_id")
+    |> table_drop_duplicates()
+
+  non_sales = table_join(
+    employees,
+    sales_emp_ids,
+    {left: "id", right: "employee_id", how: "anti"}
+  )
+    |> table_select("name", "department", "title")
+
+  peek(non_sales, {title: "Employees with No Sales (Anti Join)"})
+  print("  {non_sales.rows} employees have no sales records\n")
+
+  // ── 4. Semi Join: Employees who ARE in sales ─────────────────
+  print(bold("── Semi Join: Employees in Sales ──"))
+  sales_people = table_join(
+    employees,
+    sales_emp_ids,
+    {left: "id", right: "employee_id", how: "semi"}
+  )
+    |> table_select("name", "department", "title", "salary")
+
+  peek(sales_people, {title: "Sales-Active Employees (Semi Join)"})
+
+  // ── 5. Join employees with their project assignments ─────────
+  print(bold("\n── Projects with Lead Details ──"))
+  projects_detailed = table_join(
+    projects,
+    employees,
+    {left: "lead_id", right: "id", how: "inner"}
+  )
+    |> table_derive({
+      budget_remaining: fn(r) r.budget - r.spent,
+      utilization_pct: fn(r) Math.round(r.spent / r.budget * 100)
+    })
+    |> table_select("project_name", "name", "budget", "spent", "budget_remaining", "utilization_pct", "status")
+    |> table_sort_by("utilization_pct", {desc: true})
+
+  peek(projects_detailed, {title: "Projects with Leads"})
+
+  // ── 6. Right Join: All projects, matched with sales reps ─────
+  print(bold("\n── Right Join: Sales by Region with All Regions ──"))
+
+  // Create a reference table of all regions
+  all_regions = Table([
+    {region: "Northeast"},
+    {region: "Midwest"},
+    {region: "South"},
+    {region: "West"},
+    {region: "Southeast"}
+  ])
+
+  region_sales = sales
+    |> table_group_by("region")
+    |> table_agg({
+      revenue: agg_sum("amount"),
+      deals: agg_count()
+    })
+
+  full_region = table_join(
+    region_sales,
+    all_regions,
+    {left: fn(r) r._group, right: "region", how: "right"}
+  )
+    |> table_derive({
+      status: fn(r) if r.revenue { "Active" } else { "No Sales" }
+    })
+
+  peek(full_region, {title: "All Regions with Sales (Right Join)"})
+
+  // ── 7. Outer Join: Full picture ──────────────────────────────
+  print(bold("\n── Outer Join: Complete Region Coverage ──"))
+  full_coverage = table_join(
+    region_sales,
+    all_regions,
+    {left: fn(r) r._group, right: "region", how: "outer"}
+  )
+
+  peek(full_coverage, {title: "Full Outer Join: Regions"})
+
+  // ── 8. Multi-step join: Sales pipeline analysis ──────────────
+  print(bold("\n── Multi-Step Join: Full Sales Pipeline ──"))
+
+  // Enrich sales with employee and project data
+  enriched_sales = table_join(
+    sales,
+    employees |> table_select("id", "name", "department", "city"),
+    {left: "employee_id", right: "id", how: "inner"}
+  )
+    |> table_derive({
+      quarter: fn(r) {
+        month = parseInt(r.date.split("-")[1])
+        "Q{Math.ceil(month / 3)}"
+      }
+    })
+    |> table_select("transaction_id", "name", "city", "product", "category", "amount", "quarter", "customer_type")
+    |> table_sort_by("amount", {desc: true})
+    |> table_limit(10)
+
+  peek(enriched_sales, {title: "Enriched Sales Pipeline"})
+
+  // ── 9. Union: Combine datasets ───────────────────────────────
+  print(bold("\n── Union: Combine Top Performers from Eng + Sales ──"))
+  top_eng = employees
+    |> table_where(fn(r) r.department == "Engineering")
+    |> table_sort_by("performance_score", {desc: true})
+    |> table_limit(3)
+    |> table_select("name", "department", "performance_score", "salary")
+
+  top_sales = employees
+    |> table_where(fn(r) r.department == "Sales")
+    |> table_sort_by("performance_score", {desc: true})
+    |> table_limit(3)
+    |> table_select("name", "department", "performance_score", "salary")
+
+  combined = table_union(top_eng, top_sales)
+  peek(combined, {title: "Top Performers Combined"})
+
+  print(green(bold("\n═══ Joins & Merges: Complete ═══")))
+}

@@ -1,0 +1,11 @@
+project_id,project_name,lead_id,department,budget,spent,status,start_date,deadline
+P001,Platform Rewrite,9,Engineering,500000,320000,active,2024-01-01,2024-12-31
+P002,Mobile App v2,2,Engineering,250000,180000,active,2024-02-01,2024-09-30
+P003,Brand Refresh,16,Marketing,150000,95000,active,2024-03-01,2024-08-31
+P004,Data Pipeline,17,Engineering,300000,150000,active,2024-01-15,2024-10-31
+P005,Q1 Campaign,3,Marketing,80000,78000,completed,2024-01-01,2024-03-31
+P006,Sales Dashboard,11,Engineering,120000,45000,active,2024-04-01,2024-11-30
+P007,Partner Portal,7,Engineering,200000,60000,active,2024-05-01,2024-12-31
+P008,SEO Overhaul,12,Marketing,60000,25000,active,2024-04-15,2024-09-30
+P009,CRM Integration,15,Engineering,180000,90000,active,2024-03-01,2024-10-31
+P010,Q2 Campaign,6,Marketing,75000,30000,active,2024-04-01,2024-06-30

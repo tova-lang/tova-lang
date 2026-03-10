@@ -1,0 +1,26 @@
+transaction_id,employee_id,product,category,amount,quantity,date,region,customer_type
+TXN001,5,Enterprise Suite,Software,45000,1,2024-01-15,Northeast,Enterprise
+TXN002,8,Basic Plan,Software,1200,3,2024-01-18,Midwest,SMB
+TXN003,10,Starter Kit,Hardware,800,5,2024-01-20,South,SMB
+TXN004,5,Enterprise Suite,Software,45000,1,2024-02-01,Northeast,Enterprise
+TXN005,14,Pro Plan,Software,5000,2,2024-02-10,Northeast,Mid-Market
+TXN006,18,Enterprise Suite,Software,45000,1,2024-02-15,Midwest,Enterprise
+TXN007,8,Pro Plan,Software,5000,1,2024-02-20,Midwest,Mid-Market
+TXN008,10,Starter Kit,Hardware,800,10,2024-03-01,South,SMB
+TXN009,5,Consulting,Services,15000,1,2024-03-05,Northeast,Enterprise
+TXN010,14,Basic Plan,Software,1200,5,2024-03-10,Northeast,SMB
+TXN011,18,Pro Plan,Software,5000,3,2024-03-15,Midwest,Mid-Market
+TXN012,5,Enterprise Suite,Software,45000,1,2024-03-20,Northeast,Enterprise
+TXN013,8,Basic Plan,Software,1200,2,2024-04-01,Midwest,SMB
+TXN014,10,Consulting,Services,15000,1,2024-04-05,South,Mid-Market
+TXN015,5,Enterprise Suite,Software,45000,1,2024-04-10,Northeast,Enterprise
+TXN016,14,Pro Plan,Software,5000,4,2024-04-15,Northeast,Mid-Market
+TXN017,18,Consulting,Services,15000,1,2024-04-20,Midwest,Enterprise
+TXN018,8,Starter Kit,Hardware,800,8,2024-05-01,Midwest,SMB
+TXN019,10,Basic Plan,Software,1200,2,2024-05-05,South,SMB
+TXN020,5,Enterprise Suite,Software,45000,1,2024-05-10,Northeast,Enterprise
+TXN021,14,Consulting,Services,15000,1,2024-05-15,Northeast,Mid-Market
+TXN022,18,Enterprise Suite,Software,45000,1,2024-05-20,Midwest,Enterprise
+TXN023,8,Pro Plan,Software,5000,2,2024-06-01,Midwest,Mid-Market
+TXN024,10,Starter Kit,Hardware,800,15,2024-06-05,South,SMB
+TXN025,5,Enterprise Suite,Software,45000,1,2024-06-10,Northeast,Enterprise

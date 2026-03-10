@@ -1,0 +1,21 @@
+name,department,salary,salary_band,performance_score,performance_tier
+Quinn Scott,Engineering,210000,L6+,5,Exceptional
+Pat Harris,Marketing,195000,L6+,4.8,Exceptional
+Iris Brown,Engineering,185000,L6+,4.9,Exceptional
+Bob Martinez,Engineering,175000,L5,4.8,Exceptional
+Olivia Wright,Engineering,170000,L5,4.6,Exceptional
+Eva Johnson,Sales,160000,L5,4.7,Exceptional
+Sam Nelson,Engineering,155000,L5,4.1,Exceeds
+Karen Davis,Engineering,152000,L5,4.4,Exceeds
+Grace Park,Engineering,148000,L5,4.3,Exceeds
+Alice Chen,Engineering,145000,L5,4.5,Exceptional
+Rosa Green,Sales,130000,L4,4.2,Exceeds
+Carol White,Marketing,110000,L4,3.9,Meets
+Frank Lee,Marketing,98000,L3,4.1,Exceeds
+David Kim,Engineering,95000,L3,3.5,Meets
+Tina Lopez,Marketing,95000,L3,3.8,Meets
+Mia Thomas,Engineering,92000,L3,3.3,Needs Improvement
+Leo Adams,Marketing,88000,L3,3.7,Meets
+Noah Clark,Sales,88000,L3,4,Exceeds
+Hank Wilson,Sales,85000,L3,3.2,Needs Improvement
+Jack Taylor,Sales,72000,L2,3,Needs Improvement
