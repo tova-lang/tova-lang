@@ -5,7 +5,7 @@ import { TokenType } from '../lexer/tokens.js';
 import * as AST from './ast.js';
 import { AuthConfigField, AuthProviderDeclaration, AuthHookDeclaration, AuthProtectedRoute } from './auth-ast.js';
 
-const CONFIG_KEY_TOKENS = new Set([
+const AUTH_CONFIG_KEY_TOKENS = new Set([
   TokenType.IDENTIFIER, TokenType.TYPE, TokenType.STORE,
   TokenType.FN, TokenType.MATCH, TokenType.IF,
 ]);
@@ -15,7 +15,7 @@ export function installAuthParser(ParserClass) {
   ParserClass.prototype._authParserInstalled = true;
 
   ParserClass.prototype._expectAuthConfigKey = function(context) {
-    if (CONFIG_KEY_TOKENS.has(this.current().type)) {
+    if (AUTH_CONFIG_KEY_TOKENS.has(this.current().type)) {
       return this.advance().value;
     }
     this.error(`Expected ${context} config key`);
