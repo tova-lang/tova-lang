@@ -25,6 +25,66 @@ import { addToSection, removeFromSection } from '../src/config/edit-toml.js';
 import { stringifyTOML } from '../src/config/toml.js';
 
 import { VERSION } from '../src/version.js';
+import { spawnSync as _spawnSync } from 'child_process';
+import { createServer as _createHttpServer } from 'http';
+
+const _hasBun = typeof Bun !== 'undefined';
+
+// ─── Compat: Bun.serve() fallback to Node http.createServer ─
+function _compatServe({ port, fetch: fetchHandler }) {
+  if (_hasBun) {
+    return Bun.serve({ port, fetch: fetchHandler });
+  }
+  // Node.js fallback using http.createServer
+  return new Promise((resolve, reject) => {
+    const server = _createHttpServer(async (req, res) => {
+      try {
+        const url = `http://localhost:${port}${req.url}`;
+        const headers = new Headers();
+        for (let i = 0; i < req.rawHeaders.length; i += 2) {
+          headers.append(req.rawHeaders[i], req.rawHeaders[i + 1]);
+        }
+        const request = new Request(url, {
+          method: req.method,
+          headers,
+          ...(req.method !== 'GET' && req.method !== 'HEAD' ? { body: req, duplex: 'half' } : {}),
+        });
+        const response = await fetchHandler(request);
+        res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+        if (response.body) {
+          const reader = response.body.getReader();
+          const pump = async () => {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) { res.end(); return; }
+              res.write(value);
+            }
+          };
+          pump().catch(() => res.end());
+        } else {
+          const buf = Buffer.from(await response.arrayBuffer());
+          res.end(buf);
+        }
+      } catch (err) {
+        res.writeHead(500);
+        res.end('Internal Server Error');
+      }
+    });
+    server.listen(port, () => resolve(server));
+    server.on('error', reject);
+  });
+}
+
+// ─── Compat: Bun.spawnSync fallback to child_process.spawnSync ─
+function _compatSpawnSync(cmd, args, opts) {
+  if (_hasBun) return Bun.spawnSync([cmd, ...args], opts);
+  const result = _spawnSync(cmd, args, opts);
+  return {
+    ...result,
+    stdout: result.stdout ? (typeof result.stdout === 'string' ? result.stdout : result.stdout.toString()) : '',
+    stderr: result.stderr ? (typeof result.stderr === 'string' ? result.stderr : result.stderr.toString()) : '',
+  };
+}
 
 // ─── CLI Color Helpers ──────────────────────────────────────
 const isTTY = process.stdout?.isTTY;
@@ -1417,10 +1477,17 @@ function cleanBuild(args) {
 
 async function devServer(args) {
   const config = resolveConfig(process.cwd());
-  const explicitSrc = args.filter(a => !a.startsWith('--'))[0];
-  const srcDir = resolve(explicitSrc || config.project.entry || '.');
+  // Parse --port value first, then filter positional args (skip flag values)
   const explicitPort = args.find((_, i, a) => a[i - 1] === '--port');
-  const basePort = parseInt(explicitPort || config.dev.port || '3000');
+  const basePort = parseInt(explicitPort || config.dev?.port || '3000');
+  const flagsWithValues = new Set(['--port']);
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('--')) { if (flagsWithValues.has(args[i])) i++; continue; }
+    positional.push(args[i]);
+  }
+  const explicitSrc = positional[0];
+  const srcDir = resolve(explicitSrc || config.project?.entry || '.');
   const buildStrict = args.includes('--strict');
   const buildStrictSecurity = args.includes('--strict-security');
 
@@ -1438,7 +1505,7 @@ async function devServer(args) {
   let actualReloadPort = reloadPort;
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
-      reloadServer = Bun.serve({
+      reloadServer = await _compatServe({
         port: actualReloadPort,
         fetch(req) {
           return handleReloadFetch(req);
@@ -1624,7 +1691,7 @@ async function devServer(args) {
       '.map': 'application/json',
     };
 
-    const staticServer = Bun.serve({
+    const staticServer = await _compatServe({
       port: basePort,
       async fetch(req) {
         const url = new URL(req.url);
@@ -3373,8 +3440,8 @@ tova add github.com/yourname/${projectName}
 
   // git init (silent, only if git is available)
   try {
-    const gitProc = Bun.spawnSync(['git', 'init'], { cwd: projectDir, stdout: 'pipe', stderr: 'pipe' });
-    if (gitProc.exitCode === 0) {
+    const gitProc = _compatSpawnSync('git', ['init'], { cwd: projectDir, stdio: 'pipe' });
+    if ((gitProc.exitCode ?? gitProc.status) === 0) {
       console.log(`  ${color.green('✓')} Initialized git repository`);
     }
   } catch {}
@@ -4162,6 +4229,9 @@ function hasNpmImports(code) {
 }
 
 async function bundleClientCode(clientCode, srcDir) {
+  if (!_hasBun) {
+    throw new Error('Client bundling with npm imports requires Bun. Install from https://bun.sh and run with: bun tova build --production');
+  }
   const tmpDir = join(srcDir, '.tova-out', '.tmp-bundle');
   try {
     mkdirSync(tmpDir, { recursive: true });
@@ -4897,7 +4967,10 @@ async function productionBuild(srcDir, outDir, isStatic = false) {
   const allSharedCode = sharedParts.join('\n');
 
   // Generate content hash for cache busting
-  const hashCode = (s) => Bun.hash(s).toString(16).slice(0, 12);
+  const hashCode = (s) => {
+    if (_hasBun) return Bun.hash(s).toString(16).slice(0, 12);
+    return _cryptoHash('md5').update(s).digest('hex').slice(0, 12);
+  };
 
   // Write server bundle
   if (allServerCode.trim()) {
@@ -6024,12 +6097,13 @@ async function doctorCommand() {
 
   // 2. Bun availability
   try {
-    const bunProc = Bun.spawnSync(['bun', '--version']);
-    const bunVer = bunProc.stdout.toString().trim();
-    if (bunProc.exitCode === 0 && bunVer) {
+    const bunProc = _compatSpawnSync('bun', ['--version'], { stdio: 'pipe' });
+    const bunVer = (bunProc.stdout || '').toString().trim();
+    if ((bunProc.exitCode ?? bunProc.status) === 0 && bunVer) {
       const major = parseInt(bunVer.split('.')[0], 10);
       if (major >= 1) {
-        pass(`Bun v${bunVer}`, Bun.spawnSync(['which', 'bun']).stdout.toString().trim());
+        const whichProc = _compatSpawnSync('which', ['bun'], { stdio: 'pipe' });
+        pass(`Bun v${bunVer}`, (whichProc.stdout || '').toString().trim());
       } else {
         warn(`Bun v${bunVer}`, 'Bun >= 1.0 recommended');
       }
@@ -6077,9 +6151,9 @@ async function doctorCommand() {
 
   // 5. git
   try {
-    const gitProc = Bun.spawnSync(['git', '--version']);
-    if (gitProc.exitCode === 0) {
-      const gitVer = gitProc.stdout.toString().trim();
+    const gitProc = _compatSpawnSync('git', ['--version'], { stdio: 'pipe' });
+    if ((gitProc.exitCode ?? gitProc.status) === 0) {
+      const gitVer = (gitProc.stdout || '').toString().trim();
       pass('git available', gitVer);
     } else {
       warn('git', 'not found');
@@ -6323,6 +6397,10 @@ function detectInstallMethod() {
   const execPath = process.execPath || process.argv[0];
   const scriptPath = process.argv[1] || '';
   if (execPath.includes('.tova/bin') || scriptPath.includes('.tova/')) return 'binary';
+  // Check if ~/.tova/bin/tova exists — indicates binary/wrapper install even if
+  // the wrapper points to a local repo checkout
+  const wrapperPath = join(process.env.HOME || '', '.tova', 'bin', 'tova');
+  if (existsSync(wrapperPath)) return 'binary';
   return 'npm';
 }
 
@@ -6584,8 +6662,8 @@ async function infoCommand() {
   // Bun version
   let bunVersion = 'not found';
   try {
-    const proc = Bun.spawnSync(['bun', '--version']);
-    bunVersion = proc.stdout.toString().trim();
+    const proc = _compatSpawnSync('bun', ['--version'], { stdio: 'pipe' });
+    bunVersion = (proc.stdout || '').toString().trim();
   } catch {}
   console.log(`  Runtime:     Bun v${bunVersion}`);
   console.log(`  Platform:    ${process.platform} ${process.arch}`);
