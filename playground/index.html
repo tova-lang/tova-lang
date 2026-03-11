@@ -6907,7 +6907,7 @@ function installThemeParser(ParserClass) {
 
 
 
-const CONFIG_KEY_TOKENS = new Set([
+const AUTH_CONFIG_KEY_TOKENS = new Set([
   TokenType.IDENTIFIER, TokenType.TYPE, TokenType.STORE,
   TokenType.FN, TokenType.MATCH, TokenType.IF,
 ]);
@@ -6916,7 +6916,7 @@ function installAuthParser(ParserClass) {
   ParserClass.prototype._authParserInstalled = true;
 
   ParserClass.prototype._expectAuthConfigKey = function(context) {
-    if (CONFIG_KEY_TOKENS.has(this.current().type)) {
+    if (AUTH_CONFIG_KEY_TOKENS.has(this.current().type)) {
       return this.advance().value;
     }
     this.error(`Expected ${context} config key`);
@@ -16965,6 +16965,14 @@ const STDLIB_DEPS = {
   json_parse: ['Ok', 'Err'],
   date_parse: ['Ok', 'Err'],
   read_text: ['Ok', 'Err'],
+  read_bytes: ['Ok', 'Err'],
+  write_text: ['Ok', 'Err'],
+  mkdir: ['Ok', 'Err'],
+  rm: ['Ok', 'Err'],
+  cp: ['Ok', 'Err'],
+  mv: ['Ok', 'Err'],
+  file_stat: ['Ok', 'Err'],
+  file_size: ['Ok', 'Err'],
   try_fn: ['Ok', 'Err'],
   try_async: ['Ok', 'Err'],
   // LazyTable requires Table and table_* functions
@@ -20477,7 +20485,8 @@ class BaseCodegen {
     }
 
     // window() / table_window() — partition_by/order_by/desc are meta, rest are window fns
-    if (calleeName === 'window' || calleeName === 'table_window') {
+    // Only apply named-argument rewriting when actual NamedArguments are used
+    if ((calleeName === 'window' || calleeName === 'table_window') && node.arguments.some(a => a.type === 'NamedArgument')) {
       const META_KEYS = new Set(['partition_by', 'order_by', 'desc']);
       const optParts = [];
       const winParts = [];
