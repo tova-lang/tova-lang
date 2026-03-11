@@ -2,7 +2,7 @@
 
 import { resolve, basename, dirname, join, relative, sep, extname } from 'path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, rmSync, chmodSync, renameSync, watch as fsWatch } from 'fs';
-import { spawn } from 'child_process';
+import { spawn, spawnSync as _spawnSync } from 'child_process';
 import { createHash as _cryptoHash } from 'crypto';
 import { createRequire as _createRequire } from 'module';
 import { Lexer } from '../src/lexer/lexer.js';
@@ -25,7 +25,6 @@ import { addToSection, removeFromSection } from '../src/config/edit-toml.js';
 import { stringifyTOML } from '../src/config/toml.js';
 
 import { VERSION } from '../src/version.js';
-import { spawnSync as _spawnSync } from 'child_process';
 import { createServer as _createHttpServer } from 'http';
 
 const _hasBun = typeof Bun !== 'undefined';
@@ -76,11 +75,24 @@ function _compatServe({ port, fetch: fetchHandler }) {
 }
 
 // ─── Compat: Bun.spawnSync fallback to child_process.spawnSync ─
+// Accepts Bun-style opts: { stdout: 'pipe', stderr: 'pipe', cwd, timeout }
 function _compatSpawnSync(cmd, args, opts) {
   if (_hasBun) return Bun.spawnSync([cmd, ...args], opts);
-  const result = _spawnSync(cmd, args, opts);
+  // Translate Bun-style stdout/stderr to Node-style stdio
+  const nodeOpts = { ...opts };
+  if (!nodeOpts.stdio) {
+    nodeOpts.stdio = [
+      'pipe',
+      nodeOpts.stdout === 'pipe' ? 'pipe' : (nodeOpts.stdout || 'pipe'),
+      nodeOpts.stderr === 'pipe' ? 'pipe' : (nodeOpts.stderr || 'pipe'),
+    ];
+  }
+  delete nodeOpts.stdout;
+  delete nodeOpts.stderr;
+  const result = _spawnSync(cmd, args, nodeOpts);
   return {
     ...result,
+    exitCode: result.status,
     stdout: result.stdout ? (typeof result.stdout === 'string' ? result.stdout : result.stdout.toString()) : '',
     stderr: result.stderr ? (typeof result.stderr === 'string' ? result.stderr : result.stderr.toString()) : '',
   };
@@ -3440,7 +3452,7 @@ tova add github.com/yourname/${projectName}
 
   // git init (silent, only if git is available)
   try {
-    const gitProc = _compatSpawnSync('git', ['init'], { cwd: projectDir, stdio: 'pipe' });
+    const gitProc = _compatSpawnSync('git', ['init'], { cwd: projectDir, stdout: 'pipe', stderr: 'pipe' });
     if ((gitProc.exitCode ?? gitProc.status) === 0) {
       console.log(`  ${color.green('✓')} Initialized git repository`);
     }
@@ -6097,12 +6109,12 @@ async function doctorCommand() {
 
   // 2. Bun availability
   try {
-    const bunProc = _compatSpawnSync('bun', ['--version'], { stdio: 'pipe' });
+    const bunProc = _compatSpawnSync('bun', ['--version'], { stdout: 'pipe', stderr: 'pipe' });
     const bunVer = (bunProc.stdout || '').toString().trim();
     if ((bunProc.exitCode ?? bunProc.status) === 0 && bunVer) {
       const major = parseInt(bunVer.split('.')[0], 10);
       if (major >= 1) {
-        const whichProc = _compatSpawnSync('which', ['bun'], { stdio: 'pipe' });
+        const whichProc = _compatSpawnSync('which', ['bun'], { stdout: 'pipe', stderr: 'pipe' });
         pass(`Bun v${bunVer}`, (whichProc.stdout || '').toString().trim());
       } else {
         warn(`Bun v${bunVer}`, 'Bun >= 1.0 recommended');
@@ -6151,7 +6163,7 @@ async function doctorCommand() {
 
   // 5. git
   try {
-    const gitProc = _compatSpawnSync('git', ['--version'], { stdio: 'pipe' });
+    const gitProc = _compatSpawnSync('git', ['--version'], { stdout: 'pipe', stderr: 'pipe' });
     if ((gitProc.exitCode ?? gitProc.status) === 0) {
       const gitVer = (gitProc.stdout || '').toString().trim();
       pass('git available', gitVer);
@@ -6662,7 +6674,7 @@ async function infoCommand() {
   // Bun version
   let bunVersion = 'not found';
   try {
-    const proc = _compatSpawnSync('bun', ['--version'], { stdio: 'pipe' });
+    const proc = _compatSpawnSync('bun', ['--version'], { stdout: 'pipe', stderr: 'pipe' });
     bunVersion = (proc.stdout || '').toString().trim();
   } catch {}
   console.log(`  Runtime:     Bun v${bunVersion}`);
