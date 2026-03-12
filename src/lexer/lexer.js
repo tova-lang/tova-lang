@@ -518,6 +518,14 @@ export class Lexer {
               } else if (quote === '"' && this.peek() === '}' && strDepth > 0) {
                 strDepth--;
                 exprParts.push(this.advance());
+              } else if (quote === '`' && this.peek() === '$' && this.pos + 1 < this.length && this.source[this.pos + 1] === '{') {
+                // Handle JS template literal interpolation ${...}
+                exprParts.push(this.advance()); // $
+                exprParts.push(this.advance()); // {
+                strDepth++;
+              } else if (quote === '`' && this.peek() === '}' && strDepth > 0) {
+                strDepth--;
+                exprParts.push(this.advance());
               } else if (this.peek() === quote && strDepth === 0) {
                 break;
               } else {

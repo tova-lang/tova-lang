@@ -529,7 +529,8 @@ export class Analyzer {
           const rt = this._inferType(expr.right);
           if (!lt && !rt) return null;
           if (lt === 'Float' || rt === 'Float') return 'Float';
-          if (lt === 'String' || rt === 'String') return 'String';
+          // Bug fix 4: Tova uses ++ for concatenation, + is numeric only
+          // Remove String check for + operator
           return 'Int';
         }
         if (BITWISE_OPS.has(expr.operator)) return 'Int';
@@ -2250,12 +2251,19 @@ export class Analyzer {
     } else if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
       for (const el of node.pattern.elements) {
         if (el) {
-          const varName = el.startsWith('...') ? el.slice(3) : el;
-          try {
-            this.currentScope.define(varName,
-              new Symbol(varName, 'variable', null, false, node.loc));
-          } catch (e) {
-            this.error(e.message);
+          // Bug fix 1: check if element is a string before calling .startsWith()
+          // Elements can be nested pattern objects
+          if (typeof el === 'string') {
+            const varName = el.startsWith('...') ? el.slice(3) : el;
+            try {
+              this.currentScope.define(varName,
+                new Symbol(varName, 'variable', null, false, node.loc));
+            } catch (e) {
+              this.error(e.message);
+            }
+          } else if (el && typeof el === 'object') {
+            // Nested pattern - recursively extract variables using visitPattern
+            this.visitPattern(el);
           }
         }
       }
@@ -2700,13 +2708,21 @@ export class Analyzer {
       this.visitExpression(node.iterable);
 
       // Define loop variable(s)
+      // Bug fix 2: handle destructured loop variables (pattern objects)
       const vars = Array.isArray(node.variable) ? node.variable : [node.variable];
       for (const v of vars) {
-        try {
-          this.currentScope.define(v,
-            new Symbol(v, 'variable', null, false, node.loc));
-        } catch (e) {
-          this.error(e.message);
+        // Check if v is a pattern object (has a .type property like ObjectPattern or ArrayPattern)
+        if (typeof v === 'object' && v && v.type) {
+          // It's a pattern - use visitPattern to extract and define all bound variables
+          this.visitPattern(v);
+        } else {
+          // It's a plain string variable name
+          try {
+            this.currentScope.define(v,
+              new Symbol(v, 'variable', null, false, node.loc));
+          } catch (e) {
+            this.error(e.message);
+          }
         }
       }
 

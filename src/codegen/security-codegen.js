@@ -262,14 +262,15 @@ export class SecurityCodegen extends BaseCodegen {
         lines.push(`function ${fnName}(obj, user) {`);
         lines.push('  if (!obj) return obj;');
         lines.push('  const result = { ...obj };');
-        for (const field of fields) {
+        for (let fi = 0; fi < fields.length; fi++) {
+          const field = fields[fi];
           if (field.config.never_expose) {
             lines.push(`  delete result.${field.fieldName};`);
           } else if (field.config.visible_to) {
             const visibleExpr = this.genExpression(field.config.visible_to);
-            lines.push(`  const __visibleTo = ${visibleExpr};`);
-            lines.push(`  const __canSee = __visibleTo.some(v => v === "self" ? (user && __isSameIdentity(user, obj)) : __hasRole(user, v));`);
-            lines.push(`  if (!__canSee) delete result.${field.fieldName};`);
+            lines.push(`  { const __visibleTo = ${visibleExpr};`);
+            lines.push(`    const __canSee = __visibleTo.some(v => v === "self" ? (user && __isSameIdentity(user, obj)) : __hasRole(user, v));`);
+            lines.push(`    if (!__canSee) delete result.${field.fieldName}; }`);
           }
         }
         lines.push('  return result;');

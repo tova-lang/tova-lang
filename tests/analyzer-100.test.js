@@ -3149,15 +3149,15 @@ describe('_inferType edge cases', () => {
     expect(t).toBe('Float');
   });
 
-  test('String + String infers String', () => {
-    // Note: + between strings in Tova is technically wrong (should use ++),
-    // but _inferType still handles the case
+  test('String + String infers Int (+ is numeric-only in Tova, use ++ for strings)', () => {
+    // In Tova, + is arithmetic-only. String concatenation uses ++.
+    // So "a" + "b" should infer Int (the default numeric type), not String.
     const ast = parse('fn main() { x = "a" + "b" }');
     const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
     analyzer.analyze();
     const binExpr = ast.body[0].body.body[0].values[0];
     const t = analyzer._inferType(binExpr);
-    expect(t).toBe('String');
+    expect(t).toBe('Int');
   });
 });
 

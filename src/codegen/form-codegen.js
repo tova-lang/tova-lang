@@ -39,13 +39,13 @@ export function generateValidatorFn(fieldName, validators, genExpression, indent
 
       case 'min': {
         const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : '0';
-        lines.push(`${indent}  if (typeof v === "number" && v < ${threshold}) return ${msg};`);
+        lines.push(`${indent}  if (v !== "" && v !== null && v !== undefined && Number(v) < ${threshold}) return ${msg};`);
         break;
       }
 
       case 'max': {
         const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : 'Infinity';
-        lines.push(`${indent}  if (typeof v === "number" && v > ${threshold}) return ${msg};`);
+        lines.push(`${indent}  if (v !== "" && v !== null && v !== undefined && Number(v) > ${threshold}) return ${msg};`);
         break;
       }
 
@@ -196,13 +196,13 @@ export function generateGuardedValidatorFn(fieldName, validators, genExpression,
 
       case 'min': {
         const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : '0';
-        lines.push(`${indent}  if (typeof v === "number" && v < ${threshold}) return ${msg};`);
+        lines.push(`${indent}  if (v !== "" && v !== null && v !== undefined && Number(v) < ${threshold}) return ${msg};`);
         break;
       }
 
       case 'max': {
         const threshold = v.args.length >= 2 ? genExpression(v.args[0]) : 'Infinity';
-        lines.push(`${indent}  if (typeof v === "number" && v > ${threshold}) return ${msg};`);
+        lines.push(`${indent}  if (v !== "" && v !== null && v !== undefined && Number(v) > ${threshold}) return ${msg};`);
         break;
       }
 

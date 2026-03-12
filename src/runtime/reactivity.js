@@ -365,6 +365,7 @@ export function createComputed(fn) {
 export function onMount(fn) {
   const owner = currentOwner;
   queueMicrotask(() => {
+    if (owner && owner._disposed) return;
     const result = fn();
     if (typeof result === 'function' && owner && !owner._disposed) {
       owner._cleanups.push(result);

@@ -323,13 +323,13 @@ describe('form-codegen — generateValidatorFn custom and edge cases (lines 78-8
     const code2 = generateValidatorFn('f', [{ name: 'maxLength', args: [{ type: 'NumberLiteral', value: 50 }, { type: 'StringLiteral', value: 'Too long' }], isAsync: false }], genExpr, '  ');
     expect(code2).toContain('v.length > 50');
 
-    // min
+    // min (uses Number() coercion for HTML string inputs)
     const code3 = generateValidatorFn('f', [{ name: 'min', args: [{ type: 'NumberLiteral', value: 0 }, { type: 'StringLiteral', value: 'Too low' }], isAsync: false }], genExpr, '  ');
-    expect(code3).toContain('v < 0');
+    expect(code3).toContain('Number(v) < 0');
 
-    // max
+    // max (uses Number() coercion for HTML string inputs)
     const code4 = generateValidatorFn('f', [{ name: 'max', args: [{ type: 'NumberLiteral', value: 100 }, { type: 'StringLiteral', value: 'Too high' }], isAsync: false }], genExpr, '  ');
-    expect(code4).toContain('v > 100');
+    expect(code4).toContain('Number(v) > 100');
 
     // pattern
     const code5 = generateValidatorFn('f', [{ name: 'pattern', args: [{ type: 'RegExpLiteral', raw: '/^[A-Z]$/' }, { type: 'StringLiteral', value: 'Invalid' }], isAsync: false }], genExpr, '  ');
@@ -399,7 +399,7 @@ describe('form-codegen — generateGuardedValidatorFn validators (lines 185-243)
       }
     }`);
     const b = result.browser;
-    expect(b).toContain('v < 18');
+    expect(b).toContain('Number(v) < 18');
     expect(b).toContain('"Must be 18+"');
   });
 
@@ -418,7 +418,7 @@ describe('form-codegen — generateGuardedValidatorFn validators (lines 185-243)
       }
     }`);
     const b = result.browser;
-    expect(b).toContain('v > 100');
+    expect(b).toContain('Number(v) > 100');
     expect(b).toContain('"Too high"');
   });
 

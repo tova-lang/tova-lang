@@ -3217,6 +3217,7 @@ export class ServerCodegen extends BaseCodegen {
       lines.push('  let __pathname = __qIdx === -1 ? __rawUrl.slice(__pStart) : __rawUrl.slice(__pStart, __qIdx);');
       lines.push('  try { __pathname = decodeURIComponent(__pathname); } catch {}');
       lines.push('  __pathname = __pathname.replace(/\\/\\/+/g, "/");');
+      lines.push('  if (__pathname.includes("..")) { const __parts = __pathname.split("/"); const __resolved = []; for (const __seg of __parts) { if (__seg === "..") { __resolved.pop(); } else if (__seg !== ".") { __resolved.push(__seg); } } __pathname = __resolved.join("/") || "/"; }');
       lines.push('  if (__pathname.length > 1 && __pathname.endsWith("/")) __pathname = __pathname.slice(0, -1);');
       lines.push('  const __method = req.method;');
 

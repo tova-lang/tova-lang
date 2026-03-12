@@ -185,7 +185,7 @@ export class EdgeCodegen extends BaseCodegen {
       lines.push('  const checks = {};');
       lines.push('  let status = "healthy";');
       if (config.healthChecks.includes('check_memory')) {
-        lines.push('  const mem = process.memoryUsage ? process.memoryUsage() : { heapUsed: 0, heapTotal: 1 };');
+        lines.push('  const mem = (typeof process !== "undefined" && process.memoryUsage) ? process.memoryUsage() : { heapUsed: 0, heapTotal: 1 };');
         lines.push('  const heapPct = mem.heapUsed / mem.heapTotal;');
         lines.push('  checks.memory = { status: heapPct > 0.9 ? "degraded" : "healthy", heapUsed: mem.heapUsed, heapTotal: mem.heapTotal };');
         lines.push('  if (heapPct > 0.9) status = "degraded";');
@@ -264,15 +264,17 @@ export class EdgeCodegen extends BaseCodegen {
       const fallbackHeaders = hasCors
         ? `{ "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`
         : '{ "Content-Type": "application/json" }';
-      lines.push(`${indent}  return { statusCode: 500, headers: ${fallbackHeaders}, body: JSON.stringify({ error: e.message }) };`);
+      lines.push(`${indent}  console.error("[tova:edge]", e);`);
+      lines.push(`${indent}  return { statusCode: 500, headers: ${fallbackHeaders}, body: JSON.stringify({ error: "Internal Server Error" }) };`);
     } else {
+      lines.push(`${indent}  console.error("[tova:edge]", e);`);
       if (hasCors) {
-        lines.push(`${indent}  return new Response(JSON.stringify({ error: e.message }), {`);
+        lines.push(`${indent}  return new Response(JSON.stringify({ error: "Internal Server Error" }), {`);
         lines.push(`${indent}    status: 500,`);
         lines.push(`${indent}    headers: { "Content-Type": "application/json", ...__getCorsHeaders(${reqVar}) }`);
         lines.push(`${indent}  });`);
       } else {
-        lines.push(`${indent}  return new Response(JSON.stringify({ error: e.message }), {`);
+        lines.push(`${indent}  return new Response(JSON.stringify({ error: "Internal Server Error" }), {`);
         lines.push(`${indent}    status: 500,`);
         lines.push(`${indent}    headers: { "Content-Type": "application/json" }`);
         lines.push(`${indent}  });`);

@@ -82,11 +82,21 @@ export function flat_map(arr, fn) {
 }
 
 export function min(arr) {
-  return Math.min(...arr);
+  if (!arr || arr.length === 0) return null;
+  let m = arr[0];
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] < m) m = arr[i];
+  }
+  return m;
 }
 
 export function max(arr) {
-  return Math.max(...arr);
+  if (!arr || arr.length === 0) return null;
+  let m = arr[0];
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] > m) m = arr[i];
+  }
+  return m;
 }
 
 export function any(arr, fn) {

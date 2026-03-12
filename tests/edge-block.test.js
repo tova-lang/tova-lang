@@ -1255,13 +1255,15 @@ describe('edge block - error handler codegen', () => {
     expect(result.edge).toContain('await __errorHandler(e, request)');
   });
 
-  test('no error handler: standard catch block', () => {
+  test('no error handler: standard catch block with generic error message', () => {
     const result = compile(`edge {
       route GET "/" => fn(req) { "ok" }
     }`);
     expect(result.edge).not.toContain('__errorHandler');
     expect(result.edge).toContain('catch (e)');
-    expect(result.edge).toContain('error: e.message');
+    // Error messages should NOT be leaked to clients — use generic message
+    expect(result.edge).toContain('Internal Server Error');
+    expect(result.edge).not.toContain('error: e.message');
   });
 
   test('error handler with CORS merges headers in error response', () => {

@@ -780,18 +780,40 @@ async function runFile(filePath, options = {}) {
       return;
     }
 
-    // Compile .tova dependencies and inline them
+    // Compile .tova dependencies and inline them (recursively)
     let depCode = '';
     if (hasTovaImports) {
       const compiled = new Set();
-      for (const imp of tovaImportPaths) {
-        if (compiled.has(imp.resolved)) continue;
-        compiled.add(imp.resolved);
-        const depSource = readFileSync(imp.resolved, 'utf-8');
-        const dep = compileTova(depSource, imp.resolved, { strict: options.strict });
+      const resolveTovaImportsRecursive = (filePath) => {
+        if (compiled.has(filePath)) return;
+        compiled.add(filePath);
+
+        const depSource = readFileSync(filePath, 'utf-8');
+
+        // Scan for transitive .tova imports
+        const transitiveRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"]/g;
+        let transitiveMatch;
+        while ((transitiveMatch = transitiveRegex.exec(depSource)) !== null) {
+          const importSource = transitiveMatch[1];
+          if (!importSource.startsWith('.') && !importSource.startsWith('/')) continue;
+          let transitivePath = resolve(dirname(filePath), importSource);
+          if (!transitivePath.endsWith('.tova') && existsSync(transitivePath + '.tova')) {
+            transitivePath = transitivePath + '.tova';
+          }
+          if (transitivePath.endsWith('.tova') && existsSync(transitivePath)) {
+            resolveTovaImportsRecursive(transitivePath);
+          }
+        }
+
+        // Compile this dependency
+        const dep = compileTova(depSource, filePath, { strict: options.strict });
         let depShared = dep.shared || '';
         depShared = depShared.replace(/^export /gm, '');
         depCode += depShared + '\n';
+      };
+
+      for (const imp of tovaImportPaths) {
+        resolveTovaImportsRecursive(imp.resolved);
       }
     }
 
@@ -1305,7 +1327,7 @@ async function buildProject(args) {
     if (scorecard) console.log(scorecard.format());
   }
 
-  if (errorCount > 0) process.exit(1);
+  if (errorCount > 0 && !isWatch) process.exit(1);
 
   // Watch mode for build command
   if (isWatch) {
@@ -1318,7 +1340,11 @@ async function buildProject(args) {
         const changedPath = resolve(srcDir, filename);
         invalidateFile(changedPath);
         if (!isQuiet) console.log(`  Rebuilding (${filename} changed)...`);
-        await buildProject(args.filter(a => a !== '--watch'));
+        try {
+          await buildProject(args.filter(a => a !== '--watch'));
+        } catch (err) {
+          // Continue watching even on error
+        }
         if (!isQuiet) console.log('  Watching for changes...\n');
       }, 100);
     });
@@ -1811,6 +1837,8 @@ async function devServer(args) {
       let rebuildBrowserCode = '';
       let rebuildHasClient = false;
 
+      // First pass: collect all outputs without writing server files yet
+      const dirOutputs = [];
       for (const [dir, files] of rebuildDirGroups) {
         const dirName = basename(dir) === '.' ? 'app' : basename(dir);
         const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity, isDev: true });
@@ -1841,6 +1869,21 @@ async function devServer(args) {
           rebuildBrowserCode = fixedBrowser;
           rebuildHasClient = true;
         }
+
+        // Store outputs for second pass
+        dirOutputs.push({ output, outBaseName });
+      }
+
+      // Generate dev HTML with all shared code prepended to browser code
+      if (rebuildHasClient) {
+        const rebuildAllShared = rebuildSharedParts.join('\n').replace(/^export /gm, '');
+        const rebuildFullClient = rebuildAllShared ? rebuildAllShared + '\n' + rebuildBrowserCode : rebuildBrowserCode;
+        rebuildClientHTML = await generateDevHTML(rebuildFullClient, srcDir, actualReloadPort);
+        writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
+      }
+
+      // Second pass: write server files with correct __clientHTML
+      for (const { output, outBaseName } of dirOutputs) {
         if (output.server) {
           let serverCode = output.server;
           if (rebuildClientHTML) {
@@ -1858,14 +1901,6 @@ async function devServer(args) {
             newServerFiles.push(p);
           }
         }
-      }
-
-      // Generate dev HTML with all shared code prepended to browser code
-      if (rebuildHasClient) {
-        const rebuildAllShared = rebuildSharedParts.join('\n').replace(/^export /gm, '');
-        const rebuildFullClient = rebuildAllShared ? rebuildAllShared + '\n' + rebuildBrowserCode : rebuildBrowserCode;
-        rebuildClientHTML = await generateDevHTML(rebuildFullClient, srcDir, actualReloadPort);
-        writeFileSync(join(outDir, 'index.html'), rebuildClientHTML);
       }
     } catch (err) {
       console.error(`  ✗ Rebuild failed: ${err.message}`);
@@ -4966,7 +5001,7 @@ async function productionBuild(srcDir, outDir, isStatic = false) {
   for (const file of tovaFiles) {
     try {
       const source = readFileSync(file, 'utf-8');
-      const output = compileTova(source, file);
+      const output = compileWithImports(source, file, srcDir);
 
       if (output.shared) sharedParts.push(output.shared);
       if (output.server) serverParts.push(output.server);

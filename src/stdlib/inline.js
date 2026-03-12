@@ -113,7 +113,7 @@ export const BUILTIN_FUNCTIONS = {
   unique: `function unique(arr) { return [...new Set(arr)]; }`,
   group_by: `function group_by(arr, fn) { const r = {}; for (const v of arr) { const k = fn(v); if (!r[k]) r[k] = []; r[k].push(v); } return r; }`,
   chunk: `function chunk(arr, n) { const r = []; for (let i = 0; i < arr.length; i += n) r.push(arr.slice(i, i + n)); return r; }`,
-  flatten: `function flatten(arr) { return arr.flat(); }`,
+  flatten: `function flatten(arr) { return arr.flat(Infinity); }`,
   take: `function take(arr, n) { return arr.slice(0, n); }`,
   drop: `function drop(arr, n) { return arr.slice(n); }`,
   first: `function first(arr) { return arr.length > 0 ? arr[0] : null; }`,
@@ -520,7 +520,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
   compose: `function compose(...fns) { return (x) => fns.reduceRight((v, fn) => fn(v), x); }`,
   pipe_fn: `function pipe_fn(...fns) { return (x) => fns.reduce((v, fn) => fn(v), x); }`,
   identity: `function identity(x) { return x; }`,
-  memoize: `function memoize(fn) { const cache = new Map(); return function(...args) { const key = JSON.stringify(args); if (cache.has(key)) return cache.get(key); const result = fn.apply(this, args); cache.set(key, result); return result; }; }`,
+  memoize: `function memoize(fn) { const cache = new Map(); const keys = []; const maxSize = 1000; return function(...args) { const key = JSON.stringify(args); if (cache.has(key)) return cache.get(key); const result = fn.apply(this, args); if (cache.size >= maxSize) { const oldest = keys.shift(); cache.delete(oldest); } cache.set(key, result); keys.push(key); return result; }; }`,
   debounce: `function debounce(fn, ms) { let timer; return function(...args) { clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), ms); }; }`,
   throttle: `function throttle(fn, ms) { let last = 0; return function(...args) { const now = Date.now(); if (now - last >= ms) { last = now; return fn.apply(this, args); } }; }`,
   once: `function once(fn) { let called = false, result; return function(...args) { if (!called) { called = true; result = fn.apply(this, args); } return result; }; }`,
@@ -561,7 +561,7 @@ Table.prototype = { get rows() { return this._rows.length; }, get columns() { re
 
   // ── Regex (with compiled regex cache) ─────────────────
   __regex_cache: `const __reCache = new Map(); function __re(p, f) { const k = p + '\\0' + (f || ''); let r = __reCache.get(k); if (!r) { r = new RegExp(p, f); __reCache.set(k, r); if (__reCache.size > 1000) { const first = __reCache.keys().next().value; __reCache.delete(first); } } return r; }`,
-  regex_test: `function regex_test(s, pattern, flags) { return __re(pattern, flags).test(s); }`,
+  regex_test: `function regex_test(s, pattern, flags) { const r = __re(pattern, flags); r.lastIndex = 0; return r.test(s); }`,
   regex_match: `function regex_match(s, pattern, flags) { const m = s.match(__re(pattern, flags)); if (!m) return Err('No match'); return Ok({ match: m[0], index: m.index, groups: m.slice(1) }); }`,
   regex_find_all: `function regex_find_all(s, pattern, flags) { const re = __re(pattern, (flags || '') + (flags && flags.includes('g') ? '' : 'g')); const results = []; let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { results.push({ match: m[0], index: m.index, groups: m.slice(1) }); } return results; }`,
   regex_replace: `function regex_replace(s, pattern, replacement, flags) { return s.replace(__re(pattern, flags || 'g'), replacement); }`,

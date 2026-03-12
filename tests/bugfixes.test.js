@@ -1733,4 +1733,28 @@ describe('REPL variable reassignment fix (tuple swap TDZ)', () => {
     expect(replCode).toContain('a =');
     expect(declaredInCode.has('a')).toBe(false);
   });
+
+  test('_substituteParam respects lambda parameter shadowing', () => {
+    // Bug: inner lambda's x parameter was being replaced with outer value
+    const code = compile('x = Ok(5).map(fn(x) fn(x) x * 2)');
+    // Should generate: Ok((x) => (x * 2))
+    // NOT: Ok((x) => (5 * 2))
+    expect(code).toContain('Ok((x) => (x * 2))');
+    expect(code).not.toContain('Ok((x) => (5 * 2))');
+  });
+
+  test('_substituteParam: nested lambda with different param name works correctly', () => {
+    const code = compile('x = Ok(5).map(fn(x) fn(y) x + y)');
+    // Outer x should be substituted with 5 in the inner lambda body
+    // Should generate: Ok((y) => (5 + y))
+    expect(code).toContain('Ok((y) => (5 + y))');
+  });
+
+  test('_substituteParam: deeply nested shadowing', () => {
+    const code = compile('x = Ok(5).map(fn(x) fn(x) fn(x) x)');
+    // All inner x's should reference their own parameters
+    // Map fusion combines the outer lambda, so we get: Ok((x) => (x) => x)
+    expect(code).toContain('Ok((x) => (x) => x)');
+    expect(code).not.toContain('5');
+  });
 });

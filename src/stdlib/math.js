@@ -36,7 +36,7 @@ export function factorial(n) { if (n < 0) return null; if (n <= 1) return 1; let
 
 export function hypot(a, b) { return Math.hypot(a, b); }
 export function lerp(a, b, t) { return a + (b - a) * t; }
-export function divmod(a, b) { return [Math.floor(a / b), a % b]; }
+export function divmod(a, b) { const q = Math.floor(a / b); return [q, a - q * b]; }
 export function avg(arr) { return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length; }
 
 // ── Statistics ────────────────────────────────────────────

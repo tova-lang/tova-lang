@@ -278,9 +278,20 @@ export function installBrowserAnalyzer(AnalyzerClass) {
   AnalyzerClass.prototype.visitJSXMatch = function(node) {
     this.visitExpression(node.subject);
     for (const arm of node.arms) {
-      // Visit pattern bindings in a child scope
-      for (const child of arm.body) {
-        this.visitNode(child);
+      // Bug fix 3: Create child scope and visit pattern to define bound variables
+      // Match the pattern used in visitMatchExpression
+      const prevScope = this.currentScope;
+      this.currentScope = this.currentScope.child('block');
+
+      try {
+        this.visitPattern(arm.pattern);
+        if (arm.guard) this.visitExpression(arm.guard);
+
+        for (const child of arm.body) {
+          this.visitNode(child);
+        }
+      } finally {
+        this.currentScope = prevScope;
       }
     }
   };

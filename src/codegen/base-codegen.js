@@ -32,6 +32,8 @@ export class BaseCodegen {
     this._fastMode = false;
     this._typedArrayParams = new Map(); // paramName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
     this._typedArrayLocals = new Map(); // varName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
+    // Track shadowed parameter names to prevent incorrect substitution in nested lambdas
+    this._substitutionShadowed = new Set(); // names shadowed by lambda/function params
   }
 
   static TYPED_ARRAY_MAP = {
@@ -328,7 +330,8 @@ export class BaseCodegen {
     switch (node.type) {
       case 'Identifier':
         // Parameter substitution for map chain fusion
-        if (this._paramSubstitutions && this._paramSubstitutions.has(node.name)) {
+        // Skip substitution if the name is shadowed by a nested lambda/function parameter
+        if (this._paramSubstitutions && this._paramSubstitutions.has(node.name) && !this._substitutionShadowed.has(node.name)) {
           return this._paramSubstitutions.get(node.name);
         }
         // Track builtin identifier usage (e.g., None used without call)
@@ -556,6 +559,19 @@ export class BaseCodegen {
     const exportPrefix = node.isPublic ? 'export ' : '';
     const asyncPrefix = node.isAsync ? 'async ' : '';
     const genStar = isGenerator ? '*' : '';
+
+    // Track which parameter names shadow active substitutions
+    const paramNames = this._collectParamNames(node.params);
+    const shadowedNames = [];
+    if (this._paramSubstitutions) {
+      for (const name of paramNames) {
+        if (this._paramSubstitutions.has(name)) {
+          shadowedNames.push(name);
+          this._substitutionShadowed.add(name);
+        }
+      }
+    }
+
     this.pushScope();
     for (const p of node.params) {
       if (p.destructure) {
@@ -566,6 +582,11 @@ export class BaseCodegen {
     }
     const body = this.genBlockBody(node.body);
     this.popScope();
+
+    // Restore shadowing state
+    for (const name of shadowedNames) {
+      this._substitutionShadowed.delete(name);
+    }
     const lines = [];
     lines.push(`${this.i()}${exportPrefix}${asyncPrefix}function${genStar} ${node.name}(${params}) {`);
     // In @fast mode, convert typed array params at function entry
@@ -1722,6 +1743,53 @@ export class BaseCodegen {
     return result;
   }
 
+  // Collect all parameter names from a param list (including destructured names)
+  _collectParamNames(params) {
+    const names = [];
+    for (const p of params) {
+      if (p.destructure) {
+        // Recursively collect names from destructuring patterns
+        this._collectDestructureNames(p.destructure, names);
+      } else {
+        names.push(p.name);
+      }
+    }
+    return names;
+  }
+
+  // Helper to recursively collect names from destructuring patterns
+  _collectDestructureNames(pattern, names) {
+    if (pattern.type === 'ObjectPattern') {
+      for (const prop of pattern.properties) {
+        if (prop.value && prop.value.type === 'Identifier') {
+          names.push(prop.value.name);
+        } else if (prop.value) {
+          this._collectDestructureNames(prop.value, names);
+        }
+      }
+    } else if (pattern.type === 'ArrayPattern') {
+      for (const elem of pattern.elements) {
+        if (elem === null) continue; // skip holes
+        if (elem.type === 'Identifier') {
+          names.push(elem.name);
+        } else if (elem.type === 'RestElement' && elem.argument.type === 'Identifier') {
+          names.push(elem.argument.name);
+        } else {
+          this._collectDestructureNames(elem, names);
+        }
+      }
+    } else if (pattern.type === 'TuplePattern') {
+      for (const elem of pattern.elements) {
+        if (elem === null) continue;
+        if (elem.type === 'Identifier') {
+          names.push(elem.name);
+        } else {
+          this._collectDestructureNames(elem, names);
+        }
+      }
+    }
+  }
+
   // ─── Compile-time devirtualization for Result/Option ──────────
   // When the codegen sees Ok(val).method(), Err(val).method(), Some(val).method(),
   // or None.method(), it knows the exact type at compile time. Instead of allocating
@@ -2421,11 +2489,27 @@ export class BaseCodegen {
     const hasPropagate = this._containsPropagate(node.body);
     const asyncPrefix = node.isAsync ? 'async ' : '';
 
+    // Track which parameter names shadow active substitutions
+    const paramNames = this._collectParamNames(node.params);
+    const shadowedNames = [];
+    if (this._paramSubstitutions) {
+      for (const name of paramNames) {
+        if (this._paramSubstitutions.has(name)) {
+          shadowedNames.push(name);
+          this._substitutionShadowed.add(name);
+        }
+      }
+    }
+
     if (node.body.type === 'BlockStatement') {
       this.pushScope();
       for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       const body = this.genBlockBody(node.body);
       this.popScope();
+      // Restore shadowing state
+      for (const name of shadowedNames) {
+        this._substitutionShadowed.delete(name);
+      }
       if (hasPropagate) {
         const p = [];
         p.push(`${asyncPrefix}(${params}) => {`);
@@ -2449,13 +2533,25 @@ export class BaseCodegen {
       const stmt = this.generateStatement(node.body);
       this.indent--;
       this.popScope();
+      // Restore shadowing state
+      for (const name of shadowedNames) {
+        this._substitutionShadowed.delete(name);
+      }
       return `${asyncPrefix}(${params}) => { ${stmt.trim()} }`;
     }
 
+    // Expression body
+    let bodyCode;
     if (hasPropagate) {
-      return `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__tova_propagate) return __e.value; throw __e; } }`;
+      bodyCode = `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__tova_propagate) return __e.value; throw __e; } }`;
+    } else {
+      bodyCode = `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
     }
-    return `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
+    // Restore shadowing state
+    for (const name of shadowedNames) {
+      this._substitutionShadowed.delete(name);
+    }
+    return bodyCode;
   }
 
   // Check if a match can be emitted as a ternary chain instead of IIFE
