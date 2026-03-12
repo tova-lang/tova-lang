@@ -59,6 +59,7 @@ export class CodeGenerator {
     this.ast = ast;
     this.filename = filename;
     this._sourceMaps = options.sourceMaps !== false; // default true; pass false for REPL/check
+    this._isDev = options.isDev || false;
   }
 
   // Group blocks by name (null name = "default")
@@ -250,6 +251,7 @@ export class CodeGenerator {
     for (const [name, blocks] of serverGroups) {
       const gen = new (getServerCodegen())();
       gen._sourceMapsEnabled = this._sourceMaps;
+      gen._isDev = this._isDev;
       const key = name || 'default';
       // Build peer blocks map (all named blocks except self)
       let peerBlocks = null;

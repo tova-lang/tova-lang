@@ -240,6 +240,7 @@ export class ServerCodegen extends BaseCodegen {
     const functions = [];
     const middlewares = [];
     const otherStatements = [];
+    const hmrVarNames = [];
     let healthPath = null;
     let healthChecks = null;
     let corsConfig = null;
@@ -2142,8 +2143,29 @@ export class ServerCodegen extends BaseCodegen {
     // ════════════════════════════════════════════════════════════
     // 13. Other statements + Server Functions
     // ════════════════════════════════════════════════════════════
+    if (this._isDev) {
+      lines.push('// ── HMR State ──');
+      lines.push('const __hmrStatePath = process.env.__TOVA_HMR_STATE_PATH || "";');
+      lines.push('let __hmrState = {};');
+      lines.push('if (__hmrStatePath) { try { __hmrState = JSON.parse(require("fs").readFileSync(__hmrStatePath, "utf-8")); } catch {} }');
+      lines.push('');
+    }
     for (const stmt of otherStatements) {
-      lines.push(this.generateStatement(stmt));
+      // HMR wrapping: new variable declarations get restored from __hmrState
+      const isHmrEligible = this._isDev && stmt.targets && stmt.targets.length === 1 &&
+        stmt.values && stmt.values.length === 1 && typeof stmt.targets[0] === 'string' &&
+        (stmt.type === 'Assignment' ? !this.isDeclared(stmt.targets[0]) : stmt.type === 'VarDeclaration');
+      if (isHmrEligible) {
+        const name = stmt.targets[0];
+        hmrVarNames.push(name);
+        this.declareVar(name);
+        if (stmt.isPublic) this._userDefinedNames.add(name);
+        const initExpr = this.genExpression(stmt.values[0]);
+        const keyword = stmt.type === 'VarDeclaration' ? 'let' : 'const';
+        lines.push(`${keyword} ${name} = (${JSON.stringify(name)} in __hmrState) ? __hmrState[${JSON.stringify(name)}] : ${initExpr};`);
+      } else {
+        lines.push(this.generateStatement(stmt));
+      }
     }
 
     if (functions.length > 0) {
@@ -3688,10 +3710,24 @@ export class ServerCodegen extends BaseCodegen {
     // 24. Graceful Shutdown — on_stop hooks (F3) + clearInterval (F8)
     // ════════════════════════════════════════════════════════════
     lines.push('// ── Graceful Shutdown ──');
+    // HMR state-save helper (emitted as first action in __shutdown)
+    const hmrSaveLines = [];
+    if (this._isDev && hmrVarNames.length > 0) {
+      const entries = hmrVarNames.map(n => `${JSON.stringify(n)}: ${n}`).join(', ');
+      hmrSaveLines.push(`  try { require("fs").writeFileSync(__hmrStatePath, JSON.stringify({ ${entries} })); } catch {}`);
+    }
     if (isFastMode) {
-      lines.push('function __shutdown() { __server.stop(); process.exit(0); }');
+      if (hmrSaveLines.length > 0) {
+        lines.push('function __shutdown() {');
+        for (const l of hmrSaveLines) lines.push(l);
+        lines.push('  __server.stop(); process.exit(0);');
+        lines.push('}');
+      } else {
+        lines.push('function __shutdown() { __server.stop(); process.exit(0); }');
+      }
     } else {
     lines.push('async function __shutdown() {');
+    for (const l of hmrSaveLines) lines.push(l);
     lines.push(`  console.log(\`Tova server${label} shutting down...\`);`);
     lines.push('  __shuttingDown = true;');
     lines.push('  __server.stop();');

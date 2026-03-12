@@ -1568,7 +1568,7 @@ async function devServer(args) {
   for (const [dir, files] of dirGroups) {
     const dirName = basename(dir) === '.' ? 'app' : basename(dir);
     try {
-      const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity });
+      const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity, isDev: true });
       if (!result) continue;
 
       const { output, single } = result;
@@ -1663,7 +1663,7 @@ async function devServer(args) {
 
     const child = spawn('bun', ['run', sf.path], {
       stdio: 'inherit',
-      env: { ...process.env, [envKey]: String(port), PORT: String(port) },
+      env: { ...process.env, [envKey]: String(port), PORT: String(port), __TOVA_HMR_STATE_PATH: join(outDir, '.hmr-state.json') },
     });
 
     child.on('error', (err) => {
@@ -1813,7 +1813,7 @@ async function devServer(args) {
 
       for (const [dir, files] of rebuildDirGroups) {
         const dirName = basename(dir) === '.' ? 'app' : basename(dir);
-        const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity });
+        const result = mergeDirectory(dir, srcDir, { strict: buildStrict, strictSecurity: buildStrictSecurity, isDev: true });
         if (!result) continue;
 
         const { output, single } = result;
@@ -1890,7 +1890,7 @@ async function devServer(args) {
       const port = basePort + rebuildPortOffset;
       const child = spawn('bun', ['run', serverPath], {
         stdio: 'inherit',
-        env: { ...process.env, PORT: String(port) },
+        env: { ...process.env, PORT: String(port), __TOVA_HMR_STATE_PATH: join(outDir, '.hmr-state.json') },
       });
       processes.push({ child, label: 'server', port });
       rebuildPortOffset++;
@@ -1921,6 +1921,9 @@ async function devServer(args) {
     for (const p of processes) {
       try { p.child.kill('SIGKILL'); } catch {}
     }
+    // Clean up HMR state file for fresh start next time
+    const hmrPath = join(outDir, '.hmr-state.json');
+    try { if (existsSync(hmrPath)) rmSync(hmrPath); } catch {}
     process.exit(0);
   });
 
@@ -5663,7 +5666,7 @@ function collectExports(ast, filename) {
   return { publicExports, allNames };
 }
 
-function compileWithImports(source, filename, srcDir) {
+function compileWithImports(source, filename, srcDir, options = {}) {
   if (compilationCache.has(filename)) {
     return compilationCache.get(filename);
   }
@@ -5768,7 +5771,7 @@ function compileWithImports(source, filename, srcDir) {
       }
     }
 
-    const codegen = new CodeGenerator(ast, filename);
+    const codegen = new CodeGenerator(ast, filename, { isDev: options.isDev });
     const output = codegen.generate();
     compilationCache.set(filename, output);
     return output;
@@ -5904,7 +5907,7 @@ function mergeDirectory(dir, srcDir, options = {}) {
     // Single file — use existing per-file compilation
     const file = tovaFiles[0];
     const source = readFileSync(file, 'utf-8');
-    return { output: compileWithImports(source, file, srcDir), files: [file], single: true };
+    return { output: compileWithImports(source, file, srcDir, { isDev: options.isDev }), files: [file], single: true };
   }
 
   // Parse all files in the directory
@@ -6020,7 +6023,7 @@ function mergeDirectory(dir, srcDir, options = {}) {
   }
 
   // Run codegen on merged AST
-  const codegen = new CodeGenerator(mergedAST, dir);
+  const codegen = new CodeGenerator(mergedAST, dir, { isDev: options.isDev });
   const output = codegen.generate();
 
   // Collect source content from all files for source maps
