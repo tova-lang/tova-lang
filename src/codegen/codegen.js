@@ -2,57 +2,26 @@
 // Supports named multi-blocks: server "api" { }, server "ws" { }
 // Blocks with the same name are merged; different names produce separate output files.
 
-import { createRequire } from 'module';
 import { SharedCodegen } from './shared-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
 import { BlockRegistry } from '../registry/register-all.js';
+import { ServerCodegen } from './server-codegen.js';
+import { BrowserCodegen } from './browser-codegen.js';
+import { SecurityCodegen } from './security-codegen.js';
+import { CliCodegen } from './cli-codegen.js';
+import { EdgeCodegen } from './edge-codegen.js';
+import { DeployCodegen } from './deploy-codegen.js';
+import { ThemeCodegen } from './theme-codegen.js';
+import { AuthCodegen } from './auth-codegen.js';
 
-// Lazy-load domain-specific codegens so pure scripts don't pay for them
-const _require = createRequire(import.meta.url);
-let _ServerCodegen, _BrowserCodegen, _SecurityCodegen, _CliCodegen, _EdgeCodegen;
-
-function getServerCodegen() {
-  if (!_ServerCodegen) _ServerCodegen = _require('./server-codegen.js').ServerCodegen;
-  return _ServerCodegen;
-}
-
-function getBrowserCodegen() {
-  if (!_BrowserCodegen) _BrowserCodegen = _require('./browser-codegen.js').BrowserCodegen;
-  return _BrowserCodegen;
-}
-
-function getSecurityCodegen() {
-  if (!_SecurityCodegen) _SecurityCodegen = _require('./security-codegen.js').SecurityCodegen;
-  return _SecurityCodegen;
-}
-
-function getCliCodegen() {
-  if (!_CliCodegen) _CliCodegen = _require('./cli-codegen.js').CliCodegen;
-  return _CliCodegen;
-}
-
-function getEdgeCodegen() {
-  if (!_EdgeCodegen) _EdgeCodegen = _require('./edge-codegen.js').EdgeCodegen;
-  return _EdgeCodegen;
-}
-
-let _DeployCodegen;
-function getDeployCodegen() {
-  if (!_DeployCodegen) _DeployCodegen = _require('./deploy-codegen.js').DeployCodegen;
-  return _DeployCodegen;
-}
-
-let _ThemeCodegen;
-function getThemeCodegen() {
-  if (!_ThemeCodegen) _ThemeCodegen = _require('./theme-codegen.js').ThemeCodegen;
-  return _ThemeCodegen;
-}
-
-let _AuthCodegen;
-function getAuthCodegen() {
-  if (!_AuthCodegen) _AuthCodegen = _require('./auth-codegen.js').AuthCodegen;
-  return _AuthCodegen;
-}
+function getServerCodegen() { return ServerCodegen; }
+function getBrowserCodegen() { return BrowserCodegen; }
+function getSecurityCodegen() { return SecurityCodegen; }
+function getCliCodegen() { return CliCodegen; }
+function getEdgeCodegen() { return EdgeCodegen; }
+function getDeployCodegen() { return DeployCodegen; }
+function getThemeCodegen() { return ThemeCodegen; }
+function getAuthCodegen() { return AuthCodegen; }
 
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {

@@ -1,11 +1,8 @@
 // Edge/serverless code generator for the Tova language
 // Produces deployment-ready code for Cloudflare Workers, Deno Deploy, Vercel Edge, AWS Lambda, or Bun.
 
-import { createRequire } from 'module';
 import { BaseCodegen } from './base-codegen.js';
-
-const _require = createRequire(import.meta.url);
-let _SecurityCodegen;
+import { SecurityCodegen as _SecurityCodegen } from './security-codegen.js';
 
 const DEFAULT_TARGET = 'cloudflare';
 
@@ -295,7 +292,6 @@ export class EdgeCodegen extends BaseCodegen {
     const noSec = { hasAuth: false, hasProtect: false, hasAutoSanitize: false };
     if (!securityConfig) return noSec;
 
-    if (!_SecurityCodegen) _SecurityCodegen = _require('./security-codegen.js').SecurityCodegen;
     const secGen = new _SecurityCodegen();
     const fragments = secGen.generateServerSecurity(securityConfig);
 
