@@ -2720,6 +2720,13 @@ shared {
   }
 }
 
+security {
+  cors {
+    origins: ["http://localhost:3000"]
+    methods: ["GET", "POST"]
+  }
+}
+
 server {
   fn get_message() {
     Message("Hello from Tova!", Date.new().toLocaleTimeString())
@@ -3203,6 +3210,13 @@ browser {
     entry: 'src',
     file: 'src/app.tova',
     content: name => `// ${name} — Built with Tova
+
+security {
+  cors {
+    origins: ["http://localhost:3000"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  }
+}
 
 server {
   fn health() {
