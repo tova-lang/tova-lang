@@ -221,11 +221,11 @@ by_category = order_details
   )
 ```
 
-`group_by` partitions the table, and `agg` computes named aggregate values per group. Available functions: `count()`, `sum()`, `mean()`, `median()`, `min()`, `max()`.
+`groupBy` partitions the table, and `agg` computes named aggregate values per group. Available functions: `count()`, `sum()`, `mean()`, `median()`, `min()`, `max()`.
 
 ### Window Functions
 
-Unlike `group_by` + `agg` which collapses rows, `window()` computes values across partitions while keeping every row:
+Unlike `groupBy` + `agg` which collapses rows, `window()` computes values across partitions while keeping every row:
 
 ```tova
 // Rank orders within each category and compute running totals

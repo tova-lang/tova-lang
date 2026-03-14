@@ -684,7 +684,7 @@ print(pretty)
 ```
 
 ::: tip JSON + Result
-`json_parse` returns a `Result` — `Ok(value)` on success, `Err(message)` on failure. Use `.unwrap()` for trusted input, or `match` to handle errors gracefully.
+`jsonParse` returns a `Result` — `Ok(value)` on success, `Err(message)` on failure. Use `.unwrap()` for trusted input, or `match` to handle errors gracefully.
 :::
 
 ## URL Parsing and Building

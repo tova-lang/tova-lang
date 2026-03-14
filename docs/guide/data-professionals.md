@@ -207,7 +207,7 @@ orders
   |> writeText("distribution.svg")
 ```
 
-Six chart types: `bar_chart`, `line_chart`, `scatter_chart`, `histogram`, `pie_chart`, `heatmap`. All return SVG strings -- pipe to `writeText()` to save.
+Six chart types: `barChart`, `lineChart`, `scatterChart`, `histogram`, `pieChart`, `heatmap`. All return SVG strings -- pipe to `writeText()` to save.
 
 ### Joining Tables
 

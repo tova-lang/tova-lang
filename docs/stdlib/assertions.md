@@ -36,7 +36,7 @@ assertEq(a, b, msg?) -> Nil
 Throws an error if `a` and `b` are not strictly equal. The error message includes both values for easy debugging. An optional `msg` provides additional context.
 
 ::: warning Reference Equality
-`assert_eq` uses strict equality (`===`), which compares by **reference** for arrays and objects. Two arrays with the same contents are not equal: `assertEq([1, 2], [1, 2])` will **fail**. Use `assertEq(jsonStringify(a), jsonStringify(b))` to compare arrays or objects by value, or compare scalar properties individually.
+`assertEq` uses strict equality (`===`), which compares by **reference** for arrays and objects. Two arrays with the same contents are not equal: `assertEq([1, 2], [1, 2])` will **fail**. Use `assertEq(jsonStringify(a), jsonStringify(b))` to compare arrays or objects by value, or compare scalar properties individually.
 :::
 
 ```tova
@@ -69,7 +69,7 @@ fn test_string_utils() {
 assertNe(a, b, msg?) -> Nil
 ```
 
-Throws an error if `a === b`. The inverse of `assert_eq`.
+Throws an error if `a === b`. The inverse of `assertEq`.
 
 ```tova
 assertNe(1, 2)                              // passes

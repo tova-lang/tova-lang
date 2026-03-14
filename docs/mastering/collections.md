@@ -821,7 +821,7 @@ all_staff = tableUnion(engineers, marketing_team)
 
 ### Window Functions
 
-Window functions compute values across partitions without collapsing rows. Unlike `group_by` + `agg` (which reduces rows), `window()` adds new columns while preserving every original row:
+Window functions compute values across partitions without collapsing rows. Unlike `groupBy` + `agg` (which reduces rows), `window()` adds new columns while preserving every original row:
 
 ```tova
 // Rank employees within each department by salary

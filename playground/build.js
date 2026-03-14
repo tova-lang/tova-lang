@@ -187,16 +187,16 @@ function getStdlib() {
   // We need a subset of functions that are useful in the playground
   const playgroundFunctions = [
     'print', 'len', 'range', 'enumerate', 'sum', 'sorted', 'reversed',
-    'zip', 'min', 'max', 'type_of', 'filter', 'map', 'flat_map', 'any', 'all',
-    'find', 'reduce', 'unique', 'group_by', 'chunk', 'flatten',
+    'zip', 'min', 'max', 'typeOf', 'filter', 'map', 'flatMap', 'any', 'all',
+    'find', 'reduce', 'unique', 'groupBy', 'chunk', 'flatten',
     'take', 'drop', 'first', 'last', 'count', 'partition', 'filled',
     'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
     'trim', 'split', 'join', 'replace', 'repeat',
     'keys', 'values', 'entries', 'merge',
-    'upper', 'lower', 'contains', 'starts_with', 'ends_with',
-    'chars', 'words', 'lines', 'capitalize', 'title_case',
-    'to_string', 'to_int', 'to_float', 'is_numeric',
-    'index_of', 'substr', 'pad_start', 'pad_end',
+    'upper', 'lower', 'contains', 'startsWith', 'endsWith',
+    'chars', 'words', 'lines', 'capitalize', 'titleCase',
+    'toString', 'toInt', 'toFloat', 'isNumeric',
+    'indexOf', 'substr', 'padStart', 'padEnd',
   ];
 
   // Parse out the BUILTIN_FUNCTIONS object from the source
@@ -408,7 +408,7 @@ print("Squares: {squares}")
 evens = [x for x in range(1, 21) if x % 2 == 0]
 print("Evens: {evens}")
 
-// Build pairs with flat_map
+// Build pairs with flatMap
 pairs = flatMap(range(1, 4), fn(x) [[x, y] for y in range(1, 4) if x != y])
 print("Pairs: {pairs}")
 
@@ -693,7 +693,7 @@ labels = ["name", "age", "city"]
 vals = ["Alice", 30, "NYC"]
 print("zipped: {zip(labels, vals)}")
 
-// type_of — runtime type checking
+// typeOf — runtime type checking
 print("typeOf(42): {typeOf(42)}")
 print("typeOf(3.14): {typeOf(3.14)}")
 print("typeOf('hi'): {typeOf("hi")}")
@@ -2094,10 +2094,10 @@ const tovaStdlib = [
   { label: 'reversed', detail: '(arr)', info: 'Reverse array' },
   { label: 'enumerate', detail: '(arr)', info: 'Index-value pairs' },
   { label: 'zip', detail: '(...arrs)', info: 'Combine arrays element-wise' },
-  { label: 'type_of', detail: '(v)', info: 'Runtime type name as string' },
+  { label: 'typeOf', detail: '(v)', info: 'Runtime type name as string' },
   { label: 'filter', detail: '(arr, fn)', info: 'Filter array by predicate' },
   { label: 'map', detail: '(arr, fn)', info: 'Transform each element' },
-  { label: 'flat_map', detail: '(arr, fn)', info: 'Map then flatten one level' },
+  { label: 'flatMap', detail: '(arr, fn)', info: 'Map then flatten one level' },
   { label: 'any', detail: '(arr, fn)', info: 'True if any element matches' },
   { label: 'all', detail: '(arr, fn)', info: 'True if all elements match' },
 ];

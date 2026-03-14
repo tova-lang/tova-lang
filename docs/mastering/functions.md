@@ -801,7 +801,7 @@ The key insight: `derivative` returns a **function**. You pass it a function and
 
 **Exercise 2.1:** Write a `memoize(f)` function that takes a single-argument function and returns a new function that caches results. If called with the same argument twice, it should return the cached result instead of recomputing. Hint: use a closure over a mutable object.
 
-**Exercise 2.2:** Write a `pipe(...fns)` function that takes any number of single-argument functions and returns a new function that applies them left to right. `pipe(f, g, h)(x)` should equal `h(g(f(x)))`. Test it by piping `double`, `add_one`, and `to_string` together.
+**Exercise 2.2:** Write a `pipe(...fns)` function that takes any number of single-argument functions and returns a new function that applies them left to right. `pipe(f, g, h)(x)` should equal `h(g(f(x)))`. Test it by piping `double`, `add_one`, and `toString` together.
 
 **Exercise 2.3:** Write a `retry(f, n_times)` function that calls `f()` and if it returns `Err`, retries up to `n_times`. Return the first `Ok` result or the last `Err`. Hint: use a for loop with early return.
 

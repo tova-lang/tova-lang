@@ -408,7 +408,7 @@ type Point {
 
 Available derive traits:
 - **Eq**: Equality comparison (`==`)
-- **Show**: String representation (`to_string`)
+- **Show**: String representation (`toString`)
 - **JSON**: JSON serialization/deserialization
 
 ```tova

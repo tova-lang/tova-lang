@@ -8,7 +8,7 @@ Build complex queries that defer execution until you actually need the results.
 - Creating lazy tables with `lazy()`
 - Chaining `.where()`, `.select()`, `.sortBy()`, `.limit()`, and `.derive()` on lazy tables
 - Two ways to materialize results: `collect()` and `|> collect()`
-- Transitioning from lazy to eager with `group_by`
+- Transitioning from lazy to eager with `groupBy`
 - Composing reusable base queries with functions
 - Iterating over lazy results directly with `for`
 
@@ -274,7 +274,7 @@ Both styles produce the same results. Choose based on the situation:
 
 | Situation | Recommendation |
 |---|---|
-| Quick, one-off transformation | Eager (`table_where`, `table_select`, etc.) |
+| Quick, one-off transformation | Eager (`tableWhere`, `tableSelect`, etc.) |
 | Long pipeline with many steps | Lazy -- avoids intermediate tables |
 | Reusable base query branched multiple ways | Lazy -- compose with functions |
 | Grouping and aggregation at the end | Lazy for filtering, then transition to eager for `table_agg` |

@@ -59,7 +59,7 @@ active = db.query("SELECT * FROM users WHERE active = ? AND age > ?", [1, 18])
 active |> sortBy(.name) |> peek()
 ```
 
-The returned `Table` has all the standard table operations available — `where`, `derive`, `group_by`, `agg`, `sort_by`, `join`, etc.
+The returned `Table` has all the standard table operations available — `where`, `derive`, `groupBy`, `agg`, `sortBy`, `join`, etc.
 
 ### exec
 

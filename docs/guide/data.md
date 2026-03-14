@@ -154,7 +154,7 @@ enriched = users |> derive(
 )
 ```
 
-### Grouping with `group_by`
+### Grouping with `groupBy`
 
 Group rows by one or more columns:
 
@@ -187,7 +187,7 @@ Available aggregation functions:
 | `min(.col)` | Minimum value |
 | `max(.col)` | Maximum value |
 
-### Sorting with `sort_by`
+### Sorting with `sortBy`
 
 ```tova
 sorted = users |> sortBy(.name)
@@ -314,7 +314,7 @@ renamed = users |> rename("email", "email_address")
 
 ## Window Functions
 
-Window functions compute values across partitions of rows **without collapsing them** — unlike `group_by` + `agg`, which reduces rows, `window()` adds new columns while keeping every original row.
+Window functions compute values across partitions of rows **without collapsing them** — unlike `groupBy` + `agg`, which reduces rows, `window()` adds new columns while keeping every original row.
 
 ```tova
 employees
@@ -329,7 +329,7 @@ employees
 
 ### How It Works
 
-- `partition_by` divides rows into groups (like `group_by`, but rows aren't collapsed)
+- `partition_by` divides rows into groups (like `groupBy`, but rows aren't collapsed)
 - `order_by` sorts rows within each partition
 - All other named arguments define new columns using window functions
 - The result is a new Table with all original columns plus the new window columns
@@ -497,9 +497,9 @@ sales |> schemaOf()
 | `select` | `\|> select(.name, .age)` | Pick columns |
 | `select(-.)` | `\|> select(-.password)` | Exclude columns |
 | `derive` | `\|> derive(.new = .a + .b)` | Add/transform columns |
-| `group_by` | `\|> groupBy(.region)` | Group rows |
+| `groupBy` | `\|> groupBy(.region)` | Group rows |
 | `agg` | `\|> agg(total: sum(.x))` | Aggregate after group |
-| `sort_by` | `\|> sortBy(.name, desc: true)` | Sort rows |
+| `sortBy` | `\|> sortBy(.name, desc: true)` | Sort rows |
 | `limit` | `\|> limit(10)` | Take first N |
 | `join` | `\|> join(other, left: .id, right: .uid, how: "left")` | Join tables (inner/left/right/outer/cross/anti/semi) |
 | `pivot` | `\|> pivot(index: .date, columns: .cat, values: .amt)` | Long to wide |
@@ -514,7 +514,7 @@ sales |> schemaOf()
 | `window` | `\|> window(partition_by: .col, row_num: row_number())` | Window functions |
 | `sample` | `\|> sample(100, seed: 42)` | Random sample |
 | `stratified_sample` | `\|> stratified_sample(.col, 50)` | Stratified sample |
-| `bar_chart` | `\|> barChart(x: .col, y: .val)` | SVG bar chart |
+| `barChart` | `\|> barChart(x: .col, y: .val)` | SVG bar chart |
 | `line_chart` | `\|> lineChart(x: .col, y: .val)` | SVG line chart |
 | `scatter_chart` | `\|> scatterChart(x: .col, y: .val)` | SVG scatter plot |
 | `histogram` | `\|> histogram(col: .col, bins: 20)` | SVG histogram |

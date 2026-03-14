@@ -649,7 +649,7 @@ isHex("ff00aa")              // true
 ```
 
 ::: tip When to Use Regex vs. String Functions
-Use string functions (`contains`, `starts_with`, `split`) for simple patterns. Use regex for complex patterns involving repetition, alternation, or capturing groups. String functions are faster and more readable for simple cases.
+Use string functions (`contains`, `startsWith`, `split`) for simple patterns. Use regex for complex patterns involving repetition, alternation, or capturing groups. String functions are faster and more readable for simple cases.
 :::
 
 ### Additional String Functions

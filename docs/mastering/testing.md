@@ -463,7 +463,7 @@ tova test --update-snapshots
 Snapshots are saved alongside your test files in a `__snapshots__` directory. Commit them to version control so your team shares the same expectations.
 
 ::: tip When to Use Snapshots
-Snapshots are ideal for formatted output, serialized data structures, or generated code. Avoid them for simple values where `assert_eq` is clearer. Overusing snapshots leads to tests that nobody reads when they fail.
+Snapshots are ideal for formatted output, serialized data structures, or generated code. Avoid them for simple values where `assertEq` is clearer. Overusing snapshots leads to tests that nobody reads when they fail.
 :::
 
 ## Running Tests

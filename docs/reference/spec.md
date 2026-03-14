@@ -1041,7 +1041,7 @@ The standard library is organized into namespaces:
 | Namespace | Contents |
 |-----------|----------|
 | `math` | `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `abs`, `sqrt`, `pow`, `PI`, `E` |
-| `str` | `upper`, `lower`, `trim`, `split`, `replace`, `contains`, `starts_with`, `ends_with` |
+| `str` | `upper`, `lower`, `trim`, `split`, `replace`, `contains`, `startsWith`, `endsWith` |
 | `arr` | `sorted`, `reversed`, `unique`, `flatten`, `zip`, `chunk` |
 | `json` | `parse`, `stringify` |
 | `re` | `test`, `match`, `find_all`, `replace` |

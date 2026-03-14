@@ -436,7 +436,7 @@ print(format_result(result, Tabular))
 | **Immutable values** (Ch 1) | Every intermediate value is immutable |
 | **Expressions** (Ch 1) | `if` blocks compute avg_word_length |
 | **Functions** (Ch 2) | Small, focused, composable functions |
-| **Lambdas** (Ch 2) | Used in every `map`, `filter`, `sort_by` call |
+| **Lambdas** (Ch 2) | Used in every `map`, `filter`, `sortBy` call |
 | **Collections** (Ch 3) | Arrays, objects, iteration, aggregation |
 | **Strings** (Ch 4) | Interpolation, `join`, `split`, `replace`, `pad_end` |
 | **Pattern matching** (Ch 5) | `format_result` dispatches on OutputFormat variant |

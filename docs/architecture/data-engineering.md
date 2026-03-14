@@ -365,7 +365,7 @@ level2 = level1
 
 ## Window Functions
 
-Window functions compute values across partitions of rows **without collapsing them**. Unlike `group_by` + `agg` which reduces rows, `window()` adds new columns while preserving every original row.
+Window functions compute values across partitions of rows **without collapsing them**. Unlike `groupBy` + `agg` which reduces rows, `window()` adds new columns while preserving every original row.
 
 ### Ranking and Ordering
 

@@ -259,4 +259,4 @@ In your IDE, deprecated names will appear with a ~~strikethrough~~ in autocomple
 | `table_where` | `tableWhere` |
 | `bar_chart` | `barChart` |
 
-The full list of renames is available in the [migration guide](/guide/migration).
+All ~170 snake_case functions have camelCase equivalents. The pattern is consistent: `snake_case` → `camelCase` (e.g., `read_text` → `readText`, `parallel_map` → `parallelMap`).
