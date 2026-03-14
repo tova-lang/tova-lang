@@ -160,7 +160,7 @@ describe('Codegen — Control Flow', () => {
 
   test('for with two variables', () => {
     const code = compileShared('for k, v in pairs { print(k) }');
-    expect(code).toContain('for (const [k, v] of pairs)');
+    expect(code).toContain('for (const [k, v] of (Array.isArray(pairs) ? pairs.entries() : Object.entries(pairs)))');
   });
 
   test('while loop', () => {

@@ -283,7 +283,7 @@ describe('async iteration', () => {
         print(key)
       }
     `);
-    expect(out).toContain('for await (const [key, value] of entries)');
+    expect(out).toContain('for await (const [key, value] of (Array.isArray(entries) ? entries.entries() : Object.entries(entries)))');
   });
 
   test('async for with when guard', () => {
