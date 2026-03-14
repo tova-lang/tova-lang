@@ -5,7 +5,7 @@ The `Table` class provides a tabular data structure for structured data processi
 For reading and writing table data, see the [I/O guide](../guide/io.md). For data pipelines and the `data {}` block, see [Tables & Data](../guide/data.md).
 
 ::: tip Standalone Functions
-Table operations are standalone, pipe-friendly functions: `table_where()`, `table_select()`, `table_derive()`, etc. Use the pipe operator `|>` to chain them, or call them directly with the table as the first argument. See the [Data Tutorials](/tutorials/data/) for hands-on walkthroughs.
+Table operations are standalone, pipe-friendly functions: `tableWhere()`, `tableSelect()`, `tableDerive()`, etc. Use the pipe operator `|>` to chain them, or call them directly with the table as the first argument. See the [Data Tutorials](/tutorials/data/) for hands-on walkthroughs.
 :::
 
 ---
@@ -158,14 +158,14 @@ t.derive(.age_group = if .age >= 30 { "senior" } else { "junior" })
 ### sort_by
 
 ```tova
-t.sort_by(column, desc?) -> Table
+t.sortBy(column, desc?) -> Table
 ```
 
 Sorts the table by a column. Optionally in descending order.
 
 ```tova
-t.sort_by(.age)
-t.sort_by(.age, desc: true)
+t.sortBy(.age)
+t.sortBy(.age, desc: true)
 ```
 
 ### limit
@@ -177,7 +177,7 @@ t.limit(n) -> Table
 Returns the first `n` rows.
 
 ```tova
-top_5 = t.sort_by(.age, desc: true).limit(5)
+top_5 = t.sortBy(.age, desc: true).limit(5)
 ```
 
 ---
@@ -187,13 +187,13 @@ top_5 = t.sort_by(.age, desc: true).limit(5)
 ### group_by
 
 ```tova
-t.group_by(column) -> GroupedTable
+t.groupBy(column) -> GroupedTable
 ```
 
 Groups rows by a column value. Must be followed by `agg()`.
 
 ```tova
-t.group_by(.city)
+t.groupBy(.city)
 ```
 
 ### agg
@@ -215,7 +215,7 @@ Aggregates grouped data. Inside `agg()`, use these aggregation functions (the co
 
 ```tova
 summary = t
-  |> group_by(.city)
+  |> groupBy(.city)
   |> agg(
     count: count(),
     avg_age: mean(.age),
@@ -328,14 +328,14 @@ t.explode("tags")
 ### drop_duplicates
 
 ```tova
-t |> drop_duplicates(by?: column) -> Table
+t |> dropDuplicates(by?: column) -> Table
 ```
 
 Removes duplicate rows. Optionally specify a column to check for uniqueness via the `by` option. Without `by`, compares entire rows.
 
 ```tova
-t |> drop_duplicates()
-t |> drop_duplicates(by: .email)
+t |> dropDuplicates()
+t |> dropDuplicates(by: .email)
 ```
 
 ### rename
@@ -366,26 +366,26 @@ t.cast("price", "Float")
 ### drop_nil
 
 ```tova
-t |> drop_nil(column) -> Table
+t |> dropNil(column) -> Table
 ```
 
 Removes rows where the specified column is `nil`.
 
 ```tova
-t |> drop_nil(.email)
+t |> dropNil(.email)
 ```
 
 ### fill_nil
 
 ```tova
-t.fill_nil(column, value) -> Table
+t.fillNil(column, value) -> Table
 ```
 
 Replaces `nil` values in a column with a default value.
 
 ```tova
-t.fill_nil(.score, 0)
-t.fill_nil(.status, "unknown")
+t.fillNil(.score, 0)
+t.fillNil(.status, "unknown")
 ```
 
 ---
@@ -420,13 +420,13 @@ t.describe() |> peek()
 ### schema_of
 
 ```tova
-schema_of(table) -> Object
+schemaOf(table) -> Object
 ```
 
 Returns the inferred schema (column names and types) of a table.
 
 ```tova
-schema_of(users)
+schemaOf(users)
 // { name: "String", age: "Int", email: "String" }
 ```
 
@@ -554,7 +554,7 @@ All chart functions take a Table (or array of objects) and return an SVG string.
 ### bar_chart
 
 ```tova
-bar_chart(data, x:, y:, title?, width?, height?, color?, labels?, sort?) -> String
+barChart(data, x:, y:, title?, width?, height?, color?, labels?, sort?) -> String
 ```
 
 Vertical bar chart. Options: `color` (hex), `labels: true` (show values), `sort: "desc"`.
@@ -562,7 +562,7 @@ Vertical bar chart. Options: `color` (hex), `labels: true` (show values), `sort:
 ### line_chart
 
 ```tova
-line_chart(data, x:, y:, title?, width?, height?, color?, points?) -> String
+lineChart(data, x:, y:, title?, width?, height?, color?, points?) -> String
 ```
 
 Line chart. Supports multi-series via array of y columns: `y: [.revenue, .cost]`.
@@ -570,7 +570,7 @@ Line chart. Supports multi-series via array of y columns: `y: [.revenue, .cost]`
 ### scatter_chart
 
 ```tova
-scatter_chart(data, x:, y:, title?, width?, height?, color?) -> String
+scatterChart(data, x:, y:, title?, width?, height?, color?) -> String
 ```
 
 Scatter plot with `<circle>` elements.
@@ -586,7 +586,7 @@ Histogram with automatic binning. Default 20 bins.
 ### pie_chart
 
 ```tova
-pie_chart(data, label:, value:, title?, width?, height?) -> String
+pieChart(data, label:, value:, title?, width?, height?) -> String
 ```
 
 Pie chart with percentage labels.
@@ -602,10 +602,10 @@ Grid of colored cells. Requires categorical x/y and numeric value.
 ```tova
 // Example: generate and save a chart
 sales
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(revenue: sum(.amount))
-  |> bar_chart(x: .region, y: .revenue, title: "Revenue")
-  |> write_text("chart.svg")
+  |> barChart(x: .region, y: .revenue, title: "Revenue")
+  |> writeText("chart.svg")
 ```
 
 ---
@@ -630,17 +630,17 @@ all_users = union(active_users, inactive_users)
 
 ```tova
 result = read("sales.csv")
-  |> drop_nil(.amount)
-  |> fill_nil(.region, "Unknown")
+  |> dropNil(.amount)
+  |> fillNil(.region, "Unknown")
   |> where(.amount > 0)
-  |> derive(.quarter = date_format(.date, "QQ YYYY"))
-  |> group_by(.region)
+  |> derive(.quarter = dateFormat(.date, "QQ YYYY"))
+  |> groupBy(.region)
   |> agg(
     total: sum(.amount),
     count: count(),
     avg: mean(.amount)
   )
-  |> sort_by(.total, desc: true)
+  |> sortBy(.total, desc: true)
   |> peek(title: "Revenue by Region")
 
 result |> write("revenue_summary.csv")

@@ -329,7 +329,7 @@ async fn main() {
   eng = db.query("SELECT * FROM employees WHERE department = 'Engineering'")
 
   eng_analysis = eng
-    |> table_derive({
+    |> tableDerive({
       salary_band: fn(r) {
         match true {
           _ if r.salary >= 180000 => "Principal"
@@ -338,10 +338,10 @@ async fn main() {
         }
       }
     })
-    |> table_group_by("salary_band")
-    |> table_agg({
-      count_val: agg_count(),
-      avg_perf: agg_mean("performance_score")
+    |> tableGroupBy("salary_band")
+    |> tableAgg({
+      count_val: aggCount(),
+      avg_perf: aggMean("performance_score")
     })
 
   print(eng_analysis)
@@ -441,8 +441,8 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   final = employees
-    |> table_where(fn(r) r.performance_score >= 4.0)
-    |> table_select("name", "department", "salary", "performance_score")
+    |> tableWhere(fn(r) r.performance_score >= 4.0)
+    |> tableSelect("name", "department", "salary", "performance_score")
 
   await write(final, "data/top_performers.csv")
   await write(final, "data/top_performers.json")

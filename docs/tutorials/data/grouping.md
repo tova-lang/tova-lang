@@ -24,16 +24,16 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   dept_summary = employees
-    |> table_group_by("department")
-    |> table_agg({
-      headcount: agg_count(),
-      avg_salary: agg_mean("salary"),
-      max_salary: agg_max("salary"),
-      min_salary: agg_min("salary"),
-      median_salary: agg_median("salary"),
-      avg_score: agg_mean("performance_score")
+    |> tableGroupBy("department")
+    |> tableAgg({
+      headcount: aggCount(),
+      avg_salary: aggMean("salary"),
+      max_salary: aggMax("salary"),
+      min_salary: aggMin("salary"),
+      median_salary: aggMedian("salary"),
+      avg_score: aggMean("performance_score")
     })
-    |> table_sort_by("avg_salary", {desc: true})
+    |> tableSortBy("avg_salary", {desc: true})
 
   print(dept_summary)
 }
@@ -55,12 +55,12 @@ Tova provides six built-in aggregation functions. Each takes a column name (exce
 
 | Function | Argument | Description |
 |---|---|---|
-| `agg_count()` | none | Number of rows in each group |
-| `agg_sum("col")` | column name | Sum of values in the column |
-| `agg_mean("col")` | column name | Arithmetic mean of values |
-| `agg_min("col")` | column name | Minimum value |
-| `agg_max("col")` | column name | Maximum value |
-| `agg_median("col")` | column name | Median value (middle element) |
+| `aggCount()` | none | Number of rows in each group |
+| `aggSum("col")` | column name | Sum of values in the column |
+| `aggMean("col")` | column name | Arithmetic mean of values |
+| `aggMin("col")` | column name | Minimum value |
+| `aggMax("col")` | column name | Maximum value |
+| `aggMedian("col")` | column name | Median value (middle element) |
 
 You can use any combination of these inside a single `table_agg` call. Each key in the object becomes a column name in the output.
 
@@ -73,13 +73,13 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   city_counts = employees
-    |> table_group_by("city")
-    |> table_agg({
-      headcount: agg_count(),
-      total_payroll: agg_sum("salary"),
-      avg_performance: agg_mean("performance_score")
+    |> tableGroupBy("city")
+    |> tableAgg({
+      headcount: aggCount(),
+      total_payroll: aggSum("salary"),
+      avg_performance: aggMean("performance_score")
     })
-    |> table_sort_by("headcount", {desc: true})
+    |> tableSortBy("headcount", {desc: true})
 
   print(city_counts)
 }
@@ -101,14 +101,14 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   product_revenue = sales
-    |> table_group_by("product")
-    |> table_agg({
-      total_revenue: agg_sum("amount"),
-      num_deals: agg_count(),
-      avg_deal_size: agg_mean("amount"),
-      total_units: agg_sum("quantity")
+    |> tableGroupBy("product")
+    |> tableAgg({
+      total_revenue: aggSum("amount"),
+      num_deals: aggCount(),
+      avg_deal_size: aggMean("amount"),
+      total_units: aggSum("quantity")
     })
-    |> table_sort_by("total_revenue", {desc: true})
+    |> tableSortBy("total_revenue", {desc: true})
 
   print(product_revenue)
 }
@@ -137,10 +137,10 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   monthly = sales
-    |> table_derive({month: fn(r) r.date.slice(0, 7)})
-    |> table_group_by("month")
-    |> table_agg({revenue: agg_sum("amount"), deals: agg_count()})
-    |> table_sort_by("_group")
+    |> tableDerive({month: fn(r) r.date.slice(0, 7)})
+    |> tableGroupBy("month")
+    |> tableAgg({revenue: aggSum("amount"), deals: aggCount()})
+    |> tableSortBy("_group")
 
   print(monthly)
 }
@@ -170,10 +170,10 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   cross = employees
-    |> table_derive({dept_city: fn(r) "{r.department}|{r.city}"})
-    |> table_group_by("dept_city")
-    |> table_agg({headcount: agg_count(), avg_salary: agg_mean("salary")})
-    |> table_sort_by("headcount", {desc: true})
+    |> tableDerive({dept_city: fn(r) "{r.department}|{r.city}"})
+    |> tableGroupBy("dept_city")
+    |> tableAgg({headcount: aggCount(), avg_salary: aggMean("salary")})
+    |> tableSortBy("headcount", {desc: true})
 
   print(cross)
 }
@@ -200,7 +200,7 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   pivoted = sales
-    |> table_pivot({index: "region", columns: "category", values: "amount"})
+    |> tablePivot({index: "region", columns: "category", values: "amount"})
 
   print(pivoted)
 }
@@ -222,7 +222,7 @@ This gives you one row per region with revenue broken out by product category --
 
 2. **Quarterly sales**: Derive a `quarter` column from the sales date (hint: use `.slice(0, 7)` to get the month, then map months to quarters), group by it, and compute total revenue per quarter.
 
-3. **City payroll breakdown**: Group employees by city, compute `total_payroll` using `agg_sum("salary")`, and sort by total payroll descending. Which city has the highest total payroll?
+3. **City payroll breakdown**: Group employees by city, compute `total_payroll` using `aggSum("salary")`, and sort by total payroll descending. Which city has the highest total payroll?
 
 4. **Product units pivot**: Pivot the sales data with `region` as the index, `product` as the columns, and `quantity` as the values to see how many units of each product sold in each region.
 

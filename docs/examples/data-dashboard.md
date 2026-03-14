@@ -22,23 +22,23 @@ data {
   source raw_customers: Table<Customer> = read("customers.csv")
 
   pipeline customers = raw_customers
-    |> drop_nil(.email)
-    |> fill_nil(.spend, 0.0)
+    |> dropNil(.email)
+    |> fillNil(.spend, 0.0)
     |> derive(
       .name = .name |> trim(),
       .email = .email |> lower()
     )
     |> where(.spend > 0)
-    |> sort_by(.spend, desc: true)
+    |> sortBy(.spend, desc: true)
 
   pipeline by_country = customers
-    |> group_by(.country)
+    |> groupBy(.country)
     |> agg(
       count: count(),
       total_spend: sum(.spend),
       avg_spend: mean(.spend)
     )
-    |> sort_by(.total_spend, desc: true)
+    |> sortBy(.total_spend, desc: true)
 
   validate Customer {
     .email |> contains("@"),

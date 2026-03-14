@@ -8,7 +8,7 @@ import { Analyzer } from '../analyzer/analyzer.js';
 import { TokenType } from '../lexer/tokens.js';
 import { Formatter } from '../formatter/formatter.js';
 import { TypeRegistry } from '../analyzer/type-registry.js';
-import { BUILTIN_NAMES, BUILTIN_FUNCTIONS } from '../stdlib/inline.js';
+import { BUILTIN_NAMES, BUILTIN_FUNCTIONS, DEPRECATED_NAMES, SNAKE_TO_CAMEL } from '../stdlib/inline.js';
 
 class TovaLanguageServer {
   static MAX_CACHE_SIZE = 100; // max cached diagnostics entries
@@ -532,7 +532,12 @@ class TovaLanguageServer {
     for (const fn of BUILTIN_NAMES) {
       if (fn.startsWith(prefix) && !fn.startsWith('__')) {
         const detail = this._getBuiltinDetail(fn);
-        items.push({ label: fn, kind: 3 /* Function */, detail });
+        const item = { label: fn, kind: 3 /* Function */, detail };
+        if (DEPRECATED_NAMES.has(fn)) {
+          item.tags = [1]; // CompletionItemTag.Deprecated
+          item.detail = `(deprecated) use ${SNAKE_TO_CAMEL[fn]} → ${detail}`;
+        }
+        items.push(item);
       }
     }
     // Runtime types

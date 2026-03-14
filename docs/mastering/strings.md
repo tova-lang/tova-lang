@@ -31,9 +31,9 @@ print(lower("HELLO"))            // "hello"
 
 // Searching
 print(contains("foobar", "bar"))     // true
-print(starts_with("hello", "hel"))   // true
-print(ends_with("hello", "llo"))     // true
-print(index_of("abcabc", "bc"))      // 1
+print(startsWith("hello", "hel"))   // true
+print(endsWith("hello", "llo"))     // true
+print(indexOf("abcabc", "bc"))      // 1
 
 // Splitting and joining
 csv = "alice,bob,charlie"
@@ -50,8 +50,8 @@ print(replace("hello world", "world", "tova"))   // "hello tova"
 
 // Repetition and padding
 print(repeat("=", 20))
-print(pad_start("42", 5, "0"))      // "00042"
-print(pad_end("hello", 10, "."))    // "hello....."`
+print(padStart("42", 5, "0"))      // "00042"
+print(padEnd("hello", 10, "."))    // "hello....."`
 
 const templateCode = `// PROJECT: Mini Template Engine
 // Replaces placeholders like "Hello, %name%!" with actual values
@@ -61,7 +61,7 @@ fn render_template(template, data) {
 
   for entry in entries(data) {
     placeholder = "%{entry[0]}%"
-    tpl = replace(tpl, placeholder, to_string(entry[1]))
+    tpl = replace(tpl, placeholder, toString(entry[1]))
   }
 
   tpl
@@ -92,7 +92,7 @@ print(html)`
 const processingCode = `// Text processing patterns
 
 // Capitalize first letter of each word
-fn title_case(text) {
+fn titleCase(text) {
   split(text, " ")
     |> map(fn(word) {
       if len(word) == 0 { "" }
@@ -105,7 +105,7 @@ fn title_case(text) {
     |> join(" ")
 }
 
-print(title_case("hello world from tova"))
+print(titleCase("hello world from tova"))
 
 // Truncate with ellipsis
 fn truncate(text, max_len) {
@@ -133,15 +133,15 @@ fn extract_numbers(text) {
   var nums = []
   var current = ""
   for ch in chars(text) {
-    if is_numeric(ch) || ch == "." {
+    if isNumeric(ch) || ch == "." {
       current = "{current}{ch}"
     } elif len(current) > 0 {
-      nums.push(to_float(current))
+      nums.push(toFloat(current))
       current = ""
     }
   }
   if len(current) > 0 {
-    nums.push(to_float(current))
+    nums.push(toFloat(current))
   }
   nums
 }
@@ -149,7 +149,7 @@ fn extract_numbers(text) {
 print(extract_numbers("I have 3 cats and 2.5 kg of food, costing 12.99"))
 
 // Wrap text at specified width
-fn word_wrap(text, width) {
+fn wordWrap(text, width) {
   all_words = split(text, " ")
   var lines = []
   var current_line = ""
@@ -171,7 +171,7 @@ fn word_wrap(text, width) {
 }
 
 long_text = "Tova is a modern programming language designed for scripting data processing and full stack web development with a clean expressive syntax"
-print(word_wrap(long_text, 40))`
+print(wordWrap(long_text, 40))`
 </script>
 
 # Chapter 4: String Craft
@@ -335,11 +335,11 @@ Here are the string functions you'll use daily:
 text = "Hello, World!"
 
 contains(text, "World")      // true
-starts_with(text, "Hello")   // true
-ends_with(text, "!")         // true
-index_of(text, "World")     // 7
-last_index_of(text, "l")    // 10 (last occurrence)
-char_at(text, 0)             // "H" (character at index)
+startsWith(text, "Hello")   // true
+endsWith(text, "!")         // true
+indexOf(text, "World")     // 7
+lastIndexOf(text, "l")    // 10 (last occurrence)
+charAt(text, 0)             // "H" (character at index)
 ```
 
 ### Transforming
@@ -348,12 +348,12 @@ char_at(text, 0)             // "H" (character at index)
 upper("hello")               // "HELLO"
 lower("HELLO")               // "hello"
 trim("  hello  ")           // "hello"
-trim_start("  hello  ")    // "hello  "
-trim_end("  hello  ")      // "  hello"
+trimStart("  hello  ")    // "hello  "
+trimEnd("  hello  ")      // "  hello"
 replace("foo bar", "bar", "baz")   // "foo baz"
-replace_first("aaa", "a", "b")    // "baa" (only first occurrence)
-is_empty("")                 // true
-is_empty("hello")            // false
+replaceFirst("aaa", "a", "b")    // "baa" (only first occurrence)
+isEmpty("")                 // true
+isEmpty("hello")            // false
 ```
 
 ### Extracting
@@ -378,8 +378,8 @@ split("a::b::c", "::")        // ["a", "b", "c"]
 ### Padding and Repetition
 
 ```tova
-pad_start("42", 5, "0")       // "00042"
-pad_end("hi", 10, ".")        // "hi........"
+padStart("42", 5, "0")       // "00042"
+padEnd("hi", 10, ".")        // "hi........"
 repeat("-", 30)                // "------------------------------"
 repeat("ab", 3)                // "ababab"
 ```
@@ -416,16 +416,16 @@ print(heading)
 
 ### Counting Substrings
 
-The `count_of()` function counts how many times a substring appears in a string:
+The `countOf()` function counts how many times a substring appears in a string:
 
 ```tova
-count_of("banana", "an")      // 2
-count_of("hello", "l")        // 2
-count_of("aaa", "aa")         // 1 (non-overlapping)
+countOf("banana", "an")      // 2
+countOf("hello", "l")        // 2
+countOf("aaa", "aa")         // 1 (non-overlapping)
 
 // Handy for text analysis
 csv_line = "alice,bob,charlie,diana"
-num_commas = count_of(csv_line, ",")
+num_commas = countOf(csv_line, ",")
 print("Fields: {num_commas + 1}")   // "Fields: 4"
 ```
 
@@ -436,7 +436,7 @@ print("Fields: {num_commas + 1}")   // "Fields: 4"
 One of Tova's unique features is matching strings with the `++` concat pattern:
 
 ```tova
-fn parse_url(url) {
+fn parseUrl(url) {
   match url {
     "https://" ++ domain => { secure: true, domain: domain }
     "http://" ++ domain => { secure: false, domain: domain }
@@ -444,8 +444,8 @@ fn parse_url(url) {
   }
 }
 
-print(parse_url("https://tova.dev"))
-print(parse_url("http://localhost"))
+print(parseUrl("https://tova.dev"))
+print(parseUrl("http://localhost"))
 ```
 
 This is incredibly useful for routing and parsing:
@@ -478,7 +478,7 @@ csv_line = join(fields, ",")
 // Building a table
 fn format_row(cells, widths) {
   formatted = zip(cells, widths)
-    |> map(fn(pair) pad_end(to_string(pair[0]), pair[1]))
+    |> map(fn(pair) padEnd(toString(pair[0]), pair[1]))
   join(formatted, " | ")
 }
 
@@ -497,7 +497,7 @@ print(row2)
 ### Title Case
 
 ```tova
-fn title_case(text) {
+fn titleCase(text) {
   split(text, " ")
     |> map(fn(word) {
       if len(word) == 0 { "" }
@@ -510,7 +510,7 @@ fn title_case(text) {
     |> join(" ")
 }
 
-print(title_case("hello world from tova"))
+print(titleCase("hello world from tova"))
 // "Hello World From Tova"
 ```
 
@@ -568,24 +568,24 @@ phone_pattern = /\d{3}-\d{3}-\d{4}/
 ### Testing Patterns
 
 ```tova
-regex_test("alice@example.com", email_pattern)   // true
-regex_test("not-an-email", email_pattern)        // false
-regex_test("555-123-4567", phone_pattern)        // true
+regexTest("alice@example.com", email_pattern)   // true
+regexTest("not-an-email", email_pattern)        // false
+regexTest("555-123-4567", phone_pattern)        // true
 ```
 
 ### Matching and Capturing
 
 ```tova
 // Find the first match (returns Result)
-result = regex_match("Order 42-7", /(\d+)-(\d+)/)
+result = regexMatch("Order 42-7", /(\d+)-(\d+)/)
 // Ok({ match: "42-7", groups: ["42", "7"] })
 
 // Find all matches
-all = regex_find_all("I have 3 cats and 12 dogs", /\d+/)
+all = regexFindAll("I have 3 cats and 12 dogs", /\d+/)
 // [{ match: "3", ... }, { match: "12", ... }]
 
 // Named captures (returns Result)
-parsed = regex_capture("2026-03-05", /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/)
+parsed = regexCapture("2026-03-05", /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/)
 // Ok({ year: "2026", month: "03", day: "05" })
 ```
 
@@ -593,11 +593,11 @@ parsed = regex_capture("2026-03-05", /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2
 
 ```tova
 // Simple replacement
-clean = regex_replace("hello   world   foo", /\s+/, " ")
+clean = regexReplace("hello   world   foo", /\s+/, " ")
 // "hello world foo"
 
 // Replace all digits with #
-masked = regex_replace("Card: 4111-2222-3333-4444", /\d/, "#")
+masked = regexReplace("Card: 4111-2222-3333-4444", /\d/, "#")
 // "Card: ####-####-####-####"
 ```
 
@@ -605,11 +605,11 @@ masked = regex_replace("Card: 4111-2222-3333-4444", /\d/, "#")
 
 ```tova
 // Split on any whitespace
-parts = regex_split("hello   world\tfoo\nbar", /\s+/)
+parts = regexSplit("hello   world\tfoo\nbar", /\s+/)
 // ["hello", "world", "foo", "bar"]
 
 // Split on comma with optional spaces
-items = regex_split("a, b , c,d", /\s*,\s*/)
+items = regexSplit("a, b , c,d", /\s*,\s*/)
 // ["a", "b", "c", "d"]
 ```
 
@@ -619,7 +619,7 @@ For complex patterns, `regex_builder` provides a fluent API to construct regex s
 
 ```tova
 // Build a URL validation pattern
-url_regex = regex_builder()
+url_regex = regexBuilder()
   .literal("https://")
   .oneOf("a-zA-Z0-9.-")
   .oneOrMore()
@@ -628,8 +628,8 @@ url_regex = regex_builder()
   .oneOrMore()
   .build()
 
-regex_test("https://tova.dev", url_regex)     // true
-regex_test("not-a-url", url_regex)            // false
+regexTest("https://tova.dev", url_regex)     // true
+regexTest("not-a-url", url_regex)            // false
 ```
 
 `regex_builder` returns a builder object with chainable methods: `.literal(s)`, `.digits(n)`, `.word()`, `.space()`, `.any()`, `.oneOf(chars)`, `.group(name)`, `.endGroup()`, `.optional()`, `.oneOrMore()`, `.zeroOrMore()`, `.startOfLine()`, `.endOfLine()`, `.flags(f)`, `.build()`, `.test(s)`, and `.match(s)`. Quantifier methods like `.oneOrMore()` apply to the preceding element. This is more readable than writing raw regex strings for complex patterns.
@@ -639,13 +639,13 @@ regex_test("not-a-url", url_regex)            // false
 Tova includes common validation functions:
 
 ```tova
-is_email("alice@test.com")    // true
-is_url("https://tova.dev")   // true
-is_uuid("550e8400-e29b-41d4-a716-446655440000")   // true
-is_numeric("42.5")            // true
-is_alpha("hello")             // true
-is_alphanumeric("abc123")     // true
-is_hex("ff00aa")              // true
+isEmail("alice@test.com")    // true
+isUrl("https://tova.dev")   // true
+isUuid("550e8400-e29b-41d4-a716-446655440000")   // true
+isNumeric("42.5")            // true
+isAlpha("hello")             // true
+isAlphanumeric("abc123")     // true
+isHex("ff00aa")              // true
 ```
 
 ::: tip When to Use Regex vs. String Functions
@@ -657,11 +657,11 @@ Use string functions (`contains`, `starts_with`, `split`) for simple patterns. U
 Tova also provides case conversion utilities:
 
 ```tova
-snake_case("helloWorld")      // "hello_world"
-camel_case("hello_world")     // "helloWorld"
-kebab_case("helloWorld")      // "hello-world"
+snakeCase("helloWorld")      // "hello_world"
+camelCase("hello_world")     // "helloWorld"
+kebabCase("helloWorld")      // "hello-world"
 capitalize("hello world")    // "Hello world"
-title_case("hello world")    // "Hello World"
+titleCase("hello world")    // "Hello World"
 ```
 
 And text manipulation tools:
@@ -669,12 +669,12 @@ And text manipulation tools:
 ```tova
 words("hello world foo")      // ["hello", "world", "foo"]
 lines("line1\nline2\nline3") // ["line1", "line2", "line3"]
-reverse_str("hello")          // "olleh"
-word_wrap("long text...", 40) // Wraps at 40 chars
-indent_str("hello", 4)       // "    hello"
+reverseStr("hello")          // "olleh"
+wordWrap("long text...", 40) // Wraps at 40 chars
+indentStr("hello", 4)       // "    hello"
 dedent("    hello")           // "hello"
-escape_html("<script>")       // "&lt;script&gt;"
-unescape_html("&lt;script&gt;")   // "<script>"
+escapeHtml("<script>")       // "&lt;script&gt;"
+unescapeHtml("&lt;script&gt;")   // "<script>"
 ```
 
 ## Project: Mini Template Engine
@@ -687,7 +687,7 @@ fn render_template(template, data) {
 
   for entry in entries(data) {
     placeholder = "%{entry[0]}%"
-    tpl = replace(tpl, placeholder, to_string(entry[1]))
+    tpl = replace(tpl, placeholder, toString(entry[1]))
   }
 
   tpl
@@ -717,7 +717,7 @@ print(card)
 
 **Exercise 4.2:** Write a `count_vowels(text)` function and a `count_consonants(text)` function. Then write `text_stats(text)` that returns an object with `{ vowels, consonants, spaces, digits, other }`.
 
-**Exercise 4.3:** Write a `format_number(n)` function that adds comma separators: `format_number(1234567)` returns `"1,234,567"`. Handle negative numbers too.
+**Exercise 4.3:** Write a `formatNumber(n)` function that adds comma separators: `formatNumber(1234567)` returns `"1,234,567"`. Handle negative numbers too.
 
 ## Challenge
 

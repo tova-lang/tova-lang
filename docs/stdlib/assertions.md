@@ -30,34 +30,34 @@ fn withdraw(account, amount) {
 ## assert_eq
 
 ```tova
-assert_eq(a, b, msg?) -> Nil
+assertEq(a, b, msg?) -> Nil
 ```
 
 Throws an error if `a` and `b` are not strictly equal. The error message includes both values for easy debugging. An optional `msg` provides additional context.
 
 ::: warning Reference Equality
-`assert_eq` uses strict equality (`===`), which compares by **reference** for arrays and objects. Two arrays with the same contents are not equal: `assert_eq([1, 2], [1, 2])` will **fail**. Use `assert_eq(json_stringify(a), json_stringify(b))` to compare arrays or objects by value, or compare scalar properties individually.
+`assert_eq` uses strict equality (`===`), which compares by **reference** for arrays and objects. Two arrays with the same contents are not equal: `assertEq([1, 2], [1, 2])` will **fail**. Use `assertEq(jsonStringify(a), jsonStringify(b))` to compare arrays or objects by value, or compare scalar properties individually.
 :::
 
 ```tova
-assert_eq(2 + 2, 4)                        // passes
-assert_eq("hello", "hello")                 // passes
-// assert_eq(2 + 2, 5)                      -- throws, shows "4" vs "5"
-// assert_eq(x, 10, "x should be 10")       -- throws with custom message
+assertEq(2 + 2, 4)                        // passes
+assertEq("hello", "hello")                 // passes
+// assertEq(2 + 2, 5)                      -- throws, shows "4" vs "5"
+// assertEq(x, 10, "x should be 10")       -- throws with custom message
 ```
 
 ```tova
 // In tests
 fn test_add() {
-  assert_eq(add(1, 2), 3)
-  assert_eq(add(0, 0), 0)
-  assert_eq(add(-1, 1), 0)
+  assertEq(add(1, 2), 3)
+  assertEq(add(0, 0), 0)
+  assertEq(add(-1, 1), 0)
 }
 
 fn test_string_utils() {
-  assert_eq(upper("hello"), "HELLO")
-  assert_eq(trim("  hi  "), "hi")
-  assert_eq(len(split("a,b,c", ",")), 3)
+  assertEq(upper("hello"), "HELLO")
+  assertEq(trim("  hi  "), "hi")
+  assertEq(len(split("a,b,c", ",")), 3)
 }
 ```
 
@@ -66,16 +66,16 @@ fn test_string_utils() {
 ## assert_ne
 
 ```tova
-assert_ne(a, b, msg?) -> Nil
+assertNe(a, b, msg?) -> Nil
 ```
 
 Throws an error if `a === b`. The inverse of `assert_eq`.
 
 ```tova
-assert_ne(1, 2)                              // passes
-assert_ne("hello", "world")                  // passes
-// assert_ne(5, 5)                            -- throws
-// assert_ne(x, 0, "x must not be zero")      -- throws with custom message
+assertNe(1, 2)                              // passes
+assertNe("hello", "world")                  // passes
+// assertNe(5, 5)                            -- throws
+// assertNe(x, 0, "x must not be zero")      -- throws with custom message
 ```
 
 ```tova
@@ -83,7 +83,7 @@ fn test_random() {
   // random() should not return the same value twice (very unlikely)
   a = random()
   b = random()
-  assert_ne(a, b, "random() returned same value twice")
+  assertNe(a, b, "random() returned same value twice")
 }
 ```
 
@@ -92,7 +92,7 @@ fn test_random() {
 ## assert_throws
 
 ```tova
-assert_throws(func, expected?) -> Error
+assertThrows(func, expected?) -> Error
 ```
 
 Calls `func` and asserts that it throws an error. If no error is thrown, the assertion fails. The optional `expected` parameter can be:
@@ -101,15 +101,15 @@ Calls `func` and asserts that it throws an error. If no error is thrown, the ass
 - A **RegExp**: passes if the error message matches the pattern
 
 ```tova
-assert_throws(fn() divide(1, 0))                        // passes if it throws
-assert_throws(fn() divide(1, 0), "divide by zero")      // passes if message contains "divide by zero"
-assert_throws(fn() parse("abc"), re("invalid"))           // passes if message matches /invalid/
+assertThrows(fn() divide(1, 0))                        // passes if it throws
+assertThrows(fn() divide(1, 0), "divide by zero")      // passes if message contains "divide by zero"
+assertThrows(fn() parse("abc"), re("invalid"))           // passes if message matches /invalid/
 ```
 
 ```tova
 fn test_validation() {
-  assert_throws(fn() withdraw(account, -10), "must be positive")
-  assert_throws(fn() withdraw(account, 99999), "insufficient")
+  assertThrows(fn() withdraw(account, -10), "must be positive")
+  assertThrows(fn() withdraw(account, 99999), "insufficient")
 }
 ```
 
@@ -118,7 +118,7 @@ fn test_validation() {
 ## assert_snapshot
 
 ```tova
-assert_snapshot(value, name?) -> Nil
+assertSnapshot(value, name?) -> Nil
 ```
 
 Compares a value against a previously stored snapshot. On first run, creates the snapshot. On subsequent runs, asserts the value matches the stored snapshot. The optional `name` parameter provides a label for the snapshot file.
@@ -126,12 +126,12 @@ Compares a value against a previously stored snapshot. On first run, creates the
 ```tova
 test "user serialization" {
   user = User(1, "Alice", "alice@example.com")
-  assert_snapshot(user.to_json())
+  assertSnapshot(user.to_json())
 }
 
 test "rendering output" {
   html = render(Greeting("World"))
-  assert_snapshot(html, "greeting-output")
+  assertSnapshot(html, "greeting-output")
 }
 ```
 
@@ -149,20 +149,20 @@ Assertions are the primary tool for writing Tova tests. Tova test files use `fn 
 
 ```tova
 fn test_sorted() {
-  assert_eq(json_stringify(sorted([3, 1, 2])), json_stringify([1, 2, 3]))
-  assert_eq(len(sorted([])), 0)
-  assert_eq(first(sorted([1])), 1)
+  assertEq(jsonStringify(sorted([3, 1, 2])), jsonStringify([1, 2, 3]))
+  assertEq(len(sorted([])), 0)
+  assertEq(first(sorted([1])), 1)
 }
 
 fn test_reversed() {
-  assert_eq(json_stringify(reversed([1, 2, 3])), json_stringify([3, 2, 1]))
-  assert_eq(len(reversed([])), 0)
+  assertEq(jsonStringify(reversed([1, 2, 3])), jsonStringify([3, 2, 1]))
+  assertEq(len(reversed([])), 0)
 }
 
 fn test_partition() {
   evens, odds = partition([1, 2, 3, 4], fn(x) x % 2 == 0)
-  assert_eq(json_stringify(evens), json_stringify([2, 4]))
-  assert_eq(json_stringify(odds), json_stringify([1, 3]))
+  assertEq(jsonStringify(evens), jsonStringify([2, 4]))
+  assertEq(jsonStringify(odds), jsonStringify([1, 3]))
 }
 ```
 

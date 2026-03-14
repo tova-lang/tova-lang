@@ -18,19 +18,19 @@ sales |> describe()
 
 // Transform
 report = sales
-  |> drop_nil(.customer_id)
+  |> dropNil(.customer_id)
   |> where(.amount > 0)
   |> derive(
     .margin = (.revenue - .cost) / .revenue,
-    .quarter = "Q{ceil(date_part(date_parse(.date), 'month') / 3)}"
+    .quarter = "Q{ceil(datePart(dateParse(.date), 'month') / 3)}"
   )
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(
     revenue: sum(.revenue),
     avg_margin: mean(.margin),
     orders: count()
   )
-  |> sort_by(.revenue, desc: true)
+  |> sortBy(.revenue, desc: true)
 
 // Output
 peek(report, title: "Revenue by Region")
@@ -83,7 +83,7 @@ result = sales
   |> peek()                          // see raw data
   |> where(.amount > 100)
   |> peek(title: "After filter")     // see what survived
-  |> sort_by(.amount, desc: true)
+  |> sortBy(.amount, desc: true)
 ```
 
 ### Filtering Rows
@@ -139,13 +139,13 @@ users |> derive(
 
 ```tova
 // Ascending (default)
-sorted_users = users |> sort_by(.name)
+sorted_users = users |> sortBy(.name)
 
 // Descending
-top_earners = users |> sort_by(.salary, desc: true)
+top_earners = users |> sortBy(.salary, desc: true)
 
 // Top N
-top_10 = users |> sort_by(.score, desc: true) |> limit(10)
+top_10 = users |> sortBy(.score, desc: true) |> limit(10)
 ```
 
 ### Grouping and Aggregation
@@ -154,7 +154,7 @@ Group rows, then compute summary statistics:
 
 ```tova
 by_region = sales
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(
     revenue: sum(.amount),
     avg_order: mean(.amount),
@@ -180,7 +180,7 @@ Multiple group keys work naturally:
 
 ```tova
 by_region_quarter = sales
-  |> group_by(.region, .quarter)
+  |> groupBy(.region, .quarter)
   |> agg(
     revenue: sum(.amount),
     orders: count()
@@ -193,21 +193,21 @@ Visualize results with built-in SVG charting -- no external libraries needed:
 
 ```tova
 by_region
-  |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
-  |> write_text("revenue_chart.svg")
+  |> barChart(x: .region, y: .revenue, title: "Revenue by Region")
+  |> writeText("revenue_chart.svg")
 
 // Line chart for trends
 sales
-  |> line_chart(x: .date, y: .amount, title: "Sales Trend")
-  |> write_text("trend.svg")
+  |> lineChart(x: .date, y: .amount, title: "Sales Trend")
+  |> writeText("trend.svg")
 
 // Histogram for distributions
 orders
   |> histogram(col: .amount, bins: 15, title: "Order Size Distribution")
-  |> write_text("distribution.svg")
+  |> writeText("distribution.svg")
 ```
 
-Six chart types: `bar_chart`, `line_chart`, `scatter_chart`, `histogram`, `pie_chart`, `heatmap`. All return SVG strings -- pipe to `write_text()` to save.
+Six chart types: `bar_chart`, `line_chart`, `scatter_chart`, `histogram`, `pie_chart`, `heatmap`. All return SVG strings -- pipe to `writeText()` to save.
 
 ### Joining Tables
 
@@ -248,8 +248,8 @@ orders = read("orders.csv")
 
 // Clean
 clean_orders = orders
-  |> drop_nil(.customer_id)
-  |> fill_nil(.quantity, 1)
+  |> dropNil(.customer_id)
+  |> fillNil(.quantity, 1)
   |> cast(.price, Float)
   |> where(.status != "cancelled")
 
@@ -260,13 +260,13 @@ detailed = clean_orders
 
 // Aggregate: lifetime value per customer
 lifetime_value = detailed
-  |> group_by(.customer_id, .name)
+  |> groupBy(.customer_id, .name)
   |> agg(
     orders: count(),
     total_spent: sum(.total),
     avg_order: mean(.total)
   )
-  |> sort_by(.total_spent, desc: true)
+  |> sortBy(.total_spent, desc: true)
 
 // Output
 peek(lifetime_value, title: "Customer Lifetime Value")
@@ -294,7 +294,7 @@ cli {
     }
 
     result = filtered
-      |> sort_by(.revenue, desc: true)
+      |> sortBy(.revenue, desc: true)
       |> limit(top)
 
     peek(result, title: "Sales Report: {region}")
@@ -332,7 +332,7 @@ Tova uses Rust's error model. Functions that can fail return `Result` (either `O
 ```tova
 fn parse_amount(raw: String) -> Result<Float, String> {
   cleaned = raw |> trim() |> replace("$", "") |> replace(",", "")
-  match to_float(cleaned) {
+  match toFloat(cleaned) {
     Some(n) => if n >= 0 { Ok(n) } else { Err("Negative amount: {raw}") }
     None => Err("Not a number: {raw}")
   }
@@ -353,7 +353,7 @@ fn process_record(raw: String) -> Result {
   }
 
   amount = parse_amount(parts[2])?     // returns Err early if parse fails
-  date = date_parse(parts[3])?         // returns Err early if invalid date
+  date = dateParse(parts[3])?         // returns Err early if invalid date
 
   Ok({
     id: parts[0],
@@ -371,15 +371,15 @@ Each `?` either unwraps the `Ok` value or returns the `Err` to the caller. No tr
 Validate entire datasets, separating successes from failures:
 
 ```tova
-raw = read_text("raw_data.csv")
+raw = readText("raw_data.csv")
   |> fn(r) r.unwrapOr("")
   |> lines()
   |> drop(1)     // skip header
 
 results = raw |> map(process_record)
 
-clean   = filter_ok(results)
-errors  = filter_err(results)
+clean   = filterOk(results)
+errors  = filterErr(results)
 
 print("Parsed {len(clean)} records, {len(errors)} errors")
 
@@ -424,11 +424,11 @@ Guard clauses flatten nested conditionals into linear assertions:
 ```tova
 fn validate_transaction(t) -> Result {
   guard t.amount > 0 else { return Err("Amount must be positive") }
-  guard is_uuid(t.id) else { return Err("Invalid transaction ID: {t.id}") }
+  guard isUuid(t.id) else { return Err("Invalid transaction ID: {t.id}") }
   guard t.currency in ["USD", "EUR", "GBP"] else {
     return Err("Unsupported currency: {t.currency}")
   }
-  guard date_parse(t.date) is Ok(_) else {
+  guard dateParse(t.date) is Ok(_) else {
     return Err("Invalid date: {t.date}")
   }
 
@@ -442,12 +442,12 @@ Common cleaning operations, all pipe-friendly:
 
 ```tova
 // Deduplication
-orders |> drop_duplicates(by: .order_id)
+orders |> dropDuplicates(by: .order_id)
 
 // Nil handling
-orders |> drop_nil(.email)
-orders |> fill_nil(.country, "Unknown")
-orders |> fill_nil(.score, 0.0)
+orders |> dropNil(.email)
+orders |> fillNil(.country, "Unknown")
+orders |> fillNil(.score, 0.0)
 
 // Type casting
 orders |> cast(.price, Float)
@@ -471,7 +471,7 @@ orders |> rename("unit_cost", "cost")
 ```tova
 // Long to wide: one column per category
 wide = revenue_data
-  |> group_by(.month, .category)
+  |> groupBy(.month, .category)
   |> agg(revenue: sum(.sales))
   |> pivot(index: .month, columns: .category, values: .revenue)
 
@@ -494,8 +494,8 @@ data {
 
   // Layer 2: Clean
   pipeline clean = raw
-    |> drop_nil(.customer_id)
-    |> drop_duplicates(by: .order_id)
+    |> dropNil(.customer_id)
+    |> dropDuplicates(by: .order_id)
     |> cast(.price, Float)
     |> derive(.status = .status |> upper() |> trim())
 
@@ -506,7 +506,7 @@ data {
 
   // Layer 4: Aggregate
   pipeline summary = with_totals
-    |> group_by(.category)
+    |> groupBy(.category)
     |> agg(
       orders: count(),
       revenue: sum(.total),
@@ -528,7 +528,7 @@ For files too large to fit in memory, `stream()` processes data in batches:
 stream("huge_file.csv", batch: 10000)
   |> each(fn(batch) {
     cleaned = batch
-      |> drop_nil(.id)
+      |> dropNil(.id)
       |> where(.active == true)
       |> derive(.total = .quantity * .price)
     write(cleaned, "output.csv", append: true)
@@ -551,7 +551,7 @@ Build composable query chains that evaluate only when materialized:
 result = lazy(huge_table)
   |> where(.status == "active")
   |> derive(.score = .revenue * .frequency)
-  |> sort_by(.score, desc: true)
+  |> sortBy(.score, desc: true)
   |> limit(100)
   |> collect()     // materialize here
 ```
@@ -617,17 +617,17 @@ raw_products = read("products.csv")
 
 // --- Clean ---
 orders = raw_orders
-  |> drop_nil(.customer_id)
-  |> drop_nil(.product_id)
-  |> fill_nil(.quantity, 1)
+  |> dropNil(.customer_id)
+  |> dropNil(.product_id)
+  |> fillNil(.quantity, 1)
   |> cast(.price, Float)
   |> derive(.status = .status |> upper() |> trim())
   |> where(.status != "CANCELLED")
-  |> drop_duplicates(by: .order_id)
-  |> sort_by(.order_date)
+  |> dropDuplicates(by: .order_id)
+  |> sortBy(.order_date)
 
 products = raw_products
-  |> drop_nil(.name)
+  |> dropNil(.name)
   |> derive(
     .name = .name |> trim(),
     .category = .category |> lower() |> trim()
@@ -643,7 +643,7 @@ order_details = orders
 
 // --- Aggregate ---
 by_category = order_details
-  |> group_by(.category)
+  |> groupBy(.category)
   |> agg(
     order_count: count(),
     total_revenue: sum(.total),
@@ -651,16 +651,16 @@ by_category = order_details
     avg_order: mean(.total),
     median_order: median(.total)
   )
-  |> sort_by(.total_revenue, desc: true)
+  |> sortBy(.total_revenue, desc: true)
 
 by_customer = order_details
-  |> group_by(.customer_id)
+  |> groupBy(.customer_id)
   |> agg(
     orders: count(),
     total_spent: sum(.total),
     avg_spent: mean(.total)
   )
-  |> sort_by(.total_spent, desc: true)
+  |> sortBy(.total_spent, desc: true)
   |> limit(50)
 
 // --- Output ---
@@ -739,10 +739,10 @@ Optimized functions that operate directly on TypedArrays:
 ```tova
 @fast
 fn normalize(data: [Float]) -> [Float] {
-  mu = typed_sum(data) / len(data)
-  diff = typed_map(data, fn(x) (x - mu) * (x - mu))
-  sigma = sqrt(typed_sum(diff) / len(data))
-  typed_map(data, fn(x) (x - mu) / sigma)
+  mu = typedSum(data) / len(data)
+  diff = typedMap(data, fn(x) (x - mu) * (x - mu))
+  sigma = sqrt(typedSum(diff) / len(data))
+  typedMap(data, fn(x) (x - mu) / sigma)
 }
 ```
 
@@ -750,26 +750,26 @@ Available typed functions:
 
 | Function | Description |
 |----------|-------------|
-| `typed_sum(arr)` | Sum with Kahan compensated summation (minimizes float error) |
-| `typed_dot(a, b)` | Dot product |
-| `typed_norm(arr)` | L2 norm (Euclidean length) |
-| `typed_add(a, b)` | Element-wise addition |
-| `typed_scale(arr, s)` | Multiply every element by a scalar |
-| `typed_map(arr, f)` | Map function over elements, preserving type |
-| `typed_reduce(arr, f, init)` | Reduce with typed array input |
-| `typed_sort(arr)` | Sort (returns new typed array) |
-| `typed_zeros(n)` | Float64Array of zeros |
-| `typed_ones(n)` | Float64Array of ones |
-| `typed_fill(n, val)` | New Float64Array filled with value |
-| `typed_linspace(start, end, n)` | n evenly-spaced values |
-| `typed_range(start, end, step)` | Float64Array range |
+| `typedSum(arr)` | Sum with Kahan compensated summation (minimizes float error) |
+| `typedDot(a, b)` | Dot product |
+| `typedNorm(arr)` | L2 norm (Euclidean length) |
+| `typedAdd(a, b)` | Element-wise addition |
+| `typedScale(arr, s)` | Multiply every element by a scalar |
+| `typedMap(arr, f)` | Map function over elements, preserving type |
+| `typedReduce(arr, f, init)` | Reduce with typed array input |
+| `typedSort(arr)` | Sort (returns new typed array) |
+| `typedZeros(n)` | Float64Array of zeros |
+| `typedOnes(n)` | Float64Array of ones |
+| `typedFill(n, val)` | New Float64Array filled with value |
+| `typedLinspace(start, end, n)` | n evenly-spaced values |
+| `typedRange(start, end, step)` | Float64Array range |
 
 ### Numerically Stable Summation
 
 ```tova
 @fast
 fn precise_sum(data: [Float]) -> Float {
-  typed_sum(data)
+  typedSum(data)
 }
 
 // Regular sum of [1e16, 1, -1e16] might lose the 1
@@ -816,7 +816,7 @@ Distribute array processing across all CPU cores using a persistent worker pool:
 ```tova
 // Process chunks in parallel (4 workers)
 chunks = chunk(large_dataset, 1000)
-results = await parallel_map(chunks, fn(batch) {
+results = await parallelMap(chunks, fn(batch) {
   batch
     |> map(fn(r) expensive_transform(r))
     |> filter(fn(r) r.score > threshold)
@@ -852,11 +852,11 @@ fn kernel(x: Float, y: Float) -> Float {
 // TypedArray processing with WASM inner loop
 @fast
 fn process(data: [Float]) -> [Float] {
-  typed_map(data, fn(x) kernel(x, 1.0))
+  typedMap(data, fn(x) kernel(x, 1.0))
 }
 
 // Distribute across CPU cores
-results = await parallel_map(batches, fn(batch) process(batch))
+results = await parallelMap(batches, fn(batch) process(batch))
 ```
 
 ### Benchmark Results
@@ -890,8 +890,8 @@ This is where Tova diverges from every other data language. **No other tool lets
 
 ```tova
 raw = read("sales.csv")
-clean = raw |> drop_nil(.id) |> cast(.amount, Float)
-summary = clean |> group_by(.region) |> agg(total: sum(.amount))
+clean = raw |> dropNil(.id) |> cast(.amount, Float)
+summary = clean |> groupBy(.region) |> agg(total: sum(.amount))
 write(summary, "report.json")
 print("Done!")
 ```
@@ -901,8 +901,8 @@ print("Done!")
 ```tova
 data {
   source raw = read("sales.csv")
-  pipeline clean = raw |> drop_nil(.id) |> cast(.amount, Float)
-  pipeline summary = clean |> group_by(.region) |> agg(total: sum(.amount))
+  pipeline clean = raw |> dropNil(.id) |> cast(.amount, Float)
+  pipeline summary = clean |> groupBy(.region) |> agg(total: sum(.amount))
   refresh raw every 1.hour
 }
 ```
@@ -946,7 +946,7 @@ browser {
           {data() |> map(fn(row) {
             <tr>
               <td>{row.region}</td>
-              <td>"${to_fixed(row.total, 2)}"</td>
+              <td>"${toFixed(row.total, 2)}"</td>
             </tr>
           })}
         </table>
@@ -1011,10 +1011,10 @@ edge "analytics" {
   get "/api/fast-metrics" => fn(req) {
     cached = await cache.get("latest")
     if cached {
-      { json: json_parse(cached) }
+      { json: jsonParse(cached) }
     } else {
       data = compute_metrics()
-      await cache.put("latest", json_stringify(data), {expirationTtl: 300})
+      await cache.put("latest", jsonStringify(data), {expirationTtl: 300})
       { json: data }
     }
   }
@@ -1078,11 +1078,11 @@ data {
   source metrics = read("metrics.csv")
 
   pipeline clean = metrics
-    |> drop_nil(.name)
+    |> dropNil(.name)
     |> cast(.value, Float)
 
   pipeline by_category = clean
-    |> group_by(.category)
+    |> groupBy(.category)
     |> agg(
       current: max(.value),
       average: mean(.value)
@@ -1106,7 +1106,7 @@ server {
   get "/api/metrics/:category" => fn(req) {
     details = clean
       |> where(.category == req.params.category)
-      |> sort_by(.timestamp, desc: true)
+      |> sortBy(.timestamp, desc: true)
       |> limit(100)
     { json: details.toArray() }
   }
@@ -1170,8 +1170,8 @@ browser {
             {summary() |> map(fn(row) {
               <tr onclick={fn() select_category(row.category)}>
                 <td>{row.category}</td>
-                <td>{to_fixed(row.current, 2)}</td>
-                <td>{to_fixed(row.average, 2)}</td>
+                <td>{toFixed(row.current, 2)}</td>
+                <td>{toFixed(row.average, 2)}</td>
                 <td>{row.trend}</td>
               </tr>
             })}
@@ -1185,8 +1185,8 @@ browser {
                 {details() |> map(fn(m) {
                   <tr>
                     <td>{m.name}</td>
-                    <td>{to_fixed(m.value, 2)}</td>
-                    <td>{time_ago(date_parse(m.timestamp))}</td>
+                    <td>{toFixed(m.value, 2)}</td>
+                    <td>{timeAgo(dateParse(m.timestamp))}</td>
                   </tr>
                 })}
               </table>
@@ -1217,13 +1217,13 @@ tova run app.tova          # development mode with hot reload
 | `map(arr, fn)` | Transform each element |
 | `filter(arr, fn)` | Keep matching elements |
 | `reduce(arr, fn, init)` | Accumulate to single value |
-| `flat_map(arr, fn)` | Map and flatten |
+| `flatMap(arr, fn)` | Map and flatten |
 | `sum(arr)` | Sum numeric array |
 | `mean(arr)` | Average |
 | `min(arr)` / `max(arr)` | Minimum / maximum |
 | `sorted(arr)` | Sort (Rust FFI for large numeric arrays) |
 | `unique(arr)` | Remove duplicates |
-| `group_by(arr, fn)` | Group by key function |
+| `groupBy(arr, fn)` | Group by key function |
 | `frequencies(arr)` | Count occurrences |
 | `zip(a, b)` | Combine arrays pairwise |
 | `enumerate(arr)` | With indices |
@@ -1247,10 +1247,10 @@ tova run app.tova          # development mode with hot reload
 | `abs(x)` / `sqrt(x)` / `pow(b, e)` | Basic math |
 | `floor(x)` / `ceil(x)` / `round(x)` | Rounding |
 | `clamp(x, lo, hi)` | Constrain to range |
-| `random_int(lo, hi)` | Random integer |
+| `randomInt(lo, hi)` | Random integer |
 | `gcd(a, b)` / `lcm(a, b)` | Number theory |
 | `lerp(a, b, t)` | Linear interpolation |
-| `is_close(a, b, tol)` | Float comparison |
+| `isClose(a, b, tol)` | Float comparison |
 
 ### Strings
 
@@ -1261,24 +1261,24 @@ tova run app.tova          # development mode with hot reload
 | `split(s, sep)` / `join(arr, sep)` | Split and join |
 | `contains(s, sub)` | Substring check |
 | `replace(s, from, to)` | Replace all |
-| `starts_with(s, pre)` / `ends_with(s, suf)` | Prefix/suffix |
-| `pad_start(s, n, fill)` / `pad_end(s, n, fill)` | Padding |
+| `startsWith(s, pre)` / `endsWith(s, suf)` | Prefix/suffix |
+| `padStart(s, n, fill)` / `padEnd(s, n, fill)` | Padding |
 | `slug(s)` | URL-safe slug |
-| `snake_case(s)` / `camel_case(s)` | Case styles |
-| `is_email(s)` / `is_url(s)` / `is_uuid(s)` | Validation |
+| `snakeCase(s)` / `camelCase(s)` | Case styles |
+| `isEmail(s)` / `isUrl(s)` / `isUuid(s)` | Validation |
 
 ### Date and Time
 
 | Function | Description |
 |----------|-------------|
 | `now()` | Milliseconds since epoch |
-| `now_iso()` | ISO 8601 string |
-| `date_parse(s)` | Parse date string |
-| `date_format(d, fmt)` | Format date |
-| `date_add(d, n, unit)` | Add time |
-| `date_diff(d1, d2, unit)` | Time difference |
-| `date_part(d, part)` | Extract year, month, day, etc. |
-| `time_ago(d)` | "2 hours ago" |
+| `nowIso()` | ISO 8601 string |
+| `dateParse(s)` | Parse date string |
+| `dateFormat(d, fmt)` | Format date |
+| `dateAdd(d, n, unit)` | Add time |
+| `dateDiff(d1, d2, unit)` | Time difference |
+| `datePart(d, part)` | Extract year, month, day, etc. |
+| `timeAgo(d)` | "2 hours ago" |
 
 ### I/O
 
@@ -1287,10 +1287,10 @@ tova run app.tova          # development mode with hot reload
 | `read(path)` | Auto-detect CSV/JSON/JSONL/Parquet/Excel |
 | `write(table, path)` | Write CSV/JSON/JSONL/Parquet/Excel |
 | `sqlite(path)` | Open SQLite database |
-| `read_text(path)` | Read raw text |
-| `write_text(path, content)` | Write raw text |
+| `readText(path)` | Read raw text |
+| `writeText(path, content)` | Write raw text |
 | `exists(path)` | File exists check |
-| `glob_files(pattern)` | Match file pattern |
+| `globFiles(pattern)` | Match file pattern |
 | `ls(dir)` | List directory |
 | `mkdir(dir)` | Create directory |
 
@@ -1299,7 +1299,7 @@ tova run app.tova          # development mode with hot reload
 | Function | Description |
 |----------|-------------|
 | `compose(...fns)` | Right-to-left composition |
-| `pipe_fn(...fns)` | Left-to-right composition |
+| `pipeFn(...fns)` | Left-to-right composition |
 | `partial(fn, ...args)` | Bind first N arguments |
 | `memoize(fn)` | Cache results |
 | `curry(fn)` | Curried version |
@@ -1328,13 +1328,13 @@ See [Standard Library](/stdlib/) for the complete API reference.
 | Filter rows | `df[df['age'] > 25]` | `t \|> where(.age > 25)` |
 | Select columns | `df[['name', 'age']]` | `t \|> select(.name, .age)` |
 | Add column | `df['total'] = df['qty'] * df['price']` | `t \|> derive(.total = .qty * .price)` |
-| Group + agg | `df.groupby('region').agg(...)` | `t \|> group_by(.region) \|> agg(...)` |
-| Sort | `df.sort_values('score', ascending=False)` | `t \|> sort_by(.score, desc: true)` |
+| Group + agg | `df.groupby('region').agg(...)` | `t \|> groupBy(.region) \|> agg(...)` |
+| Sort | `df.sort_values('score', ascending=False)` | `t \|> sortBy(.score, desc: true)` |
 | Join | `pd.merge(a, b, on='id')` | `a \|> join(b, left: .id, right: .id)` |
 | Pivot | `df.pivot_table(...)` | `t \|> pivot(index: .date, columns: .cat, values: .amt)` |
-| Handle nulls | `df.dropna(subset=['email'])` | `t \|> drop_nil(.email)` |
-| Fill nulls | `df['col'].fillna(0)` | `t \|> fill_nil(.col, 0)` |
-| Deduplicate | `df.drop_duplicates(subset=['id'])` | `t \|> drop_duplicates(by: .id)` |
+| Handle nulls | `df.dropna(subset=['email'])` | `t \|> dropNil(.email)` |
+| Fill nulls | `df['col'].fillna(0)` | `t \|> fillNil(.col, 0)` |
+| Deduplicate | `df.dropDuplicates(subset=['id'])` | `t \|> dropDuplicates(by: .id)` |
 | Describe | `df.describe()` | `t \|> describe()` |
 | Error handling | `try/except` (silent failures) | `Result` with `?` (enforced) |
 | Deploy as API | Flask + CORS + gunicorn + Docker | `server { }` block |

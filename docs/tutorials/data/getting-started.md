@@ -5,11 +5,11 @@ Load a CSV, explore its shape, and transform it with filters, sorting, derived c
 ## What you'll learn
 
 - Loading CSV files into tables with `read()`
-- Inspecting data with `peek()`, `schema_of()`, and `describe()`
-- Filtering rows with `table_where()`
-- Selecting and reordering columns with `table_select()`
-- Sorting with `table_sort_by()`
-- Creating derived columns with `table_derive()`
+- Inspecting data with `peek()`, `schemaOf()`, and `describe()`
+- Filtering rows with `tableWhere()`
+- Selecting and reordering columns with `tableSelect()`
+- Sorting with `tableSortBy()`
+- Creating derived columns with `tableDerive()`
 - Writing results to CSV and JSON with `write()`
 
 ## Setup
@@ -58,27 +58,27 @@ Two more inspection tools give you the column types and summary statistics:
 async fn main() {
   employees = await read("data/employees.csv")
 
-  schema = schema_of(employees)
+  schema = schemaOf(employees)
   print(schema)
 
   describe(employees)
 }
 ```
 
-`schema_of()` returns a list of column names and inferred types. `describe()` prints summary statistics (count, mean, min, max, standard deviation) for numeric columns.
+`schemaOf()` returns a list of column names and inferred types. `describe()` prints summary statistics (count, mean, min, max, standard deviation) for numeric columns.
 
 ## 2. Filtering rows
 
-Use `table_where()` with a lambda that receives each row. Rows where the lambda returns `true` are kept.
+Use `tableWhere()` with a lambda that receives each row. Rows where the lambda returns `true` are kept.
 
 ```tova
 async fn main() {
   employees = await read("data/employees.csv")
 
   stars = employees
-    |> table_where(fn(r) r.performance_score >= 4.5)
-    |> table_select("name", "department", "title", "performance_score")
-    |> table_sort_by("performance_score", {desc: true})
+    |> tableWhere(fn(r) r.performance_score >= 4.5)
+    |> tableSelect("name", "department", "title", "performance_score")
+    |> tableSortBy("performance_score", {desc: true})
 
   peek(stars, {title: "Top Performers"})
 }
@@ -102,22 +102,22 @@ Expected output:
 
 ## 3. Sorting
 
-`table_sort_by()` sorts ascending by default. Pass `{desc: true}` for descending order.
+`tableSortBy()` sorts ascending by default. Pass `{desc: true}` for descending order.
 
 ```tova
 async fn main() {
   employees = await read("data/employees.csv")
 
   top3 = employees
-    |> table_sort_by("salary", {desc: true})
-    |> table_limit(3)
-    |> table_select("name", "title", "salary")
+    |> tableSortBy("salary", {desc: true})
+    |> tableLimit(3)
+    |> tableSelect("name", "title", "salary")
 
   peek(top3, {title: "Top 3 by Salary"})
 }
 ```
 
-`table_limit()` takes the first N rows after sorting — useful for "top N" queries.
+`tableLimit()` takes the first N rows after sorting — useful for "top N" queries.
 
 Expected output:
 
@@ -132,14 +132,14 @@ Expected output:
 
 ## 4. Derived columns
 
-`table_derive()` adds new columns computed from existing data. Pass an object where keys are column names and values are lambdas.
+`tableDerive()` adds new columns computed from existing data. Pass an object where keys are column names and values are lambdas.
 
 ```tova
 async fn main() {
   employees = await read("data/employees.csv")
 
   salary_analysis = employees
-    |> table_derive({
+    |> tableDerive({
       annual_bonus: fn(r) r.salary * 0.15,
       tax_bracket: fn(r) {
         match true {
@@ -154,8 +154,8 @@ async fn main() {
         2024 - year
       }
     })
-    |> table_select("name", "salary", "annual_bonus", "tax_bracket", "tenure_years")
-    |> table_sort_by("salary", {desc: true})
+    |> tableSelect("name", "salary", "annual_bonus", "tax_bracket", "tenure_years")
+    |> tableSortBy("salary", {desc: true})
 
   peek(salary_analysis, {title: "Salary Breakdown"})
 }
@@ -179,17 +179,17 @@ Expected output (first 5 rows):
 
 ## 5. Renaming columns
 
-`table_rename()` changes a column name without affecting the data.
+`tableRename()` changes a column name without affecting the data.
 
 ```tova
 async fn main() {
   employees = await read("data/employees.csv")
 
   renamed = employees
-    |> table_select("name", "department", "salary")
-    |> table_rename("name", "employee_name")
-    |> table_rename("department", "dept")
-    |> table_limit(5)
+    |> tableSelect("name", "department", "salary")
+    |> tableRename("name", "employee_name")
+    |> tableRename("department", "dept")
+    |> tableLimit(5)
 
   peek(renamed, {title: "Renamed Columns"})
 }
@@ -217,8 +217,8 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   no_salary = employees
-    |> table_select({__exclude: ["salary", "is_remote"]})
-    |> table_limit(5)
+    |> tableSelect({__exclude: ["salary", "is_remote"]})
+    |> tableLimit(5)
 
   peek(no_salary, {title: "Excluding salary & is_remote"})
 }
@@ -235,12 +235,12 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   stars = employees
-    |> table_where(fn(r) r.performance_score >= 4.5)
-    |> table_select("name", "department", "title", "performance_score")
-    |> table_sort_by("performance_score", {desc: true})
+    |> tableWhere(fn(r) r.performance_score >= 4.5)
+    |> tableSelect("name", "department", "title", "performance_score")
+    |> tableSortBy("performance_score", {desc: true})
 
   salary_analysis = employees
-    |> table_derive({
+    |> tableDerive({
       annual_bonus: fn(r) r.salary * 0.15,
       tax_bracket: fn(r) {
         match true {
@@ -255,8 +255,8 @@ async fn main() {
         2024 - year
       }
     })
-    |> table_select("name", "salary", "annual_bonus", "tax_bracket", "tenure_years")
-    |> table_sort_by("salary", {desc: true})
+    |> tableSelect("name", "salary", "annual_bonus", "tax_bracket", "tenure_years")
+    |> tableSortBy("salary", {desc: true})
 
   await write(stars, "data/high_performers.csv")
   await write(salary_analysis, "data/salary_analysis.json")

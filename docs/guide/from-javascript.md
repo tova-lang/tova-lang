@@ -632,11 +632,11 @@ class User implements Printable {
 
 ```tova [Tova]
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 
 impl Printable for User {
-  fn to_string() {
+  fn toString() {
     "{self.name} <{self.email}>"
   }
 }

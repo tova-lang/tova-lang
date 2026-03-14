@@ -68,7 +68,7 @@ fn analyze(text) {
 
   avg_len = if word_count > 0 {
     total_chars = all_words |> map(fn(w) len(w)) |> sum()
-    to_float(total_chars) / to_float(word_count)
+    toFloat(total_chars) / toFloat(word_count)
   } else {
     0.0
   }
@@ -83,7 +83,7 @@ fn analyze(text) {
     avg_word_length: avg_len,
     longest_word: longest[0],
     most_common: common,
-    reading_time_minutes: to_float(word_count) / 200.0
+    reading_time_minutes: toFloat(word_count) / 200.0
   }
 }
 
@@ -96,9 +96,9 @@ fn format_plain(r) {
     "Unique words:    {r.unique_words}",
     "Characters:      {r.char_count}",
     "Lines:           {r.line_count}",
-    "Avg word length: {to_int(r.avg_word_length * 10) / 10}",
+    "Avg word length: {toInt(r.avg_word_length * 10) / 10}",
     "Longest word:    {r.longest_word}",
-    "Reading time:    {to_int(r.reading_time_minutes * 10) / 10} min",
+    "Reading time:    {toInt(r.reading_time_minutes * 10) / 10} min",
     "",
     "Top 10 Words:",
     repeat("-", 25)
@@ -106,7 +106,7 @@ fn format_plain(r) {
 
   for entry in r.most_common {
     bar = repeat("#", entry.count)
-    lines.push("  {pad_end(entry.word, 15)} {bar} ({entry.count})")
+    lines.push("  {padEnd(entry.word, 15)} {bar} ({entry.count})")
   }
 
   join(lines, "\\n")
@@ -115,7 +115,7 @@ fn format_plain(r) {
 fn format_table(r) {
   metric_label = "Metric"
   value_label = "Value"
-  header = "| {pad_end(metric_label, 20)} | {pad_end(value_label, 15)} |"
+  header = "| {padEnd(metric_label, 20)} | {padEnd(value_label, 15)} |"
   dash = "-"
   sep = "| {repeat(dash, 20)} | {repeat(dash, 15)} |"
 
@@ -126,19 +126,19 @@ fn format_table(r) {
   awl = "Avg Word Length"
   lwl = "Longest Word"
   rtl = "Reading Time"
-  rt_num = to_int(r.reading_time_minutes * 10) / 10
+  rt_num = toInt(r.reading_time_minutes * 10) / 10
   rt_val = "{rt_num} min"
 
   rows = [
     header,
     sep,
-    "| {pad_end(wl, 20)} | {pad_end(to_string(r.word_count), 15)} |",
-    "| {pad_end(uwl, 20)} | {pad_end(to_string(r.unique_words), 15)} |",
-    "| {pad_end(chl, 20)} | {pad_end(to_string(r.char_count), 15)} |",
-    "| {pad_end(ll, 20)} | {pad_end(to_string(r.line_count), 15)} |",
-    "| {pad_end(awl, 20)} | {pad_end(to_string(to_int(r.avg_word_length * 10) / 10), 15)} |",
-    "| {pad_end(lwl, 20)} | {pad_end(r.longest_word, 15)} |",
-    "| {pad_end(rtl, 20)} | {pad_end(rt_val, 15)} |"
+    "| {padEnd(wl, 20)} | {padEnd(toString(r.word_count), 15)} |",
+    "| {padEnd(uwl, 20)} | {padEnd(toString(r.unique_words), 15)} |",
+    "| {padEnd(chl, 20)} | {padEnd(toString(r.char_count), 15)} |",
+    "| {padEnd(ll, 20)} | {padEnd(toString(r.line_count), 15)} |",
+    "| {padEnd(awl, 20)} | {padEnd(toString(toInt(r.avg_word_length * 10) / 10), 15)} |",
+    "| {padEnd(lwl, 20)} | {padEnd(r.longest_word, 15)} |",
+    "| {padEnd(rtl, 20)} | {padEnd(rt_val, 15)} |"
   ]
 
   join(rows, "\\n")
@@ -151,9 +151,9 @@ fn format_json(r) {
     unique_words: r.unique_words,
     char_count: r.char_count,
     line_count: r.line_count,
-    avg_word_length: to_int(r.avg_word_length * 100) / 100,
+    avg_word_length: toInt(r.avg_word_length * 100) / 100,
     longest_word: r.longest_word,
-    reading_time_minutes: to_int(r.reading_time_minutes * 10) / 10,
+    reading_time_minutes: toInt(r.reading_time_minutes * 10) / 10,
     most_common: r.most_common
   }
   JSON.stringify(obj, null, 2)
@@ -307,7 +307,7 @@ fn analyze(text) {
 
   avg_len = if word_count > 0 {
     total_chars = all_words |> map(fn(w) len(w)) |> sum()
-    to_float(total_chars) / to_float(word_count)
+    toFloat(total_chars) / toFloat(word_count)
   } else {
     0.0
   }
@@ -320,7 +320,7 @@ fn analyze(text) {
     avg_word_length: avg_len,
     longest_word: longest[0],
     most_common: top_words(freq, 10),
-    reading_time_minutes: to_float(word_count) / 200.0
+    reading_time_minutes: toFloat(word_count) / 200.0
   )
 }
 ```
@@ -351,9 +351,9 @@ fn format_plain(r) {
     "Unique words:    {r.unique_words}",
     "Characters:      {r.char_count}",
     "Lines:           {r.line_count}",
-    "Avg word length: {to_int(r.avg_word_length * 10) / 10}",
+    "Avg word length: {toInt(r.avg_word_length * 10) / 10}",
     "Longest word:    {r.longest_word}",
-    "Reading time:    {to_int(r.reading_time_minutes * 10) / 10} min",
+    "Reading time:    {toInt(r.reading_time_minutes * 10) / 10} min",
     "",
     "Top 10 Words:",
     repeat("-", 25)
@@ -361,25 +361,25 @@ fn format_plain(r) {
 
   for entry in r.most_common {
     bar = repeat("#", entry.count)
-    lines.push("  {pad_end(entry.word, 15)} {bar} ({entry.count})")
+    lines.push("  {padEnd(entry.word, 15)} {bar} ({entry.count})")
   }
 
   join(lines, "\n")
 }
 
 fn format_table(r) {
-  header = "| {pad_end(\"Metric\", 20)} | {pad_end(\"Value\", 15)} |"
+  header = "| {padEnd(\"Metric\", 20)} | {padEnd(\"Value\", 15)} |"
   sep = "| {repeat(\"-\", 20)} | {repeat(\"-\", 15)} |"
 
   rows = [
     header, sep,
-    "| {pad_end(\"Words\", 20)} | {pad_end(to_string(r.word_count), 15)} |",
-    "| {pad_end(\"Unique Words\", 20)} | {pad_end(to_string(r.unique_words), 15)} |",
-    "| {pad_end(\"Characters\", 20)} | {pad_end(to_string(r.char_count), 15)} |",
-    "| {pad_end(\"Lines\", 20)} | {pad_end(to_string(r.line_count), 15)} |",
-    "| {pad_end(\"Avg Word Length\", 20)} | {pad_end(to_string(to_int(r.avg_word_length * 10) / 10), 15)} |",
-    "| {pad_end(\"Longest Word\", 20)} | {pad_end(r.longest_word, 15)} |",
-    "| {pad_end(\"Reading Time\", 20)} | {pad_end(\"{to_int(r.reading_time_minutes * 10) / 10} min\", 15)} |"
+    "| {padEnd(\"Words\", 20)} | {padEnd(toString(r.word_count), 15)} |",
+    "| {padEnd(\"Unique Words\", 20)} | {padEnd(toString(r.unique_words), 15)} |",
+    "| {padEnd(\"Characters\", 20)} | {padEnd(toString(r.char_count), 15)} |",
+    "| {padEnd(\"Lines\", 20)} | {padEnd(toString(r.line_count), 15)} |",
+    "| {padEnd(\"Avg Word Length\", 20)} | {padEnd(toString(toInt(r.avg_word_length * 10) / 10), 15)} |",
+    "| {padEnd(\"Longest Word\", 20)} | {padEnd(r.longest_word, 15)} |",
+    "| {padEnd(\"Reading Time\", 20)} | {padEnd(\"{toInt(r.reading_time_minutes * 10) / 10} min\", 15)} |"
   ]
 
   join(rows, "\n")
@@ -396,9 +396,9 @@ fn format_json(r) {
     "  \"unique_words\": {r.unique_words},",
     "  \"char_count\": {r.char_count},",
     "  \"line_count\": {r.line_count},",
-    "  \"avg_word_length\": {to_int(r.avg_word_length * 100) / 100},",
+    "  \"avg_word_length\": {toInt(r.avg_word_length * 100) / 100},",
     "  \"longest_word\": \"{r.longest_word}\",",
-    "  \"reading_time_minutes\": {to_int(r.reading_time_minutes * 10) / 10},",
+    "  \"reading_time_minutes\": {toInt(r.reading_time_minutes * 10) / 10},",
     "  \"most_common\": [",
     common_items,
     "  ]",

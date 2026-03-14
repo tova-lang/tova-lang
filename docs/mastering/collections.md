@@ -45,7 +45,7 @@ top_scorers = data
 print("Top scorers: {top_scorers}")
 
 // Group by grade
-grades = data |> group_by(fn(s) s.grade)
+grades = data |> groupBy(fn(s) s.grade)
 for entry in entries(grades) {
   k = entry[0]
   v = entry[1]
@@ -119,7 +119,7 @@ print("Word Frequencies:")
 print(repeat("-", 25))
 for entry in sorted_words {
   bar = repeat("#", entry[1])
-  print("{pad_end(entry[0], 10)} {bar} ({entry[1]})")
+  print("{padEnd(entry[0], 10)} {bar} ({entry[1]})")
 }
 
 // Stats
@@ -304,7 +304,7 @@ items = [1, 2, 3, 4, 5, 3, 2]
 // Searching
 items |> contains(3)              // true
 items |> find(fn(x) x > 3)       // 4 (or null if not found)
-items |> index_of(3)              // 2
+items |> indexOf(3)              // 2
 
 // Aggregation
 items |> sum()                    // 20
@@ -330,12 +330,12 @@ items |> product()               // 120 (multiply all elements)
 
 // Custom comparators
 users = [{ name: "Alice", age: 30 }, { name: "Bob", age: 25 }, { name: "Carol", age: 35 }]
-users |> min_by(fn(u) u.age)     // { name: "Bob", age: 25 }
-users |> max_by(fn(u) u.age)     // { name: "Carol", age: 35 }
-users |> sum_by(fn(u) u.age)     // 90
+users |> minBy(fn(u) u.age)     // { name: "Bob", age: 25 }
+users |> maxBy(fn(u) u.age)     // { name: "Carol", age: 35 }
+users |> sumBy(fn(u) u.age)     // 90
 
 // Zip with a combining function
-zip_with([1, 2, 3], [10, 20, 30], fn(a, b) a + b)   // [11, 22, 33]
+zipWith([1, 2, 3], [10, 20, 30], fn(a, b) a + b)   // [11, 22, 33]
 ```
 
 ## Tuples
@@ -433,18 +433,18 @@ for entry in entries(person) {
 
 ### Building Objects from Entries
 
-The inverse of `entries()` is `from_entries()` — it converts an array of `[key, value]` pairs back into an object:
+The inverse of `entries()` is `fromEntries()` — it converts an array of `[key, value]` pairs back into an object:
 
 ```tova
 pairs = [["name", "Alice"], ["age", 30], ["role", "engineer"]]
-person = from_entries(pairs)
+person = fromEntries(pairs)
 // { name: "Alice", age: 30, role: "engineer" }
 
 // Useful for transforming object entries
 prices = { apple: 1.50, banana: 0.75, cherry: 3.00 }
 doubled_prices = entries(prices)
   |> map(fn(e) [e[0], e[1] * 2])
-  |> from_entries()
+  |> fromEntries()
 // { apple: 3.00, banana: 1.50, cherry: 6.00 }
 ```
 
@@ -476,11 +476,11 @@ safe_user = omit(user, ["password"])
 prices = { apple: 1.50, banana: 0.75, cherry: 3.00 }
 
 // Apply a 10% discount to every price
-discounted = map_values(prices, fn(price) price * 0.9)
+discounted = mapValues(prices, fn(price) price * 0.9)
 // { apple: 1.35, banana: 0.675, cherry: 2.7 }
 
 // The callback also receives the key as a second argument
-labeled = map_values(prices, fn(price, key) "{key}: ${price}")
+labeled = mapValues(prices, fn(price, key) "{key}: ${price}")
 // { apple: "apple: $1.5", banana: "banana: $0.75", cherry: "cherry: $3" }
 ```
 
@@ -490,8 +490,8 @@ labeled = map_values(prices, fn(price, key) "{key}: ${price}")
 config = { host: "localhost", port: 8080 }
 
 // has_key: check if a key exists
-has_key(config, "host")     // true
-has_key(config, "timeout")  // false
+hasKey(config, "host")     // true
+hasKey(config, "timeout")  // false
 
 // get: retrieve a value with a default fallback
 get(config, "port", 3000)      // 8080 (key exists)
@@ -594,7 +594,7 @@ data = [10, 20, 30, 40, 50]
 pairwise(data)    // [[10,20], [20,30], [30,40], [40,50]]
 
 // sliding_window: overlapping windows
-sliding_window(data, 3)    // [[10,20,30], [20,30,40], [30,40,50]]
+slidingWindow(data, 3)    // [[10,20,30], [20,30,40], [30,40,50]]
 ```
 
 ### Set Operations
@@ -606,8 +606,8 @@ b = [3, 4, 5, 6, 7]
 union(a, b)               // [1, 2, 3, 4, 5, 6, 7]
 intersection(a, b)        // [3, 4, 5]
 difference(a, b)          // [1, 2] (in a but not b)
-symmetric_difference(a, b)  // [1, 2, 6, 7] (in one but not both)
-is_subset([3, 4], a)      // true
+symmetricDifference(a, b)  // [1, 2, 6, 7] (in one but not both)
+isSubset([3, 4], a)      // true
 ```
 
 ### Combinatorics
@@ -663,15 +663,15 @@ These functions return new arrays (no mutation) and give you fine-grained contro
 // [5, 1, 2, 3, 4]
 
 // insert_at: splice a new element at a given index
-[1, 2, 3] |> insert_at(1, 99)
+[1, 2, 3] |> insertAt(1, 99)
 // [1, 99, 2, 3]
 
 // remove_at: drop the element at an index
-[10, 20, 30, 40] |> remove_at(2)
+[10, 20, 30, 40] |> removeAt(2)
 // [10, 20, 40]
 
 // update_at: replace the element at an index
-[10, 20, 30] |> update_at(1, 99)
+[10, 20, 30] |> updateAt(1, 99)
 // [10, 99, 30]
 ```
 
@@ -713,7 +713,7 @@ frequencies(["a", "b", "a", "c", "a", "b"])   // { a: 3, b: 2, c: 1 }
 
 // flat_map: map then flatten
 sentences = ["hello world", "foo bar"]
-sentences |> flat_map(fn(s) split(s, " "))   // ["hello", "world", "foo", "bar"]
+sentences |> flatMap(fn(s) split(s, " "))   // ["hello", "world", "foo", "bar"]
 ```
 
 ### Dict Comprehensions
@@ -757,18 +757,18 @@ Tables support a chainable query style — filter rows, select columns, derive n
 
 ```tova
 // Filter rows
-engineers = table_where(employees, fn(row) row.dept == "Engineering")
+engineers = tableWhere(employees, fn(row) row.dept == "Engineering")
 
 // Select specific columns
-names_only = table_select(employees, "name", "dept")
+names_only = tableSelect(employees, "name", "dept")
 
 // Add a computed column
-with_bonus = table_derive(employees, {
+with_bonus = tableDerive(employees, {
   bonus: fn(row) row.salary * 0.10
 })
 
 // Sort by salary (descending)
-ranked = table_sort_by(employees, fn(row) row.salary, { desc: true })
+ranked = tableSortBy(employees, fn(row) row.salary, { desc: true })
 ```
 
 ### Grouping and Aggregation
@@ -778,8 +778,8 @@ The real power of tables shows up in group-by operations:
 ```tova
 // Group by department, then aggregate
 dept_stats = employees
-  |> table_group_by(fn(row) row.dept)
-  |> table_agg({
+  |> tableGroupBy(fn(row) row.dept)
+  |> tableAgg({
     headcount: fn(rows) len(rows),
     avg_salary: fn(rows) sum(map(rows, fn(r) r.salary)) / len(rows),
     top_earner: fn(rows) max(map(rows, fn(r) r.salary))
@@ -797,7 +797,7 @@ departments = Table([
 ])
 
 // Join employees with department budgets
-joined = table_join(employees, departments, {
+joined = tableJoin(employees, departments, {
   left: "dept",
   right: "dept"
 })
@@ -807,16 +807,16 @@ joined = table_join(employees, departments, {
 
 ```tova
 // Limit to first N rows
-top_three = table_limit(ranked, 3)
+top_three = tableLimit(ranked, 3)
 
 // Remove duplicates
-unique_depts = table_select(employees, "dept") |> table_drop_duplicates({})
+unique_depts = tableSelect(employees, "dept") |> tableDropDuplicates({})
 
 // Rename a column
-renamed = table_rename(employees, "salary", "compensation")
+renamed = tableRename(employees, "salary", "compensation")
 
 // Combine two tables vertically
-all_staff = table_union(engineers, marketing_team)
+all_staff = tableUnion(engineers, marketing_team)
 ```
 
 ### Window Functions
@@ -852,7 +852,7 @@ For large datasets, `lazy()` defers computation until you call `collect()`:
 result = lazy(employees)
   .where(fn(row) row.salary > 80000)
   .select("name", "salary")
-  .sort_by(fn(row) row.salary, { desc: true })
+  .sortBy(fn(row) row.salary, { desc: true })
   .limit(3)
   |> collect()
 ```
@@ -900,7 +900,7 @@ seq = iter([10, 20, 30, 40, 50])
 // Transform
 seq.map(fn(x) x + 1)          // Seq: lazy map
 seq.filter(fn(x) x > 20)      // Seq: lazy filter
-seq.flat_map(fn(x) [x, x])    // Seq: lazy flat_map
+seq.flatMap(fn(x) [x, x])    // Seq: lazy flat_map
 
 // Slice
 seq.take(3)                    // Seq: first 3 elements
@@ -969,7 +969,7 @@ print("Word Frequencies:")
 print(repeat("-", 25))
 for entry in sorted_words {
   bar = repeat("#", entry[1])
-  print("{pad_end(entry[0], 10)} {bar} ({entry[1]})")
+  print("{padEnd(entry[0], 10)} {bar} ({entry[1]})")
 }
 
 // Stats

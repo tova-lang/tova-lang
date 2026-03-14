@@ -10,7 +10,7 @@ Most languages specialize. Scripting languages are convenient but slow. Systems 
 // Script: process a CSV in three lines
 data = read("sales.csv")
   |> filter(fn(row) row.revenue > 1000)
-  |> sort_by(.region)
+  |> sortBy(.region)
 
 write(data, "summary.json")
 ```
@@ -94,7 +94,7 @@ The pipe operator `|>` chains function calls left to right, turning nested calls
 result = data
   |> filter(fn(x) x > 0)
   |> map(fn(x) x * 2)
-  |> sort_by(.value)
+  |> sortBy(.value)
   |> take(10)
   |> sum()
 
@@ -173,7 +173,7 @@ fn process(data) {
 
 ```tova
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 
 interface Comparable {
@@ -257,12 +257,12 @@ Decorate numeric functions with `@fast` to coerce array parameters to TypedArray
 
 ```tova
 @fast fn dot_product(a: [Float], b: [Float]) -> Float {
-  typed_dot(a, b)
+  typedDot(a, b)
 }
 
 @fast fn normalize(v: [Float]) -> [Float] {
-  n = typed_norm(v)
-  typed_scale(v, 1.0 / n)
+  n = typedNorm(v)
+  typedScale(v, 1.0 / n)
 }
 ```
 
@@ -273,7 +273,7 @@ Includes a typed stdlib: `typed_sum` (Kahan compensated), `typed_dot`, `typed_ad
 Distribute CPU-intensive work across all cores with a persistent worker pool:
 
 ```tova
-results = await parallel_map(large_array, fn(item) {
+results = await parallelMap(large_array, fn(item) {
   expensive_computation(item)
 })
 ```

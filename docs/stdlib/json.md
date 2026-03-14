@@ -7,23 +7,23 @@ Tova provides safe JSON functions that integrate with the Result type for error 
 ### json_parse
 
 ```tova
-json_parse(s) -> Result
+jsonParse(s) -> Result
 ```
 
 Parses a JSON string. Returns `Ok(value)` on success or `Err(message)` on failure -- no exceptions.
 
 ```tova
-json_parse('{"name": "Alice", "age": 30}')
+jsonParse('{"name": "Alice", "age": 30}')
 // Ok({ name: "Alice", age: 30 })
 
-json_parse('[1, 2, 3]')
+jsonParse('[1, 2, 3]')
 // Ok([1, 2, 3])
 
-json_parse('invalid json')
+jsonParse('invalid json')
 // Err("Unexpected token ...")
 
 // Safe usage with Result
-match json_parse(input) {
+match jsonParse(input) {
   Ok(data) => process(data)
   Err(msg) => print("Parse error: {msg}")
 }
@@ -36,32 +36,32 @@ match json_parse(input) {
 ### json_stringify
 
 ```tova
-json_stringify(v) -> String
+jsonStringify(v) -> String
 ```
 
 Converts a value to a compact JSON string.
 
 ```tova
-json_stringify({ name: "Alice", age: 30 })
+jsonStringify({ name: "Alice", age: 30 })
 // '{"name":"Alice","age":30}'
 
-json_stringify([1, 2, 3])
+jsonStringify([1, 2, 3])
 // '[1,2,3]'
 
-json_stringify("hello")
+jsonStringify("hello")
 // '"hello"'
 ```
 
 ### json_pretty
 
 ```tova
-json_pretty(v) -> String
+jsonPretty(v) -> String
 ```
 
 Converts a value to a pretty-printed JSON string with 2-space indentation. Useful for debugging and display.
 
 ```tova
-json_pretty({ name: "Alice", scores: [90, 85, 92] })
+jsonPretty({ name: "Alice", scores: [90, 85, 92] })
 // {
 //   "name": "Alice",
 //   "scores": [
@@ -79,9 +79,9 @@ json_pretty({ name: "Alice", scores: [90, 85, 92] })
 ```tova
 // Parse, transform, re-serialize
 raw_json
-  |> json_parse()
+  |> jsonParse()
   |> fn(r) r.map(fn(data) omit(data, ["internal"]))
-  |> fn(r) r.map(fn(data) json_pretty(data))
+  |> fn(r) r.map(fn(data) jsonPretty(data))
 
 // Parse a list of JSON strings, keeping only successful parses
 json_strings

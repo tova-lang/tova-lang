@@ -243,7 +243,7 @@ server {
         score = cosine_similarity(query_embedding, doc.embedding)
         SearchResult { content: doc.content, score: score, source: doc.source }
       })
-      |> sort_by(.score, desc: true)
+      |> sortBy(.score, desc: true)
       |> take(top_k)
   }
 

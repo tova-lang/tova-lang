@@ -686,16 +686,16 @@ from abc import ABC, abstractmethod
 
 class Printable(ABC):
     @abstractmethod
-    def to_string(self) -> str: ...
+    def toString(self) -> str: ...
 
 class User:
-    def to_string(self) -> str:
+    def toString(self) -> str:
         return f"{self.name} <{self.email}>"
 ```
 
 ```tova [Tova]
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 
 type User {
@@ -704,7 +704,7 @@ type User {
 }
 
 impl Printable for User {
-  fn to_string() {
+  fn toString() {
     "{self.name} <{self.email}>"
   }
 }

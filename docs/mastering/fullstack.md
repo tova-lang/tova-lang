@@ -924,7 +924,7 @@ data {
 
   pipeline active = customers |> where(.active)
   pipeline summary = active
-    |> group_by(.country)
+    |> groupBy(.country)
     |> agg(total: count(), revenue: sum(.spend))
 
   validate Customer {
@@ -981,19 +981,19 @@ data {
 
   // Multi-step transformation
   pipeline clean = raw
-    |> drop_nil(.email)
-    |> fill_nil(.spend, 0.0)
+    |> dropNil(.email)
+    |> fillNil(.spend, 0.0)
     |> derive(.name = .name |> trim())
     |> where(.spend > 0)
 
   // Aggregation
   pipeline by_country = clean
-    |> group_by(.country)
+    |> groupBy(.country)
     |> agg(count: count(), total: sum(.spend))
 
   // Sort
   pipeline top_spenders = clean
-    |> sort_by(.spend, desc: true)
+    |> sortBy(.spend, desc: true)
 
   // Column selection
   pipeline contacts = clean
@@ -1007,12 +1007,12 @@ data {
 |----------|---------|---------|
 | `where(.condition)` | Filter rows by predicate | `where(.age >= 18)` |
 | `select(.col1, .col2)` | Choose specific columns | `select(.name, .email)` |
-| `drop_nil(.col)` | Remove rows where column is null | `drop_nil(.email)` |
-| `fill_nil(.col, val)` | Replace nulls with default | `fill_nil(.spend, 0.0)` |
+| `dropNil(.col)` | Remove rows where column is null | `dropNil(.email)` |
+| `fillNil(.col, val)` | Replace nulls with default | `fillNil(.spend, 0.0)` |
 | `derive(.col = expr)` | Add computed columns | `derive(.total = .price * .qty)` |
-| `group_by(.col)` | Group rows by column | `group_by(.country)` |
+| `groupBy(.col)` | Group rows by column | `groupBy(.country)` |
 | `agg(name: fn())` | Aggregate grouped data | `agg(n: count(), sum: sum(.val))` |
-| `sort_by(.col)` | Sort rows | `sort_by(.spend, desc: true)` |
+| `sortBy(.col)` | Sort rows | `sortBy(.spend, desc: true)` |
 
 The dot-prefix syntax (`.age`, `.email`) refers to columns in the current row. This is specific to data block pipelines and makes transformations concise and readable.
 
@@ -1100,7 +1100,7 @@ data {
   source products = read("products.csv")
   pipeline in_stock = products |> where(.quantity > 0)
   pipeline by_category = in_stock
-    |> group_by(.category)
+    |> groupBy(.category)
     |> agg(count: count(), avg_price: mean(.price))
 }
 
@@ -1114,7 +1114,7 @@ server {
   }
 
   get "/api/products/:id" {
-    product = products |> find(fn(p) p.id == to_int(params.id))
+    product = products |> find(fn(p) p.id == toInt(params.id))
     match product {
       Some(p) => json(p)
       None => json({ error: "Not found" }, 404)

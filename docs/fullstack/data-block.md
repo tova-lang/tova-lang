@@ -64,8 +64,8 @@ data {
   source raw_customers = read("customers.csv")
 
   pipeline clean = raw_customers
-    |> drop_nil(.email)
-    |> fill_nil(.spend, 0.0)
+    |> dropNil(.email)
+    |> fillNil(.spend, 0.0)
     |> derive(
       .name = .name |> trim(),
       .email = .email |> lower()
@@ -73,13 +73,13 @@ data {
     |> where(.spend > 0)
 
   pipeline summary = clean
-    |> group_by(.country)
+    |> groupBy(.country)
     |> agg(
       count: count(),
       total_spend: sum(.spend),
       avg_spend: mean(.spend)
     )
-    |> sort_by(.total_spend, desc: true)
+    |> sortBy(.total_spend, desc: true)
 }
 ```
 
@@ -199,19 +199,19 @@ data {
   source orders = read("orders.csv")
 
   pipeline clean = customers
-    |> drop_nil(.email)
-    |> fill_nil(.spend, 0.0)
+    |> dropNil(.email)
+    |> fillNil(.spend, 0.0)
     |> derive(.name = .name |> trim(), .email = .email |> lower())
     |> where(.spend > 0)
 
   pipeline summary = clean
-    |> group_by(.country)
+    |> groupBy(.country)
     |> agg(
       count: count(),
       total_spend: sum(.spend),
       avg_spend: mean(.spend)
     )
-    |> sort_by(.total_spend, desc: true)
+    |> sortBy(.total_spend, desc: true)
 
   validate Customer {
     .email |> contains("@"),

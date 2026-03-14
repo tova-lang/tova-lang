@@ -58,7 +58,7 @@ Each tutorial maps to a validated test script:
 
 ### `docs/stdlib/tables.md`
 - Remove the "Partial Implementation" warning banner (standalone functions work correctly)
-- The warning says `.where()` etc aren't available as instance methods — this is misleading since `table_where()` etc. work fine as pipe-friendly functions
+- The warning says `.where()` etc aren't available as instance methods — this is misleading since `tableWhere()` etc. work fine as pipe-friendly functions
 
 ### `docs/guide/data.md`
 - Add a note explaining both syntax forms work: `.column` expression syntax and `fn(r) r.column` lambda syntax
@@ -73,7 +73,7 @@ Each tutorial maps to a validated test script:
 1. **Tutorials use `fn(r) r.field` style** — matches the test scripts; more explicit for beginners learning the language
 2. **Each tutorial is self-contained** — can be read independently, though they build on each other
 3. **Sample data embedded in tutorials** — no external downloads needed; Table() constructor with inline data for small examples, reference to CSV files for larger ones
-4. **Both `table_where()` and `|> where()` shown** — tutorials show the pipe style primarily, mention explicit `table_where()` as equivalent
+4. **Both `tableWhere()` and `|> where()` shown** — tutorials show the pipe style primarily, mention explicit `tableWhere()` as equivalent
 5. **Expected output shown** — readers can verify their code works correctly
 
 ## Non-Goals

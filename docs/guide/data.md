@@ -159,7 +159,7 @@ enriched = users |> derive(
 Group rows by one or more columns:
 
 ```tova
-by_city = users |> group_by(.city)
+by_city = users |> groupBy(.city)
 ```
 
 ### Aggregating with `agg`
@@ -168,7 +168,7 @@ Compute summary statistics after grouping:
 
 ```tova
 summary = users
-  |> group_by(.city)
+  |> groupBy(.city)
   |> agg(
     count: count(),
     avg_age: mean(.age),
@@ -190,14 +190,14 @@ Available aggregation functions:
 ### Sorting with `sort_by`
 
 ```tova
-sorted = users |> sort_by(.name)
-ranked = users |> sort_by(.score, desc: true)
+sorted = users |> sortBy(.name)
+ranked = users |> sortBy(.score, desc: true)
 ```
 
 ### Limiting with `limit`
 
 ```tova
-top_10 = users |> sort_by(.score, desc: true) |> limit(10)
+top_10 = users |> sortBy(.score, desc: true) |> limit(10)
 ```
 
 ### Joining Tables
@@ -277,25 +277,25 @@ Generate SVG charts from table data:
 
 ```tova
 // Bar chart
-sales |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
+sales |> barChart(x: .region, y: .revenue, title: "Revenue by Region")
 
 // Line chart (supports multi-series)
-prices |> line_chart(x: .date, y: .price, title: "Price History")
+prices |> lineChart(x: .date, y: .price, title: "Price History")
 
 // Scatter plot
-users |> scatter_chart(x: .age, y: .income, title: "Age vs Income")
+users |> scatterChart(x: .age, y: .income, title: "Age vs Income")
 
 // Histogram
 users |> histogram(col: .age, bins: 20, title: "Age Distribution")
 
 // Pie chart
-sales |> pie_chart(label: .category, value: .revenue, title: "Revenue Split")
+sales |> pieChart(label: .category, value: .revenue, title: "Revenue Split")
 
 // Heatmap
 data |> heatmap(x: .month, y: .product, value: .sales, title: "Sales Heatmap")
 
 // Save to file
-sales |> bar_chart(x: .region, y: .revenue) |> write_text("chart.svg")
+sales |> barChart(x: .region, y: .revenue) |> writeText("chart.svg")
 ```
 
 All chart functions return SVG strings. Default size is 600x400 via viewBox (responsive). Customize with `width`, `height`, `color`, and `labels` options.
@@ -303,7 +303,7 @@ All chart functions return SVG strings. Default size is 600x400 via viewBox (res
 ### Deduplication
 
 ```tova
-unique = users |> drop_duplicates(by: .email)
+unique = users |> dropDuplicates(by: .email)
 ```
 
 ### Renaming Columns
@@ -435,10 +435,10 @@ Tova provides built-in functions for common cleaning tasks:
 
 ```tova
 // Drop rows where a column is nil
-clean = users |> drop_nil(.email)
+clean = users |> dropNil(.email)
 
 // Fill nil values with a default
-filled = users |> fill_nil(.city, "Unknown")
+filled = users |> fillNil(.city, "Unknown")
 ```
 
 ### Type Casting
@@ -462,7 +462,7 @@ result = sales
   |> peek()                         // shows first 10 rows
   |> where(.amount > 100)
   |> peek(title: "After filter")    // labeled preview
-  |> sort_by(.amount, desc: true)
+  |> sortBy(.amount, desc: true)
 ```
 
 `peek()` is the data practitioner's best friend. Drop it into any pipeline stage to see what the data looks like without interrupting the flow.
@@ -477,12 +477,12 @@ sales |> describe()
 // amount │ Float │ 4982     │ 245.3 │ 0.5 │ 9999.0
 ```
 
-### `schema_of()`
+### `schemaOf()`
 
 Inspect column names and types:
 
 ```tova
-sales |> schema_of()
+sales |> schemaOf()
 // Schema:
 //   date: String
 //   region: String
@@ -497,32 +497,32 @@ sales |> schema_of()
 | `select` | `\|> select(.name, .age)` | Pick columns |
 | `select(-.)` | `\|> select(-.password)` | Exclude columns |
 | `derive` | `\|> derive(.new = .a + .b)` | Add/transform columns |
-| `group_by` | `\|> group_by(.region)` | Group rows |
+| `group_by` | `\|> groupBy(.region)` | Group rows |
 | `agg` | `\|> agg(total: sum(.x))` | Aggregate after group |
-| `sort_by` | `\|> sort_by(.name, desc: true)` | Sort rows |
+| `sort_by` | `\|> sortBy(.name, desc: true)` | Sort rows |
 | `limit` | `\|> limit(10)` | Take first N |
 | `join` | `\|> join(other, left: .id, right: .uid, how: "left")` | Join tables (inner/left/right/outer/cross/anti/semi) |
 | `pivot` | `\|> pivot(index: .date, columns: .cat, values: .amt)` | Long to wide |
 | `unpivot` | `\|> unpivot(id: "name", columns: ["q1", "q2"])` | Wide to long |
 | `explode` | `\|> explode(.tags)` | Unnest arrays |
 | `union` | `\|> union(other_table)` | Combine tables |
-| `drop_duplicates` | `\|> drop_duplicates(by: .email)` | Remove dupes |
-| `drop_nil` | `\|> drop_nil(.email)` | Remove rows with nil |
-| `fill_nil` | `\|> fill_nil(.city, "Unknown")` | Replace nil values |
+| `drop_duplicates` | `\|> dropDuplicates(by: .email)` | Remove dupes |
+| `drop_nil` | `\|> dropNil(.email)` | Remove rows with nil |
+| `fill_nil` | `\|> fillNil(.city, "Unknown")` | Replace nil values |
 | `cast` | `\|> cast(.age, "Int")` | Convert column type |
 | `rename` | `\|> rename("old", "new")` | Rename a column |
 | `window` | `\|> window(partition_by: .col, row_num: row_number())` | Window functions |
 | `sample` | `\|> sample(100, seed: 42)` | Random sample |
 | `stratified_sample` | `\|> stratified_sample(.col, 50)` | Stratified sample |
-| `bar_chart` | `\|> bar_chart(x: .col, y: .val)` | SVG bar chart |
-| `line_chart` | `\|> line_chart(x: .col, y: .val)` | SVG line chart |
-| `scatter_chart` | `\|> scatter_chart(x: .col, y: .val)` | SVG scatter plot |
+| `bar_chart` | `\|> barChart(x: .col, y: .val)` | SVG bar chart |
+| `line_chart` | `\|> lineChart(x: .col, y: .val)` | SVG line chart |
+| `scatter_chart` | `\|> scatterChart(x: .col, y: .val)` | SVG scatter plot |
 | `histogram` | `\|> histogram(col: .col, bins: 20)` | SVG histogram |
-| `pie_chart` | `\|> pie_chart(label: .col, value: .val)` | SVG pie chart |
+| `pie_chart` | `\|> pieChart(label: .col, value: .val)` | SVG pie chart |
 | `heatmap` | `\|> heatmap(x: .col, y: .col, value: .val)` | SVG heatmap |
 | `peek` | `\|> peek()` | Preview data (transparent) |
 | `describe` | `\|> describe()` | Statistical summary |
-| `schema_of` | `\|> schema_of()` | Column types |
+| `schema_of` | `\|> schemaOf()` | Column types |
 
 ## Practical Tips
 
@@ -532,12 +532,12 @@ sales |> schema_of()
 
 ```tova
 result = raw_data
-  |> drop_nil(.email)
-  |> fill_nil(.spend, 0.0)
+  |> dropNil(.email)
+  |> fillNil(.spend, 0.0)
   |> where(.spend > 0)
-  |> group_by(.country)
+  |> groupBy(.country)
   |> agg(total: sum(.spend), count: count())
-  |> sort_by(.total, desc: true)
+  |> sortBy(.total, desc: true)
   |> limit(20)
 ```
 

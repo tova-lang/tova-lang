@@ -10,7 +10,7 @@ Combine tables by matching rows on shared keys, and stack tables together with u
 - Anti joins to find rows with no match
 - Semi joins to filter by existence in another table
 - Right and outer joins for complete coverage
-- Stacking tables together with `table_union()`
+- Stacking tables together with `tableUnion()`
 
 ## Setup
 
@@ -92,16 +92,16 @@ async fn main() {
   employees = await read("data/employees.csv")
   sales = await read("data/sales.csv")
 
-  sales_with_names = table_join(sales, employees, {left: "employee_id", right: "id", how: "inner"})
-    |> table_select("transaction_id", "name", "product", "amount", "date")
-    |> table_sort_by("amount", {desc: true})
-    |> table_limit(10)
+  sales_with_names = tableJoin(sales, employees, {left: "employee_id", right: "id", how: "inner"})
+    |> tableSelect("transaction_id", "name", "product", "amount", "date")
+    |> tableSortBy("amount", {desc: true})
+    |> tableLimit(10)
 
   peek(sales_with_names, {title: "Top 10 Sales with Employee Names"})
 }
 ```
 
-`table_join()` takes three arguments: the left table, the right table, and an options object with `left` (key column on the left table), `right` (key column on the right table), and `how` (join type). When keys are simple column names, pass them as strings.
+`tableJoin()` takes three arguments: the left table, the right table, and an options object with `left` (key column on the left table), `right` (key column on the right table), and `how` (join type). When keys are simple column names, pass them as strings.
 
 Expected output:
 
@@ -136,18 +136,18 @@ async fn main() {
 
   // Pre-aggregate: total revenue and deal count per employee
   emp_sales = sales
-    |> table_group_by("employee_id")
-    |> table_agg({total_revenue: agg_sum("amount"), deal_count: agg_count()})
+    |> tableGroupBy("employee_id")
+    |> tableAgg({total_revenue: aggSum("amount"), deal_count: aggCount()})
 
   // Left join: every employee, with sales summary if available
-  all_emp_sales = table_join(employees, emp_sales, {left: "id", right: fn(r) r._group, how: "left"})
-    |> table_select("name", "department", "title", "total_revenue", "deal_count")
+  all_emp_sales = tableJoin(employees, emp_sales, {left: "id", right: fn(r) r._group, how: "left"})
+    |> tableSelect("name", "department", "title", "total_revenue", "deal_count")
 
   peek(all_emp_sales, {title: "All Employees with Sales"})
 }
 ```
 
-After `table_group_by()` and `table_agg()`, the aggregated table has a `_group` column holding the group key. Since `_group` is not a simple column name (it is the result of grouping), we pass a lambda `fn(r) r._group` as the right key.
+After `tableGroupBy()` and `tableAgg()`, the aggregated table has a `_group` column holding the group key. Since `_group` is not a simple column name (it is the result of grouping), we pass a lambda `fn(r) r._group` as the right key.
 
 Expected output (showing a few rows):
 
@@ -177,17 +177,17 @@ async fn main() {
 
   // Get distinct employee IDs from sales
   sales_emp_ids = sales
-    |> table_select("employee_id")
-    |> table_drop_duplicates()
+    |> tableSelect("employee_id")
+    |> tableDropDuplicates()
 
   // Anti join: employees NOT in sales
-  non_sales = table_join(employees, sales_emp_ids, {left: "id", right: "employee_id", how: "anti"})
+  non_sales = tableJoin(employees, sales_emp_ids, {left: "id", right: "employee_id", how: "anti"})
 
   peek(non_sales, {title: "Employees with No Sales"})
 }
 ```
 
-We first extract the unique `employee_id` values from the sales table using `table_select()` and `table_drop_duplicates()`. The anti join then returns every employee whose `id` is absent from that set.
+We first extract the unique `employee_id` values from the sales table using `tableSelect()` and `tableDropDuplicates()`. The anti join then returns every employee whose `id` is absent from that set.
 
 Expected output:
 
@@ -223,11 +223,11 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   sales_emp_ids = sales
-    |> table_select("employee_id")
-    |> table_drop_duplicates()
+    |> tableSelect("employee_id")
+    |> tableDropDuplicates()
 
   // Semi join: employees who appear in sales
-  sales_people = table_join(employees, sales_emp_ids, {left: "id", right: "employee_id", how: "semi"})
+  sales_people = tableJoin(employees, sales_emp_ids, {left: "id", right: "employee_id", how: "semi"})
 
   peek(sales_people, {title: "Employees with Sales"})
 }
@@ -270,11 +270,11 @@ async fn main() {
 
   // Aggregate sales by region
   region_sales = sales
-    |> table_group_by("region")
-    |> table_agg({revenue: agg_sum("amount"), deals: agg_count()})
+    |> tableGroupBy("region")
+    |> tableAgg({revenue: aggSum("amount"), deals: aggCount()})
 
   // Right join: all regions, even those with no sales
-  full_region = table_join(region_sales, all_regions, {left: fn(r) r._group, right: "region", how: "right"})
+  full_region = tableJoin(region_sales, all_regions, {left: fn(r) r._group, right: "region", how: "right"})
 
   peek(full_region, {title: "Sales by Region (all regions)"})
 }
@@ -312,11 +312,11 @@ async fn main() {
   ])
 
   region_sales = sales
-    |> table_group_by("region")
-    |> table_agg({revenue: agg_sum("amount"), deals: agg_count()})
+    |> tableGroupBy("region")
+    |> tableAgg({revenue: aggSum("amount"), deals: aggCount()})
 
   // Outer join: all regions AND all sales regions
-  full_coverage = table_join(region_sales, all_regions, {left: fn(r) r._group, right: "region", how: "outer"})
+  full_coverage = tableJoin(region_sales, all_regions, {left: fn(r) r._group, right: "region", how: "outer"})
 
   peek(full_coverage, {title: "Full Region Coverage"})
 }
@@ -352,26 +352,26 @@ async fn main() {
 
   // Top 3 from Engineering by performance
   top_eng = employees
-    |> table_where(fn(r) r.department == "Engineering")
-    |> table_sort_by("performance_score", {desc: true})
-    |> table_limit(3)
-    |> table_select("name", "department", "performance_score", "salary")
+    |> tableWhere(fn(r) r.department == "Engineering")
+    |> tableSortBy("performance_score", {desc: true})
+    |> tableLimit(3)
+    |> tableSelect("name", "department", "performance_score", "salary")
 
   // Top 3 from Sales by performance
   top_sales = employees
-    |> table_where(fn(r) r.department == "Sales")
-    |> table_sort_by("performance_score", {desc: true})
-    |> table_limit(3)
-    |> table_select("name", "department", "performance_score", "salary")
+    |> tableWhere(fn(r) r.department == "Sales")
+    |> tableSortBy("performance_score", {desc: true})
+    |> tableLimit(3)
+    |> tableSelect("name", "department", "performance_score", "salary")
 
   // Stack them together
-  combined = table_union(top_eng, top_sales)
+  combined = tableUnion(top_eng, top_sales)
 
   peek(combined, {title: "Top Performers: Engineering + Sales"})
 }
 ```
 
-`table_union()` stacks two tables vertically. Both tables should have the same columns (or at least overlapping ones). Columns unique to one table will have `nil` values in rows from the other.
+`tableUnion()` stacks two tables vertically. Both tables should have the same columns (or at least overlapping ones). Columns unique to one table will have `nil` values in rows from the other.
 
 Expected output:
 
@@ -405,7 +405,7 @@ Expected output:
 
 **Pre-aggregate before joining.** If the right table has many rows per key, aggregate first to avoid row explosion. The left join example above aggregated sales per employee before joining.
 
-**Deduplicate before anti/semi.** Anti and semi joins check for existence, not quantity. Deduplicating the right table with `table_drop_duplicates()` keeps the join clean and fast.
+**Deduplicate before anti/semi.** Anti and semi joins check for existence, not quantity. Deduplicating the right table with `tableDropDuplicates()` keeps the join clean and fast.
 
 ## Try it yourself
 

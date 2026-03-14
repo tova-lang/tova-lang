@@ -9,21 +9,21 @@ All validators return `Bool` and work naturally in pipelines and guard clauses.
 ### is_email
 
 ```tova
-is_email(s) -> Bool
+isEmail(s) -> Bool
 ```
 
 Checks if a string looks like a valid email address (basic format check).
 
 ```tova
-is_email("user@example.com")          // true
-is_email("user@sub.example.com")      // true
-is_email("userexample.com")           // false
-is_email("user@")                      // false
+isEmail("user@example.com")          // true
+isEmail("user@sub.example.com")      // true
+isEmail("userexample.com")           // false
+isEmail("user@")                      // false
 ```
 
 ```tova
 // Guard clause
-guard is_email(email) else {
+guard isEmail(email) else {
   Err("Invalid email address")
 }
 ```
@@ -35,16 +35,16 @@ guard is_email(email) else {
 ### is_url
 
 ```tova
-is_url(s) -> Bool
+isUrl(s) -> Bool
 ```
 
 Checks if a string is a valid URL (must include protocol).
 
 ```tova
-is_url("https://example.com")             // true
-is_url("https://example.com/path?q=1")   // true
-is_url("example.com")                     // false (no protocol)
-is_url("not a url")                        // false
+isUrl("https://example.com")             // true
+isUrl("https://example.com/path?q=1")   // true
+isUrl("example.com")                     // false (no protocol)
+isUrl("not a url")                        // false
 ```
 
 ---
@@ -54,79 +54,79 @@ is_url("not a url")                        // false
 ### is_numeric
 
 ```tova
-is_numeric(s) -> Bool
+isNumeric(s) -> Bool
 ```
 
 Returns `true` if the string represents a valid number.
 
 ```tova
-is_numeric("42")       // true
-is_numeric("3.14")     // true
-is_numeric("-5")       // true
-is_numeric("abc")      // false
-is_numeric("")         // false
+isNumeric("42")       // true
+isNumeric("3.14")     // true
+isNumeric("-5")       // true
+isNumeric("abc")      // false
+isNumeric("")         // false
 ```
 
 ### is_alpha
 
 ```tova
-is_alpha(s) -> Bool
+isAlpha(s) -> Bool
 ```
 
 Returns `true` if the string contains only letters (a-z, A-Z).
 
 ```tova
-is_alpha("Hello")      // true
-is_alpha("Hello123")   // false
-is_alpha("Hello World")  // false (spaces)
-is_alpha("")           // false
+isAlpha("Hello")      // true
+isAlpha("Hello123")   // false
+isAlpha("Hello World")  // false (spaces)
+isAlpha("")           // false
 ```
 
 ### is_alphanumeric
 
 ```tova
-is_alphanumeric(s) -> Bool
+isAlphanumeric(s) -> Bool
 ```
 
 Returns `true` if the string contains only letters and digits.
 
 ```tova
-is_alphanumeric("Hello123")    // true
-is_alphanumeric("12345")       // true
-is_alphanumeric("Hello!")      // false
+isAlphanumeric("Hello123")    // true
+isAlphanumeric("12345")       // true
+isAlphanumeric("Hello!")      // false
 ```
 
 ### is_uuid
 
 ```tova
-is_uuid(s) -> Bool
+isUuid(s) -> Bool
 ```
 
 Checks if a string matches the UUID v4 format.
 
 ```tova
-is_uuid("550e8400-e29b-41d4-a716-446655440000")   // true
-is_uuid("not-a-uuid")                               // false
-is_uuid("550e8400e29b41d4a716446655440000")         // false (no hyphens)
+isUuid("550e8400-e29b-41d4-a716-446655440000")   // true
+isUuid("not-a-uuid")                               // false
+isUuid("550e8400e29b41d4a716446655440000")         // false (no hyphens)
 
 // Validate generated UUIDs
 id = uuid()
-is_uuid(id)    // true
+isUuid(id)    // true
 ```
 
 ### is_hex
 
 ```tova
-is_hex(s) -> Bool
+isHex(s) -> Bool
 ```
 
 Returns `true` if the string contains only hexadecimal characters (0-9, a-f, A-F).
 
 ```tova
-is_hex("1a2b3c")      // true
-is_hex("FF00AA")       // true
-is_hex("xyz")          // false
-is_hex("")             // false
+isHex("1a2b3c")      // true
+isHex("FF00AA")       // true
+isHex("xyz")          // false
+isHex("")             // false
 ```
 
 ---
@@ -136,8 +136,8 @@ is_hex("")             // false
 ```tova
 // Validate form fields
 fn validate_form(data) {
-  guard is_email(data.email) else { Err("Invalid email") }
-  guard is_alphanumeric(data.username) else { Err("Username must be alphanumeric") }
+  guard isEmail(data.email) else { Err("Invalid email") }
+  guard isAlphanumeric(data.username) else { Err("Username must be alphanumeric") }
   guard len(data.password) >= 8 else { Err("Password too short") }
   Ok(data)
 }
@@ -148,7 +148,7 @@ emails
 
 // Validate and parse numeric input
 fn parse_price(input) {
-  guard is_numeric(input) else { Err("Not a number") }
-  Ok(to_float(input))
+  guard isNumeric(input) else { Err("Not a number") }
+  Ok(toFloat(input))
 }
 ```

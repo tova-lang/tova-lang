@@ -450,7 +450,7 @@ import { Expr, Num, Add, Mul, Neg } from "./types"
 
 fn format_expr(expr) {
   match expr {
-    Num(v) => to_string(v)
+    Num(v) => toString(v)
     Add(l, r) => "({format_expr(l)} + {format_expr(r)})"
     Mul(l, r) => "({format_expr(l)} * {format_expr(r)})"
     Neg(e) => "-{format_expr(e)}"

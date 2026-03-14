@@ -94,9 +94,9 @@ Add three exports at end of file:
 
 1. `_xorshift128(seed)` — seeded PRNG, returns function producing 0-1 floats. Four state words initialized from seed with XOR constants.
 
-2. `table_sample(table, n, opts)` — If n < 1 treat as fraction. Fisher-Yates partial shuffle (only first k positions, O(k)). Seed option uses `_xorshift128`, otherwise `Math.random`. Returns new Table.
+2. `tableSample(table, n, opts)` — If n < 1 treat as fraction. Fisher-Yates partial shuffle (only first k positions, O(k)). Seed option uses `_xorshift128`, otherwise `Math.random`. Returns new Table.
 
-3. `table_stratified_sample(table, keyFn, n, opts)` — Group by key, apply `table_sample` per group with offset seed (seed + groupIdx * 7919), concatenate results.
+3. `tableStratifiedSample(table, keyFn, n, opts)` — Group by key, apply `table_sample` per group with offset seed (seed + groupIdx * 7919), concatenate results.
 
 ### Step 4: Run tests to verify they pass
 
@@ -237,15 +237,15 @@ Large file (~400-500 lines). Structure:
 
 **Chart-specific details:**
 
-`bar_chart(data, opts)` — `<rect>` per category, y-axis gridlines, category x-axis labels (rotated if > 6 items), optional value labels on bars, optional sort.
+`barChart(data, opts)` — `<rect>` per category, y-axis gridlines, category x-axis labels (rotated if > 6 items), optional value labels on bars, optional sort.
 
-`line_chart(data, opts)` — `<polyline>` per series, supports multi-series via array of y functions. Optional data point dots via `points: true`.
+`lineChart(data, opts)` — `<polyline>` per series, supports multi-series via array of y functions. Optional data point dots via `points: true`.
 
-`scatter_chart(data, opts)` — `<circle>` per point, numeric x and y axes.
+`scatterChart(data, opts)` — `<circle>` per point, numeric x and y axes.
 
 `histogram(data, opts)` — Compute bin edges (uniform bins), count per bin, render as bar chart. Default 20 bins.
 
-`pie_chart(data, opts)` — `<path>` arcs using SVG arc commands (`A rx ry ...`). Labels with percentages positioned at arc midpoints.
+`pieChart(data, opts)` — `<path>` arcs using SVG arc commands (`A rx ry ...`). Labels with percentages positioned at arc midpoints.
 
 `heatmap(data, opts)` — Grid of `<rect>` elements. Color interpolation from white to blue (or custom scale). Category axes on x and y.
 

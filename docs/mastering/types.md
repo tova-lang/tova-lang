@@ -416,7 +416,7 @@ type Color { Red, Green, Blue } derive [Eq, Show]
 
 print(Red == Red)       // true
 print(Red == Blue)      // false
-print(to_string(Red))   // "Red"
+print(toString(Red))   // "Red"
 ```
 
 ## Type Aliases
@@ -438,8 +438,8 @@ Sometimes a value can legitimately be one of several types. The `|` operator in 
 ```tova
 fn process(input: String | Int) -> String {
   match input {
-    s if type_of(s) == "String" => upper(s)
-    n => to_string(n)
+    s if typeOf(s) == "String" => upper(s)
+    n => toString(n)
   }
 }
 
@@ -452,7 +452,7 @@ Union types are especially useful for functions that accept flexible inputs:
 ```tova
 // Accept multiple types for display
 fn display(value: String | Int | Float) -> String {
-  to_string(value)
+  toString(value)
 }
 
 // A config value can be a string, number, or boolean
@@ -572,7 +572,7 @@ Array types in function signatures communicate what the function expects and ret
 
 ```tova
 fn average(values: [Float]) -> Float {
-  values |> sum() / to_float(len(values))
+  values |> sum() / toFloat(len(values))
 }
 
 fn names_of(users: [User]) -> [String] {
@@ -918,7 +918,7 @@ print("Total area: {total}")
 Build a **simple type checker**. Define:
 1. `Type` variants: `TInt`, `TFloat`, `TString`, `TBool`, `TArray(element_type)`, `TFunction(param_types, return_type)`
 2. `Expr` variants: `IntLit`, `FloatLit`, `StringLit`, `BoolLit`, `ArrayLit(items)`, `FuncCall(name, args)`
-3. A `type_of(expr)` function that infers the type of an expression
+3. A `typeOf(expr)` function that infers the type of an expression
 4. A `check(expr, expected_type)` function that returns `Ok(type)` or `Err(mismatch_message)`
 
 ---

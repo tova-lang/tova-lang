@@ -60,7 +60,7 @@ fn fahrenheit_to_celsius(f) {
 }
 
 fn format_temp(value, unit) {
-  rounded = to_int(value * 10) / 10
+  rounded = toInt(value * 10) / 10
   "{rounded} {unit}"
 }
 
@@ -79,9 +79,9 @@ fn describe_temp(celsius) {
 temps_c = [0, 15, 25, 37, 100]
 
 for temp in temps_c {
-  f = celsius_to_fahrenheit(to_float(temp))
+  f = celsius_to_fahrenheit(toFloat(temp))
   desc = describe_temp(temp)
-  c_label = format_temp(to_float(temp), "C")
+  c_label = format_temp(toFloat(temp), "C")
   f_label = format_temp(f, "F")
   print("{c_label} = {f_label} ({desc})")
 }`
@@ -131,7 +131,7 @@ fn max_of(a, b) {
 This means you can chain expressions naturally:
 
 ```tova
-message = "You have " ++ to_string(len(items)) ++ match len(items) {
+message = "You have " ++ toString(len(items)) ++ match len(items) {
   1 => " item"
   _ => " items"
 }
@@ -942,7 +942,7 @@ fn fahrenheit_to_celsius(f) {
 }
 
 fn format_temp(value, unit) {
-  rounded = to_int(value * 10) / 10
+  rounded = toInt(value * 10) / 10
   "{rounded} {unit}"
 }
 
@@ -959,9 +959,9 @@ fn describe_temp(celsius) {
 temps_c = [0, 15, 25, 37, 100]
 
 for temp in temps_c {
-  f = celsius_to_fahrenheit(to_float(temp))
+  f = celsius_to_fahrenheit(toFloat(temp))
   desc = describe_temp(temp)
-  c_label = format_temp(to_float(temp), "C")
+  c_label = format_temp(toFloat(temp), "C")
   f_label = format_temp(f, "F")
   print("{c_label} = {f_label} ({desc})")
 }

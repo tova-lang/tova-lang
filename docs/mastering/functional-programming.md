@@ -9,11 +9,11 @@ double_then_square = compose(square, double)
 print(double_then_square(3))   // square(double(3)) = square(6) = 36
 
 // pipe_fn runs left-to-right: add_one first, then double, then square
-pipeline = pipe_fn(add_one, double, square)
+pipeline = pipeFn(add_one, double, square)
 print(pipeline(3))   // square(double(add_one(3))) = square(double(4)) = square(8) = 64
 
 // Build data processing pipelines
-normalize = pipe_fn(
+normalize = pipeFn(
   fn(s) trim(s),
   fn(s) lower(s),
   fn(s) replace(s, " ", "_")
@@ -180,7 +180,7 @@ fn required(value) {
 
 fn min_length(n) {
   fn(value) {
-    if len(to_string(value)) < n {
+    if len(toString(value)) < n {
       Err("Must be at least {n} characters")
     } else {
       Ok(value)
@@ -190,7 +190,7 @@ fn min_length(n) {
 
 fn max_length(n) {
   fn(value) {
-    if len(to_string(value)) > n {
+    if len(toString(value)) > n {
       Err("Must be at most {n} characters")
     } else {
       Ok(value)
@@ -200,7 +200,7 @@ fn max_length(n) {
 
 fn matches_pattern(pattern, message) {
   fn(value) {
-    if regex_test(pattern, to_string(value)) {
+    if regexTest(pattern, toString(value)) {
       Ok(value)
     } else {
       Err(message)
@@ -252,7 +252,7 @@ for t in test_values {
     Ok(_) => green("PASS")
     Err(msg) => red("FAIL: {msg}")
   }
-  print("{pad_end(t.field, 10)} {pad_end(to_string(t.value), 20)} {status}")
+  print("{padEnd(t.field, 10)} {padEnd(toString(t.value), 20)} {status}")
 }`
 </script>
 
@@ -292,7 +292,7 @@ print(transform(3))   // negate(double(add_one(3))) = negate(8) = -8
 `pipe_fn` does the same thing but in the order you read:
 
 ```tova
-pipeline = pipe_fn(add_one, double, negate_num)
+pipeline = pipeFn(add_one, double, negate_num)
 print(pipeline(3))   // same result: -8
 ```
 
@@ -300,7 +300,7 @@ print(pipeline(3))   // same result: -8
 
 ```tova
 // Build a text normalizer by piping string operations
-normalize = pipe_fn(
+normalize = pipeFn(
   fn(s) trim(s),
   fn(s) lower(s),
   fn(s) replace(s, " ", "_")
@@ -534,7 +534,7 @@ print(flipped_divide(10, 2))
 `flip` is useful when you want to partially apply the *second* argument:
 
 ```tova
-fn starts_with_check(prefix, text) { starts_with(text, prefix) }
+fn starts_with_check(prefix, text) { startsWith(text, prefix) }
 
 // We want to fix the text, not the prefix
 check_greeting = partial(flip(starts_with_check), "Hello World")
@@ -578,7 +578,7 @@ print(process([1, 2, 3], fn(x) x * 2))  // [2, 4, 6]
 
 ```tova
 fn build_pipeline(options) {
-  pipe_fn(
+  pipeFn(
     fn(s) trim(s),
     if options.lowercase { fn(s) lower(s) } else { identity },
     if options.truncate { fn(s) substr(s, 0, 10) } else { identity }
@@ -671,19 +671,19 @@ api = make_api("https://api.example.com")
 
 ```tova
 // Build a data processing pipeline with reusable transforms
-parse_number = pipe_fn(
+parse_number = pipeFn(
   fn(s) trim(s),
   fn(s) replace(s, ",", ""),
-  fn(s) to_float(s)
+  fn(s) toFloat(s)
 )
 
-format_currency = pipe_fn(
+format_currency = pipeFn(
   fn(n) round(n * 100) / 100,
-  fn(n) to_string(n),
+  fn(n) toString(n),
   fn(s) "$" ++ s
 )
 
-process_price = pipe_fn(parse_number, format_currency)
+process_price = pipeFn(parse_number, format_currency)
 
 prices = ["  1,234.5 ", "99.999", " 42 "]
 print(prices |> map(process_price))
@@ -706,7 +706,7 @@ fn required(value) {
 
 fn min_length(n) {
   fn(value) {
-    if len(to_string(value)) < n {
+    if len(toString(value)) < n {
       Err("Must be at least {n} characters")
     } else {
       Ok(value)
@@ -716,7 +716,7 @@ fn min_length(n) {
 
 fn max_length(n) {
   fn(value) {
-    if len(to_string(value)) > n {
+    if len(toString(value)) > n {
       Err("Must be at most {n} characters")
     } else {
       Ok(value)
@@ -726,7 +726,7 @@ fn max_length(n) {
 
 fn matches_pattern(pattern, message) {
   fn(value) {
-    if regex_test(pattern, to_string(value)) {
+    if regexTest(pattern, toString(value)) {
       Ok(value)
     } else {
       Err(message)
@@ -770,7 +770,7 @@ for t in tests {
     Ok(_) => "PASS"
     Err(msg) => "FAIL: {msg}"
   }
-  print("{pad_end(t, 15)} {status}")
+  print("{padEnd(t, 15)} {status}")
 }
 ```
 

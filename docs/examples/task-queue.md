@@ -121,7 +121,7 @@ fn with_retry(operation: () -> Result<any, String>, config: RetryConfig) -> Resu
           true => {
             print("Attempt {attempt}/{config.max_attempts} failed: {err}. Retrying in {delay}ms...")
             await sleep(delay)
-            delay = (delay |> to_float() * config.backoff) |> to_int()
+            delay = (delay |> toFloat() * config.backoff) |> toInt()
             attempt = attempt + 1
           }
           false => {

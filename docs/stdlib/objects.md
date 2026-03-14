@@ -22,7 +22,7 @@ keys({})
 
 ```tova
 // Check if an object has a specific key (see also the built-in has_key function)
-has_key({ name: "Alice" }, "name")   // true
+hasKey({ name: "Alice" }, "name")   // true
 ```
 
 ### values
@@ -148,15 +148,15 @@ COLORS = freeze({
 ### has_key
 
 ```tova
-has_key(obj, key) -> Bool
+hasKey(obj, key) -> Bool
 ```
 
 Returns `true` if the object has the given key. Safely handles `nil`.
 
 ```tova
-has_key({ name: "Alice", age: 30 }, "name")   // true
-has_key({ name: "Alice" }, "email")             // false
-has_key(nil, "anything")                        // false
+hasKey({ name: "Alice", age: 30 }, "name")   // true
+hasKey({ name: "Alice" }, "email")             // false
+hasKey(nil, "anything")                        // false
 ```
 
 ### get
@@ -181,20 +181,20 @@ get(user, ["address", "zip"])       // "10001"
 ### from_entries
 
 ```tova
-from_entries(pairs) -> Object
+fromEntries(pairs) -> Object
 ```
 
 Creates an object from an array of `[key, value]` pairs. The inverse of `entries()`.
 
 ```tova
-from_entries([["name", "Alice"], ["age", 30]])
+fromEntries([["name", "Alice"], ["age", 30]])
 // { name: "Alice", age: 30 }
 
 // Round-trip: entries → transform → from_entries
 { a: 1, b: 2 }
   |> entries()
   |> map(fn(pair) [pair[0], pair[1] * 10])
-  |> from_entries()
+  |> fromEntries()
 // { a: 10, b: 20 }
 ```
 
@@ -237,16 +237,16 @@ omit(user, ["password", "ssn", "internal_id"])
 ### map_values
 
 ```tova
-map_values(obj, fn) -> Object
+mapValues(obj, fn) -> Object
 ```
 
 Transforms each value in the object using a function. The function receives `(value, key)`.
 
 ```tova
-map_values({ a: 1, b: 2, c: 3 }, fn(v) v * 10)
+mapValues({ a: 1, b: 2, c: 3 }, fn(v) v * 10)
 // { a: 10, b: 20, c: 30 }
 
-map_values({ math: 85, science: 92 }, fn(v, k) "{k}: {v}%")
+mapValues({ math: 85, science: 92 }, fn(v, k) "{k}: {v}%")
 // { math: "math: 85%", science: "science: 92%" }
 ```
 
@@ -260,7 +260,7 @@ map_values({ math: 85, science: 92 }, fn(v, k) "{k}: {v}%")
 // Clean and reshape config
 config
   |> omit(["internal", "debug"])
-  |> map_values(fn(v) to_string(v))
+  |> mapValues(fn(v) toString(v))
 
 // Combine two sources, keeping only needed fields
 merge(defaults, user_prefs)

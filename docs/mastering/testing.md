@@ -1,19 +1,19 @@
 <script setup>
 const basicTestCode = `// Test blocks: structured testing in Tova
 test "addition works" {
-  assert_eq(2 + 2, 4)
+  assertEq(2 + 2, 4)
 }
 
 test "string concatenation" {
   greeting = "Hello" ++ " " ++ "World"
-  assert_eq(greeting, "Hello World")
+  assertEq(greeting, "Hello World")
 }
 
 test "arrays maintain order" {
   items = [3, 1, 4, 1, 5]
-  assert_eq(len(items), 5)
-  assert_eq(items[0], 3)
-  assert_eq(items[4], 5)
+  assertEq(len(items), 5)
+  assertEq(items[0], 3)
+  assertEq(items[4], 5)
 }
 
 // Run with: tova test
@@ -27,19 +27,19 @@ test "assert — truthy check" {
 }
 
 test "assert_eq — equality check" {
-  assert_eq(2 + 3, 5)
-  assert_eq("hello" |> upper(), "HELLO")
-  assert_eq([1, 2, 3] |> len(), 3)
+  assertEq(2 + 3, 5)
+  assertEq("hello" |> upper(), "HELLO")
+  assertEq([1, 2, 3] |> len(), 3)
 }
 
 test "assert_ne — inequality check" {
-  assert_ne("hello", "world")
-  assert_ne(10, 20)
-  assert_ne([], [1])
+  assertNe("hello", "world")
+  assertNe(10, 20)
+  assertNe([], [1])
 }
 
 test "assert_throws — expect an error" {
-  assert_throws(fn() {
+  assertThrows(fn() {
     // Code that should throw
     JSON.parse("not valid json")
   })
@@ -63,7 +63,7 @@ fn find_user(users, name_query) {
 test "divide returns Ok for valid input" {
   result = divide(10, 2)
   assert(result.isOk())
-  assert_eq(result.unwrap(), 5)
+  assertEq(result.unwrap(), 5)
 }
 
 test "divide returns Err for zero divisor" {
@@ -74,7 +74,7 @@ test "divide returns Err for zero divisor" {
 test "divide error has descriptive message" {
   result = divide(10, 0)
   match result {
-    Err(msg) => assert_eq(msg, "Division by zero")
+    Err(msg) => assertEq(msg, "Division by zero")
     Ok(_) => assert(false)
   }
 }
@@ -83,14 +83,14 @@ test "find_user returns Some when found" {
   users = [{ name: "Alice" }, { name: "Bob" }]
   result = find_user(users, "Alice")
   assert(result.isSome())
-  assert_eq(result.unwrap().name, "Alice")
+  assertEq(result.unwrap().name, "Alice")
 }
 
 test "find_user returns None when missing" {
   users = [{ name: "Alice" }]
   result = find_user(users, "Charlie")
   assert(result.isNone())
-  assert_eq(result.unwrapOr({ name: "Guest" }).name, "Guest")
+  assertEq(result.unwrapOr({ name: "Guest" }).name, "Guest")
 }
 
 print("Result/Option testing demonstrated")`
@@ -123,9 +123,9 @@ fn parse_expression(expression) {
   if len(parts) != 3 {
     return Err("Invalid expression: expected 'a op b'")
   }
-  a = to_float(parts[0])
+  a = toFloat(parts[0])
   op = parts[1]
-  b = to_float(parts[2])
+  b = toFloat(parts[2])
   match op {
     "+" => calc_add(a, b)
     "-" => calc_subtract(a, b)
@@ -137,21 +137,21 @@ fn parse_expression(expression) {
 
 // ===== Basic Arithmetic Tests =====
 test "add returns correct sum" {
-  assert_eq(calc_add(2, 3).unwrap(), 5)
-  assert_eq(calc_add(-1, 1).unwrap(), 0)
-  assert_eq(calc_add(0, 0).unwrap(), 0)
+  assertEq(calc_add(2, 3).unwrap(), 5)
+  assertEq(calc_add(-1, 1).unwrap(), 0)
+  assertEq(calc_add(0, 0).unwrap(), 0)
 }
 
 test "subtract returns correct difference" {
-  assert_eq(calc_subtract(10, 3).unwrap(), 7)
-  assert_eq(calc_subtract(5, 5).unwrap(), 0)
-  assert_eq(calc_subtract(3, 10).unwrap(), -7)
+  assertEq(calc_subtract(10, 3).unwrap(), 7)
+  assertEq(calc_subtract(5, 5).unwrap(), 0)
+  assertEq(calc_subtract(3, 10).unwrap(), -7)
 }
 
 test "multiply returns correct product" {
-  assert_eq(calc_multiply(4, 5).unwrap(), 20)
-  assert_eq(calc_multiply(-2, 3).unwrap(), -6)
-  assert_eq(calc_multiply(0, 100).unwrap(), 0)
+  assertEq(calc_multiply(4, 5).unwrap(), 20)
+  assertEq(calc_multiply(-2, 3).unwrap(), -6)
+  assertEq(calc_multiply(0, 100).unwrap(), 0)
 }
 
 // ===== Error Handling Tests =====
@@ -165,8 +165,8 @@ test "divide by zero returns Err" {
 }
 
 test "divide valid inputs returns Ok" {
-  assert_eq(calc_divide(10, 2).unwrap(), 5)
-  assert_eq(calc_divide(7, 2).unwrap(), 3.5)
+  assertEq(calc_divide(10, 2).unwrap(), 5)
+  assertEq(calc_divide(7, 2).unwrap(), 3.5)
 }
 
 test "negative exponent returns Err" {
@@ -182,16 +182,16 @@ test "square root of negative returns Err" {
 test "square root of positive returns Ok" {
   result = calc_sqrt_safe(16)
   assert(result.isOk())
-  assert_eq(result.unwrap(), 4)
+  assertEq(result.unwrap(), 4)
 }
 
 // ===== Expression Parser Tests =====
 test "parse simple addition" {
-  assert_eq(parse_expression("3 + 4").unwrap(), 7)
+  assertEq(parse_expression("3 + 4").unwrap(), 7)
 }
 
 test "parse division" {
-  assert_eq(parse_expression("10 / 2").unwrap(), 5)
+  assertEq(parse_expression("10 / 2").unwrap(), 5)
 }
 
 test "parse division by zero" {
@@ -256,8 +256,8 @@ test "fetch_user_data returns user for valid id" {
   result = await fetch_user_data(1)
   assert(result.isOk())
   user = result.unwrap()
-  assert_eq(user.id, 1)
-  assert_eq(user.name, "User 1")
+  assertEq(user.id, 1)
+  assertEq(user.name, "User 1")
 }
 
 test "fetch_user_data returns Err for invalid id" {
@@ -269,8 +269,8 @@ test "fetch_user_posts returns posts" {
   result = await fetch_user_posts(1)
   assert(result.isOk())
   posts = result.unwrap()
-  assert_eq(len(posts), 2)
-  assert_eq(posts[0].author_id, 1)
+  assertEq(len(posts), 2)
+  assertEq(posts[0].author_id, 1)
 }
 
 test "parallel fetches both succeed" {
@@ -308,7 +308,7 @@ fn run_benchmark(label, iterations, f) {
     f()
   }
   elapsed = Date.now() - start_time
-  per_op = elapsed / to_float(iterations)
+  per_op = elapsed / toFloat(iterations)
   print("{label}: {elapsed}ms total ({per_op}ms/op)")
 }
 
@@ -344,16 +344,16 @@ In Tova, tests are declared with the `test` keyword followed by a descriptive na
 
 ```tova
 test "addition works correctly" {
-  assert_eq(2 + 2, 4)
+  assertEq(2 + 2, 4)
 }
 
 test "strings can be joined" {
   result = "Hello" ++ " " ++ "World"
-  assert_eq(result, "Hello World")
+  assertEq(result, "Hello World")
 }
 
 test "empty arrays have zero length" {
-  assert_eq(len([]), 0)
+  assertEq(len([]), 0)
 }
 ```
 
@@ -405,37 +405,37 @@ test "basic assertions" {
 }
 ```
 
-### `assert_eq(actual, expected)` -- Equality
+### `assertEq(actual, expected)` -- Equality
 
 Checks that two values are equal. On failure, it shows both the actual and expected values:
 
 ```tova
 test "equality assertions" {
-  assert_eq(2 + 3, 5)
-  assert_eq("hello" |> upper(), "HELLO")
-  assert_eq([1, 2] |> len(), 2)
+  assertEq(2 + 3, 5)
+  assertEq("hello" |> upper(), "HELLO")
+  assertEq([1, 2] |> len(), 2)
 }
 ```
 
-### `assert_ne(actual, expected)` -- Inequality
+### `assertNe(actual, expected)` -- Inequality
 
 Checks that two values are **not** equal:
 
 ```tova
 test "inequality assertions" {
-  assert_ne("hello", "world")
-  assert_ne([], [1, 2, 3])
-  assert_ne(Ok(1), Err("fail"))
+  assertNe("hello", "world")
+  assertNe([], [1, 2, 3])
+  assertNe(Ok(1), Err("fail"))
 }
 ```
 
-### `assert_throws(fn)` -- Expects an Error
+### `assertThrows(fn)` -- Expects an Error
 
 Passes if the function throws an exception. Useful for testing JavaScript interop or boundary validation:
 
 ```tova
 test "invalid JSON throws" {
-  assert_throws(fn() {
+  assertThrows(fn() {
     JSON.parse("{broken")
   })
 }
@@ -450,7 +450,7 @@ For complex output that is tedious to assert field-by-field, Tova supports snaps
 ```tova
 test "formatted report matches snapshot" {
   report = generate_report(sample_data)
-  assert_snapshot(report)
+  assertSnapshot(report)
 }
 ```
 
@@ -543,20 +543,20 @@ Within a test file, group related tests by placing them close together with cons
 
 // --- Addition ---
 test "add positive numbers" {
-  assert_eq(calc_add(2, 3).unwrap(), 5)
+  assertEq(calc_add(2, 3).unwrap(), 5)
 }
 
 test "add negative numbers" {
-  assert_eq(calc_add(-2, -3).unwrap(), -5)
+  assertEq(calc_add(-2, -3).unwrap(), -5)
 }
 
 test "add zero" {
-  assert_eq(calc_add(5, 0).unwrap(), 5)
+  assertEq(calc_add(5, 0).unwrap(), 5)
 }
 
 // --- Division ---
 test "divide valid inputs" {
-  assert_eq(calc_divide(10, 2).unwrap(), 5)
+  assertEq(calc_divide(10, 2).unwrap(), 5)
 }
 
 test "divide by zero returns Err" {
@@ -585,14 +585,14 @@ fn make_test_config() {
 test "find active users" {
   users = make_test_users()
   active = users |> filter(fn(u) u.active)
-  assert_eq(len(active), 2)
+  assertEq(len(active), 2)
 }
 
 test "find admin users" {
   users = make_test_users()
   admins = users |> filter(fn(u) u.role == "admin")
-  assert_eq(len(admins), 1)
-  assert_eq(admins[0].name, "Alice")
+  assertEq(len(admins), 1)
+  assertEq(admins[0].name, "Alice")
 }
 ```
 
@@ -604,7 +604,7 @@ Functions that return `Result` or `Option` need specific testing patterns. You w
 
 ```tova
 fn parse_port(text) {
-  n = to_int(text)
+  n = toInt(text)
   if n == null { return Err("Not a number: {text}") }
   if n < 1 || n > 65535 { return Err("Port out of range: {n}") }
   Ok(n)
@@ -614,7 +614,7 @@ fn parse_port(text) {
 test "parse_port accepts valid port" {
   result = parse_port("8080")
   assert(result.isOk())
-  assert_eq(result.unwrap(), 8080)
+  assertEq(result.unwrap(), 8080)
 }
 
 // Test each error case
@@ -652,7 +652,7 @@ test "find_by_name returns Some when found" {
   items = [{ name: "Alice", id: 1 }, { name: "Bob", id: 2 }]
   result = find_by_name(items, "Bob")
   assert(result.isSome())
-  assert_eq(result.unwrap().id, 2)
+  assertEq(result.unwrap().id, 2)
 }
 
 test "find_by_name returns None when not found" {
@@ -665,7 +665,7 @@ test "find_by_name with unwrapOr provides default" {
   items = []
   result = find_by_name(items, "Anyone")
   user = result.unwrapOr({ name: "Guest", id: 0 })
-  assert_eq(user.name, "Guest")
+  assertEq(user.name, "Guest")
 }
 ```
 
@@ -694,8 +694,8 @@ test "parse step rejects garbage" {
 test "parse_and_validate full success" {
   result = parse_and_validate("8080")
   assert(result.isOk())
-  assert_eq(result.unwrap().port, 8080)
-  assert_eq(result.unwrap().secure, false)
+  assertEq(result.unwrap().port, 8080)
+  assertEq(result.unwrap().secure, false)
 }
 
 test "parse_and_validate rejects privileged port" {
@@ -718,7 +718,7 @@ async fn fetch_user(id) {
 test "fetch_user returns user for valid id" {
   result = await fetch_user(1)
   assert(result.isOk())
-  assert_eq(result.unwrap().name, "User 1")
+  assertEq(result.unwrap().name, "User 1")
 }
 
 test "fetch_user returns Err for invalid id" {
@@ -736,7 +736,7 @@ test "parallel fetches all succeed" {
     fetch_user(2),
     fetch_user(3)
   ])
-  assert_eq(len(results), 3)
+  assertEq(len(results), 3)
   for result in results {
     assert(result.isOk())
   }
@@ -943,23 +943,23 @@ When a test fails in a chain of operations, write a test for each step:
 // Original failing test
 test "full pipeline produces correct output" {
   result = raw_data |> parse_input() |> validate_data() |> transform_data()
-  assert_eq(result, expected)
+  assertEq(result, expected)
 }
 
 // Break into smaller tests to find the bug
 test "parse step works" {
   parsed = raw_data |> parse_input()
-  assert_eq(parsed, expected_parsed)
+  assertEq(parsed, expected_parsed)
 }
 
 test "validate step works" {
   validated = known_good_parsed |> validate_data()
-  assert_eq(validated, expected_validated)
+  assertEq(validated, expected_validated)
 }
 
 test "transform step works" {
   transformed = known_good_validated |> transform_data()
-  assert_eq(transformed, expected)
+  assertEq(transformed, expected)
 }
 ```
 
@@ -970,23 +970,23 @@ The bugs are always in the edges. Test these systematically:
 ```tova
 // Empty input
 test "handles empty array" {
-  assert_eq(process([]), [])
+  assertEq(process([]), [])
 }
 
 // Single element
 test "handles single element" {
-  assert_eq(process([42]), [42])
+  assertEq(process([42]), [42])
 }
 
 // Negative numbers
 test "handles negative values" {
   result = calc_add(-5, -3)
-  assert_eq(result.unwrap(), -8)
+  assertEq(result.unwrap(), -8)
 }
 
 // Zero
 test "handles zero" {
-  assert_eq(calc_multiply(0, 1000000).unwrap(), 0)
+  assertEq(calc_multiply(0, 1000000).unwrap(), 0)
 }
 
 // Large values
@@ -1041,7 +1041,7 @@ fn run_benchmark(label, iterations, f) {
     f()
   }
   elapsed = Date.now() - start_time
-  per_op = elapsed / to_float(iterations)
+  per_op = elapsed / toFloat(iterations)
   print("{label}: {elapsed}ms total ({per_op}ms/op)")
 }
 
@@ -1115,9 +1115,9 @@ fn parse_expression(expression) {
   if len(parts) != 3 {
     return Err("Invalid expression: expected 'a op b'")
   }
-  a = to_float(parts[0])
+  a = toFloat(parts[0])
   op = parts[1]
-  b = to_float(parts[2])
+  b = toFloat(parts[2])
   match op {
     "+" => calc_add(a, b)
     "-" => calc_subtract(a, b)
@@ -1133,20 +1133,20 @@ Now the tests, organized by feature:
 ```tova
 // --- Basic Arithmetic ---
 test "add returns correct sum" {
-  assert_eq(calc_add(2, 3).unwrap(), 5)
-  assert_eq(calc_add(-1, 1).unwrap(), 0)
-  assert_eq(calc_add(0, 0).unwrap(), 0)
+  assertEq(calc_add(2, 3).unwrap(), 5)
+  assertEq(calc_add(-1, 1).unwrap(), 0)
+  assertEq(calc_add(0, 0).unwrap(), 0)
 }
 
 test "subtract returns correct difference" {
-  assert_eq(calc_subtract(10, 3).unwrap(), 7)
-  assert_eq(calc_subtract(3, 10).unwrap(), -7)
+  assertEq(calc_subtract(10, 3).unwrap(), 7)
+  assertEq(calc_subtract(3, 10).unwrap(), -7)
 }
 
 test "multiply returns correct product" {
-  assert_eq(calc_multiply(4, 5).unwrap(), 20)
-  assert_eq(calc_multiply(-2, 3).unwrap(), -6)
-  assert_eq(calc_multiply(0, 100).unwrap(), 0)
+  assertEq(calc_multiply(4, 5).unwrap(), 20)
+  assertEq(calc_multiply(-2, 3).unwrap(), -6)
+  assertEq(calc_multiply(0, 100).unwrap(), 0)
 }
 
 // --- Error Handling ---
@@ -1169,9 +1169,9 @@ test "square root of negative returns Err" {
 
 // --- Expression Parser ---
 test "parse simple expressions" {
-  assert_eq(parse_expression("3 + 4").unwrap(), 7)
-  assert_eq(parse_expression("10 / 2").unwrap(), 5)
-  assert_eq(parse_expression("6 * 7").unwrap(), 42)
+  assertEq(parse_expression("3 + 4").unwrap(), 7)
+  assertEq(parse_expression("10 / 2").unwrap(), 5)
+  assertEq(parse_expression("6 * 7").unwrap(), 42)
 }
 
 test "parse unknown operator returns Err" {
@@ -1202,7 +1202,7 @@ This test suite demonstrates every technique from the chapter: descriptive names
 
 ## Exercises
 
-**Exercise 17.1:** Write a test suite for a `stack` module that implements `push(stack, value)`, `pop(stack)` (returns `Option`), `peek(stack)` (returns `Option`), and `is_empty(stack)`. Test the empty stack case, push-then-pop ordering, and peek not removing elements.
+**Exercise 17.1:** Write a test suite for a `stack` module that implements `push(stack, value)`, `pop(stack)` (returns `Option`), `peek(stack)` (returns `Option`), and `isEmpty(stack)`. Test the empty stack case, push-then-pop ordering, and peek not removing elements.
 
 **Exercise 17.2:** Write a function `validate_email(text)` that returns `Result`. It should check: non-empty, contains exactly one `@`, has text before and after `@`, and the domain contains a dot. Write at least 8 tests covering valid emails, missing `@`, multiple `@`, empty local part, and empty domain.
 

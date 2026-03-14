@@ -261,9 +261,9 @@ In `visitAssignment()` (line 1860), in the `typeof target !== 'string'` branch, 
 ```javascript
 if (target.type === 'MemberExpression' && !target.computed && target.property === 'innerHTML') {
   this.warn(
-    'Direct innerHTML assignment is an XSS risk — use textContent or escape_html()',
+    'Direct innerHTML assignment is an XSS risk — use textContent or escapeHtml()',
     node.loc || target.loc,
-    'Use el.textContent for plain text, or escape_html(value) for safe HTML rendering',
+    'Use el.textContent for plain text, or escapeHtml(value) for safe HTML rendering',
     { code: 'W_DANGEROUS_API', category: 'security' }
   );
 }

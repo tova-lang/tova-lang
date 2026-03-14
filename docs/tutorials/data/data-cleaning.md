@@ -5,11 +5,11 @@ Handle real-world dirty data by deduplicating, filling gaps, casting types, and 
 ## What you'll learn
 
 - Creating in-memory tables with `Table()` for testing
-- Removing duplicate rows with `table_drop_duplicates()`
-- Dropping rows with nil values using `drop_nil()`
-- Filling missing values with `fill_nil()`
+- Removing duplicate rows with `tableDropDuplicates()`
+- Dropping rows with nil values using `dropNil()`
+- Filling missing values with `fillNil()`
 - Casting string columns to typed columns with `cast()`
-- Adding validation flags with `table_derive()`
+- Adding validation flags with `tableDerive()`
 - Processing records with `Ok`/`Err` and filtering results
 
 ## Setup
@@ -43,7 +43,7 @@ This dataset has every problem you will encounter in production: duplicate rows 
 
 ## 2. Deduplication
 
-`table_drop_duplicates()` compares every column in each row and removes exact copies.
+`tableDropDuplicates()` compares every column in each row and removes exact copies.
 
 ```tova
 async fn main() {
@@ -60,7 +60,7 @@ async fn main() {
     {name: nil, age: nil, revenue: nil, active: nil, email: nil}
   ])
 
-  deduped = table_drop_duplicates(dirty_data)
+  deduped = tableDropDuplicates(dirty_data)
 
   peek(deduped, {title: "After Deduplication"})
 }
@@ -70,7 +70,7 @@ Alice and Carol each had an exact duplicate. Removing them brings the count from
 
 ## 3. Dropping nil rows
 
-Some rows are too incomplete to salvage. `drop_nil()` removes every row where a given column is `nil`.
+Some rows are too incomplete to salvage. `dropNil()` removes every row where a given column is `nil`.
 
 ```tova
 async fn main() {
@@ -87,8 +87,8 @@ async fn main() {
     {name: nil, age: nil, revenue: nil, active: nil, email: nil}
   ])
 
-  deduped = table_drop_duplicates(dirty_data)
-  named = drop_nil(deduped, "name")
+  deduped = tableDropDuplicates(dirty_data)
+  named = dropNil(deduped, "name")
 
   peek(named, {title: "After Dropping Nil Names"})
 }
@@ -98,7 +98,7 @@ The all-nil row had no name, so it is removed. That brings us from **8 rows down
 
 ## 4. Filling nil values
 
-Rather than dropping rows with partial data, fill in sensible defaults with `fill_nil()`. The pipe operator makes it easy to chain multiple fills.
+Rather than dropping rows with partial data, fill in sensible defaults with `fillNil()`. The pipe operator makes it easy to chain multiple fills.
 
 ```tova
 async fn main() {
@@ -115,14 +115,14 @@ async fn main() {
     {name: nil, age: nil, revenue: nil, active: nil, email: nil}
   ])
 
-  deduped = table_drop_duplicates(dirty_data)
-  named = drop_nil(deduped, "name")
+  deduped = tableDropDuplicates(dirty_data)
+  named = dropNil(deduped, "name")
 
   filled = named
-    |> fill_nil("age", "0")
-    |> fill_nil("revenue", "0")
-    |> fill_nil("active", "false")
-    |> fill_nil("email", "unknown@placeholder.com")
+    |> fillNil("age", "0")
+    |> fillNil("revenue", "0")
+    |> fillNil("active", "false")
+    |> fillNil("email", "unknown@placeholder.com")
 
   peek(filled, {title: "After Filling Nils"})
 }
@@ -149,14 +149,14 @@ async fn main() {
     {name: nil, age: nil, revenue: nil, active: nil, email: nil}
   ])
 
-  deduped = table_drop_duplicates(dirty_data)
-  named = drop_nil(deduped, "name")
+  deduped = tableDropDuplicates(dirty_data)
+  named = dropNil(deduped, "name")
 
   filled = named
-    |> fill_nil("age", "0")
-    |> fill_nil("revenue", "0")
-    |> fill_nil("active", "false")
-    |> fill_nil("email", "unknown@placeholder.com")
+    |> fillNil("age", "0")
+    |> fillNil("revenue", "0")
+    |> fillNil("active", "false")
+    |> fillNil("email", "unknown@placeholder.com")
 
   typed = filled
     |> cast("age", "Int")
@@ -171,7 +171,7 @@ Still **7 rows**. The difference is in the values: `age` is now a number you can
 
 ## 6. Validation with derive
 
-Once the data is clean and typed, use `table_derive()` to add boolean flags that mark each row's quality. This keeps the original data intact while making it easy to filter on validity later.
+Once the data is clean and typed, use `tableDerive()` to add boolean flags that mark each row's quality. This keeps the original data intact while making it easy to filter on validity later.
 
 ```tova
 async fn main() {
@@ -188,14 +188,14 @@ async fn main() {
     {name: nil, age: nil, revenue: nil, active: nil, email: nil}
   ])
 
-  deduped = table_drop_duplicates(dirty_data)
-  named = drop_nil(deduped, "name")
+  deduped = tableDropDuplicates(dirty_data)
+  named = dropNil(deduped, "name")
 
   filled = named
-    |> fill_nil("age", "0")
-    |> fill_nil("revenue", "0")
-    |> fill_nil("active", "false")
-    |> fill_nil("email", "unknown@placeholder.com")
+    |> fillNil("age", "0")
+    |> fillNil("revenue", "0")
+    |> fillNil("active", "false")
+    |> fillNil("email", "unknown@placeholder.com")
 
   typed = filled
     |> cast("age", "Int")
@@ -203,7 +203,7 @@ async fn main() {
     |> cast("active", "Bool")
 
   validated = typed
-    |> table_derive({
+    |> tableDerive({
       has_email: fn(r) r.email != "unknown@placeholder.com",
       is_high_value: fn(r) r.revenue > 20000,
       age_valid: fn(r) r.age > 0 && r.age < 100,
@@ -223,13 +223,13 @@ Each lambda receives a row and returns a boolean. The four new columns tell you 
 | `age_valid` | Age is between 1 and 99 |
 | `all_valid` | All checks pass simultaneously |
 
-Carol will have `has_email: false` and `age_valid: false` because her email was filled with the placeholder and her age was filled with 0. You can later filter to only fully valid rows with `table_where(fn(r) r.all_valid)`.
+Carol will have `has_email: false` and `age_valid: false` because her email was filled with the placeholder and her age was filled with 0. You can later filter to only fully valid rows with `tableWhere(fn(r) r.all_valid)`.
 
 ## 7. Result-based processing
 
 Not all cleaning fits into a table pipeline. When you need to classify each record as a success or failure with a reason, use Tova's `Ok` and `Err` types.
 
-`Ok(value)` wraps a successfully parsed record. `Err(message)` wraps a failure with a human-readable reason. After processing, `filter_ok()` extracts the successes and `filter_err()` extracts the failures.
+`Ok(value)` wraps a successfully parsed record. `Err(message)` wraps a failure with a human-readable reason. After processing, `filterOk()` extracts the successes and `filterErr()` extracts the failures.
 
 ```tova
 async fn main() {
@@ -257,8 +257,8 @@ async fn main() {
   }
 
   results = [parse_record(row) for row in dirty_data.toArray()]
-  successes = filter_ok(results)
-  failures = filter_err(results)
+  successes = filterOk(results)
+  failures = filterErr(results)
 
   print("Successes: {len(successes)}")
   print("Failures: {len(failures)}")
@@ -287,7 +287,7 @@ async fn main() {
   clean_employees = employees
     |> cast("salary", "Int")
     |> cast("performance_score", "Float")
-    |> table_derive({
+    |> tableDerive({
       salary_band: fn(r) {
         match true {
           _ if r.salary >= 180000 => "L6+"
@@ -326,23 +326,23 @@ Here is how the row count changes through the full inline pipeline:
 | Step | Function | Rows |
 |------|----------|------|
 | Start | `Table(...)` | 10 |
-| Dedup | `table_drop_duplicates()` | 8 |
-| Drop nil names | `drop_nil(_, "name")` | 7 |
-| Fill nils | `fill_nil(...)` | 7 |
+| Dedup | `tableDropDuplicates()` | 8 |
+| Drop nil names | `dropNil(_, "name")` | 7 |
+| Fill nils | `fillNil(...)` | 7 |
 | Cast types | `cast(...)` | 7 |
-| Validate | `table_derive(...)` | 7 |
+| Validate | `tableDerive(...)` | 7 |
 
 The row count only drops during dedup and drop_nil. Every other step transforms values in place.
 
 ## Try it yourself
 
-1. **Strict validation**: After the full cleaning pipeline, use `table_where()` to keep only rows where `all_valid` is `true`. How many rows survive?
+1. **Strict validation**: After the full cleaning pipeline, use `tableWhere()` to keep only rows where `all_valid` is `true`. How many rows survive?
 
 2. **Custom fill strategy**: Instead of filling missing revenue with `"0"`, try filling it with the string `"8500.75"` (the median of known revenues). Does David's `is_high_value` flag change?
 
 3. **Result report**: Modify `parse_record` to also reject rows where `active` is `nil`. How many failures do you get now? Print each failure message.
 
-4. **Band distribution**: After deriving `salary_band` on the employees CSV, use `table_group_by()` and `table_count()` to count how many employees fall into each band.
+4. **Band distribution**: After deriving `salary_band` on the employees CSV, use `tableGroupBy()` and `table_count()` to count how many employees fall into each band.
 
 ## Next steps
 

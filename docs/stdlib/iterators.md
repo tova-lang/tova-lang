@@ -87,14 +87,14 @@ pairs = iter([1, 2, 3]).zip(iter(["a", "b", "c"]))
 ### flat_map
 
 ```tova
-seq.flat_map(fn) -> Seq
+seq.flatMap(fn) -> Seq
 ```
 
 Maps each element to a sequence and flattens the results.
 
 ```tova
 iter(["hello world", "foo bar"])
-  .flat_map(fn(s) iter(split(s, " ")))
+  .flatMap(fn(s) iter(split(s, " ")))
 // "hello", "world", "foo", "bar"
 ```
 

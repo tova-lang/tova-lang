@@ -119,7 +119,7 @@ cli {
 
   async fn download(url: String, --output: String = "out.txt") {
     data = await fetch(url)
-    fs.write_text(output, data)
+    fs.writeText(output, data)
     print(green("Saved to {output}"))
   }
 }
@@ -427,7 +427,7 @@ cli {
 | `ask(prompt, default?)` | Text input with optional default |
 | `confirm(prompt, default?)` | Yes/no with `[Y/n]` or `[y/N]` hint |
 | `choose(prompt, options)` | Numbered list, returns selected value |
-| `choose_many(prompt, options)` | Comma-separated multi-select |
+| `chooseMany(prompt, options)` | Comma-separated multi-select |
 | `secret(prompt)` | Hidden input with `*` masking |
 
 See [Scripting I/O](/stdlib/io) for the full reference.

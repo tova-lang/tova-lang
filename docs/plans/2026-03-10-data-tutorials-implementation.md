@@ -132,13 +132,13 @@ Run: `ls docs/tutorials/index.md docs/tutorials/data/index.md`
 Write the tutorial based on `test-projects/data-analytics/01_csv_basics.tova`. Cover:
 
 1. Loading a CSV file with `read()`
-2. Inspecting data: `peek()`, `schema_of()`, `describe()`
-3. Filtering with `table_where(fn(r) ...)`
-4. Selecting columns with `table_select()`
-5. Adding computed columns with `table_derive()`
-6. Sorting with `table_sort_by()` and limiting with `table_limit()`
-7. Renaming columns with `table_rename()`
-8. Excluding columns with `table_select({__exclude: [...]})`
+2. Inspecting data: `peek()`, `schemaOf()`, `describe()`
+3. Filtering with `tableWhere(fn(r) ...)`
+4. Selecting columns with `tableSelect()`
+5. Adding computed columns with `tableDerive()`
+6. Sorting with `tableSortBy()` and limiting with `tableLimit()`
+7. Renaming columns with `tableRename()`
+8. Excluding columns with `tableSelect({__exclude: [...]})`
 9. Writing results with `write()`
 
 Use the `employees.csv` sample data. Show both `fn(r) r.field` and mention `.field` column expression syntax. All code wrapped in `async fn main() { }`.
@@ -156,11 +156,11 @@ End with: "Next: [Grouping & Aggregation](./grouping)"
 
 Based on `test-projects/data-analytics/02_grouping_aggregation.tova`. Cover:
 
-1. Basic `table_group_by()` + `table_agg()` with all 6 aggregation functions
+1. Basic `tableGroupBy()` + `tableAgg()` with all 6 aggregation functions
 2. Group by different columns (department, city, product)
 3. Derived columns before grouping (e.g., extract month from date)
 4. Cross-tabulation pattern (dept_city composite key)
-5. Pivot tables with `table_pivot()`
+5. Pivot tables with `tablePivot()`
 6. Writing aggregated results
 
 Use both `employees.csv` and `sales.csv`.
@@ -176,14 +176,14 @@ End with: "Next: [Joins & Combining Data](./joins)"
 
 Based on `test-projects/data-analytics/03_joins_merges.tova`. Cover:
 
-1. Inner join with `table_join()`
+1. Inner join with `tableJoin()`
 2. Left join — all employees with their sales (if any)
 3. Anti join — employees with NO sales
 4. Semi join — employees who ARE in sales
 5. Right join — ensuring all reference records appear
 6. Outer join — full picture
 7. Multi-step joins — enriching sales with employee + project data
-8. Union — combining tables with `table_union()`
+8. Union — combining tables with `tableUnion()`
 
 Include a clear table explaining all 7 join types with diagrams (text-based).
 
@@ -199,12 +199,12 @@ End with: "Next: [Window Functions](./window-functions)"
 Based on `test-projects/data-analytics/04_window_functions.tova`. Cover:
 
 1. What window functions are (vs. group_by + agg)
-2. `table_window()` with partition and order
-3. Ranking: `win_row_number()`, `win_dense_rank()`, `win_percent_rank()`, `win_ntile()`
-4. Running aggregates: `win_running_sum()`, `win_running_count()`, `win_running_avg()`
-5. Lag/Lead: `win_lag()`, `win_lead()` with change calculations
-6. Moving averages: `win_moving_avg()`
-7. First/last values: `win_first_value()`, `win_last_value()`
+2. `tableWindow()` with partition and order
+3. Ranking: `winRowNumber()`, `winDenseRank()`, `winPercentRank()`, `winNtile()`
+4. Running aggregates: `winRunningSum()`, `winRunningCount()`, `winRunningAvg()`
+5. Lag/Lead: `winLag()`, `winLead()` with change calculations
+6. Moving averages: `winMovingAvg()`
+7. First/last values: `winFirstValue()`, `winLastValue()`
 8. Rank within partition (e.g., top 3 per region)
 
 Include a reference table of all 16 window functions.
@@ -221,13 +221,13 @@ End with: "Next: [Data Cleaning](./data-cleaning)"
 Based on `test-projects/data-analytics/05_data_cleaning.tova`. Cover:
 
 1. Creating dirty test data with Table() constructor
-2. Deduplication with `table_drop_duplicates()`
-3. Dropping nil rows with `drop_nil()`
-4. Filling nil values with `fill_nil()`
+2. Deduplication with `tableDropDuplicates()`
+3. Dropping nil rows with `dropNil()`
+4. Filling nil values with `fillNil()`
 5. Type casting with `cast()` — Int, Float, Bool, String
-6. Data validation using `table_derive()` for flag columns
+6. Data validation using `tableDerive()` for flag columns
 7. Result-based processing — `parse_record()` returning Ok/Err
-8. `filter_ok()` and `filter_err()` for separating successes from failures
+8. `filterOk()` and `filterErr()` for separating successes from failures
 9. Real-world cleaning pipeline on employee data
 
 End with: "Next: [Multi-Format I/O](./multi-format-io)"
@@ -276,7 +276,7 @@ Based on `test-projects/data-analytics/06_lazy_pipelines.tova`. Cover:
 
 1. What lazy evaluation means — query plan vs. execution
 2. Creating a lazy table with `lazy()`
-3. Chaining `.where()`, `.select()`, `.derive()`, `.sort_by()`, `.limit()`
+3. Chaining `.where()`, `.select()`, `.derive()`, `.sortBy()`, `.limit()`
 4. Materializing with `collect()` — both `collect(query)` and `|> collect()`
 5. Lazy → group_by transition (materializes automatically)
 6. Composable queries — reusable base query functions
@@ -296,13 +296,13 @@ End with: "Next: [Visualization](./visualization)"
 Based on `test-projects/data-analytics/09_charting.tova`. Cover:
 
 1. Overview: all 6 chart types return SVG strings
-2. Bar chart — `bar_chart()` with x, y, title, color options
-3. Line chart — `line_chart()` with points option
-4. Scatter chart — `scatter_chart()` for correlation analysis
+2. Bar chart — `barChart()` with x, y, title, color options
+3. Line chart — `lineChart()` with points option
+4. Scatter chart — `scatterChart()` for correlation analysis
 5. Histogram — `histogram()` with bins option
-6. Pie chart — `pie_chart()` with label, value
+6. Pie chart — `pieChart()` with label, value
 7. Heatmap — `heatmap()` with x, y, value
-8. Saving charts with `write_text()`
+8. Saving charts with `writeText()`
 9. Common patterns: aggregate first, then chart
 
 Include a reference table of all chart functions and their options.
@@ -319,14 +319,14 @@ End with: "Next: [Sampling & Reshaping](./sampling-reshaping)"
 Based on `test-projects/data-analytics/10_sampling_reshaping.tova`. Cover:
 
 **Sampling:**
-1. Random sampling with `table_sample()` — fixed count and fractional
+1. Random sampling with `tableSample()` — fixed count and fractional
 2. Reproducible sampling with seed
-3. Stratified sampling with `table_stratified_sample()` — equal per group
+3. Stratified sampling with `tableStratifiedSample()` — equal per group
 
 **Reshaping:**
-4. Pivot (long → wide) with `table_pivot()`
-5. Unpivot (wide → long) with `table_unpivot()`
-6. Explode arrays with `table_explode()`
+4. Pivot (long → wide) with `tablePivot()`
+5. Unpivot (wide → long) with `tableUnpivot()`
+6. Explode arrays with `tableExplode()`
 7. Explode + analysis workflow (e.g., skill frequency)
 8. Full reshape workflow: build data → pivot → sort
 
@@ -346,7 +346,7 @@ Remove the misleading "Partial Implementation" warning at the top of `docs/stdli
 
 ```markdown
 ::: warning Partial Implementation
-Table query methods (`.where()`, `.select()`, `.derive()`, `.sort_by()`, `.group_by()`, `.join()`, etc.) are not yet available as instance methods. Use the standalone collection functions (`filter`, `sorted`, `map`) on `t.rows` as an alternative.
+Table query methods (`.where()`, `.select()`, `.derive()`, `.sortBy()`, `.groupBy()`, `.join()`, etc.) are not yet available as instance methods. Use the standalone collection functions (`filter`, `sorted`, `map`) on `t.rows` as an alternative.
 :::
 ```
 
@@ -354,7 +354,7 @@ Replace with:
 
 ```markdown
 ::: tip Standalone Functions
-Table operations are standalone, pipe-friendly functions: `table_where()`, `table_select()`, `table_derive()`, etc. Use the pipe operator `|>` to chain them, or call them directly with the table as the first argument.
+Table operations are standalone, pipe-friendly functions: `tableWhere()`, `tableSelect()`, `tableDerive()`, etc. Use the pipe operator `|>` to chain them, or call them directly with the table as the first argument.
 :::
 ```
 

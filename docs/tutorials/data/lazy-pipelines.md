@@ -6,7 +6,7 @@ Build complex queries that defer execution until you actually need the results.
 
 - The difference between eager and lazy evaluation for table operations
 - Creating lazy tables with `lazy()`
-- Chaining `.where()`, `.select()`, `.sort_by()`, `.limit()`, and `.derive()` on lazy tables
+- Chaining `.where()`, `.select()`, `.sortBy()`, `.limit()`, and `.derive()` on lazy tables
 - Two ways to materialize results: `collect()` and `|> collect()`
 - Transitioning from lazy to eager with `group_by`
 - Composing reusable base queries with functions
@@ -18,7 +18,7 @@ This tutorial uses the `employees.csv` and `sales.csv` sample files from the [Da
 
 ## Lazy vs eager evaluation
 
-Every table function you have used so far -- `table_where()`, `table_select()`, `table_sort_by()` -- is **eager**. It processes every row the moment you call it, producing a new table immediately.
+Every table function you have used so far -- `tableWhere()`, `tableSelect()`, `tableSortBy()` -- is **eager**. It processes every row the moment you call it, producing a new table immediately.
 
 Lazy evaluation flips this around. When you call `lazy(table)`, you get back a **query plan** -- a lightweight description of what to do. Chained methods like `.where()` and `.select()` add steps to the plan without touching any data. Nothing actually runs until you **materialize** the query by calling `collect()` or iterating over it.
 
@@ -39,7 +39,7 @@ async fn main() {
   query = lazy(employees)
     .where(fn(r) r.department == "Engineering")
     .select("name", "title", "salary", "performance_score")
-    .sort_by("salary", {desc: true})
+    .sortBy("salary", {desc: true})
 
   // Nothing has executed yet — query is just a plan
   result = collect(query)
@@ -69,12 +69,12 @@ Lazy tables support the same operations as their eager counterparts but with dot
 
 | Lazy method | Eager equivalent | Description |
 |---|---|---|
-| `.where(fn)` | `table_where(t, fn)` | Filter rows by predicate |
-| `.select(...)` | `table_select(t, ...)` | Keep only named columns |
-| `.sort_by(col, opts)` | `table_sort_by(t, col, opts)` | Sort rows by a column |
-| `.limit(n)` | `table_limit(t, n)` | Take the first N rows |
-| `.derive({...})` | `table_derive(t, {...})` | Add computed columns |
-| `.group_by(col)` | `table_group_by(t, col)` | Group rows (materializes) |
+| `.where(fn)` | `tableWhere(t, fn)` | Filter rows by predicate |
+| `.select(...)` | `tableSelect(t, ...)` | Keep only named columns |
+| `.sortBy(col, opts)` | `tableSortBy(t, col, opts)` | Sort rows by a column |
+| `.limit(n)` | `tableLimit(t, n)` | Take the first N rows |
+| `.derive({...})` | `tableDerive(t, {...})` | Add computed columns |
+| `.groupBy(col)` | `tableGroupBy(t, col)` | Group rows (materializes) |
 
 Here is a longer chain that filters, limits, and sorts in one expression:
 
@@ -85,7 +85,7 @@ async fn main() {
   top_performers = lazy(employees)
     .where(fn(r) r.performance_score >= 4.0)
     .select("name", "department", "performance_score", "salary")
-    .sort_by("performance_score", {desc: true})
+    .sortBy("performance_score", {desc: true})
     .limit(5)
     |> collect()
 
@@ -118,7 +118,7 @@ Both produce the same table. Use whichever reads more naturally. The pipe form i
 
 ## Lazy derive
 
-`.derive()` works the same as `table_derive()`: pass an object where keys are new column names and values are lambdas that compute each row's value.
+`.derive()` works the same as `tableDerive()`: pass an object where keys are new column names and values are lambdas that compute each row's value.
 
 ```tova
 async fn main() {
@@ -131,7 +131,7 @@ async fn main() {
     })
     .where(fn(r) r.comp_ratio > 1.0)
     .select("name", "salary", "comp_ratio", "senior")
-    .sort_by("comp_ratio", {desc: true})
+    .sortBy("comp_ratio", {desc: true})
     |> collect()
 
   peek(enriched, {title: "Above-Benchmark Compensation"})
@@ -156,7 +156,7 @@ Expected output:
 
 ## Lazy to group_by transition
 
-Calling `.group_by()` on a lazy table materializes the filtered data and returns a grouped table. From that point on, you continue with eager functions like `table_agg`.
+Calling `.groupBy()` on a lazy table materializes the filtered data and returns a grouped table. From that point on, you continue with eager functions like `table_agg`.
 
 ```tova
 async fn main() {
@@ -164,17 +164,17 @@ async fn main() {
 
   dept_stats = lazy(employees)
     .where(fn(r) r.is_remote == "true")
-    .group_by("department")
-    |> table_agg({
-      remote_count: agg_count(),
-      avg_salary: agg_mean("salary")
+    .groupBy("department")
+    |> tableAgg({
+      remote_count: aggCount(),
+      avg_salary: aggMean("salary")
     })
 
   peek(dept_stats, {title: "Remote Employees by Department"})
 }
 ```
 
-The lazy portion (`.where()`) defers filtering. The `.group_by()` call triggers execution and groups the matching rows. After that, `table_agg` runs eagerly on the grouped result.
+The lazy portion (`.where()`) defers filtering. The `.groupBy()` call triggers execution and groups the matching rows. After that, `table_agg` runs eagerly on the grouped result.
 
 Expected output:
 
@@ -247,7 +247,7 @@ async fn main() {
   high_earners = lazy(employees)
     .where(fn(r) r.salary >= 160000)
     .select("name", "salary")
-    .sort_by("salary", {desc: true})
+    .sortBy("salary", {desc: true})
 
   for row in high_earners {
     print("  {row.name}: ${row.salary}")
@@ -289,7 +289,7 @@ A good rule of thumb: if your pipeline has three or more chained operations, or 
 
 2. **Reusable base**: Write a function `sf_employees()` that returns a lazy query filtering employees to those in San Francisco. Use it to create two separate queries: one for high performers (score >= 4.5) and one for all staff sorted by salary.
 
-3. **Lazy to grouped**: Start with a lazy query that derives a `salary_tier` column (`"High"` for salaries above 150000, `"Standard"` otherwise), then transition to `group_by("salary_tier")` and compute the count and average performance score for each tier.
+3. **Lazy to grouped**: Start with a lazy query that derives a `salary_tier` column (`"High"` for salaries above 150000, `"Standard"` otherwise), then transition to `groupBy("salary_tier")` and compute the count and average performance score for each tier.
 
 4. **Row iteration**: Create a lazy pipeline that finds remote Marketing employees, then use a `for` loop to print each person's name and title on a separate line.
 

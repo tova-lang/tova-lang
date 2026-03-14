@@ -1,7 +1,7 @@
 <script setup>
 const fileIOCode = `// File I/O: reading and writing files
 // read_text returns a Result: Ok(content) or Err(message)
-match read_text("data/notes.txt") {
+match readText("data/notes.txt") {
   Ok(content) => {
     print("File contents:")
     print(content)
@@ -17,10 +17,10 @@ match read_text("data/notes.txt") {
 }
 
 // write_text also returns a Result
-write_text("output/greeting.txt", "Hello from Tova!")
+writeText("output/greeting.txt", "Hello from Tova!")
 
 // read_bytes for binary data
-match read_bytes("data/image.png") {
+match readBytes("data/image.png") {
   Ok(bytes) => print("File size: {len(bytes)} bytes")
   Err(msg) => print("Could not read: {msg}")
 }`
@@ -29,20 +29,20 @@ const pathOpsCode = `// Path operations: build paths safely
 base = "/home/user/projects"
 
 // Join path segments
-full_path = path_join(base, "my-app", "src", "main.tova")
+full_path = pathJoin(base, "my-app", "src", "main.tova")
 print("Full path: {full_path}")
 
 // Extract parts of a path
-print("Directory: {path_dirname(full_path)}")
-print("Filename:  {path_basename(full_path)}")
-print("Extension: {path_ext(full_path)}")
+print("Directory: {pathDirname(full_path)}")
+print("Filename:  {pathBasename(full_path)}")
+print("Extension: {pathExt(full_path)}")
 
 // Resolve relative paths
-relative = path_resolve("./src/../tests/math.test.tova")
+relative = pathResolve("./src/../tests/math.test.tova")
 print("Resolved:  {relative}")
 
 // Build paths for cross-platform compatibility
-config_path = path_join(path_dirname(script_dir()), "config", "app.toml")
+config_path = pathJoin(pathDirname(scriptDir()), "config", "app.toml")
 print("Config:    {config_path}")`
 
 const mathCode = `// Math functions: the essentials
@@ -65,7 +65,7 @@ print("--- Clamping and Random ---")
 print("clamp(15, 0, 10): {clamp(15, 0, 10)}")
 print("clamp(-5, 0, 10): {clamp(-5, 0, 10)}")
 print("random():         {random()}")
-print("random_int(1, 6): {random_int(1, 6)}")
+print("randomInt(1, 6): {randomInt(1, 6)}")
 
 print("")
 print("--- Number Theory ---")
@@ -99,64 +99,64 @@ print("Count: {len(scores)}")`
 const dateTimeCode = `// Date and Time operations
 print("--- Current Time ---")
 print("Timestamp: {now()}")
-print("ISO 8601:  {now_iso()}")
+print("ISO 8601:  {nowIso()}")
 
 print("")
 print("--- Parsing and Formatting ---")
-date = date_parse("2025-06-15T10:30:00Z").unwrap()
+date = dateParse("2025-06-15T10:30:00Z").unwrap()
 print("Parsed: {date}")
-print("Date only: {date_format(date, 'YYYY-MM-DD')}")
-print("With time: {date_format(date, 'YYYY-MM-DD HH:mm:ss')}")
+print("Date only: {dateFormat(date, 'YYYY-MM-DD')}")
+print("With time: {dateFormat(date, 'YYYY-MM-DD HH:mm:ss')}")
 
 print("")
 print("--- Date Arithmetic ---")
-tomorrow = date_add(now(), 1, "days")
-print("Tomorrow: {date_format(tomorrow, 'YYYY-MM-DD')}")
+tomorrow = dateAdd(now(), 1, "days")
+print("Tomorrow: {dateFormat(tomorrow, 'YYYY-MM-DD')}")
 
-next_week = date_add(now(), 7, "days")
-print("Next week: {date_format(next_week, 'YYYY-MM-DD')}")
+next_week = dateAdd(now(), 7, "days")
+print("Next week: {dateFormat(next_week, 'YYYY-MM-DD')}")
 
-past = date_parse("2024-01-01T00:00:00Z").unwrap()
-days_since = date_diff(past, now(), "days")
+past = dateParse("2024-01-01T00:00:00Z").unwrap()
+days_since = dateDiff(past, now(), "days")
 print("Days since Jan 1 2024: {days_since}")
 
 print("")
 print("--- Relative Time ---")
-recent = date_add(now(), -30, "minutes")
-print("30 min ago: {time_ago(recent)}")
+recent = dateAdd(now(), -30, "minutes")
+print("30 min ago: {timeAgo(recent)}")
 
-yesterday = date_add(now(), -1, "days")
-print("Yesterday:  {time_ago(yesterday)}")`
+yesterday = dateAdd(now(), -1, "days")
+print("Yesterday:  {timeAgo(yesterday)}")`
 
 const jsonHttpCode = `// JSON: parse, stringify, and pretty-print
 data = { name: "Alice", age: 30, roles: ["admin", "editor"] }
 
 // Stringify
-json_str = json_stringify(data)
+json_str = jsonStringify(data)
 print("JSON: {json_str}")
 
 // Pretty print
-pretty = json_pretty(data)
+pretty = jsonPretty(data)
 print("Pretty:")
 print(pretty)
 
 // Parse
-parsed = json_parse(json_str).unwrap()
+parsed = jsonParse(json_str).unwrap()
 print("Parsed name: {parsed.name}")
 print("Parsed roles: {parsed.roles}")
 
 print("")
 print("--- URL Operations ---")
 // Parse URLs
-parts = parse_url("https://api.example.com:8080/users?page=2&limit=10").unwrap()
+parts = parseUrl("https://api.example.com:8080/users?page=2&limit=10").unwrap()
 print("Protocol: {parts.protocol}")
 print("Host:     {parts.host}")
 print("Path:     {parts.pathname}")
 print("Query:    {parts.search}")
 
 // Build URLs
-query = build_query({ q: "tova language", page: "1" })
-built_url = build_url({
+query = buildQuery({ q: "tova language", page: "1" })
+built_url = buildUrl({
   host: "api.example.com",
   pathname: "/search",
   search: query
@@ -164,9 +164,9 @@ built_url = build_url({
 print("Built: {built_url}")
 
 // Encoding
-encoded = url_encode("hello world & more")
+encoded = urlEncode("hello world & more")
 print("Encoded: {encoded}")
-print("Decoded: {url_decode(encoded)}")`
+print("Decoded: {urlDecode(encoded)}")`
 
 const logAnalyzerCode = `// PROJECT: Log File Analyzer
 // Reads log entries, parses dates, computes statistics
@@ -203,9 +203,9 @@ fn extract_response_time(message) {
   // Find the last number before "ms"
   parts = split(message, " ")
   for part in reversed(parts) {
-    if ends_with(part, "ms") {
+    if endsWith(part, "ms") {
       ms_str = substr(part, 0, len(part) - 2)
-      return Some(to_int(ms_str))
+      return Some(toInt(ms_str))
     }
   }
   None
@@ -288,38 +288,38 @@ Tova provides several ways to read file contents:
 ```tova
 // Read the entire file as a string
 // read_text returns a Result: Ok(content) or Err(message)
-content = read_text("config.toml").unwrap()
+content = readText("config.toml").unwrap()
 print(content)
 
 // Read line by line: split the file contents
-lines = split(read_text("data.csv").unwrap(), "\n")
+lines = split(readText("data.csv").unwrap(), "\n")
 for line in lines {
   print(line)
 }
 
 // Read as raw bytes (for binary files)
-bytes = read_bytes("image.png").unwrap()
+bytes = readBytes("image.png").unwrap()
 print("Size: {len(bytes)} bytes")
 ```
 
-`read_text` returns a `Result` -- `Ok(content)` on success, `Err(message)` on failure. Use `.unwrap()` for quick scripts, or `match` for proper error handling. `read_bytes` also returns a `Result` wrapping the raw byte data. For reading lines from standard input, use `read_lines()` (no arguments).
+`read_text` returns a `Result` -- `Ok(content)` on success, `Err(message)` on failure. Use `.unwrap()` for quick scripts, or `match` for proper error handling. `read_bytes` also returns a `Result` wrapping the raw byte data. For reading lines from standard input, use `readLines()` (no arguments).
 
 ### Writing Files
 
 ```tova
 // Write a string to a file (creates or overwrites)
-write_text("output/report.txt", "Analysis complete.\nTotal: 42")
+writeText("output/report.txt", "Analysis complete.\nTotal: 42")
 
 // Write lines by joining first
 lines = ["name,score", "Alice,95", "Bob,87", "Charlie,91"]
-write_text("output/scores.csv", join(lines, "\n"))
+writeText("output/scores.csv", join(lines, "\n"))
 ```
 
 `write_text` returns a `Result` -- `Ok(path)` on success, `Err(message)` on failure. It creates the file if it does not exist, or overwrites it if it does. To append instead of overwrite, read first, then write the combined content:
 
 ```tova
-existing = read_text("log.txt").unwrap()
-write_text("log.txt", existing ++ "\nNew entry at {now_iso()}")
+existing = readText("log.txt").unwrap()
+writeText("log.txt", existing ++ "\nNew entry at {nowIso()}")
 ```
 
 <TryInPlayground :code="fileIOCode" label="File I/O" />
@@ -327,7 +327,7 @@ write_text("log.txt", existing ++ "\nNew entry at {now_iso()}")
 ::: tip Always Handle Missing Files
 In production code, use `match` for proper error handling:
 ```tova
-match read_text("config.toml") {
+match readText("config.toml") {
   Ok(config) => print("Loaded config")
   Err(msg) => print("Config not found, using defaults")
 }
@@ -335,7 +335,7 @@ match read_text("config.toml") {
 Or check existence first with `exists()`:
 ```tova
 if exists("config.toml") {
-  config = read_text("config.toml").unwrap()
+  config = readText("config.toml").unwrap()
 }
 ```
 :::
@@ -351,8 +351,8 @@ Tova provides functions for navigating and manipulating the file system:
 exists("src/main.tova")      // true or false
 
 // Is it a file or directory?
-is_file("src/main.tova")     // true
-is_dir("src/")               // true
+isFile("src/main.tova")     // true
+isDir("src/")               // true
 ```
 
 ### Listing Directory Contents
@@ -365,10 +365,10 @@ for item in items {
 }
 
 // Find files matching a pattern
-tova_files = glob_files("src/**/*.tova")
+tova_files = globFiles("src/**/*.tova")
 print("Found {len(tova_files)} Tova files")
 
-test_files = glob_files("tests/*.test.tova")
+test_files = globFiles("tests/*.test.tova")
 print("Found {len(test_files)} test files")
 ```
 
@@ -380,7 +380,7 @@ Sometimes you need more than just the contents of a file -- you need to know its
 
 ```tova
 // Get detailed file information
-stat = file_stat("./app.tova")
+stat = fileStat("./app.tova")
 match stat {
   Ok(info) => {
     print("Size: {info.size} bytes")
@@ -394,7 +394,7 @@ match stat {
 }
 
 // Just need the size? There is a shorthand
-match file_size("./data.bin") {
+match fileSize("./data.bin") {
   Ok(bytes) => print("File is {bytes} bytes")
   Err(msg) => print("Error: {msg}")
 }
@@ -417,7 +417,7 @@ match readlink("./config.toml") {
 }
 
 // Check if a path is a symlink
-if is_symlink("./config.toml") {
+if isSymlink("./config.toml") {
   print("This is a symbolic link")
 }
 ```
@@ -450,16 +450,16 @@ Working with file paths manually (concatenating strings with `/`) breaks on diff
 
 ```tova
 // Join path segments safely
-full = path_join("src", "codegen", "base-codegen.js")
+full = pathJoin("src", "codegen", "base-codegen.js")
 // "src/codegen/base-codegen.js"
 
 // Extract components
-path_dirname("/home/user/app/main.tova")    // "/home/user/app"
-path_basename("/home/user/app/main.tova")   // "main.tova"
-path_ext("/home/user/app/main.tova")        // ".tova"
+pathDirname("/home/user/app/main.tova")    // "/home/user/app"
+pathBasename("/home/user/app/main.tova")   // "main.tova"
+pathExt("/home/user/app/main.tova")        // ".tova"
 
 // Resolve relative paths to absolute
-path_resolve("./src/../tests/math.test.tova")
+pathResolve("./src/../tests/math.test.tova")
 // "/full/absolute/path/tests/math.test.tova"
 ```
 
@@ -468,10 +468,10 @@ path_resolve("./src/../tests/math.test.tova")
 When you need to compute the relative path between two locations, `path_relative` does the work:
 
 ```tova
-rel = path_relative("/home/user/projects", "/home/user/projects/app/src")
+rel = pathRelative("/home/user/projects", "/home/user/projects/app/src")
 print(rel)   // "app/src"
 
-rel2 = path_relative("/home/user/docs", "/home/user/projects/app")
+rel2 = pathRelative("/home/user/docs", "/home/user/projects/app")
 print(rel2)  // "../projects/app"
 ```
 
@@ -494,12 +494,12 @@ A common pattern is locating files relative to the current script:
 
 ```tova
 // Where is this script located?
-script_location = script_dir()
+script_location = scriptDir()
 print("Script is in: {script_location}")
 
 // Build paths relative to the script
-config_path = path_join(script_location, "..", "config", "app.toml")
-data_path = path_join(script_location, "data", "users.json")
+config_path = pathJoin(script_location, "..", "config", "app.toml")
+data_path = pathJoin(script_location, "data", "users.json")
 ```
 
 <TryInPlayground :code="pathOpsCode" label="Path Operations" />
@@ -511,7 +511,7 @@ For interactive programs and scripts, read from stdin:
 ```tova
 // Read all input from standard input (blocks until EOF)
 print("What is your name?")
-user_name = read_stdin()
+user_name = readStdin()
 print("Hello, {trim(user_name)}!")
 ```
 
@@ -542,7 +542,7 @@ clamp(7, 0, 10)    // 7   (within range, unchanged)
 
 // Random numbers
 random()            // Float between 0 and 1
-random_int(1, 6)    // Integer between 1 and 6 (inclusive)
+randomInt(1, 6)    // Integer between 1 and 6 (inclusive)
 ```
 
 ### Trigonometry
@@ -558,8 +558,8 @@ atan2(1, 1)    // 0.785... (angle in radians)
 hypot(3, 4)    // 5.0 (hypotenuse)
 
 // Degree/radian conversion
-to_radians(180)     // 3.14159...
-to_degrees(3.14159) // ~180
+toRadians(180)     // 3.14159...
+toDegrees(3.14159) // ~180
 ```
 
 ### Number Theory
@@ -595,19 +595,19 @@ avg([10, 20, 30])  // 20
 ### Number Checks
 
 ```tova
-is_nan(0 / 0)          // true
-is_nan(42)             // false
-is_finite(42)          // true
-is_finite(1 / 0)       // false
-is_close(0.1 + 0.2, 0.3)  // true (floating-point safe comparison)
+isNaN(0 / 0)          // true
+isNaN(42)             // false
+isFinite(42)          // true
+isFinite(1 / 0)       // false
+isClose(0.1 + 0.2, 0.3)  // true (floating-point safe comparison)
 ```
 
 ### Number Formatting
 
 ```tova
-to_fixed(3.14159, 2)  // "3.14"
-to_fixed(42, 3)        // "42.000"
-random_float(1.0, 10.0)  // Random float in range
+toFixed(3.14159, 2)  // "3.14"
+toFixed(42, 3)        // "42.000"
+randomFloat(1.0, 10.0)  // Random float in range
 ```
 
 ### Ordering
@@ -625,7 +625,7 @@ match compare(3, 5) {
 // compare_by sorts an array using a custom comparator
 // The comparator function receives two elements and returns an Order
 names = ["charlie", "alice", "bob"]
-by_length = compare_by(names, fn(a, b) compare(len(a), len(b)))
+by_length = compareBy(names, fn(a, b) compare(len(a), len(b)))
 print(by_length)   // ["bob", "alice", "charlie"] (sorted by length)
 ```
 
@@ -693,7 +693,7 @@ timestamp = now()
 print("Timestamp: {timestamp}")
 
 // ISO 8601 string
-iso = now_iso()
+iso = nowIso()
 print("ISO: {iso}")   // "2025-03-15T14:30:00.000Z"
 ```
 
@@ -701,13 +701,13 @@ print("ISO: {iso}")   // "2025-03-15T14:30:00.000Z"
 
 ```tova
 // Parse a date string (returns Result, so unwrap it)
-date = date_parse("2025-06-15T10:30:00Z").unwrap()
+date = dateParse("2025-06-15T10:30:00Z").unwrap()
 
 // Format a date for display
-date_format(date, "YYYY-MM-DD")          // "2025-06-15"
-date_format(date, "MM/DD/YYYY")          // "06/15/2025"
-date_format(date, "HH:mm:ss")           // "10:30:00"
-date_format(date, "YYYY-MM-DD HH:mm")   // "2025-06-15 10:30"
+dateFormat(date, "YYYY-MM-DD")          // "2025-06-15"
+dateFormat(date, "MM/DD/YYYY")          // "06/15/2025"
+dateFormat(date, "HH:mm:ss")           // "10:30:00"
+dateFormat(date, "YYYY-MM-DD HH:mm")   // "2025-06-15 10:30"
 ```
 
 Supported format tokens: `YYYY` (year), `MM` (month), `DD` (day), `HH` (hours), `mm` (minutes), `ss` (seconds). You can also pass the shortcuts `"iso"`, `"date"`, `"time"`, or `"datetime"`.
@@ -716,19 +716,19 @@ Supported format tokens: `YYYY` (year), `MM` (month), `DD` (day), `HH` (hours), 
 
 ```tova
 // Add time to a date
-tomorrow = date_add(now(), 1, "days")
-next_month = date_add(now(), 1, "months")
-in_two_hours = date_add(now(), 2, "hours")
+tomorrow = dateAdd(now(), 1, "days")
+next_month = dateAdd(now(), 1, "months")
+in_two_hours = dateAdd(now(), 2, "hours")
 
 // Compute differences between dates
-// date_diff(earlier, later, unit) returns later - earlier
-start = date_parse("2025-01-01T00:00:00Z").unwrap()
-end_date = date_parse("2025-12-31T23:59:59Z").unwrap()
+// dateDiff(earlier, later, unit) returns later - earlier
+start = dateParse("2025-01-01T00:00:00Z").unwrap()
+end_date = dateParse("2025-12-31T23:59:59Z").unwrap()
 
-days_between = date_diff(start, end_date, "days")
+days_between = dateDiff(start, end_date, "days")
 print("Days in 2025: {days_between}")
 
-hours_between = date_diff(start, end_date, "hours")
+hours_between = dateDiff(start, end_date, "hours")
 print("Hours in 2025: {hours_between}")
 ```
 
@@ -737,14 +737,14 @@ print("Hours in 2025: {hours_between}")
 For user-facing displays, `time_ago` converts a timestamp into a human-readable relative string:
 
 ```tova
-recent = date_add(now(), -30, "minutes")
-time_ago(recent)   // "30 minutes ago"
+recent = dateAdd(now(), -30, "minutes")
+timeAgo(recent)   // "30 minutes ago"
 
-yesterday = date_add(now(), -1, "days")
-time_ago(yesterday)   // "1 day ago"
+yesterday = dateAdd(now(), -1, "days")
+timeAgo(yesterday)   // "1 day ago"
 
-long_ago = date_add(now(), -90, "days")
-time_ago(long_ago)   // "3 months ago"
+long_ago = dateAdd(now(), -90, "days")
+timeAgo(long_ago)   // "3 months ago"
 ```
 
 <TryInPlayground :code="dateTimeCode" label="Date/Time" />
@@ -759,17 +759,17 @@ JSON is the lingua franca of data exchange. Tova makes it effortless:
 
 ```tova
 // Parse a JSON string into a Tova value (returns Result)
-data = json_parse('{"name": "Alice", "age": 30}').unwrap()
+data = jsonParse('{"name": "Alice", "age": 30}').unwrap()
 print(data.name)    // "Alice"
 
 // Convert a Tova value to a JSON string
 obj = { language: "Tova", version: "0.9.0", fast: true }
-json_str = json_stringify(obj)
+json_str = jsonStringify(obj)
 print(json_str)
 // {"language":"Tova","version":"0.9.0","fast":true}
 
 // Pretty-print with indentation
-pretty = json_pretty(obj)
+pretty = jsonPretty(obj)
 print(pretty)
 // {
 //   "language": "Tova",
@@ -784,12 +784,12 @@ A common pattern:
 
 ```tova
 // Read a JSON config file
-config = json_parse(read_text("config.json").unwrap()).unwrap()
+config = jsonParse(readText("config.json").unwrap()).unwrap()
 print("Port: {config.port}")
 
 // Modify and write back
 updated_config = { ...config, port: 9090 }
-write_text("config.json", json_pretty(updated_config))
+writeText("config.json", jsonPretty(updated_config))
 ```
 
 ## HTTP Client Utilities
@@ -798,7 +798,7 @@ Tova provides URL manipulation functions for building and parsing URLs:
 
 ```tova
 // Parse a URL into its components (returns Result)
-parts = parse_url("https://api.example.com:8080/users?page=2&limit=10").unwrap()
+parts = parseUrl("https://api.example.com:8080/users?page=2&limit=10").unwrap()
 print(parts.protocol)   // "https"
 print(parts.host)       // "api.example.com:8080"
 print(parts.pathname)   // "/users"
@@ -809,10 +809,10 @@ print(parts.search)     // "?page=2&limit=10"
 
 ```tova
 // Build a URL from components
-search_url = build_url({
+search_url = buildUrl({
   host: "api.example.com",
   pathname: "/search",
-  search: build_query({ q: "tova language", page: "1", sort: "relevance" })
+  search: buildQuery({ q: "tova language", page: "1", sort: "relevance" })
 })
 print(search_url)
 // "https://api.example.com/search?q=tova%20language&page=1&sort=relevance"
@@ -824,11 +824,11 @@ print(search_url)
 
 ```tova
 // Encode special characters for URLs
-encoded = url_encode("hello world & more")
+encoded = urlEncode("hello world & more")
 print(encoded)   // "hello%20world%20%26%20more"
 
 // Decode back
-decoded = url_decode(encoded)
+decoded = urlDecode(encoded)
 print(decoded)   // "hello world & more"
 ```
 
@@ -844,7 +844,7 @@ db_host = env("DATABASE_HOST")
 print("DB Host: {db_host}")
 
 // Set an environment variable (for the current process)
-set_env("APP_MODE", "production")
+setEnv("APP_MODE", "production")
 
 // Read with a default
 port = env("PORT")
@@ -885,7 +885,7 @@ match exec("ls", ["-la", "src/"]) {
 print("CWD: {cwd()}")
 
 // Get the directory of the current script
-print("Script dir: {script_dir()}")
+print("Script dir: {scriptDir()}")
 ```
 
 `exec` runs a command **without** a shell by default (the arguments are passed as an array). This is the safer option because it prevents shell injection. It returns a `Result` containing an object with `stdout`, `stderr`, and `exitCode`.
@@ -951,13 +951,13 @@ build_result = await spawn("cargo", ["build", "--release"], {
 For scripts and servers that need to handle operating system signals gracefully, use `on_signal`:
 
 ```tova
-on_signal("SIGINT", fn() {
+onSignal("SIGINT", fn() {
   print("Caught interrupt, cleaning up...")
   // Close database connections, flush logs, etc.
   exit(0)
 })
 
-on_signal("SIGTERM", fn() {
+onSignal("SIGTERM", fn() {
   print("Termination signal received")
   // Graceful shutdown logic
   exit(0)
@@ -981,21 +981,21 @@ print("Building project...")
 print("Working directory: {cwd()}")
 
 // Check if source directory exists
-if !is_dir("src") {
+if !isDir("src") {
   print("Error: src/ directory not found")
   exit(1)
 }
 
 // Count source files
-source_files = glob_files("src/**/*.tova")
+source_files = globFiles("src/**/*.tova")
 print("Found {len(source_files)} source files")
 
 // Check for test files
-test_files = glob_files("tests/**/*.test.tova")
+test_files = globFiles("tests/**/*.test.tova")
 print("Found {len(test_files)} test files")
 
 // Create output directory
-if !is_dir("dist") {
+if !isDir("dist") {
   mkdir("dist")
   print("Created dist/ directory")
 }
@@ -1028,11 +1028,11 @@ for item in items {
 
 ```tova
 // Encode bytes as hexadecimal
-encoded = hex_encode("Hello Tova")
+encoded = hexEncode("Hello Tova")
 print("Hex: {encoded}")
 
 // Decode hex back to a string
-decoded = hex_decode(encoded)
+decoded = hexDecode(encoded)
 print("Decoded: {decoded}")
 ```
 
@@ -1042,11 +1042,11 @@ Base64 is the standard encoding for embedding binary data in text formats like J
 
 ```tova
 // Encode a string to Base64
-encoded = base64_encode("Hello, World!")
+encoded = base64Encode("Hello, World!")
 print(encoded)   // "SGVsbG8sIFdvcmxkIQ=="
 
 // Decode Base64 back to a string
-decoded = base64_decode(encoded)
+decoded = base64Decode(encoded)
 print(decoded)   // "Hello, World!"
 ```
 
@@ -1054,14 +1054,14 @@ A practical example -- embedding data in a URL:
 
 ```tova
 // Encode configuration as a shareable URL parameter
-config = json_stringify({ theme: "dark", lang: "en" })
-param = base64_encode(config)
+config = jsonStringify({ theme: "dark", lang: "en" })
+param = base64Encode(config)
 share_url = "https://app.example.com/?config={param}"
 print(share_url)
 
 // On the receiving end, decode it back
-received = base64_decode(param)
-settings = json_parse(received).unwrap()
+received = base64Decode(param)
+settings = jsonParse(received).unwrap()
 print("Theme: {settings.theme}")
 ```
 
@@ -1071,14 +1071,14 @@ Convert numbers to different base representations:
 
 ```tova
 // Base conversions
-print("255 in hex:    {to_hex(255)}")       // "ff"
-print("255 in octal:  {to_octal(255)}")     // "377"
-print("255 in binary: {to_binary(255)}")    // "11111111"
-print("10 in binary:  {to_binary(10)}")     // "1010"
+print("255 in hex:    {toHex(255)}")       // "ff"
+print("255 in octal:  {toOctal(255)}")     // "377"
+print("255 in binary: {toBinary(255)}")    // "11111111"
+print("10 in binary:  {toBinary(10)}")     // "1010"
 
 // Formatted numbers with grouping
-print(format_number(1234567.89))   // "1,234,567.89"
-print(format_number(0.5))          // "0.5"
+print(formatNumber(1234567.89))   // "1,234,567.89"
+print(formatNumber(0.5))          // "0.5"
 ```
 
 ### Practical Number Formatting
@@ -1246,7 +1246,7 @@ Both `encrypt` and `decrypt` return `Result` types. Decryption will return `Err`
 ```tova
 // Generate cryptographically secure random bytes
 bytes = crypto.random_bytes(32)
-print("Random bytes: {hex_encode(bytes)}")
+print("Random bytes: {hexEncode(bytes)}")
 
 // Constant-time comparison prevents timing attacks
 // (Regular == comparison leaks information through timing)
@@ -1302,7 +1302,7 @@ skip_two = iter([10, 20, 30, 40, 50]).drop(2).collect()      // [30, 40, 50]
 
 // flat_map: transform and flatten
 words = iter(["hello world", "foo bar"])
-  .flat_map(fn(s) split(s, " "))
+  .flatMap(fn(s) split(s, " "))
   .collect()
 // ["hello", "world", "foo", "bar"]
 
@@ -1520,9 +1520,9 @@ fn extract_response_time(message) {
   if !contains(message, "Request:") { return None }
   parts = split(message, " ")
   for part in reversed(parts) {
-    if ends_with(part, "ms") {
+    if endsWith(part, "ms") {
       ms_str = substr(part, 0, len(part) - 2)
-      return Some(to_int(ms_str))
+      return Some(toInt(ms_str))
     }
   }
   None
@@ -1548,7 +1548,7 @@ fn count_by_level(log_entries) {
 ### Step 4: Assemble the Report
 
 ```tova
-// In a real tool, use: log_lines = read_lines("server.log")
+// In a real tool, use: log_lines = readLines("server.log")
 log_lines = [
   "2025-03-15T08:23:14Z INFO  Server started on port 8080",
   "2025-03-15T08:23:15Z INFO  Database connected",
@@ -1657,8 +1657,8 @@ Build a **log file analyzer CLI tool** that works on real log files:
 5. Compute response time statistics: mean, median, p95, p99 using `percentile()`
 6. Find the slowest 5 endpoints by average response time
 7. Detect anomalies: any response time more than 3 standard deviations above the mean
-8. Output the report in both plain text and JSON formats using `json_pretty()`
-9. Write the report to a file using `write_text()` with a timestamped filename
+8. Output the report in both plain text and JSON formats using `jsonPretty()`
+9. Write the report to a file using `writeText()` with a timestamped filename
 
 ---
 

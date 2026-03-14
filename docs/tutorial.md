@@ -334,7 +334,7 @@ Tova uses `Result` and `Option` types instead of exceptions.
 
 ```tova
 fn parse_age(input: String) -> Result<Int, String> {
-  n = to_int(input)
+  n = toInt(input)
   if n == nil {
     Err("Not a number: {input}")
   } elif n < 0 {

@@ -23,7 +23,7 @@ server {
   }
 
   fn get_todo(id) {
-    found = todos |> find(fn(t) t.id == to_int(id))
+    found = todos |> find(fn(t) t.id == toInt(id))
     match found {
       Some(todo) => todo
       None => respond(404, { error: "Todo not found" })
@@ -39,7 +39,7 @@ server {
 
   fn update_todo(id, title, done) {
     todos = todos |> map(fn(t) {
-      if t.id == to_int(id) {
+      if t.id == toInt(id) {
         { ...t, title: title, done: done }
       } else {
         t
@@ -49,7 +49,7 @@ server {
   }
 
   fn delete_todo(id) {
-    todos = todos |> filter(fn(t) t.id != to_int(id))
+    todos = todos |> filter(fn(t) t.id != toInt(id))
     respond(200, { ok: true })
   }
 
@@ -122,7 +122,7 @@ server {
   }
 
   fn get_task(id) {
-    found = tasks |> find(fn(t) t.id == to_int(id))
+    found = tasks |> find(fn(t) t.id == toInt(id))
     match found {
       Some(task) => task
       None => respond(404, { error: "Task not found" })
@@ -144,7 +144,7 @@ server {
 
   fn update_task(id, title, priority, done) {
     tasks = tasks |> map(fn(t) {
-      if t.id == to_int(id) {
+      if t.id == toInt(id) {
         { ...t, title: title, priority: priority, done: done }
       } else {
         t
@@ -154,7 +154,7 @@ server {
   }
 
   fn delete_task(id) {
-    tasks = tasks |> filter(fn(t) t.id != to_int(id))
+    tasks = tasks |> filter(fn(t) t.id != toInt(id))
     respond(200, { ok: true })
   }
 
@@ -1150,7 +1150,7 @@ server {
   }
 
   fn get_task(id) {
-    found = tasks |> find(fn(t) t.id == to_int(id))
+    found = tasks |> find(fn(t) t.id == toInt(id))
     match found {
       Some(task) => task
       None => respond(404, { error: "Task not found" })
@@ -1172,7 +1172,7 @@ server {
 
   fn update_task(id, title, priority, done) {
     tasks = tasks |> map(fn(t) {
-      if t.id == to_int(id) {
+      if t.id == toInt(id) {
         { ...t, title: title, priority: priority, done: done }
       } else {
         t
@@ -1182,7 +1182,7 @@ server {
   }
 
   fn delete_task(id) {
-    tasks = tasks |> filter(fn(t) t.id != to_int(id))
+    tasks = tasks |> filter(fn(t) t.id != toInt(id))
     respond(200, { ok: true })
   }
 

@@ -91,7 +91,7 @@ print("Is ok: {check}")
 fused = Ok(5)
   .map(fn(x) x * 2)
   .map(fn(x) x + 1)
-  .map(fn(x) to_string(x))
+  .map(fn(x) toString(x))
   .unwrap()
 print("Fused: {fused}")
 
@@ -206,9 +206,9 @@ The result: **1.7x faster than Go** for dot product on 1M elements.
 
 ```tova
 @fast fn compute(data: [Float]) -> Float {
-  normalized = typed_norm(data)          // Euclidean norm
-  result = typed_dot(data, data)         // Dot product
-  total = typed_sum(data)                // Kahan summation
+  normalized = typedNorm(data)          // Euclidean norm
+  result = typedDot(data, data)         // Dot product
+  total = typedSum(data)                // Kahan summation
   result
 }
 ```
@@ -264,11 +264,11 @@ Not supported: strings, arrays, objects, closures, pattern matching.
 
 ## parallel_map: Worker Pool Parallelism
 
-When you have a list of independent tasks, `parallel_map()` distributes them across a pool of persistent worker threads:
+When you have a list of independent tasks, `parallelMap()` distributes them across a pool of persistent worker threads:
 
 ```tova
 // Process items in parallel using persistent worker threads
-results = await parallel_map(urls, async fn(url) {
+results = await parallelMap(urls, async fn(url) {
   response = await fetch(url)
   response.json()
 }, { workers: 4 })
@@ -277,16 +277,16 @@ results = await parallel_map(urls, async fn(url) {
 // 3.5x speedup on CPU-bound parallel work
 ```
 
-The key design choice: workers are **persistent**. They're created once and reused across multiple `parallel_map()` calls, avoiding the overhead of spawning new threads each time. This matters when you call `parallel_map()` repeatedly in a loop or in a server handling many requests.
+The key design choice: workers are **persistent**. They're created once and reused across multiple `parallelMap()` calls, avoiding the overhead of spawning new threads each time. This matters when you call `parallelMap()` repeatedly in a loop or in a server handling many requests.
 
 ```tova
 // CPU-bound work benefits the most
-scores = await parallel_map(documents, fn(doc) {
+scores = await parallelMap(documents, fn(doc) {
   analyze_sentiment(doc)
 }, { workers: 8 })
 
 // I/O-bound work also benefits from concurrency
-pages = await parallel_map(urls, async fn(url) {
+pages = await parallelMap(urls, async fn(url) {
   response = await fetch(url)
   response.text()
 })
@@ -295,7 +295,7 @@ pages = await parallel_map(urls, async fn(url) {
 When the `workers` option is omitted, Tova defaults to the number of available CPU cores.
 
 ::: tip When to Use parallel_map
-Use `parallel_map()` for **embarrassingly parallel** workloads — tasks that are independent and don't share mutable state. Think: processing images, analyzing documents, making HTTP requests, or running simulations. If your tasks need to communicate with each other, use channels or shared state instead.
+Use `parallelMap()` for **embarrassingly parallel** workloads — tasks that are independent and don't share mutable state. Think: processing images, analyzing documents, making HTTP requests, or running simulations. If your tasks need to communicate with each other, use channels or shared state instead.
 :::
 
 ## @memoize: Automatic Caching
@@ -325,8 +325,8 @@ Without `@memoize`, `fibonacci(40)` would make billions of recursive calls. With
 
 ```tova
 @memoize fn parse_config(path) {
-  text = read_text(path)
-  json_parse(text).unwrap()
+  text = readText(path)
+  jsonParse(text).unwrap()
 }
 
 // First call reads the file; subsequent calls return the cached result
@@ -413,7 +413,7 @@ fn benchmark(name, iterations, f) {
     f()
   }
   elapsed = Date.now() - start
-  per_op = elapsed / to_float(iterations)
+  per_op = elapsed / toFloat(iterations)
   print("{name}: {elapsed}ms total, {per_op}ms/op")
 }
 
@@ -439,7 +439,7 @@ When you need more speed, climb the ladder:
 3. **Pre-allocate arrays** with `filled()` when sizes are known.
 4. **Add `@fast`** for numerical functions with typed arrays.
 5. **Add `@wasm`** for the hottest inner loops.
-6. **Use `parallel_map()`** for embarrassingly parallel workloads across worker threads.
+6. **Use `parallelMap()`** for embarrassingly parallel workloads across worker threads.
 
 Most code never needs to go past step 2. Profile first, then optimize the bottleneck.
 

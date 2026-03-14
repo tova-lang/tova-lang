@@ -48,24 +48,24 @@ len(nil)                // 0
 ### type_of
 
 ```tova
-type_of(v) -> String
+typeOf(v) -> String
 ```
 
 Returns the Tova type name of a value. For custom type variants, returns the variant tag name.
 
 ```tova
-type_of(42)             // "Int"
-type_of(3.14)           // "Float"
-type_of("hello")        // "String"
-type_of(true)           // "Bool"
-type_of([1, 2])         // "List"
-type_of(nil)            // "Nil"
-type_of(print)          // "Function"
-type_of({ a: 1 })      // "Object"
+typeOf(42)             // "Int"
+typeOf(3.14)           // "Float"
+typeOf("hello")        // "String"
+typeOf(true)           // "Bool"
+typeOf([1, 2])         // "List"
+typeOf(nil)            // "Nil"
+typeOf(print)          // "Function"
+typeOf({ a: 1 })      // "Object"
 
 // Custom type variants return their tag name
-type_of(Ok(1))          // "Ok"
-type_of(None)           // "None"
+typeOf(Ok(1))          // "Ok"
+typeOf(None)           // "None"
 ```
 
 ---
@@ -170,16 +170,16 @@ evens = filter(range(10), fn(x) x % 2 == 0)
 ### flat_map
 
 ```tova
-flat_map(arr, fn) -> List
+flatMap(arr, fn) -> List
 ```
 
 Applies a function to each element (which should return an array), then flattens the result one level.
 
 ```tova
-flat_map([1, 2, 3], fn(x) [x, x * 10])
+flatMap([1, 2, 3], fn(x) [x, x * 10])
 // [1, 10, 2, 20, 3, 30]
 
-flat_map(["hello world", "foo bar"], fn(s) split(s, " "))
+flatMap(["hello world", "foo bar"], fn(s) split(s, " "))
 // ["hello", "world", "foo", "bar"]
 ```
 
@@ -281,7 +281,7 @@ Counts the number of elements that satisfy a predicate.
 count([1, 2, 3, 4, 5], fn(x) x > 3)
 // 2
 
-count(["apple", "avocado", "banana"], fn(s) starts_with(s, "a"))
+count(["apple", "avocado", "banana"], fn(s) startsWith(s, "a"))
 // 2
 ```
 
@@ -339,19 +339,19 @@ find([1, 2, 3], fn(x) x > 10)
 ### find_index
 
 ```tova
-find_index(arr, fn) -> Int | Nil
+findIndex(arr, fn) -> Int | Nil
 ```
 
 Returns the index of the first element where the function returns `true`. Returns `nil` if no element matches.
 
 ```tova
-find_index([10, 20, 30], fn(x) x > 15)
+findIndex([10, 20, 30], fn(x) x > 15)
 // 1
 
-find_index(["a", "b", "c"], fn(s) s == "b")
+findIndex(["a", "b", "c"], fn(s) s == "b")
 // 1
 
-find_index([1, 2, 3], fn(x) x > 10)
+findIndex([1, 2, 3], fn(x) x > 10)
 // nil
 ```
 
@@ -531,16 +531,16 @@ evens, odds = partition(range(10), fn(x) x % 2 == 0)
 ### group_by
 
 ```tova
-group_by(arr, fn) -> Object
+groupBy(arr, fn) -> Object
 ```
 
 Groups elements into an object by the key returned from the function.
 
 ```tova
-group_by(["apple", "avocado", "banana", "blueberry"], fn(s) chars(s) |> first())
+groupBy(["apple", "avocado", "banana", "blueberry"], fn(s) chars(s) |> first())
 // { a: ["apple", "avocado"], b: ["banana", "blueberry"] }
 
-group_by(users, fn(u) u.role)
+groupBy(users, fn(u) u.role)
 // { admin: [...], user: [...] }
 ```
 
@@ -551,16 +551,16 @@ group_by(users, fn(u) u.role)
 ### zip_with
 
 ```tova
-zip_with(a, b, fn) -> List
+zipWith(a, b, fn) -> List
 ```
 
 Combines two arrays element-by-element using a function. Like `zip` followed by `map`, but in one step.
 
 ```tova
-zip_with([1, 2, 3], [10, 20, 30], fn(a, b) a + b)
+zipWith([1, 2, 3], [10, 20, 30], fn(a, b) a + b)
 // [11, 22, 33]
 
-zip_with(["Alice", "Bob"], [30, 25], fn(name, age) { name: name, age: age })
+zipWith(["Alice", "Bob"], [30, 25], fn(name, age) { name: name, age: age })
 // [{ name: "Alice", age: 30 }, { name: "Bob", age: 25 }]
 ```
 
@@ -599,51 +599,51 @@ scan([100, -20, 50, -10], fn(bal, tx) bal + tx, 0)
 ### min_by
 
 ```tova
-min_by(arr, fn) -> T | Nil
+minBy(arr, fn) -> T | Nil
 ```
 
 Returns the element with the smallest key as determined by the function. Returns `nil` for empty arrays.
 
 ```tova
-min_by([{n: 3}, {n: 1}, {n: 2}], fn(x) x.n)
+minBy([{n: 3}, {n: 1}, {n: 2}], fn(x) x.n)
 // { n: 1 }
 
-min_by(["hello", "hi", "hey"], fn(s) len(s))
+minBy(["hello", "hi", "hey"], fn(s) len(s))
 // "hi"
 
-min_by([], fn(x) x)
+minBy([], fn(x) x)
 // nil
 ```
 
 ### max_by
 
 ```tova
-max_by(arr, fn) -> T | Nil
+maxBy(arr, fn) -> T | Nil
 ```
 
 Returns the element with the largest key as determined by the function. Returns `nil` for empty arrays.
 
 ```tova
-max_by([{n: 3}, {n: 1}, {n: 2}], fn(x) x.n)
+maxBy([{n: 3}, {n: 1}, {n: 2}], fn(x) x.n)
 // { n: 3 }
 
-max_by(users, fn(u) u.age)
+maxBy(users, fn(u) u.age)
 // user with highest age
 ```
 
 ### sum_by
 
 ```tova
-sum_by(arr, fn) -> Number
+sumBy(arr, fn) -> Number
 ```
 
 Sums the results of applying a function to each element. Shorthand for `map` + `sum`.
 
 ```tova
-sum_by([{v: 10}, {v: 20}, {v: 30}], fn(x) x.v)
+sumBy([{v: 10}, {v: 20}, {v: 30}], fn(x) x.v)
 // 60
 
-sum_by(cart, fn(item) item.price * item.qty)
+sumBy(cart, fn(item) item.price * item.qty)
 // total cost
 ```
 
@@ -664,19 +664,19 @@ product([2, 0, 10])        // 0
 ### sliding_window
 
 ```tova
-sliding_window(arr, n) -> List[List]
+slidingWindow(arr, n) -> List[List]
 ```
 
 Returns all contiguous sub-arrays of size `n`. Useful for moving averages, pattern detection.
 
 ```tova
-sliding_window([1, 2, 3, 4], 2)
+slidingWindow([1, 2, 3, 4], 2)
 // [[1, 2], [2, 3], [3, 4]]
 
-sliding_window([1, 2, 3, 4, 5], 3)
+slidingWindow([1, 2, 3, 4, 5], 3)
 // [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
 
-sliding_window([1, 2], 5)
+slidingWindow([1, 2], 5)
 // []  -- window larger than array
 ```
 
@@ -726,41 +726,41 @@ difference([1, 2, 3], [4, 5])          // [1, 2, 3]
 ### symmetric_difference
 
 ```tova
-symmetric_difference(a, b) -> List
+symmetricDifference(a, b) -> List
 ```
 
 Returns elements in either array but not both.
 
 ```tova
-symmetric_difference([1, 2, 3], [2, 3, 4])    // [1, 4]
-symmetric_difference([1, 2], [1, 2])           // []
+symmetricDifference([1, 2, 3], [2, 3, 4])    // [1, 4]
+symmetricDifference([1, 2], [1, 2])           // []
 ```
 
 ### is_subset
 
 ```tova
-is_subset(a, b) -> Bool
+isSubset(a, b) -> Bool
 ```
 
 Returns `true` if every element of `a` is in `b`.
 
 ```tova
-is_subset([1, 2], [1, 2, 3])      // true
-is_subset([1, 4], [1, 2, 3])      // false
-is_subset([], [1, 2])              // true
+isSubset([1, 2], [1, 2, 3])      // true
+isSubset([1, 4], [1, 2, 3])      // false
+isSubset([], [1, 2])              // true
 ```
 
 ### is_superset
 
 ```tova
-is_superset(a, b) -> Bool
+isSuperset(a, b) -> Bool
 ```
 
 Returns `true` if `a` contains every element of `b`.
 
 ```tova
-is_superset([1, 2, 3], [1, 2])    // true
-is_superset([1, 2], [1, 2, 3])    // false
+isSuperset([1, 2, 3], [1, 2])    // true
+isSuperset([1, 2], [1, 2, 3])    // false
 ```
 
 ---
@@ -843,14 +843,14 @@ interleave([1, 2, 3], ["a", "b"])  // [1, "a", 2, "b", 3]
 ### repeat_value
 
 ```tova
-repeat_value(val, n) -> List
+repeatValue(val, n) -> List
 ```
 
 Creates an array of `n` copies of `val`.
 
 ```tova
-repeat_value(0, 5)                 // [0, 0, 0, 0, 0]
-repeat_value("x", 3)               // ["x", "x", "x"]
+repeatValue(0, 5)                 // [0, 0, 0, 0, 0]
+repeatValue("x", 3)               // ["x", "x", "x"]
 ```
 
 ---
@@ -860,35 +860,35 @@ repeat_value("x", 3)               // ["x", "x", "x"]
 ### binary_search
 
 ```tova
-binary_search(arr, target, keyFn?) -> Int
+binarySearch(arr, target, keyFn?) -> Int
 ```
 
 Performs binary search on a sorted array. Returns the index of the target, or `-1` if not found.
 
 ```tova
-binary_search([1, 3, 5, 7, 9], 5)     // 2
-binary_search([1, 3, 5, 7, 9], 4)     // -1
+binarySearch([1, 3, 5, 7, 9], 5)     // 2
+binarySearch([1, 3, 5, 7, 9], 4)     // -1
 
 // With key function
 items = [{ id: 1 }, { id: 3 }, { id: 5 }]
-binary_search(items, 3, fn(x) x.id)   // 1
+binarySearch(items, 3, fn(x) x.id)   // 1
 ```
 
 ### is_sorted
 
 ```tova
-is_sorted(arr, keyFn?) -> Bool
+isSorted(arr, keyFn?) -> Bool
 ```
 
 Returns `true` if the array is sorted in ascending order.
 
 ```tova
-is_sorted([1, 2, 3, 4])               // true
-is_sorted([1, 3, 2])                   // false
-is_sorted([])                           // true
+isSorted([1, 2, 3, 4])               // true
+isSorted([1, 3, 2])                   // false
+isSorted([])                           // true
 
 // With key function
-is_sorted([{n: 1}, {n: 2}, {n: 3}], fn(x) x.n)  // true
+isSorted([{n: 1}, {n: 2}, {n: 3}], fn(x) x.n)  // true
 ```
 
 ### compact
@@ -920,40 +920,40 @@ rotate([1, 2, 3, 4, 5], -1)           // [5, 1, 2, 3, 4]
 ### insert_at
 
 ```tova
-insert_at(arr, idx, val) -> List
+insertAt(arr, idx, val) -> List
 ```
 
 Returns a new array with `val` inserted at position `idx`. Does not mutate the original.
 
 ```tova
-insert_at([1, 2, 3], 1, "x")          // [1, "x", 2, 3]
-insert_at([1, 2], 0, 0)               // [0, 1, 2]
+insertAt([1, 2, 3], 1, "x")          // [1, "x", 2, 3]
+insertAt([1, 2], 0, 0)               // [0, 1, 2]
 ```
 
 ### remove_at
 
 ```tova
-remove_at(arr, idx) -> List
+removeAt(arr, idx) -> List
 ```
 
 Returns a new array with the element at `idx` removed. Does not mutate the original.
 
 ```tova
-remove_at([1, 2, 3], 1)               // [1, 3]
-remove_at(["a", "b", "c"], 0)         // ["b", "c"]
+removeAt([1, 2, 3], 1)               // [1, 3]
+removeAt(["a", "b", "c"], 0)         // ["b", "c"]
 ```
 
 ### update_at
 
 ```tova
-update_at(arr, idx, val) -> List
+updateAt(arr, idx, val) -> List
 ```
 
 Returns a new array with the element at `idx` replaced by `val`. Does not mutate the original.
 
 ```tova
-update_at([1, 2, 3], 1, "x")          // [1, "x", 3]
-update_at(["a", "b", "c"], 2, "z")    // ["a", "b", "z"]
+updateAt([1, 2, 3], 1, "x")          // [1, "x", 3]
+updateAt(["a", "b", "c"], 2, "z")    // ["a", "b", "z"]
 ```
 
 ---
@@ -997,14 +997,14 @@ items |> sorted(fn(item) [item.priority, item.name])
 ### compare_by
 
 ```tova
-compare_by(arr, fn) -> List
+compareBy(arr, fn) -> List
 ```
 
 Sorts an array using a comparator function that returns an `Ordering` value.
 
 ```tova
-compare_by(users, fn(a, b) compare(a.age, b.age))    // sort by age
-compare_by(words, fn(a, b) compare(len(a), len(b)))   // sort by length
+compareBy(users, fn(a, b) compare(a.age, b.age))    // sort by age
+compareBy(words, fn(a, b) compare(len(a), len(b)))   // sort by length
 ```
 
 ---
@@ -1024,7 +1024,7 @@ items
 text
   |> lower()
   |> words()
-  |> group_by(fn(w) w)
+  |> groupBy(fn(w) w)
   |> entries()
   |> map(fn(pair) { word: pair[0], count: len(pair[1]) })
   |> sorted(fn(x) -x.count)
@@ -1042,8 +1042,8 @@ users_a
 
 // Immutable array updates
 todos
-  |> insert_at(0, new_todo)
-  |> remove_at(completed_idx)
+  |> insertAt(0, new_todo)
+  |> removeAt(completed_idx)
 ```
 
 ## Parallel Processing
@@ -1051,19 +1051,19 @@ todos
 ### parallel_map
 
 ```tova
-await parallel_map(arr, f) -> [T]
-await parallel_map(arr, f, num_workers) -> [T]
+await parallelMap(arr, f) -> [T]
+await parallelMap(arr, f, num_workers) -> [T]
 ```
 
 Distributes array processing across multiple CPU cores using a persistent worker pool. Workers are created once and reused across calls.
 
 ```tova
-results = await parallel_map(large_dataset, fn(item) {
+results = await parallelMap(large_dataset, fn(item) {
   expensive_computation(item)
 })
 
 // Specify number of workers
-results = await parallel_map(data, process_item, 8)
+results = await parallelMap(data, process_item, 8)
 ```
 
 - Automatically detects available CPU cores

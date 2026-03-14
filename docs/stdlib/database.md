@@ -56,7 +56,7 @@ users = db.query("SELECT * FROM users")
 active = db.query("SELECT * FROM users WHERE active = ? AND age > ?", [1, 18])
 
 // Use the result as a normal Table
-active |> sort_by(.name) |> peek()
+active |> sortBy(.name) |> peek()
 ```
 
 The returned `Table` has all the standard table operations available — `where`, `derive`, `group_by`, `agg`, `sort_by`, `join`, etc.
@@ -137,7 +137,7 @@ write(users, db, "users_backup")
 
 // Round-trip: query, transform, write back
 active = db.query("SELECT * FROM users WHERE active = 1")
-  |> derive(.last_seen = now_iso())
+  |> derive(.last_seen = nowIso())
 write(active, db, "active_users")
 ```
 
@@ -178,7 +178,7 @@ db = sqlite("warehouse.db")
 
 // Load and clean
 orders = read("orders.csv")
-  |> drop_nil(.customer_id)
+  |> dropNil(.customer_id)
   |> cast(.amount, Float)
 
 // Store in database
@@ -208,7 +208,7 @@ daily = db.query("
   ORDER BY date
 ")
 
-daily |> line_chart(x: .date, y: .total) |> write_text("trend.svg")
+daily |> lineChart(x: .date, y: .total) |> writeText("trend.svg")
 
 db.close()
 ```

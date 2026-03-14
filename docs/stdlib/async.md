@@ -7,17 +7,17 @@ Tova provides utility functions for working with asynchronous code and wrapping 
 ### try_fn
 
 ```tova
-try_fn(fn) -> Result
+tryFn(fn) -> Result
 ```
 
 Wraps a synchronous function call in a try/catch and returns `Ok(value)` on success or `Err(message)` on failure.
 
 ```tova
-try_fn(fn() to_int("42"))
+tryFn(fn() toInt("42"))
 // Ok(42)
 
-try_fn(fn() {
-  data = json_parse("bad json").unwrap()
+tryFn(fn() {
+  data = jsonParse("bad json").unwrap()
   data.name
 })
 // Err("Called unwrap on Err: ...")
@@ -26,7 +26,7 @@ try_fn(fn() {
 ```tova
 // Safe division
 fn safe_divide(a, b) {
-  try_fn(fn() {
+  tryFn(fn() {
     assert(b != 0, "division by zero")
     a / b
   })
@@ -39,13 +39,13 @@ safe_divide(10, 0)    // Err("division by zero")
 ### try_async
 
 ```tova
-try_async(fn) -> Promise[Result]
+tryAsync(fn) -> Promise[Result]
 ```
 
 Wraps an async function call in a try/catch and returns a Promise of `Ok(value)` or `Err(message)`.
 
 ```tova
-result = await try_async(fn() fetch("/api/data"))
+result = await tryAsync(fn() fetch("/api/data"))
 match result {
   Ok(response) => process(response)
   Err(msg) => print("Request failed: {msg}")
@@ -91,7 +91,7 @@ result = await race([
 
 ```tova
 // Implement a timeout using the timeout() function
-result = await try_async(fn() {
+result = await tryAsync(fn() {
   timeout(fetch("/api/slow"), 5000)
 })
 ```
@@ -106,7 +106,7 @@ Adds a timeout to a promise. If the promise does not resolve within `ms` millise
 
 ```tova
 // Fail if API takes longer than 5 seconds
-result = await try_async(fn() {
+result = await tryAsync(fn() {
   timeout(fetch("/api/slow-endpoint"), 5000)
 })
 
@@ -164,7 +164,7 @@ loop {
 ### parallel_map
 
 ```tova
-parallel_map(arr, fn, numWorkers?) -> Promise[List]
+parallelMap(arr, fn, numWorkers?) -> Promise[List]
 ```
 
 Distributes an array across worker threads and applies `fn` to each element in parallel. Returns a promise resolving to the mapped results.
@@ -177,12 +177,12 @@ The worker pool is persistent — workers are created once and reused across cal
 
 ```tova
 // Map in parallel across all CPU cores
-results = await parallel_map(items, fn(item) {
+results = await parallelMap(items, fn(item) {
     expensive_transform(item)
 })
 
 // Limit to 2 workers
-results = await parallel_map(items, fn(x) x * 2, 2)
+results = await parallelMap(items, fn(x) x * 2, 2)
 ```
 
 For small arrays (< 4 elements) or a single worker, `parallel_map` falls back to synchronous `map` to avoid overhead.
@@ -199,14 +199,14 @@ For date/time functions (`now`, `now_iso`, `date_parse`, `date_format`, `date_ad
 
 ```tova
 // Fetch with retry and timeout, returning Result
-await try_async(fn() {
+await tryAsync(fn() {
   retry(fn() timeout(fetch("/api/data"), 3000), { times: 3 })
 })
 
 // Parallel fetch with error handling
 urls = ["/api/a", "/api/b", "/api/c"]
 results = await parallel(
-  map(urls, fn(url) try_async(fn() fetch(url)))
+  map(urls, fn(url) tryAsync(fn() fetch(url)))
 )
 // List of Ok/Err results
 ```

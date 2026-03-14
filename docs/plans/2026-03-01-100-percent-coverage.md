@@ -106,7 +106,7 @@ function analyze(src) {
 describe('Analyzer 100% coverage', () => {
   // 1. flat_map/flatten type inference
   test('flat_map return type inference', () => {
-    const { warnings } = analyze('fn foo(xs: [Int]) -> [Int] { xs.flat_map(fn(x) [x, x + 1]) }');
+    const { warnings } = analyze('fn foo(xs: [Int]) -> [Int] { xs.flatMap(fn(x) [x, x + 1]) }');
     // Should not error - flat_map recognized
   });
 

@@ -116,16 +116,16 @@ Sampling composes naturally with other table operations:
 read("huge_dataset.csv")
   |> sample(10000, seed: 42)
   |> where(.status == "active")
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(avg_spend: mean(.amount))
-  |> sort_by(.avg_spend, desc: true)
+  |> sortBy(.avg_spend, desc: true)
   |> peek()
 
 // Stratified sample for balanced analysis
 read("survey.csv")
   |> stratified_sample(.age_group, 200, seed: 42)
-  |> group_by(.age_group)
+  |> groupBy(.age_group)
   |> agg(satisfaction: mean(.score))
-  |> bar_chart(x: .age_group, y: .satisfaction)
-  |> write_text("satisfaction.svg")
+  |> barChart(x: .age_group, y: .satisfaction)
+  |> writeText("satisfaction.svg")
 ```

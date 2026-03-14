@@ -27,7 +27,7 @@ if fs.exists("config.json") {
 ### fs.is_file
 
 ```tova
-fs.is_file(path) -> Bool
+fs.isFile(path) -> Bool
 ```
 
 Returns `true` if the path is a regular file.
@@ -35,7 +35,7 @@ Returns `true` if the path is a regular file.
 ### fs.is_dir
 
 ```tova
-fs.is_dir(path) -> Bool
+fs.isDir(path) -> Bool
 ```
 
 Returns `true` if the path is a directory.
@@ -100,17 +100,17 @@ Moves or renames a file or directory. Returns `Ok(dest)` on success, `Err(messag
 ### fs.read_text
 
 ```tova
-fs.read_text(path, encoding?) -> Result<String>
+fs.readText(path, encoding?) -> Result<String>
 ```
 
 Reads the entire contents of a file as a string. Returns `Ok(content)` on success, `Err(message)` on failure.
 
 ```tova
-content = fs.read_text("README.md").unwrap()
+content = fs.readText("README.md").unwrap()
 print(len(content))
 
 // With error handling
-match fs.read_text("README.md") {
+match fs.readText("README.md") {
   Ok(text) => print(len(text))
   Err(msg) => print("Could not read file: {msg}")
 }
@@ -119,48 +119,48 @@ match fs.read_text("README.md") {
 ### fs.write_text
 
 ```tova
-fs.write_text(path, content, opts?) -> Result<String>
+fs.writeText(path, content, opts?) -> Result<String>
 ```
 
 Writes a string to a file, creating it if it does not exist. Returns `Ok(path)` on success, `Err(message)` on failure. Supports `opts.append` for append mode.
 
 ```tova
-fs.write_text("output.txt", "Hello, World!")
+fs.writeText("output.txt", "Hello, World!")
 
 // Append to a file
-fs.write_text("log.txt", "New entry\n", append: true)
+fs.writeText("log.txt", "New entry\n", append: true)
 ```
 
 ### fs.read_bytes
 
 ```tova
-fs.read_bytes(path) -> Result<Buffer>
+fs.readBytes(path) -> Result<Buffer>
 ```
 
 Reads the entire contents of a file as binary data. Returns `Ok(buffer)` on success, `Err(message)` on failure.
 
 ```tova
-data = fs.read_bytes("image.png").unwrap()
+data = fs.readBytes("image.png").unwrap()
 print("Read {len(data)} bytes")
 ```
 
 ### fs.glob_files
 
 ```tova
-fs.glob_files(pattern) -> [String]
+fs.globFiles(pattern) -> [String]
 ```
 
 Returns file paths matching a glob pattern.
 
 ```tova
-tova_files = fs.glob_files("src/**/*.tova")
-test_files = fs.glob_files("tests/*.tova")
+tova_files = fs.globFiles("src/**/*.tova")
+test_files = fs.globFiles("tests/*.tova")
 ```
 
 ### fs.file_stat
 
 ```tova
-fs.file_stat(path) -> Result<Object>
+fs.fileStat(path) -> Result<Object>
 ```
 
 Returns file metadata. Returns `Ok({size, mode, mtime, atime, isDir, isFile, isSymlink})` on success, `Err(message)` on failure.
@@ -168,13 +168,13 @@ Returns file metadata. Returns `Ok({size, mode, mtime, atime, isDir, isFile, isS
 ### fs.file_size
 
 ```tova
-fs.file_size(path) -> Result<Int>
+fs.fileSize(path) -> Result<Int>
 ```
 
 Returns the file size in bytes. Returns `Ok(size)` on success, `Err(message)` on failure.
 
 ```tova
-size = fs.file_size("data.csv").unwrap()
+size = fs.fileSize("data.csv").unwrap()
 print("File is {size} bytes")
 ```
 
@@ -185,44 +185,44 @@ print("File is {size} bytes")
 ### path_join
 
 ```tova
-path_join(...parts) -> String
+pathJoin(...parts) -> String
 ```
 
 Joins path segments with the platform separator.
 
 ```tova
-path_join("src", "utils", "helpers.tova")
+pathJoin("src", "utils", "helpers.tova")
 // "src/utils/helpers.tova"
 ```
 
 ### path_dirname
 
 ```tova
-path_dirname(path) -> String
+pathDirname(path) -> String
 ```
 
 Returns the directory portion of a path.
 
 ```tova
-path_dirname("/home/user/file.tova")    // "/home/user"
+pathDirname("/home/user/file.tova")    // "/home/user"
 ```
 
 ### path_basename
 
 ```tova
-path_basename(path) -> String
+pathBasename(path) -> String
 ```
 
 Returns the file name portion of a path.
 
 ```tova
-path_basename("/home/user/file.tova")   // "file.tova"
+pathBasename("/home/user/file.tova")   // "file.tova"
 ```
 
 ### path_resolve
 
 ```tova
-path_resolve(path) -> String
+pathResolve(path) -> String
 ```
 
 Resolves a path to an absolute path.
@@ -230,20 +230,20 @@ Resolves a path to an absolute path.
 ### path_ext
 
 ```tova
-path_ext(path) -> String
+pathExt(path) -> String
 ```
 
 Returns the file extension.
 
 ```tova
-path_ext("data.csv")        // ".csv"
-path_ext("archive.tar.gz")  // ".gz"
+pathExt("data.csv")        // ".csv"
+pathExt("archive.tar.gz")  // ".gz"
 ```
 
 ### path_relative
 
 ```tova
-path_relative(from, to) -> String
+pathRelative(from, to) -> String
 ```
 
 Returns the relative path from `from` to `to`.
@@ -271,7 +271,7 @@ Returns the target of a symbolic link. Returns `Ok(target)` on success, `Err(mes
 ### is_symlink
 
 ```tova
-is_symlink(path) -> Bool
+isSymlink(path) -> Bool
 ```
 
 Returns `true` if the path is a symbolic link.
@@ -361,13 +361,13 @@ port = env("PORT", "3000")
 ### set_env
 
 ```tova
-set_env(key, value) -> Nil
+setEnv(key, value) -> Nil
 ```
 
 Sets an environment variable for the current process.
 
 ```tova
-set_env("NODE_ENV", "production")
+setEnv("NODE_ENV", "production")
 ```
 
 ### args
@@ -389,13 +389,13 @@ if len(arguments) < 2 {
 ### parse_args
 
 ```tova
-parse_args(argv) -> {flags: Object, positional: [String]}
+parseArgs(argv) -> {flags: Object, positional: [String]}
 ```
 
 Parses command-line arguments into a structured object with `flags` (named options) and `positional` (positional arguments). Handles `--key value`, `--key=value`, `--flag` (boolean), and `-abc` (short flags).
 
 ```tova
-opts = parse_args(args())
+opts = parseArgs(args())
 // tova run build.tova --output dist --verbose
 // { flags: { output: "dist", verbose: true }, positional: ["build.tova"] }
 
@@ -451,7 +451,7 @@ match chdir("/nonexistent") {
 ### script_path
 
 ```tova
-script_path() -> String | Nil
+scriptPath() -> String | Nil
 ```
 
 Returns the absolute path of the currently running script, or `null` if not available.
@@ -459,7 +459,7 @@ Returns the absolute path of the currently running script, or `null` if not avai
 ### script_dir
 
 ```tova
-script_dir() -> String | Nil
+scriptDir() -> String | Nil
 ```
 
 Returns the directory containing the currently running script, or `null` if not available.
@@ -467,13 +467,13 @@ Returns the directory containing the currently running script, or `null` if not 
 ### on_signal
 
 ```tova
-on_signal(signal, handler) -> Nil
+onSignal(signal, handler) -> Nil
 ```
 
 Registers a handler function for a process signal (e.g., `"SIGINT"`, `"SIGTERM"`).
 
 ```tova
-on_signal("SIGINT", fn() {
+onSignal("SIGINT", fn() {
   print("Caught interrupt, cleaning up...")
   cleanup()
   exit(0)
@@ -487,27 +487,27 @@ on_signal("SIGINT", fn() {
 ### read_stdin
 
 ```tova
-read_stdin() -> String
+readStdin() -> String
 ```
 
 Reads all input from stdin.
 
 ```tova
 // Pipe data: echo "hello" | tova run script.tova
-input = read_stdin()
+input = readStdin()
 print("Got: {input}")
 ```
 
 ### read_lines
 
 ```tova
-read_lines() -> [String]
+readLines() -> [String]
 ```
 
 Reads stdin and splits into lines.
 
 ```tova
-for line in read_lines() {
+for line in readLines() {
   process(line)
 }
 ```
@@ -584,7 +584,7 @@ guard len(arguments) >= 1 else {
 }
 
 input_dir = arguments[0]
-files = fs.glob_files(path_join(input_dir, "*.csv"))
+files = fs.globFiles(pathJoin(input_dir, "*.csv"))
 
 for file in files {
   data = read(file)
@@ -598,7 +598,7 @@ for file in files {
 ### Environment Configuration
 
 ```tova
-port = env("PORT", "3000") |> to_int()
+port = env("PORT", "3000") |> toInt()
 debug = env("DEBUG") == "true"
 db_url = env("DATABASE_URL", "sqlite:./dev.db")
 ```

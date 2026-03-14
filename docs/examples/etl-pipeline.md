@@ -31,15 +31,15 @@ raw_products = read("products.csv")
 // Quick data exploration
 raw_orders |> peek()
 raw_orders |> describe()
-raw_orders |> schema_of() |> print()
+raw_orders |> schemaOf() |> print()
 
 // --- Cleaning Pipeline ---
 
 orders = raw_orders
-  |> drop_nil(.customer_id)
-  |> drop_nil(.product_id)
-  |> fill_nil(.quantity, 1)
-  |> fill_nil(.price, 0.0)
+  |> dropNil(.customer_id)
+  |> dropNil(.product_id)
+  |> fillNil(.quantity, 1)
+  |> fillNil(.price, 0.0)
   |> cast(.price, Float)
   |> cast(.quantity, Int)
   |> derive(
@@ -47,11 +47,11 @@ orders = raw_orders
     .order_date = .order_date |> trim()
   )
   |> where(.status != "CANCELLED")
-  |> drop_duplicates(by: .order_id)
-  |> sort_by(.order_date)
+  |> dropDuplicates(by: .order_id)
+  |> sortBy(.order_date)
 
 products = raw_products
-  |> drop_nil(.name)
+  |> dropNil(.name)
   |> rename("unit_cost", "cost")
   |> derive(
     .name = .name |> trim(),
@@ -70,7 +70,7 @@ order_details = orders
 // --- Aggregation ---
 
 by_category = order_details
-  |> group_by(.category)
+  |> groupBy(.category)
   |> agg(
     order_count: count(),
     total_revenue: sum(.total),
@@ -80,23 +80,23 @@ by_category = order_details
     max_order: max(.total),
     min_order: min(.total)
   )
-  |> sort_by(.total_revenue, desc: true)
+  |> sortBy(.total_revenue, desc: true)
 
 by_customer = order_details
-  |> group_by(.customer_id)
+  |> groupBy(.customer_id)
   |> agg(
     orders: count(),
     total_spent: sum(.total),
     avg_spent: mean(.total)
   )
-  |> sort_by(.total_spent, desc: true)
+  |> sortBy(.total_spent, desc: true)
   |> limit(50)
 
 // --- Pivot / Unpivot ---
 
 monthly_category = order_details
   |> derive(.month = .order_date |> split("-") |> first())
-  |> group_by(.month, .category)
+  |> groupBy(.month, .category)
   |> agg(revenue: sum(.total))
   |> pivot(index: .month, columns: .category, values: .revenue)
 
@@ -110,7 +110,7 @@ fn process_large_file(path: String, output_path: String) {
   stream(path, batch: 10000)
     |> each(fn(batch) {
       cleaned = batch
-        |> drop_nil(.customer_id)
+        |> dropNil(.customer_id)
         |> where(.status != "CANCELLED")
         |> derive(.total = .quantity * .price)
 
@@ -173,7 +173,7 @@ Before transforming data, inspect it:
 ```tova
 raw_orders |> peek()           // Shows first few rows
 raw_orders |> describe()       // Column stats: count, mean, min, max, nulls
-raw_orders |> schema_of()      // Column names and inferred types
+raw_orders |> schemaOf()      // Column names and inferred types
 ```
 
 These functions print to stdout and pass the table through, so they work inline in pipelines.
@@ -184,13 +184,13 @@ The cleaning pipeline chains operations that handle real-world data quality issu
 
 ```tova
 orders = raw_orders
-  |> drop_nil(.customer_id)           // Remove rows with nil customer
-  |> fill_nil(.quantity, 1)           // Default nil quantity to 1
+  |> dropNil(.customer_id)           // Remove rows with nil customer
+  |> fillNil(.quantity, 1)           // Default nil quantity to 1
   |> cast(.price, Float)              // Ensure price is numeric
   |> derive(.status = .status |> upper() |> trim())  // Normalize strings
   |> where(.status != "CANCELLED")    // Filter out cancelled
-  |> drop_duplicates(by: .order_id)       // Remove duplicate orders
-  |> sort_by(.order_date)             // Sort chronologically
+  |> dropDuplicates(by: .order_id)       // Remove duplicate orders
+  |> sortBy(.order_date)             // Sort chronologically
 ```
 
 Each operation returns a new table — tables are immutable.
@@ -212,7 +212,7 @@ order_details = orders
 
 ```tova
 by_category = order_details
-  |> group_by(.category)
+  |> groupBy(.category)
   |> agg(
     order_count: count(),
     total_revenue: sum(.total),
@@ -262,7 +262,7 @@ For files too large to fit in memory, `stream()` processes data in batches:
 ```tova
 stream("huge_file.csv", batch: 10000)
   |> each(fn(batch) {
-    cleaned = batch |> drop_nil(.id) |> where(.active == true)
+    cleaned = batch |> dropNil(.id) |> where(.active == true)
     write(cleaned, "output.csv", append: true)
   })
 ```

@@ -56,7 +56,7 @@ The `data` block declares data sources, reusable transform pipelines, validation
 
 Typical contents:
 - Source declarations (`source users = read("users.csv")`)
-- Named pipelines (`pipeline clean = users |> drop_nil(.email)`)
+- Named pipelines (`pipeline clean = users |> dropNil(.email)`)
 - Validation rules (`validate User { .email |> contains("@") }`)
 - Refresh policies (`refresh users every 15.minutes`)
 

@@ -108,20 +108,20 @@ Runs a property function with randomly generated inputs. The property should use
 ```tova
 test "reverse is its own inverse" {
   forAll([Gen.array(Gen.int())], fn(arr) {
-    assert_eq(reversed(reversed(arr)), arr)
+    assertEq(reversed(reversed(arr)), arr)
   })
 }
 
 test "sort produces sorted output" {
   forAll([Gen.array(Gen.int())], fn(arr) {
     result = sorted(arr)
-    assert(is_sorted(result))
+    assert(isSorted(result))
   })
 }
 
 test "addition is commutative" {
   forAll([Gen.int(), Gen.int()], fn(a, b) {
-    assert_eq(a + b, b + a)
+    assertEq(a + b, b + a)
   }, { runs: 500 })
 }
 ```
@@ -133,7 +133,7 @@ test "addition is commutative" {
 ### assert_snapshot
 
 ```tova
-assert_snapshot(value, name?) -> Nil
+assertSnapshot(value, name?) -> Nil
 ```
 
 Compares a value against a previously stored snapshot. On first run, creates the snapshot file. On subsequent runs, asserts the value matches the stored snapshot.
@@ -145,12 +145,12 @@ Compares a value against a previously stored snapshot. On first run, creates the
 ```tova
 test "user serialization" {
   user = User(1, "Alice", "alice@example.com")
-  assert_snapshot(user.to_json())
+  assertSnapshot(user.to_json())
 }
 
 test "component rendering" {
   html = render(Greeting("World"))
-  assert_snapshot(html, "greeting-html")
+  assertSnapshot(html, "greeting-html")
 }
 ```
 
@@ -167,7 +167,7 @@ tova test --update-snapshots
 ### create_spy
 
 ```tova
-create_spy(impl?) -> Spy
+createSpy(impl?) -> Spy
 ```
 
 Creates a spy function that records all calls. Optionally wraps an implementation function.
@@ -179,20 +179,20 @@ Creates a spy function that records all calls. Optionally wraps an implementatio
 
 ```tova
 test "tracks calls" {
-  spy = create_spy()
+  spy = createSpy()
   spy("hello")
   spy("world")
 
   assert(spy.called)
-  assert_eq(spy.call_count, 2)
-  assert_eq(spy.calls, [["hello"], ["world"]])
+  assertEq(spy.call_count, 2)
+  assertEq(spy.calls, [["hello"], ["world"]])
 }
 
 test "spy with implementation" {
-  spy = create_spy(fn(x) x * 2)
+  spy = createSpy(fn(x) x * 2)
   result = spy(5)
-  assert_eq(result, 10)
-  assert_eq(spy.call_count, 1)
+  assertEq(result, 10)
+  assertEq(spy.call_count, 1)
 }
 ```
 
@@ -213,13 +213,13 @@ test "spy with implementation" {
 
 ```tova
 test "reset clears tracking" {
-  spy = create_spy()
+  spy = createSpy()
   spy(1)
   spy(2)
-  assert_eq(spy.call_count, 2)
+  assertEq(spy.call_count, 2)
 
   spy.reset()
-  assert_eq(spy.call_count, 0)
+  assertEq(spy.call_count, 0)
   assert(not spy.called)
 }
 ```
@@ -231,24 +231,24 @@ test "reset clears tracking" {
 ### create_mock
 
 ```tova
-create_mock(returnValue) -> Mock
+createMock(returnValue) -> Mock
 ```
 
 Creates a mock function that returns a fixed value and tracks calls like a spy.
 
 ```tova
 test "returns mock value" {
-  mock_fn = create_mock(42)
+  mock_fn = createMock(42)
   result = mock_fn("any", "args")
-  assert_eq(result, 42)
+  assertEq(result, 42)
   assert(mock_fn.called)
-  assert_eq(mock_fn.call_count, 1)
+  assertEq(mock_fn.call_count, 1)
 }
 
 test "mock API response" {
-  mock_fetch = create_mock({ status: 200, body: '{"ok": true}' })
+  mock_fetch = createMock({ status: 200, body: '{"ok": true}' })
   response = mock_fetch("/api/data")
-  assert_eq(response.status, 200)
+  assertEq(response.status, 200)
 }
 ```
 

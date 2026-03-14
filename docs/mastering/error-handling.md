@@ -4,8 +4,8 @@ fn parse_int(text) {
   cleaned = trim(text)
   if len(cleaned) == 0 {
     Err("Empty string")
-  } elif all(chars(cleaned), fn(c) is_numeric(c)) {
-    Ok(to_int(cleaned))
+  } elif all(chars(cleaned), fn(c) isNumeric(c)) {
+    Ok(toInt(cleaned))
   } else {
     Err("Not a number: '{cleaned}'")
   }
@@ -26,7 +26,7 @@ const chainingCode = `// Method chaining: compose operations without nested matc
 fn parse_int_safe(text) {
   cleaned = trim(text)
   if len(cleaned) == 0 { Err("empty") }
-  elif all(chars(cleaned), fn(c) is_numeric(c) || c == "-") { Ok(to_int(cleaned)) }
+  elif all(chars(cleaned), fn(c) isNumeric(c) || c == "-") { Ok(toInt(cleaned)) }
   else { Err("not a number: {cleaned}") }
 }
 
@@ -116,12 +116,12 @@ fn parse_config_line(line) {
   trimmed = trim(line)
 
   // Skip empty lines and comments
-  if len(trimmed) == 0 || starts_with(trimmed, "#") {
+  if len(trimmed) == 0 || startsWith(trimmed, "#") {
     return Ok(None)
   }
 
   // Must contain =
-  eq_pos = index_of(trimmed, "=")
+  eq_pos = indexOf(trimmed, "=")
   if eq_pos == null {
     return Err("Invalid line (no '='): {trimmed}")
   }
@@ -623,12 +623,12 @@ Use `try/catch` only at the boundary with JavaScript code. Within Tova code, pre
 
 Instead of writing try/catch blocks every time you call a JavaScript function that might throw, Tova provides two stdlib helpers that wrap the result for you.
 
-### `try_fn(fn)` — Catch Sync Exceptions as Result
+### `tryFn(fn)` — Catch Sync Exceptions as Result
 
 `try_fn` takes a zero-argument function, calls it, and wraps the outcome in a Result:
 
 ```tova
-result = try_fn(fn() JSON.parse(raw_text))
+result = tryFn(fn() JSON.parse(raw_text))
 // Ok(parsed_value) or Err(error_message)
 
 match result {
@@ -640,20 +640,20 @@ match result {
 This is cleaner than writing a full try/catch block, especially when you want to immediately chain:
 
 ```tova
-config = try_fn(fn() JSON.parse(raw))
+config = tryFn(fn() JSON.parse(raw))
   .mapErr(fn(e) "Invalid JSON: {e}")
   .flatMap(fn(data) validate_config(data))
 ```
 
-### `try_async(fn)` — Catch Async Exceptions as Result
+### `tryAsync(fn)` — Catch Async Exceptions as Result
 
 `try_async` is the async counterpart. It wraps an async operation that might reject:
 
 ```tova
-result = await try_async(fn() fetch_data(url))
+result = await tryAsync(fn() fetch_data(url))
 // Ok(data) or Err(error_message)
 
-response = await try_async(fn() http_get("https://api.example.com/users"))
+response = await tryAsync(fn() http_get("https://api.example.com/users"))
   .map(fn(r) r.body)
   .unwrapOr("[]")
 ```
@@ -667,7 +667,7 @@ The `?` operator is Tova's most ergonomic error-handling tool. It unwraps an `Ok
 ```tova
 fn load_config(path) {
   text = read_file(path)?              // If Err, return Err immediately
-  data = json_parse(text)?             // If Err, return Err immediately
+  data = jsonParse(text)?             // If Err, return Err immediately
   validate_config(data)?               // If Err, return Err immediately
   Ok(data)                             // If we get here, all succeeded
 }
@@ -680,7 +680,7 @@ Without `?`, this would require deeply nested matching:
 fn load_config(path) {
   match read_file(path) {
     Err(e) => Err(e)
-    Ok(text) => match json_parse(text) {
+    Ok(text) => match jsonParse(text) {
       Err(e) => Err(e)
       Ok(data) => match validate_config(data) {
         Err(e) => Err(e)
@@ -828,12 +828,12 @@ fn parse_config_line(line) {
   trimmed = trim(line)
 
   // Skip empty lines and comments
-  if len(trimmed) == 0 || starts_with(trimmed, "#") {
+  if len(trimmed) == 0 || startsWith(trimmed, "#") {
     return Ok(None)
   }
 
   // Must contain =
-  eq_pos = index_of(trimmed, "=")
+  eq_pos = indexOf(trimmed, "=")
   if eq_pos == null {
     return Err("Invalid line (no '='): {trimmed}")
   }

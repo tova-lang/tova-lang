@@ -14,7 +14,7 @@ This is the most important part of the standard library. Master these types and 
 ```tova
 // Result: parsing can fail
 fn parse_int(s) {
-  n = to_int(s)
+  n = toInt(s)
   if n == nil {
     Err("not a valid integer: {s}")
   } else {
@@ -588,34 +588,34 @@ fn find_by_name(users, name) {
 ### filter_ok
 
 ```tova
-filter_ok(results) -> [T]
+filterOk(results) -> [T]
 ```
 
 Filters an array of `Result` values, returning only the unwrapped `Ok` values and discarding any `Err` entries.
 
 ```tova
 results = [Ok(1), Err("bad"), Ok(2), Err("fail"), Ok(3)]
-filter_ok(results)    // [1, 2, 3]
+filterOk(results)    // [1, 2, 3]
 ```
 
 ### filter_err
 
 ```tova
-filter_err(results) -> [E]
+filterErr(results) -> [E]
 ```
 
 Filters an array of `Result` values, returning only the unwrapped `Err` values and discarding any `Ok` entries.
 
 ```tova
 results = [Ok(1), Err("bad"), Ok(2), Err("fail"), Ok(3)]
-filter_err(results)    // ["bad", "fail"]
+filterErr(results)    // ["bad", "fail"]
 ```
 
 These are useful when processing batches of results:
 
 ```tova
-results = urls |> map(fn(url) try_fn(fn() fetch(url)))
-successes = filter_ok(results)
-failures = filter_err(results)
+results = urls |> map(fn(url) tryFn(fn() fetch(url)))
+successes = filterOk(results)
+failures = filterErr(results)
 print("{len(successes)} succeeded, {len(failures)} failed")
 ```

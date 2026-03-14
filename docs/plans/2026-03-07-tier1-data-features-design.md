@@ -25,7 +25,7 @@ All 6 features integrate through `src/stdlib/inline.js`. No parser or codegen ch
 | Excel | `read()`/`write()` extension | `exceljs` (npm) |
 | SVG Charting | New stdlib functions | None (pure JS) |
 | Sampling | New table functions | None (pure JS) |
-| Join types | Extend `table_join()` | None |
+| Join types | Extend `tableJoin()` | None |
 | SQLite | New `sqlite()` function | `bun:sqlite` (built-in) |
 
 **Dependency policy:** npm packages allowed. Both `parquet-wasm` and `exceljs` are lazy-loaded only when their file extensions are encountered.
@@ -98,18 +98,18 @@ write(table, "output.xlsx", sheet: "Summary")
 
 ```tova
 // 6 chart types — all return SVG strings
-bar_chart(data, x: .region, y: .revenue, title: "Revenue by Region")
-line_chart(data, x: .date, y: .price, title: "Price History")
-scatter_chart(data, x: .age, y: .income, title: "Age vs Income")
+barChart(data, x: .region, y: .revenue, title: "Revenue by Region")
+lineChart(data, x: .date, y: .price, title: "Price History")
+scatterChart(data, x: .age, y: .income, title: "Age vs Income")
 histogram(data, col: .age, bins: 20, title: "Age Distribution")
-pie_chart(data, label: .category, value: .revenue, title: "Revenue Split")
+pieChart(data, label: .category, value: .revenue, title: "Revenue Split")
 heatmap(data, x: .month, y: .product, value: .sales, title: "Sales Heatmap")
 
 // Save to file
-bar_chart(data, x: .region, y: .revenue) |> write_text("chart.svg")
+barChart(data, x: .region, y: .revenue) |> writeText("chart.svg")
 
 // Customization (all optional)
-bar_chart(data,
+barChart(data,
   x: .region,
   y: .revenue,
   title: "Revenue by Region",
@@ -121,14 +121,14 @@ bar_chart(data,
 )
 
 // Multi-series line chart
-line_chart(data, x: .date, y: [.revenue, .cost], title: "Revenue vs Cost")
+lineChart(data, x: .date, y: [.revenue, .cost], title: "Revenue vs Cost")
 
 // Pipe-friendly
 table
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(total: sum(.sales))
-  |> bar_chart(x: .region, y: .total)
-  |> write_text("report.svg")
+  |> barChart(x: .region, y: .total)
+  |> writeText("report.svg")
 ```
 
 ### Implementation
@@ -219,7 +219,7 @@ a |> join(b, left: .id, right: .uid, how: "semi")
 
 ### Implementation
 
-Extend existing `table_join()` in inline.js. Same hash-join algorithm, different post-processing per `how`:
+Extend existing `tableJoin()` in inline.js. Same hash-join algorithm, different post-processing per `how`:
 
 **right:** Swap left/right tables, perform left join, then reorder columns so right table columns come first.
 

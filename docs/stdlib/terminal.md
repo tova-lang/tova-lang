@@ -267,13 +267,13 @@ lang = await choose("Pick a language:", ["Tova", "Python", "Rust"])
 ### choose_many
 
 ```tova
-async choose_many(prompt, options) -> [String]
+async chooseMany(prompt, options) -> [String]
 ```
 
 Like `choose`, but accepts comma-separated selections for multi-select.
 
 ```tova
-features = await choose_many("Enable features:", ["auth", "logging", "metrics"])
+features = await chooseMany("Enable features:", ["auth", "logging", "metrics"])
 // Enable features:
 //   1. auth
 //   2. logging
@@ -343,7 +343,7 @@ cli {
 ### Progress Bar for Batch Processing
 
 ```tova
-files = fs.glob_files("data/*.csv")
+files = fs.globFiles("data/*.csv")
 
 for file in progress(files, label: "Processing") {
   data = read(file)

@@ -126,7 +126,7 @@ For files too large to fit in memory:
 ```tova
 stream("huge_file.csv", batch: 10000)
   |> each(fn(batch) {
-    cleaned = batch |> drop_nil(.id) |> where(.active == true)
+    cleaned = batch |> dropNil(.id) |> where(.active == true)
     write(cleaned, "output.csv", append: true)
   })
 ```

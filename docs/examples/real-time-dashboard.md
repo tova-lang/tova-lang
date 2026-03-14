@@ -156,7 +156,7 @@ server {
       match values |> len() {
         0 => Stats { avg: 0.0, max: 0.0, min: 0.0, count: 0 }
         _ => Stats {
-          avg: values |> sum() / (values |> len() |> to_float()),
+          avg: values |> sum() / (values |> len() |> toFloat()),
           max: values |> max_val(),
           min: values |> min_val(),
           count: values |> len()
@@ -234,7 +234,7 @@ browser {
     match nums |> len() {
       0 => Stats { avg: 0.0, max: 0.0, min: 0.0, count: 0 }
       _ => Stats {
-        avg: nums |> sum() / (nums |> len() |> to_float()),
+        avg: nums |> sum() / (nums |> len() |> toFloat()),
         max: nums |> max_val(),
         min: nums |> min_val(),
         count: nums |> len()

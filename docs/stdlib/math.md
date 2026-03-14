@@ -231,15 +231,15 @@ atan2(1, 1)   // ~0.7854 (PI/4)
 ### to_radians, to_degrees
 
 ```tova
-to_radians(deg) -> Float
-to_degrees(rad) -> Float
+toRadians(deg) -> Float
+toDegrees(rad) -> Float
 ```
 
 Convert between degrees and radians.
 
 ```tova
-to_radians(180)   // PI
-to_degrees(PI)    // 180
+toRadians(180)   // PI
+toDegrees(PI)    // 180
 ```
 
 ---
@@ -293,42 +293,42 @@ exp(1)        // ~2.718 (E)
 ### is_nan
 
 ```tova
-is_nan(n) -> Bool
+isNaN(n) -> Bool
 ```
 
 Returns true if the value is NaN.
 
 ```tova
-is_nan(0 / 0)   // true
-is_nan(42)       // false
+isNaN(0 / 0)   // true
+isNaN(42)       // false
 ```
 
 ### is_finite
 
 ```tova
-is_finite(n) -> Bool
+isFinite(n) -> Bool
 ```
 
 Returns true if the value is a finite number (not Infinity or NaN).
 
 ```tova
-is_finite(42)       // true
-is_finite(INF)      // false
-is_finite(0 / 0)    // false
+isFinite(42)       // true
+isFinite(INF)      // false
+isFinite(0 / 0)    // false
 ```
 
 ### is_close
 
 ```tova
-is_close(a, b, tol?) -> Bool
+isClose(a, b, tol?) -> Bool
 ```
 
 Returns true if two numbers are within `tol` of each other. Default tolerance is `1e-9`.
 
 ```tova
-is_close(0.1 + 0.2, 0.3)       // true
-is_close(1.0, 1.01, 0.1)       // true
-is_close(1.0, 2.0)             // false
+isClose(0.1 + 0.2, 0.3)       // true
+isClose(1.0, 1.01, 0.1)       // true
+isClose(1.0, 2.0)             // false
 ```
 
 ---
@@ -394,27 +394,27 @@ random()              // e.g., 0.7234...
 ### random_int
 
 ```tova
-random_int(lo, hi) -> Int
+randomInt(lo, hi) -> Int
 ```
 
 Returns a random integer between `lo` and `hi` (inclusive).
 
 ```tova
-random_int(1, 6)      // e.g., 4 (dice roll)
-random_int(0, 100)    // e.g., 73
+randomInt(1, 6)      // e.g., 4 (dice roll)
+randomInt(0, 100)    // e.g., 73
 ```
 
 ### random_float
 
 ```tova
-random_float(lo, hi) -> Float
+randomFloat(lo, hi) -> Float
 ```
 
 Returns a random float between `lo` (inclusive) and `hi` (exclusive).
 
 ```tova
-random_float(0, 1)    // e.g., 0.4823...
-random_float(-1, 1)   // e.g., -0.312...
+randomFloat(0, 1)    // e.g., 0.4823...
+randomFloat(-1, 1)   // e.g., -0.312...
 ```
 
 ### choice
@@ -550,7 +550,7 @@ mean([10])                  // 10
 mean([])                    // 0
 
 // As aggregation helper
-table |> group_by("dept") |> agg({ avg_salary: mean("salary") })
+table |> groupBy("dept") |> agg({ avg_salary: mean("salary") })
 ```
 
 ### median
@@ -632,70 +632,70 @@ percentile([], 50)                  // nil
 ### format_number
 
 ```tova
-format_number(n, opts?) -> String
+formatNumber(n, opts?) -> String
 ```
 
 Formats a number with thousands separators. Options: `separator` (default: `","`), `decimals` (fixed decimal places).
 
 ```tova
-format_number(1234567)                     // "1,234,567"
-format_number(1234.5, { decimals: 2 })    // "1,234.50"
-format_number(1234567, { separator: "." })  // "1.234.567"
+formatNumber(1234567)                     // "1,234,567"
+formatNumber(1234.5, { decimals: 2 })    // "1,234.50"
+formatNumber(1234567, { separator: "." })  // "1.234.567"
 ```
 
 ### to_hex
 
 ```tova
-to_hex(n) -> String
+toHex(n) -> String
 ```
 
 Converts an integer to a hexadecimal string.
 
 ```tova
-to_hex(255)    // "ff"
-to_hex(16)     // "10"
-to_hex(0)      // "0"
+toHex(255)    // "ff"
+toHex(16)     // "10"
+toHex(0)      // "0"
 ```
 
 ### to_binary
 
 ```tova
-to_binary(n) -> String
+toBinary(n) -> String
 ```
 
 Converts an integer to a binary string.
 
 ```tova
-to_binary(10)      // "1010"
-to_binary(255)     // "11111111"
-to_binary(0)       // "0"
+toBinary(10)      // "1010"
+toBinary(255)     // "11111111"
+toBinary(0)       // "0"
 ```
 
 ### to_octal
 
 ```tova
-to_octal(n) -> String
+toOctal(n) -> String
 ```
 
 Converts an integer to an octal string.
 
 ```tova
-to_octal(8)        // "10"
-to_octal(255)      // "377"
+toOctal(8)        // "10"
+toOctal(255)      // "377"
 ```
 
 ### to_fixed
 
 ```tova
-to_fixed(n, decimals) -> Number
+toFixed(n, decimals) -> Number
 ```
 
 Rounds a number to a fixed number of decimal places and returns a number (not a string). Returns `Float` when `decimals > 0`, `Int` when `decimals == 0`.
 
 ```tova
-to_fixed(3.14159, 2)    // 3.14  (Float)
-to_fixed(3.7, 0)         // 4    (Int)
-to_fixed(1.005, 2)       // 1.0  (Float, due to IEEE 754 rounding)
+toFixed(3.14159, 2)    // 3.14  (Float)
+toFixed(3.7, 0)         // 4    (Int)
+toFixed(1.005, 2)       // 1.0  (Float, due to IEEE 754 rounding)
 ```
 
 ---
@@ -720,35 +720,35 @@ These functions operate on TypedArrays (`Float64Array`, `Int32Array`, etc.) for 
 ### typed_sum
 
 ```tova
-typed_sum(arr) -> Float
+typedSum(arr) -> Float
 ```
 
 Computes the sum using Kahan compensated summation, which minimizes floating-point error accumulation:
 
 ```tova
 @fast fn precise_total(data: [Float]) -> Float {
-  typed_sum(data)
+  typedSum(data)
 }
 ```
 
 ### typed_dot
 
 ```tova
-typed_dot(a, b) -> Float
+typedDot(a, b) -> Float
 ```
 
 Computes the dot product of two arrays:
 
 ```tova
 @fast fn dot(a: [Float], b: [Float]) -> Float {
-  typed_dot(a, b)
+  typedDot(a, b)
 }
 ```
 
 ### typed_norm
 
 ```tova
-typed_norm(arr) -> Float
+typedNorm(arr) -> Float
 ```
 
 Computes the L2 (Euclidean) norm of an array.
@@ -756,7 +756,7 @@ Computes the L2 (Euclidean) norm of an array.
 ### typed_add
 
 ```tova
-typed_add(a, b) -> TypedArray
+typedAdd(a, b) -> TypedArray
 ```
 
 Returns a new typed array with element-wise addition of `a` and `b`.
@@ -764,7 +764,7 @@ Returns a new typed array with element-wise addition of `a` and `b`.
 ### typed_scale
 
 ```tova
-typed_scale(arr, scalar) -> TypedArray
+typedScale(arr, scalar) -> TypedArray
 ```
 
 Returns a new typed array with every element multiplied by `scalar`.
@@ -772,7 +772,7 @@ Returns a new typed array with every element multiplied by `scalar`.
 ### typed_map
 
 ```tova
-typed_map(arr, f) -> TypedArray
+typedMap(arr, f) -> TypedArray
 ```
 
 Applies `f` to each element, returning a new typed array of the same type.
@@ -780,7 +780,7 @@ Applies `f` to each element, returning a new typed array of the same type.
 ### typed_reduce
 
 ```tova
-typed_reduce(arr, f, init) -> T
+typedReduce(arr, f, init) -> T
 ```
 
 Reduces the typed array with function `f` and initial value `init`.
@@ -788,7 +788,7 @@ Reduces the typed array with function `f` and initial value `init`.
 ### typed_sort
 
 ```tova
-typed_sort(arr) -> TypedArray
+typedSort(arr) -> TypedArray
 ```
 
 Returns a new sorted typed array.
@@ -796,7 +796,7 @@ Returns a new sorted typed array.
 ### typed_zeros
 
 ```tova
-typed_zeros(n) -> Float64Array
+typedZeros(n) -> Float64Array
 ```
 
 Creates a `Float64Array` of `n` zeros.
@@ -804,7 +804,7 @@ Creates a `Float64Array` of `n` zeros.
 ### typed_ones
 
 ```tova
-typed_ones(n) -> Float64Array
+typedOnes(n) -> Float64Array
 ```
 
 Creates a `Float64Array` of `n` ones.
@@ -812,7 +812,7 @@ Creates a `Float64Array` of `n` ones.
 ### typed_fill
 
 ```tova
-typed_fill(arr, value) -> TypedArray
+typedFill(arr, value) -> TypedArray
 ```
 
 Returns a new typed array of the same type filled with `value`.
@@ -820,7 +820,7 @@ Returns a new typed array of the same type filled with `value`.
 ### typed_range
 
 ```tova
-typed_range(start, end, step) -> Float64Array
+typedRange(start, end, step) -> Float64Array
 ```
 
 Creates a `Float64Array` with values from `start` to `end` (exclusive), incrementing by `step`.
@@ -828,7 +828,7 @@ Creates a `Float64Array` with values from `start` to `end` (exclusive), incremen
 ### typed_linspace
 
 ```tova
-typed_linspace(start, end, n) -> Float64Array
+typedLinspace(start, end, n) -> Float64Array
 ```
 
 Creates a `Float64Array` of `n` evenly-spaced values from `start` to `end` (inclusive).
@@ -845,7 +845,7 @@ scores
 
 // Generate random sample
 range(10)
-  |> map(fn(_) random_int(0, 99))
+  |> map(fn(_) randomInt(0, 99))
   |> sorted()
 
 // Distance between two 2D points

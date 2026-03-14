@@ -39,8 +39,8 @@ Every table operation returns a new table. The original is never modified:
 
 ```tova
 original = read("data.csv")
-cleaned = original |> drop_nil(.id)    // New table — original unchanged
-sorted = cleaned |> sort_by(.name)     // New table — cleaned unchanged
+cleaned = original |> dropNil(.id)    // New table — original unchanged
+sorted = cleaned |> sortBy(.name)     // New table — cleaned unchanged
 ```
 
 This makes pipelines safe and composable: you can branch from any intermediate step.
@@ -61,7 +61,7 @@ Column expressions use dot-prefixed names to reference columns:
 ```tova
 table |> where(.age > 30)
 table |> select(.name, .email)
-table |> sort_by(.created_at, desc: true)
+table |> sortBy(.created_at, desc: true)
 ```
 
 Inside `derive()`, `where()`, `agg()`, `window()`, and other table operations, `.column_name` compiles to a row-level accessor function. The expression `.age > 30` becomes `fn(row) row.age > 30`.
@@ -124,8 +124,8 @@ data {
 
   // Layer 2: Clean
   pipeline clean = raw
-    |> drop_nil(.customer_id)
-    |> drop_duplicates(by: .order_id)
+    |> dropNil(.customer_id)
+    |> dropDuplicates(by: .order_id)
     |> cast(.price, Float)
     |> derive(.status = .status |> upper() |> trim())
 
@@ -136,7 +136,7 @@ data {
 
   // Layer 4: Aggregate
   pipeline summary = with_totals
-    |> group_by(.category)
+    |> groupBy(.category)
     |> agg(
       orders: count(),
       revenue: sum(.total),
@@ -169,13 +169,13 @@ Multiple pipelines can branch from the same source:
 ```tova
 data {
   source raw = read("data.csv")
-  pipeline clean = raw |> drop_nil(.id)
+  pipeline clean = raw |> dropNil(.id)
 
   // Branch 1: Aggregate by region
-  pipeline by_region = clean |> group_by(.region) |> agg(total: sum(.sales))
+  pipeline by_region = clean |> groupBy(.region) |> agg(total: sum(.sales))
 
   // Branch 2: Aggregate by product
-  pipeline by_product = clean |> group_by(.product) |> agg(total: sum(.sales))
+  pipeline by_product = clean |> groupBy(.product) |> agg(total: sum(.sales))
 
   // Branch 3: AI enrichment
   pipeline labeled = clean |> derive(.label = fast.classify(...))
@@ -223,7 +223,7 @@ For files too large to fit in memory:
 stream("huge_file.csv", batch: 10000)
   |> each(fn(batch) {
     processed = batch
-      |> drop_nil(.id)
+      |> dropNil(.id)
       |> where(.active == true)
       |> derive(.total = .quantity * .price)
     write(processed, "output.csv", append: true)
@@ -244,21 +244,21 @@ stream("huge_file.csv", batch: 10000)
 
 ```tova
 // Remove duplicate rows based on a key column
-table |> drop_duplicates(by: .id)
+table |> dropDuplicates(by: .id)
 
 // Keep first occurrence (default)
-table |> drop_duplicates(by: .email)
+table |> dropDuplicates(by: .email)
 ```
 
 ### Nil Handling
 
 ```tova
 // Remove rows where column is nil
-table |> drop_nil(.email)
+table |> dropNil(.email)
 
 // Fill nil with a default value
-table |> fill_nil(.country, "Unknown")
-table |> fill_nil(.score, 0.0)
+table |> fillNil(.country, "Unknown")
+table |> fillNil(.score, 0.0)
 ```
 
 ### Type Casting
@@ -303,10 +303,10 @@ table |> rename("unit_cost", "cost")
 
 ```tova
 // Single grouping
-table |> group_by(.category) |> agg(count: count())
+table |> groupBy(.category) |> agg(count: count())
 
 // Multiple aggregations
-table |> group_by(.region) |> agg(
+table |> groupBy(.region) |> agg(
   total: sum(.revenue),
   average: mean(.revenue),
   mid: median(.revenue),
@@ -316,7 +316,7 @@ table |> group_by(.region) |> agg(
 )
 
 // Multiple group keys
-table |> group_by(.region, .category) |> agg(
+table |> groupBy(.region, .category) |> agg(
   revenue: sum(.sales),
   orders: count()
 )
@@ -338,7 +338,7 @@ table |> group_by(.region, .category) |> agg(
 ```tova
 // Long → Wide: one column per category
 table
-  |> group_by(.month, .category)
+  |> groupBy(.month, .category)
   |> agg(revenue: sum(.sales))
   |> pivot(index: .month, columns: .category, values: .revenue)
 
@@ -351,12 +351,12 @@ wide_table |> unpivot(id: "_index", columns: ["electronics", "clothing", "food"]
 ```tova
 // First level: by region and category
 level1 = table
-  |> group_by(.region, .category)
+  |> groupBy(.region, .category)
   |> agg(revenue: sum(.sales))
 
 // Second level: by region only (roll up categories)
 level2 = level1
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(
     total_revenue: sum(.revenue),
     categories: count()
@@ -452,7 +452,7 @@ AI calls in `derive()` run once per row. For large tables, this can be expensive
 
 ```tova
 data {
-  pipeline base = raw |> drop_nil(.id) |> where(.needs_review == true)
+  pipeline base = raw |> dropNil(.id) |> where(.needs_review == true)
 
   // Only enrich rows that need it (not the full dataset)
   pipeline enriched = base
@@ -594,8 +594,8 @@ Start with a standalone data script:
 
 ```tova
 raw = read("sales.csv")
-clean = raw |> drop_nil(.id) |> cast(.amount, Float)
-summary = clean |> group_by(.region) |> agg(total: sum(.amount))
+clean = raw |> dropNil(.id) |> cast(.amount, Float)
+summary = clean |> groupBy(.region) |> agg(total: sum(.amount))
 write(summary, "report.json")
 print("Done!")
 ```
@@ -607,8 +607,8 @@ Wrap pipelines in a data block for caching and refresh:
 ```tova
 data {
   source raw = read("sales.csv")
-  pipeline clean = raw |> drop_nil(.id) |> cast(.amount, Float)
-  pipeline summary = clean |> group_by(.region) |> agg(total: sum(.amount))
+  pipeline clean = raw |> dropNil(.id) |> cast(.amount, Float)
+  pipeline summary = clean |> groupBy(.region) |> agg(total: sum(.amount))
   refresh raw every 1.hour
 }
 ```

@@ -23,12 +23,12 @@ Tests are defined using `test` blocks with a description string and a body:
 
 ```tova
 test "addition works" {
-  assert_eq(1 + 1, 2)
+  assertEq(1 + 1, 2)
 }
 
 test "string concatenation" {
   result = "Hello" + " " + "World"
-  assert_eq(result, "Hello World")
+  assertEq(result, "Hello World")
 }
 ```
 
@@ -61,27 +61,27 @@ test "basic assertions" {
 }
 ```
 
-### `assert_eq(actual, expected)`
+### `assertEq(actual, expected)`
 
 Asserts that two values are equal:
 
 ```tova
 test "equality checks" {
-  assert_eq(2 + 2, 4)
-  assert_eq("hello", "hello")
-  assert_eq([1, 2], [1, 2])
+  assertEq(2 + 2, 4)
+  assertEq("hello", "hello")
+  assertEq([1, 2], [1, 2])
 }
 ```
 
-### `assert_ne(actual, expected)`
+### `assertNe(actual, expected)`
 
 Asserts that two values are not equal:
 
 ```tova
 test "inequality checks" {
-  assert_ne(1, 2)
-  assert_ne("hello", "world")
-  assert_ne([], [1])
+  assertNe(1, 2)
+  assertNe("hello", "world")
+  assertNe([], [1])
 }
 ```
 
@@ -98,15 +98,15 @@ fn factorial(n) {
 }
 
 test "factorial of 0" {
-  assert_eq(factorial(0), 1)
+  assertEq(factorial(0), 1)
 }
 
 test "factorial of 5" {
-  assert_eq(factorial(5), 120)
+  assertEq(factorial(5), 120)
 }
 
 test "factorial of 10" {
-  assert_eq(factorial(10), 3628800)
+  assertEq(factorial(10), 3628800)
 }
 ```
 
@@ -127,7 +127,7 @@ fn distance(p1, p2) {
 test "distance between points" {
   p1 = Point(0, 0)
   p2 = Point(3, 4)
-  assert_eq(distance(p1, p2), 5)
+  assertEq(distance(p1, p2), 5)
 }
 ```
 
@@ -143,12 +143,12 @@ fn safe_divide(a, b) {
 
 test "safe division succeeds" {
   result = safe_divide(10, 2)
-  assert_eq(result, Ok(5))
+  assertEq(result, Ok(5))
 }
 
 test "safe division by zero returns error" {
   result = safe_divide(10, 0)
-  assert_eq(result, Err("division by zero"))
+  assertEq(result, Err("division by zero"))
 }
 ```
 
@@ -225,7 +225,7 @@ after_each {
 
 test "can insert user" {
   db.insert("users", { name: "Alice" })
-  assert_eq(db.count("users"), 1)
+  assertEq(db.count("users"), 1)
 }
 
 test "can query users" {
@@ -283,20 +283,20 @@ Gen.oneOf(["a", "b", "c"])   // random choice from list
 ```tova
 test "reverse is its own inverse" {
   forAll([Gen.array(Gen.int())], fn(arr) {
-    assert_eq(reversed(reversed(arr)), arr)
+    assertEq(reversed(reversed(arr)), arr)
   })
 }
 
 test "sort is idempotent" {
   forAll([Gen.array(Gen.int())], fn(arr) {
-    assert_eq(sorted(sorted(arr)), sorted(arr))
+    assertEq(sorted(sorted(arr)), sorted(arr))
   })
 }
 
 // Configure number of runs
 test "addition is commutative" {
   forAll([Gen.int(), Gen.int()], fn(a, b) {
-    assert_eq(a + b, b + a)
+    assertEq(a + b, b + a)
   }, { runs: 500 })
 }
 ```
@@ -308,12 +308,12 @@ Use `assert_snapshot` to compare a value against a stored snapshot. On the first
 ```tova
 test "user serialization" {
   user = User(1, "Alice", "alice@example.com")
-  assert_snapshot(user.to_json())
+  assertSnapshot(user.to_json())
 }
 
 test "html rendering" {
   html = render_component(Greeting("World"))
-  assert_snapshot(html, "greeting-output")
+  assertSnapshot(html, "greeting-output")
 }
 ```
 
@@ -325,23 +325,23 @@ Create a spy to track function calls:
 
 ```tova
 test "callback is called" {
-  spy = create_spy()
+  spy = createSpy()
   run_with_callback(spy)
   assert(spy.called)
-  assert_eq(spy.call_count, 1)
+  assertEq(spy.call_count, 1)
 }
 
 test "callback receives correct args" {
-  spy = create_spy()
+  spy = createSpy()
   process(items, on_complete: spy)
   assert(spy.called_with([items]))
 }
 
 test "spy with implementation" {
-  spy = create_spy(fn(x) x * 2)
+  spy = createSpy(fn(x) x * 2)
   result = spy(5)
-  assert_eq(result, 10)
-  assert_eq(spy.call_count, 1)
+  assertEq(result, 10)
+  assertEq(spy.call_count, 1)
 }
 ```
 
@@ -358,9 +358,9 @@ Create a mock that returns a fixed value:
 
 ```tova
 test "uses mock data" {
-  mock_fetch = create_mock({ status: 200, body: "ok" })
+  mock_fetch = createMock({ status: 200, body: "ok" })
   result = process_response(mock_fetch)
-  assert_eq(result, "ok")
+  assertEq(result, "ok")
   assert(mock_fetch.called)
 }
 ```
@@ -371,11 +371,11 @@ Assert that a function throws an error:
 
 ```tova
 test "division by zero throws" {
-  assert_throws(fn() divide(1, 0))
+  assertThrows(fn() divide(1, 0))
 }
 
 test "validation rejects bad input" {
-  assert_throws(fn() validate_email("not-an-email"), "invalid email")
+  assertThrows(fn() validate_email("not-an-email"), "invalid email")
 }
 ```
 

@@ -27,7 +27,7 @@ process("  hello  world  ")   // "HELLO WORLD"
 ### pipe_fn
 
 ```tova
-pipe_fn(...fns) -> Function
+pipeFn(...fns) -> Function
 ```
 
 Creates a new function that applies functions left-to-right. The first function is applied first. This is the reverse of `compose`.
@@ -36,11 +36,11 @@ Creates a new function that applies functions left-to-right. The first function 
 double = fn(x) x * 2
 inc = fn(x) x + 1
 
-inc_then_double = pipe_fn(inc, double)
+inc_then_double = pipeFn(inc, double)
 inc_then_double(3)     // 8  (inc(3) = 4, double(4) = 8)
 
 // Build a text processing pipeline
-clean = pipe_fn(trim, lower, fn(s) replace(s, "  ", " "))
+clean = pipeFn(trim, lower, fn(s) replace(s, "  ", " "))
 clean("  Hello  World  ")   // "hello world"
 ```
 
@@ -233,7 +233,7 @@ contains_in = flip(contains)
 
 ```tova
 // Build a reusable data pipeline
-process_users = pipe_fn(
+process_users = pipeFn(
   fn(users) filter(users, fn(u) u.active),
   fn(users) sorted(users, fn(u) u.name),
   fn(users) map(users, fn(u) pick(u, ["name", "email"]))

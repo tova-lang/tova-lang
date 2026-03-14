@@ -3,14 +3,14 @@ const basicPipeCode = `// The pipe operator: |>
 // Turns nested calls into a readable pipeline
 
 // Without pipes (read inside-out):
-nested = to_string(sum(filter(map([1,2,3,4,5], fn(x) x * x), fn(x) x > 5)))
+nested = toString(sum(filter(map([1,2,3,4,5], fn(x) x * x), fn(x) x > 5)))
 
 // With pipes (read top-to-bottom):
 result = [1, 2, 3, 4, 5]
   |> map(fn(x) x * x)
   |> filter(fn(x) x > 5)
   |> sum()
-  |> to_string()
+  |> toString()
 
 print(result)
 
@@ -53,10 +53,10 @@ sales = [
 
 // Pipeline 1: Total revenue by product
 print("=== Revenue by Product ===")
-by_product = sales |> group_by(fn(s) s.product)
+by_product = sales |> groupBy(fn(s) s.product)
 for entry in entries(by_product) {
   revenue = entry[1] |> map(fn(s) s.amount) |> sum()
-  print("{pad_end(entry[0], 12)} \${revenue}")
+  print("{padEnd(entry[0], 12)} \${revenue}")
 }
 
 // Pipeline 2: Top 3 sales
@@ -73,7 +73,7 @@ for s in top3 {
 // Pipeline 3: Average by region
 print("")
 print("=== Average by Region ===")
-by_region = sales |> group_by(fn(s) s.region)
+by_region = sales |> groupBy(fn(s) s.region)
 for entry in entries(by_region) {
   amounts = entry[1] |> map(fn(s) s.amount)
   total = amounts |> sum()
@@ -166,12 +166,12 @@ The pipe `|>` takes the value on the left and passes it as the first argument to
 
 ```tova
 // These are equivalent:
-result = to_string(sum(filter(numbers, fn(x) x > 0)))
+result = toString(sum(filter(numbers, fn(x) x > 0)))
 
 result = numbers
   |> filter(fn(x) x > 0)
   |> sum()
-  |> to_string()
+  |> toString()
 ```
 
 The piped version reads like a recipe: "take numbers, filter positives, sum them, convert to string."
@@ -240,7 +240,7 @@ orders
 ```tova
 // Sales by region
 sales
-  |> group_by(fn(s) s.region)       // Group into buckets
+  |> groupBy(fn(s) s.region)       // Group into buckets
   |> entries()                        // Get key-value pairs
   |> map(fn(e) {                     // Summarize each group
     region: e[0],
@@ -282,7 +282,7 @@ text
 // Generate a formatted report
 items
   |> sorted(fn(i) i.name)
-  |> map(fn(i) "{pad_end(i.name, 20)} ${i.price}")
+  |> map(fn(i) "{padEnd(i.name, 20)} ${i.price}")
   |> join("\n")
 ```
 
@@ -312,7 +312,7 @@ scores = [78, 92, 65, 88, 95, 71, 84]
 result = scores
   |> above_average()
   |> top_n(3)
-  |> map(fn(s) to_string(s))
+  |> map(fn(s) toString(s))
   |> format_list()
 
 print("Top scores above average:\n{result}")
@@ -335,14 +335,14 @@ sales = [
 ]
 
 // Revenue by product
-by_product = sales |> group_by(fn(s) s.product)
+by_product = sales |> groupBy(fn(s) s.product)
 for entry in entries(by_product) {
   revenue = entry[1] |> map(fn(s) s.amount) |> sum()
   print("{entry[0]}: ${revenue}")
 }
 
 // Average by region
-by_region = sales |> group_by(fn(s) s.region)
+by_region = sales |> groupBy(fn(s) s.region)
 for entry in entries(by_region) {
   amounts = entry[1] |> map(fn(s) s.amount)
   total = amounts |> sum()
@@ -367,7 +367,7 @@ parse_and_validate = compose(validate_positive, parse_int)
 parse_and_validate("42")   // Ok(42)
 
 // pipe_fn: left-to-right (more readable)
-process = pipe_fn(trim, lower, split(" "), unique)
+process = pipeFn(trim, lower, split(" "), unique)
 process("  Hello Hello World  ")   // ["hello", "world"]
 ```
 

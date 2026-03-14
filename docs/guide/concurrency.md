@@ -388,7 +388,7 @@ Tova offers several ways to run things concurrently. Here's when to use each:
 | `Channel.new()` | Tasks need to communicate (producer-consumer, pipelines) |
 | `parallel([...])` | Quick one-liner for independent promises |
 | `await Promise.all([...])` | JS interop, simple promise collection |
-| `parallel_map(arr, fn)` | CPU-bound work on large arrays across worker threads |
+| `parallelMap(arr, fn)` | CPU-bound work on large arrays across worker threads |
 
 ## Utility Functions
 
@@ -411,14 +411,14 @@ results = await parallel([
 ### parallel_map
 
 ```tova
-await parallel_map(array, fn) -> List<Result>
+await parallelMap(array, fn) -> List<Result>
 ```
 
 Applies a function to each element of an array, running all invocations concurrently. Useful for CPU-bound work on large arrays. For `@wasm` functions, tasks are distributed across worker threads via the Tokio runtime.
 
 ```tova
 // Square each number in parallel
-squares = await parallel_map(range(1000), fn(n) n * n)
+squares = await parallelMap(range(1000), fn(n) n * n)
 ```
 
 ## Compiler Diagnostics

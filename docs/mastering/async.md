@@ -92,7 +92,7 @@ const fetcherCode = `// PROJECT: Parallel Data Fetcher
 // Fetch multiple resources concurrently with error handling
 
 async fn fetch_resource(resource) {
-  await sleep(to_int(Math.random() * 100))
+  await sleep(toInt(Math.random() * 100))
 
   // Simulate occasional failures
   if Math.random() < 0.2 {
@@ -146,7 +146,7 @@ async fn demo() {
   print(repeat("-", 40))
   for r in results {
     status = if r.data == "FAILED" { "FAILED" } else { "OK" }
-    print("  {pad_end(r.resource, 12)} [{status}]")
+    print("  {padEnd(r.resource, 12)} [{status}]")
   }
 
   succeeded = results |> filter(fn(r) r.data != "FAILED") |> len()
@@ -259,7 +259,7 @@ Combine `async` with `Result` for robust error handling:
 
 ```tova
 async fn safe_fetch(url) {
-  result = await try_async(fn() fetch_data(url))
+  result = await tryAsync(fn() fetch_data(url))
   match result {
     Ok(data) => Ok(data)
     Err(msg) => Err("Fetch failed for {url}: {msg}")
@@ -381,7 +381,7 @@ The `timeout` stdlib function races a promise against a time limit. The first ar
 ```tova
 // Pass a promise (the call itself), not a function
 async fn fetch_with_deadline(url) {
-  result = await try_async(fn() timeout(fetch_data(url), 5000))
+  result = await tryAsync(fn() timeout(fetch_data(url), 5000))
 
   match result {
     Ok(data) => print("Got data: {data}")
@@ -531,22 +531,22 @@ Use channels when tasks need to pass data in sequence (streaming, pipelines, wor
 For CPU-intensive work across many items, `parallel_map` distributes tasks across a persistent worker pool:
 
 ```tova
-results = await parallel_map(urls, fn(url) fetch(url), 4)
+results = await parallelMap(urls, fn(url) fetch(url), 4)
 // Processes up to 4 URLs concurrently using persistent worker threads
 ```
 
 The third argument is the number of worker threads (defaults to CPU core count if omitted):
 
 ```tova
-parallel_map(array, transform_fn)        // uses all CPU cores
-parallel_map(array, transform_fn, 4)     // uses 4 worker threads
+parallelMap(array, transform_fn)        // uses all CPU cores
+parallelMap(array, transform_fn, 4)     // uses 4 worker threads
 ```
 
 Workers are **persistent** -- they are created once and reused across calls, avoiding the overhead of spinning up new threads for each batch. This gives significant speedups for workloads with many small tasks.
 
 ```tova
 // Process 1000 images using 8 worker threads
-processed = await parallel_map(
+processed = await parallelMap(
   images,
   fn(img) resize_image(img, 800, 600),
   8
@@ -731,7 +731,7 @@ Let's build a robust fetcher that handles retries, timeouts, and partial failure
 
 ```tova
 async fn fetch_resource(resource) {
-  await sleep(to_int(Math.random() * 100))
+  await sleep(toInt(Math.random() * 100))
   if Math.random() < 0.2 {
     Err("Network timeout for {resource}")
   } else {

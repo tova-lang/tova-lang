@@ -827,13 +827,13 @@ The type of a variable is narrowed after:
 2. **Guard clauses**: `guard x != nil else { return }` narrows for the rest of the function
 3. **Match arms**: Each arm narrows based on the matched pattern
 4. **`is` checks**: `if value is String { ... }` narrows to `String`
-5. **`type_of()` checks**: `if type_of(x) == "string" { ... }` narrows
+5. **`typeOf()` checks**: `if typeOf(x) == "string" { ... }` narrows
 
 ### 3.8 Interfaces and Traits
 
 ```tova
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 
 trait Describable {
@@ -844,7 +844,7 @@ trait Describable {
 }
 
 impl Printable for User {
-  fn to_string(self) { "{self.name} <{self.email}>" }
+  fn toString(self) { "{self.name} <{self.email}>" }
 }
 ```
 
@@ -1058,10 +1058,10 @@ Globally available without namespace prefix:
 | `print(args...)` | Print to stdout |
 | `len(collection)` | Length of array, string, or object |
 | `range(start?, end, step?)` | Generate a range of integers |
-| `type_of(value)` | Runtime type name as string |
-| `to_int(value)` | Convert to integer |
-| `to_float(value)` | Convert to float |
-| `to_string(value)` | Convert to string |
+| `typeOf(value)` | Runtime type name as string |
+| `toInt(value)` | Convert to integer |
+| `toFloat(value)` | Convert to float |
+| `toString(value)` | Convert to string |
 | `sorted(array, comparator?)` | Return sorted copy |
 | `reversed(array)` | Return reversed copy |
 | `map(array, fn)` | Transform each element |

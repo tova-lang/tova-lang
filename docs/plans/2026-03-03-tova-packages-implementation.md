@@ -329,7 +329,7 @@ Create `tests/stdlib-crypto.test.js` with tests for:
 - `crypto.sha512` produces 128-char hex string
 - `crypto.hmac("sha256", "key", "data")` produces hex string
 - `crypto.random_bytes(16)` returns 16-byte Uint8Array
-- `crypto.random_int(1, 10)` returns number in range
+- `crypto.randomInt(1, 10)` returns number in range
 - `crypto.hash_password` / `crypto.verify_password` round-trip
 - `crypto.encrypt` / `crypto.decrypt` round-trip (AES-256-GCM)
 - `crypto.constant_time_equal("abc", "abc")` → true
@@ -345,7 +345,7 @@ Add to `BUILTIN_FUNCTIONS` in `src/stdlib/inline.js`. Uses Node.js `require('cry
 - `sha256(data)`, `sha512(data)` → `createHash().update().digest('hex')`
 - `hmac(algo, key, data)` → `createHmac().update().digest('hex')`
 - `random_bytes(n)` → `new Uint8Array(randomBytes(n))`
-- `random_int(min, max)` → Math.floor random in range
+- `randomInt(min, max)` → Math.floor random in range
 - `hash_password(password)` → scrypt with random 16-byte salt, returns `Ok("salt:hash")`
 - `verify_password(password, stored)` → scrypt + `timingSafeEqual`, returns `Bool`
 - `encrypt(plaintext, key)` → AES-256-GCM, returns `Ok("iv:tag:ciphertext")`
@@ -617,7 +617,7 @@ Key APIs:
 - `mock.fn()` / `mock.spy(obj, "method")` → tracks calls, returns, resets
 - `expect(val).to_equal(x)` / `.to_be_ok()` / `.to_be_some()` — Result/Option-aware matchers
 - `prop.check(fn(arb.int(), arb.string()) -> bool)` — property-based testing
-- `assert_snapshot(value, "name")` — auto-creates/compares `.snap` files
+- `assertSnapshot(value, "name")` — auto-creates/compares `.snap` files
 - `fake_time.freeze(date)` / `.advance(ms)` — time control
 - `mock.fetch(routes)` — HTTP mocking
 

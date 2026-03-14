@@ -76,7 +76,7 @@ fn show_stats(files) {
   for ext in keys(groups) {
     file_count = len(groups[ext])
     bar = repeat("=", file_count * 2)
-    print("  .{pad_end(ext, 6)} {bar} ({file_count})")
+    print("  .{padEnd(ext, 6)} {bar} ({file_count})")
   }
 }
 
@@ -97,14 +97,14 @@ const cliInteractiveCode = `// Interactive CLI features
 // ask(prompt) — get text input
 // confirm(prompt) — get yes/no
 // choose(prompt, options) — single selection
-// choose_many(prompt, options) — multiple selection
+// chooseMany(prompt, options) — multiple selection
 // secret(prompt) — hidden input (for passwords)
 
 // Example: project scaffolding wizard
 // fn setup() {
 //   name = ask("Project name?")
 //   lang = choose("Language:", ["Tova", "JavaScript", "TypeScript"])
-//   features = choose_many("Features:", ["tests", "linting", "ci", "docker"])
+//   features = chooseMany("Features:", ["tests", "linting", "ci", "docker"])
 //   use_git = confirm("Initialize git?")
 //
 //   print("Creating {name} with {lang}...")
@@ -476,7 +476,7 @@ cli {
   fn new() {
     name = ask("Project name?")
     lang = choose("Language:", ["Tova", "JavaScript", "Python"])
-    features = choose_many("Features:", ["tests", "linting", "ci", "docker"])
+    features = chooseMany("Features:", ["tests", "linting", "ci", "docker"])
     confirmed = confirm("Create project '{name}'?")
 
     if confirmed {
@@ -494,7 +494,7 @@ cli {
 | `ask("prompt")` | Free-text input | `String` |
 | `confirm("prompt")` | Yes/no question | `Bool` |
 | `choose("prompt", options)` | Single selection from list | `String` |
-| `choose_many("prompt", options)` | Multiple selection from list | `[String]` |
+| `chooseMany("prompt", options)` | Multiple selection from list | `[String]` |
 | `secret("prompt")` | Hidden input (passwords) | `String` |
 
 The `secret` function hides keystrokes, which is essential for password or API key input:
@@ -670,14 +670,14 @@ cli {
       "table" => {
         rows = [["Extension", "Count"]]
         for ext in keys(groups) {
-          rows.push([".{ext}", to_string(groups[ext])])
+          rows.push([".{ext}", toString(groups[ext])])
         }
         table(rows)
       }
       "bar" => {
         for ext in keys(groups) {
           bar = repeat("=", groups[ext] * 2)
-          print("  .{pad_end(ext, 6)} {bar} ({groups[ext]})")
+          print("  .{padEnd(ext, 6)} {bar} ({groups[ext]})")
         }
       }
       _ => print(red("Unknown format: {format}. Use 'table' or 'bar'."))

@@ -96,7 +96,7 @@ new_rows |> write("data.csv", append: true)
 ## Streaming Large Files
 
 ::: warning Not Yet Implemented
-The `stream()` function for batch file processing is planned but not yet available. For now, read files with `read()` or process large files by reading with `fs.read_text()` and splitting manually.
+The `stream()` function for batch file processing is planned but not yet available. For now, read files with `read()` or process large files by reading with `fs.readText()` and splitting manually.
 :::
 
 When available, `stream()` will read a file in batches, yielding one `Table` per batch for processing files too large to fit in memory:
@@ -172,21 +172,21 @@ server {
 
   // Clean and transform
   clean = raw
-    |> drop_nil(.email)
-    |> fill_nil(.spend, 0.0)
+    |> dropNil(.email)
+    |> fillNil(.spend, 0.0)
     |> derive(.email = .email |> lower() |> trim())
     |> where(.spend > 0)
     |> peek(title: "Clean data")
 
   // Aggregate
   summary = clean
-    |> group_by(.country)
+    |> groupBy(.country)
     |> agg(
       count: count(),
       total: sum(.spend),
       avg: mean(.spend)
     )
-    |> sort_by(.total, desc: true)
+    |> sortBy(.total, desc: true)
 
   // Write results
   clean |> write("clean_customers.csv")
@@ -205,7 +205,7 @@ server {
 ```tova
 result = read("sales.csv")
   |> where(.amount > 100)
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(total: sum(.amount))
 ```
 

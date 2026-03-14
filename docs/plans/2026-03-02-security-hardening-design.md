@@ -61,7 +61,7 @@ Warn on dangerous JavaScript API usage at compile time.
   - `Function` as constructor → same message
   - `setTimeout`/`setInterval` with string first arg → `"Passing strings to setTimeout/setInterval executes code dynamically. Use a function instead."`
 - Detect `AssignmentExpression` where target is `MemberExpression` with property `innerHTML`:
-  - `"Direct innerHTML assignment is an XSS risk. Use textContent or escape_html()."`
+  - `"Direct innerHTML assignment is an XSS risk. Use textContent or escapeHtml()."`
 - Category: `'security'`
 
 ## 6. Auto Audit Logging on Auth Events

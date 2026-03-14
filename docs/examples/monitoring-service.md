@@ -156,11 +156,11 @@ server "collector" {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: "[{alert.severity |> to_string()}] {alert.service}: {alert.message}"
+            text: "[{alert.severity |> toString()}] {alert.service}: {alert.message}"
           })
         })
       }
-      None => print("[alert] {alert.severity |> to_string()}: {alert.message}")
+      None => print("[alert] {alert.severity |> toString()}: {alert.message}")
     }
   }
 
@@ -169,7 +169,7 @@ server "collector" {
     metrics = MetricRecord.where({ service: service, timestamp_gt: cutoff })
 
     values = metrics |> map(fn(m) m.value)
-    avg = values |> sum() / (values |> len() |> to_float())
+    avg = values |> sum() / (values |> len() |> toFloat())
 
     MetricRecord.create({
       service: service,
@@ -186,7 +186,7 @@ server "collector" {
     // Store alert
     AlertRecord.create({
       service: alert.service,
-      severity: alert.severity |> to_string(),
+      severity: alert.severity |> toString(),
       message: alert.message,
       timestamp: alert.timestamp,
       resolved: false
@@ -285,7 +285,7 @@ server "api" {
     }
 
     results
-      |> sort_by(fn(a, b) b.timestamp - a.timestamp)
+      |> sortBy(fn(a, b) b.timestamp - a.timestamp)
       |> take(limit_count |> unwrapOr(100))
   }
 
@@ -307,7 +307,7 @@ server "api" {
   fn get_health_report() -> HealthReport {
     services = services_to_monitor |> map(fn(svc) {
       latest = MetricRecord.where({ service: svc.name, name: "response_time_ms" })
-        |> sort_by(fn(a, b) b.timestamp - a.timestamp)
+        |> sortBy(fn(a, b) b.timestamp - a.timestamp)
         |> first()
 
       ServiceHealth {
@@ -319,13 +319,13 @@ server "api" {
         },
         uptime: 99.9,
         last_check: latest |> map(fn(m) m.timestamp) |> unwrapOr("never"),
-        response_ms: latest |> map(fn(m) m.value |> to_int()) |> unwrapOr(0)
+        response_ms: latest |> map(fn(m) m.value |> toInt()) |> unwrapOr(0)
       }
     })
 
     active_alerts = AlertRecord.where({ resolved: false })
       |> map(fn(a) Alert {
-        id: a.id |> to_string(),
+        id: a.id |> toString(),
         service: a.service,
         severity: match a.severity {
           "Critical" => Critical

@@ -203,7 +203,7 @@ total_revenue = orders
 
 ```tova
 fn to_record(row) {
-  {name: row[0], age: to_int(row[1]), email: row[2]}
+  {name: row[0], age: toInt(row[1]), email: row[2]}
 }
 
 fn process_csv(raw_csv) {

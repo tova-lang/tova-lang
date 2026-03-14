@@ -27,7 +27,7 @@ Pass an integer to `table_sample` to draw exactly that many rows. The `seed` opt
 async fn main() {
   employees = await read("data/employees.csv")
 
-  sample5 = table_sample(employees, 5, {seed: 42})
+  sample5 = tableSample(employees, 5, {seed: 42})
   peek(sample5, {title: "Random Sample (n=5, seed=42)"})
 }
 ```
@@ -42,13 +42,13 @@ Seeds guarantee identical results across runs. This is essential for reproducibl
 async fn main() {
   employees = await read("data/employees.csv")
 
-  s1 = table_sample(employees, 3, {seed: 123})
-  s2 = table_sample(employees, 3, {seed: 123})
+  s1 = tableSample(employees, 3, {seed: 123})
+  s2 = tableSample(employees, 3, {seed: 123})
 
   names1 = [r.name for r in s1.toArray()]
   names2 = [r.name for r in s2.toArray()]
 
-  print("Identical: {json_stringify(names1) == json_stringify(names2)}")
+  print("Identical: {jsonStringify(names1) == jsonStringify(names2)}")
 }
 ```
 
@@ -68,7 +68,7 @@ Pass a decimal between 0 and 1 to sample a percentage of the table.
 async fn main() {
   employees = await read("data/employees.csv")
 
-  quarter = table_sample(employees, 0.25, {seed: 42})
+  quarter = tableSample(employees, 0.25, {seed: 42})
   print("25% of {employees.rows} = {quarter.rows} rows")
 }
 ```
@@ -89,7 +89,7 @@ Fractional sampling is useful when you want a consistent proportion regardless o
 async fn main() {
   employees = await read("data/employees.csv")
 
-  stratified = table_stratified_sample(employees, "department", 2, {seed: 42})
+  stratified = tableStratifiedSample(employees, "department", 2, {seed: 42})
   peek(stratified, {title: "Stratified Sample (2 per dept)"})
 }
 ```
@@ -109,7 +109,7 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   pivoted = sales
-    |> table_pivot({index: "region", columns: "customer_type", values: "amount"})
+    |> tablePivot({index: "region", columns: "customer_type", values: "amount"})
 
   peek(pivoted, {title: "Pivoted: Region x Customer Type"})
 }
@@ -143,8 +143,8 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   dept_pivot = employees
-    |> table_derive({val: fn(r) 1})
-    |> table_pivot({index: "department", columns: "city", values: "val"})
+    |> tableDerive({val: fn(r) 1})
+    |> tablePivot({index: "department", columns: "city", values: "val"})
 
   peek(dept_pivot, {title: "Headcount: Department x City"})
 }
@@ -164,7 +164,7 @@ async fn main() {
     {employee: "Carol", q1_sales: 41000, q2_sales: 52000, q3_sales: 47000}
   ])
 
-  long_data = table_unpivot(wide_data, {
+  long_data = tableUnpivot(wide_data, {
     id: "employee",
     columns: ["q1_sales", "q2_sales", "q3_sales"]
   })
@@ -203,7 +203,7 @@ async fn main() {
     {name: "Carol", skills: ["Python", "R", "SQL", "Tableau"]}
   ])
 
-  exploded = table_explode(with_skills, "skills")
+  exploded = tableExplode(with_skills, "skills")
   print("{with_skills.rows} rows to {exploded.rows} rows after exploding")
 }
 ```
@@ -228,12 +228,12 @@ async fn main() {
     {name: "Carol", skills: ["Python", "R", "SQL", "Tableau"]}
   ])
 
-  exploded = table_explode(with_skills, "skills")
+  exploded = tableExplode(with_skills, "skills")
 
   skill_counts = exploded
-    |> table_group_by("skills")
-    |> table_agg({people_with_skill: agg_count()})
-    |> table_sort_by("people_with_skill", {desc: true})
+    |> tableGroupBy("skills")
+    |> tableAgg({people_with_skill: aggCount()})
+    |> tableSortBy("people_with_skill", {desc: true})
 
   peek(skill_counts, {title: "Skill Frequency"})
 }

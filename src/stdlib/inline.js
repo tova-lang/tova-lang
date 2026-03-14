@@ -1618,6 +1618,238 @@ function __chart_empty(w, h, msg) { return '<svg xmlns="http://www.w3.org/2000/s
   heatmap: `function heatmap(data, opts) { if (!opts) opts = {}; var rows = __chart_getRows(data); var width = opts.width || 600; var height = opts.height || 400; if (rows.length === 0) return __chart_empty(width, height, 'No data'); var xFn = opts.x; var yFn = opts.y; var valueFn = opts.value; var title = opts.title || ''; var margin = { top: title ? 50 : 40, right: 40, bottom: 60, left: 80 }; var xCats = []; var yCats = []; var xSet = new Set(); var ySet = new Set(); for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); if (!xSet.has(xv)) { xSet.add(xv); xCats.push(xv); } if (!ySet.has(yv)) { ySet.add(yv); yCats.push(yv); } } var grid = {}; var vMn = Infinity; var vMx = -Infinity; for (var i = 0; i < rows.length; i++) { var xv = String(xFn(rows[i])); var yv = String(yFn(rows[i])); var val = Number(valueFn(rows[i])); grid[xv + '|' + yv] = val; if (val < vMn) vMn = val; if (val > vMx) vMx = val; } var vR = vMx - vMn || 1; var plotW = width - margin.left - margin.right; var plotH = height - margin.top - margin.bottom; var cellW = plotW / xCats.length; var cellH = plotH / yCats.length; function hc(val) { var t = (val - vMn) / vR; var r = Math.round(255 - t * (255 - 79)); var g = Math.round(255 - t * (255 - 70)); var b = Math.round(255 - t * (255 - 229)); return 'rgb(' + r + ',' + g + ',' + b + ')'; } var p = []; p.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" style="font-family:system-ui,sans-serif">'); if (title) p.push('<text x="' + (width / 2) + '" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#111">' + __chart_esc(title) + '</text>'); for (var xi = 0; xi < xCats.length; xi++) { for (var yi = 0; yi < yCats.length; yi++) { var key = xCats[xi] + '|' + yCats[yi]; var val = grid[key]; var rx = margin.left + xi * cellW; var ry = margin.top + yi * cellH; var fill = val !== undefined ? hc(val) : '#f3f4f6'; p.push('<rect x="' + rx + '" y="' + ry + '" width="' + cellW + '" height="' + cellH + '" fill="' + fill + '" stroke="#fff" stroke-width="1"/>'); if (val !== undefined) { var tc = ((val - vMn) / vR) > 0.5 ? '#fff' : '#111'; p.push('<text x="' + (rx + cellW / 2) + '" y="' + (ry + cellH / 2 + 4) + '" text-anchor="middle" font-size="11" fill="' + tc + '">' + __chart_formatNum(val) + '</text>'); } } } for (var xi = 0; xi < xCats.length; xi++) { var lx = margin.left + xi * cellW + cellW / 2; var ly = margin.top + plotH + 16; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="11" fill="#666">' + __chart_esc(xCats[xi]) + '</text>'); } for (var yi = 0; yi < yCats.length; yi++) { var lx = margin.left - 8; var ly = margin.top + yi * cellH + cellH / 2 + 4; p.push('<text x="' + lx + '" y="' + ly + '" text-anchor="end" font-size="11" fill="#666">' + __chart_esc(yCats[yi]) + '</text>'); } p.push('</svg>'); return p.join('\\n'); }`,
 };
 
+// ─── Snake_case → camelCase Migration ──────────────────────────
+// Maps deprecated snake_case stdlib names to their camelCase replacements.
+// Both names work; old names emit a deprecation warning via the analyzer.
+export const SNAKE_TO_CAMEL = {
+  // Collections / iterators
+  type_of: 'typeOf',
+  flat_map: 'flatMap',
+  group_by: 'groupBy',
+  sort_by: 'sortBy',
+  find_index: 'findIndex',
+  min_by: 'minBy',
+  max_by: 'maxBy',
+  sum_by: 'sumBy',
+  zip_with: 'zipWith',
+  sliding_window: 'slidingWindow',
+  binary_search: 'binarySearch',
+  is_sorted: 'isSorted',
+  insert_at: 'insertAt',
+  remove_at: 'removeAt',
+  update_at: 'updateAt',
+  repeat_value: 'repeatValue',
+  from_entries: 'fromEntries',
+  has_key: 'hasKey',
+  map_values: 'mapValues',
+  drop_duplicates: 'dropDuplicates',
+  drop_nil: 'dropNil',
+  fill_nil: 'fillNil',
+  filter_ok: 'filterOk',
+  filter_err: 'filterErr',
+  // Strings
+  starts_with: 'startsWith',
+  ends_with: 'endsWith',
+  title_case: 'titleCase',
+  snake_case: 'snakeCase',
+  camel_case: 'camelCase',
+  kebab_case: 'kebabCase',
+  replace_first: 'replaceFirst',
+  pad_start: 'padStart',
+  pad_end: 'padEnd',
+  char_at: 'charAt',
+  trim_start: 'trimStart',
+  trim_end: 'trimEnd',
+  index_of: 'indexOf',
+  last_index_of: 'lastIndexOf',
+  count_of: 'countOf',
+  reverse_str: 'reverseStr',
+  indent_str: 'indentStr',
+  escape_html: 'escapeHtml',
+  unescape_html: 'unescapeHtml',
+  word_wrap: 'wordWrap',
+  is_empty: 'isEmpty',
+  // Conversions
+  to_int: 'toInt',
+  to_float: 'toFloat',
+  to_string: 'toString',
+  to_bool: 'toBool',
+  to_hex: 'toHex',
+  to_binary: 'toBinary',
+  to_octal: 'toOctal',
+  to_fixed: 'toFixed',
+  to_radians: 'toRadians',
+  to_degrees: 'toDegrees',
+  // Math
+  is_nan: 'isNaN',
+  is_finite: 'isFinite',
+  is_close: 'isClose',
+  random_int: 'randomInt',
+  random_float: 'randomFloat',
+  format_number: 'formatNumber',
+  // Testing
+  assert_eq: 'assertEq',
+  assert_ne: 'assertNe',
+  assert_throws: 'assertThrows',
+  assert_snapshot: 'assertSnapshot',
+  create_spy: 'createSpy',
+  create_mock: 'createMock',
+  // JSON / encoding
+  json_parse: 'jsonParse',
+  json_stringify: 'jsonStringify',
+  json_pretty: 'jsonPretty',
+  base64_encode: 'base64Encode',
+  base64_decode: 'base64Decode',
+  url_encode: 'urlEncode',
+  url_decode: 'urlDecode',
+  hex_encode: 'hexEncode',
+  hex_decode: 'hexDecode',
+  // URL
+  parse_url: 'parseUrl',
+  build_url: 'buildUrl',
+  parse_query: 'parseQuery',
+  build_query: 'buildQuery',
+  // Date / time
+  date_parse: 'dateParse',
+  date_format: 'dateFormat',
+  date_from: 'dateFrom',
+  date_add: 'dateAdd',
+  date_diff: 'dateDiff',
+  date_part: 'datePart',
+  now_iso: 'nowIso',
+  time_ago: 'timeAgo',
+  // Regex
+  regex_test: 'regexTest',
+  regex_match: 'regexMatch',
+  regex_find_all: 'regexFindAll',
+  regex_replace: 'regexReplace',
+  regex_split: 'regexSplit',
+  regex_capture: 'regexCapture',
+  regex_builder: 'regexBuilder',
+  // Validation
+  is_email: 'isEmail',
+  is_url: 'isUrl',
+  is_numeric: 'isNumeric',
+  is_alpha: 'isAlpha',
+  is_alphanumeric: 'isAlphanumeric',
+  is_uuid: 'isUuid',
+  is_hex: 'isHex',
+  // Sets
+  is_subset: 'isSubset',
+  is_superset: 'isSuperset',
+  symmetric_difference: 'symmetricDifference',
+  // Functional
+  compare_by: 'compareBy',
+  pipe_fn: 'pipeFn',
+  try_fn: 'tryFn',
+  try_async: 'tryAsync',
+  schema_of: 'schemaOf',
+  // File system
+  is_file: 'isFile',
+  is_dir: 'isDir',
+  is_symlink: 'isSymlink',
+  glob_files: 'globFiles',
+  read_text: 'readText',
+  read_bytes: 'readBytes',
+  write_text: 'writeText',
+  read_stdin: 'readStdin',
+  read_lines: 'readLines',
+  file_stat: 'fileStat',
+  file_size: 'fileSize',
+  // Path
+  path_join: 'pathJoin',
+  path_dirname: 'pathDirname',
+  path_basename: 'pathBasename',
+  path_resolve: 'pathResolve',
+  path_ext: 'pathExt',
+  path_relative: 'pathRelative',
+  // Script
+  script_path: 'scriptPath',
+  script_dir: 'scriptDir',
+  // Process
+  set_env: 'setEnv',
+  on_signal: 'onSignal',
+  parse_args: 'parseArgs',
+  // CLI
+  choose_many: 'chooseMany',
+  // Concurrency
+  parallel_map: 'parallelMap',
+  // Charts
+  bar_chart: 'barChart',
+  line_chart: 'lineChart',
+  scatter_chart: 'scatterChart',
+  pie_chart: 'pieChart',
+  // Table operations
+  table_where: 'tableWhere',
+  table_select: 'tableSelect',
+  table_derive: 'tableDerive',
+  table_group_by: 'tableGroupBy',
+  table_agg: 'tableAgg',
+  table_sort_by: 'tableSortBy',
+  table_limit: 'tableLimit',
+  table_join: 'tableJoin',
+  table_pivot: 'tablePivot',
+  table_unpivot: 'tableUnpivot',
+  table_explode: 'tableExplode',
+  table_union: 'tableUnion',
+  table_drop_duplicates: 'tableDropDuplicates',
+  table_rename: 'tableRename',
+  table_window: 'tableWindow',
+  table_sample: 'tableSample',
+  table_stratified_sample: 'tableStratifiedSample',
+  // Aggregation functions
+  agg_sum: 'aggSum',
+  agg_count: 'aggCount',
+  agg_mean: 'aggMean',
+  agg_median: 'aggMedian',
+  agg_min: 'aggMin',
+  agg_max: 'aggMax',
+  // Window functions
+  win_row_number: 'winRowNumber',
+  win_rank: 'winRank',
+  win_dense_rank: 'winDenseRank',
+  win_percent_rank: 'winPercentRank',
+  win_ntile: 'winNtile',
+  win_lag: 'winLag',
+  win_lead: 'winLead',
+  win_first_value: 'winFirstValue',
+  win_last_value: 'winLastValue',
+  win_running_sum: 'winRunningSum',
+  win_running_count: 'winRunningCount',
+  win_running_avg: 'winRunningAvg',
+  win_running_min: 'winRunningMin',
+  win_running_max: 'winRunningMax',
+  win_moving_avg: 'winMovingAvg',
+  // Typed arrays
+  typed_sum: 'typedSum',
+  typed_dot: 'typedDot',
+  typed_add: 'typedAdd',
+  typed_scale: 'typedScale',
+  typed_map: 'typedMap',
+  typed_reduce: 'typedReduce',
+  typed_sort: 'typedSort',
+  typed_zeros: 'typedZeros',
+  typed_ones: 'typedOnes',
+  typed_fill: 'typedFill',
+  typed_linspace: 'typedLinspace',
+  typed_norm: 'typedNorm',
+  typed_range: 'typedRange',
+};
+
+export const DEPRECATED_NAMES = new Set(Object.keys(SNAKE_TO_CAMEL));
+
+// Reverse mapping: camelCase → snake_case (for tooling)
+export const CAMEL_TO_SNAKE = Object.fromEntries(
+  Object.entries(SNAKE_TO_CAMEL).map(([s, c]) => [c, s])
+);
+
+// Generate camelCase wrapper functions that delegate to snake_case originals
+for (const [snake, camel] of Object.entries(SNAKE_TO_CAMEL)) {
+  if (BUILTIN_FUNCTIONS[snake] && !BUILTIN_FUNCTIONS[camel]) {
+    BUILTIN_FUNCTIONS[camel] = `function ${camel}() { return ${snake}.apply(null, arguments); }`;
+  }
+}
+
 // All known builtin names for matching
 export const BUILTIN_NAMES = new Set(Object.keys(BUILTIN_FUNCTIONS));
 
@@ -1709,6 +1941,14 @@ export const STDLIB_DEPS = {
   heatmap: ['Table', '__chart_helpers'],
 };
 
+// Generate STDLIB_DEPS entries for camelCase wrappers
+// Each camelCase wrapper depends on its snake_case original (+ that original's deps)
+for (const [snake, camel] of Object.entries(SNAKE_TO_CAMEL)) {
+  if (BUILTIN_FUNCTIONS[camel]) {
+    STDLIB_DEPS[camel] = [snake, ...(STDLIB_DEPS[snake] || [])];
+  }
+}
+
 // Resolve all transitive dependencies for a set of used names
 export function resolveStdlibDeps(usedNames) {
   const resolved = new Set(usedNames);
@@ -1757,16 +1997,20 @@ function _topoSort(names) {
 // Only includes non-internal, non-table functions for backward compat with tests/playground
 const _LEGACY_NAMES = [
   'print', 'len', 'range', 'enumerate', 'sum', 'sorted', 'reversed', 'zip',
-  'min', 'max', 'type_of', 'filter', 'map', 'find', 'any', 'all', 'flat_map',
-  'reduce', 'unique', 'group_by', 'chunk', 'flatten', 'take', 'drop', 'first',
-  'last', 'count', 'partition', 'abs', 'floor', 'ceil', 'round', 'clamp',
-  'sqrt', 'pow', 'random', 'trim', 'split', 'join', 'replace', 'repeat',
+  'min', 'max', 'type_of', 'typeOf', 'filter', 'map', 'find', 'any', 'all',
+  'flat_map', 'flatMap', 'reduce', 'unique', 'group_by', 'groupBy',
+  'chunk', 'flatten', 'take', 'drop', 'first', 'last', 'count', 'partition',
+  'abs', 'floor', 'ceil', 'round', 'clamp', 'sqrt', 'pow', 'random',
+  'trim', 'split', 'join', 'replace', 'repeat',
   'keys', 'values', 'entries', 'merge', 'freeze', 'clone', 'sleep',
-  'upper', 'lower', 'contains', 'starts_with', 'ends_with', 'chars', 'words',
-  'lines', 'capitalize', 'title_case', 'snake_case', 'camel_case',
-  'assert_eq', 'assert_ne', 'assert', 'assert_throws',
-  'create_spy', 'create_mock',
-  'parallel_map',
+  'upper', 'lower', 'contains', 'starts_with', 'startsWith',
+  'ends_with', 'endsWith', 'chars', 'words', 'lines', 'capitalize',
+  'title_case', 'titleCase', 'snake_case', 'snakeCase',
+  'camel_case', 'camelCase',
+  'assert_eq', 'assertEq', 'assert_ne', 'assertNe', 'assert',
+  'assert_throws', 'assertThrows',
+  'create_spy', 'createSpy', 'create_mock', 'createMock',
+  'parallel_map', 'parallelMap',
 ];
 export const BUILTINS = _LEGACY_NAMES.map(n => BUILTIN_FUNCTIONS[n]).join('\n');
 

@@ -3,15 +3,15 @@ const regexCode = `// Regex: pattern matching on strings
 text = "Contact us at support@tova.dev or sales@tova.dev"
 
 // Test if a pattern matches
-print(regex_test(text, r"\\w+@\\w+\\.\\w+"))   // true
+print(regexTest(text, r"\\w+@\\w+\\.\\w+"))   // true
 
 // Find all matches
-emails = regex_find_all(text, r"\\w+@\\w+\\.\\w+")
+emails = regexFindAll(text, r"\\w+@\\w+\\.\\w+")
 print("Found emails: {emails}")
 
 // Capture groups (regex_match returns Result)
 log_line = "2026-03-06 14:30:45 [ERROR] Connection refused"
-match_result = regex_match(log_line, r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)")
+match_result = regexMatch(log_line, r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)")
 match match_result {
   Ok(m) => {
     print("Match: {m.match}")
@@ -21,59 +21,59 @@ match match_result {
 }
 
 // Replace with regex
-cleaned = regex_replace("too   many    spaces", r"\\s+", " ")
+cleaned = regexReplace("too   many    spaces", r"\\s+", " ")
 print(cleaned)   // "too many spaces"
 
 // Split with regex
-parts = regex_split("one, two; three  four", r"[,;\\s]+")
+parts = regexSplit("one, two; three  four", r"[,;\\s]+")
 print(parts)   // ["one", "two", "three", "four"]`
 
 const datetimeCode = `// Date/Time operations
 // Current time
-print("Now (ISO): {now_iso()}")
+print("Now (ISO): {nowIso()}")
 
 // Parse dates
-date = date_parse("2026-03-06")
+date = dateParse("2026-03-06")
 print("Parsed: {date}")
 
 // Format dates
-formatted = date_format(now(), "YYYY-MM-DD HH:mm:ss")
+formatted = dateFormat(now(), "YYYY-MM-DD HH:mm:ss")
 print("Formatted: {formatted}")
 
 // Date arithmetic
-tomorrow = date_add(now(), 1, "days")
-next_week = date_add(now(), 7, "days")
-next_month = date_add(now(), 1, "months")
+tomorrow = dateAdd(now(), 1, "days")
+next_week = dateAdd(now(), 7, "days")
+next_month = dateAdd(now(), 1, "months")
 
-print("Tomorrow: {date_format(tomorrow, 'date')}")
-print("Next week: {date_format(next_week, 'date')}")
+print("Tomorrow: {dateFormat(tomorrow, 'date')}")
+print("Next week: {dateFormat(next_week, 'date')}")
 
 // Date differences
-start = date_parse("2026-01-01")
-end_date = date_parse("2026-12-31")
-days_between = date_diff(start, end_date, "days")
+start = dateParse("2026-01-01")
+end_date = dateParse("2026-12-31")
+days_between = dateDiff(start, end_date, "days")
 print("Days in 2026: {days_between}")
 
 // Extract parts
 d = now()
-print("Year: {date_part(d, 'year')}")
-print("Month: {date_part(d, 'month')}")
-print("Day: {date_part(d, 'day')}")
-print("Weekday: {date_part(d, 'weekday')}")
+print("Year: {datePart(d, 'year')}")
+print("Month: {datePart(d, 'month')}")
+print("Day: {datePart(d, 'day')}")
+print("Weekday: {datePart(d, 'weekday')}")
 
 // Create from parts
-birthday = date_from({ year: 1990, month: 6, day: 15 })
-print("Birthday: {date_format(birthday, 'date')}")
+birthday = dateFrom({ year: 1990, month: 6, day: 15 })
+print("Birthday: {dateFormat(birthday, 'date')}")
 
 // Human-readable relative time
-recent = date_add(now(), -30, "minutes")
-print(time_ago(recent))   // "30 minutes ago"`
+recent = dateAdd(now(), -30, "minutes")
+print(timeAgo(recent))   // "30 minutes ago"`
 
 const validationCode = `// Validation functions — quick checks for common formats
 emails = ["alice@test.com", "not-an-email", "bob@", "valid@domain.org"]
 for e in emails {
-  status = if is_email(e) { "valid" } else { "invalid" }
-  print("{pad_end(e, 20)} {status}")
+  status = if isEmail(e) { "valid" } else { "invalid" }
+  print("{padEnd(e, 20)} {status}")
 }
 
 print("")
@@ -81,7 +81,7 @@ print("")
 // URL validation
 urls = ["https://tova.dev", "not a url", "ftp://files.com/doc.pdf"]
 for u in urls {
-  print("{pad_end(u, 30)} {if is_url(u) { 'valid' } else { 'invalid' }}")
+  print("{padEnd(u, 30)} {if isUrl(u) { 'valid' } else { 'invalid' }}")
 }
 
 print("")
@@ -90,27 +90,27 @@ print("")
 test_strings = ["hello", "123", "abc123", "HELLO", "12.5", ""]
 for s in test_strings {
   checks = []
-  if is_alpha(s) { checks = [...checks, "alpha"] }
-  if is_numeric(s) { checks = [...checks, "numeric"] }
-  if is_alphanumeric(s) { checks = [...checks, "alnum"] }
-  if is_empty(s) { checks = [...checks, "empty"] }
+  if isAlpha(s) { checks = [...checks, "alpha"] }
+  if isNumeric(s) { checks = [...checks, "numeric"] }
+  if isAlphanumeric(s) { checks = [...checks, "alnum"] }
+  if isEmpty(s) { checks = [...checks, "empty"] }
   label = if len(checks) > 0 { join(checks, ", ") } else { "none" }
-  print("{pad_end(s, 10)} -> {label}")
+  print("{padEnd(s, 10)} -> {label}")
 }
 
 print("")
 
 // UUID and hex checks
-print(is_uuid("550e8400-e29b-41d4-a716-446655440000"))   // true
-print(is_uuid("not-a-uuid"))                               // false
-print(is_hex("deadbeef"))                                   // true
-print(is_hex("xyz123"))                                     // false`
+print(isUuid("550e8400-e29b-41d4-a716-446655440000"))   // true
+print(isUuid("not-a-uuid"))                               // false
+print(isHex("deadbeef"))                                   // true
+print(isHex("xyz123"))                                     // false`
 
 const encodingCode = `// Encoding and decoding
 // Base64
 original = "Hello, Tova!"
-encoded = base64_encode(original)
-decoded = base64_decode(encoded)
+encoded = base64Encode(original)
+decoded = base64Decode(encoded)
 print("Original: {original}")
 print("Base64:   {encoded}")
 print("Decoded:  {decoded}")
@@ -118,20 +118,20 @@ print("Decoded:  {decoded}")
 print("")
 
 // Hex encoding
-hex = hex_encode("Hello")
+hex = hexEncode("Hello")
 print("Hex encoded: {hex}")
-print("Hex decoded: {hex_decode(hex)}")
+print("Hex decoded: {hexDecode(hex)}")
 
 print("")
 
 // URL encoding (for query parameters and paths)
 text = "hello world & goodbye=true"
-url_safe = url_encode(text)
+url_safe = urlEncode(text)
 print("URL encoded: {url_safe}")
-print("URL decoded: {url_decode(url_safe)}")`
+print("URL decoded: {urlDecode(url_safe)}")`
 
 const urlJsonCode = `// URL parsing and building
-url = parse_url("https://api.example.com/users?page=2&limit=10#results")
+url = parseUrl("https://api.example.com/users?page=2&limit=10#results")
 match url {
   Ok(parts) => {
     print("Protocol: {parts.protocol}")
@@ -146,7 +146,7 @@ match url {
 print("")
 
 // Build a URL from parts
-built = build_url({
+built = buildUrl({
   protocol: "https",
   host: "api.tova.dev",
   pathname: "/v2/search",
@@ -157,12 +157,12 @@ print("Built URL: {built}")
 print("")
 
 // Query string parsing
-query = parse_query("name=Alice&age=30&city=Portland")
+query = parseQuery("name=Alice&age=30&city=Portland")
 print("Query params: {query}")
 print("Name: {query.name}")
 
 // Build query string from object
-qs = build_query({ search: "hello world", page: "1", sort: "date" })
+qs = buildQuery({ search: "hello world", page: "1", sort: "date" })
 print("Query string: {qs}")
 
 print("")
@@ -170,14 +170,14 @@ print("")
 // JSON operations
 data = { name: "Alice", scores: [95, 87, 92], active: true }
 
-json_str = json_stringify(data)
+json_str = jsonStringify(data)
 print("JSON: {json_str}")
 
-pretty = json_pretty(data)
+pretty = jsonPretty(data)
 print("Pretty JSON:")
 print(pretty)
 
-parsed = json_parse(json_str).unwrap()
+parsed = jsonParse(json_str).unwrap()
 print("Parsed name: {parsed.name}")
 print("Parsed scores: {parsed.scores}")`
 
@@ -189,7 +189,7 @@ word_counts = Counter(words)
 
 print("Word counts:")
 for entry in word_counts.most_common(5) {
-  print("  {pad_end(entry[0], 10)} {entry[1]}")
+  print("  {padEnd(entry[0], 10)} {entry[1]}")
 }
 print("Total words: {word_counts.total()}")
 print("Unique words: {word_counts.length}")
@@ -307,7 +307,7 @@ logs = [
 
 // Parse each log line with regex
 fn parse_log(line) {
-  match regex_match(line, r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)") {
+  match regexMatch(line, r"(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)") {
     Ok(m) => Ok({
       date: m.groups[0],
       time: m.groups[1],
@@ -341,7 +341,7 @@ for entry in levels.most_common() {
     "INFO" => green
     _ => identity
   }
-  print("  {pad_end(entry[0], 7)} {color_fn(bar)} ({count})")
+  print("  {padEnd(entry[0], 7)} {color_fn(bar)} ({count})")
 }
 
 print("")
@@ -357,8 +357,8 @@ print("")
 
 // Extract response times from request logs
 fn extract_response_time(msg) {
-  match regex_match(msg, r"\\((\\d+)ms\\)") {
-    Ok(m) => Some(to_int(m.groups[0]))
+  match regexMatch(msg, r"\\((\\d+)ms\\)") {
+    Ok(m) => Some(toInt(m.groups[0]))
     Err(_) => None
   }
 }
@@ -395,9 +395,9 @@ Tova provides a clean regex API through six functions. All patterns use standard
 All regex functions take the **string first**, then the **pattern**:
 
 ```tova
-print(regex_test("abc 123", r"\d+"))       // true
-print(regex_test("abc 123", r"^\d+$"))     // false (not entirely digits)
-print(regex_test("12345", r"^\d+$"))       // true
+print(regexTest("abc 123", r"\d+"))       // true
+print(regexTest("abc 123", r"^\d+$"))     // false (not entirely digits)
+print(regexTest("12345", r"^\d+$"))       // true
 ```
 
 ### regex_match — Extract Captures
@@ -406,7 +406,7 @@ Returns a `Result` containing the full match and capture groups:
 
 ```tova
 line = "2026-03-06 14:30:45 [ERROR] Disk full"
-result = regex_match(line, r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)")
+result = regexMatch(line, r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)")
 
 match result {
   Ok(m) => {
@@ -424,22 +424,22 @@ match result {
 
 ```tova
 text = "Emails: alice@test.com and bob@work.org"
-matches = regex_find_all(text, r"\w+@\w+\.\w+")
+matches = regexFindAll(text, r"\w+@\w+\.\w+")
 // Returns array of { match, index, groups } objects
 
 // Extract all numbers from text
-numbers = regex_find_all("Order #42: 3 items at $15 each", r"\d+")
+numbers = regexFindAll("Order #42: 3 items at $15 each", r"\d+")
 ```
 
 ### regex_replace — Find and Replace
 
 ```tova
 // Normalize whitespace
-cleaned = regex_replace("too   many    spaces", r"\s+", " ")
+cleaned = regexReplace("too   many    spaces", r"\s+", " ")
 print(cleaned)   // "too many spaces"
 
 // Redact sensitive data
-safe = regex_replace("Card: 1234-5678-9012-3456", r"\d{4}-\d{4}-\d{4}-(\d{4})", "****-****-****-$1")
+safe = regexReplace("Card: 1234-5678-9012-3456", r"\d{4}-\d{4}-\d{4}-(\d{4})", "****-****-****-$1")
 print(safe)   // "Card: ****-****-****-3456"
 ```
 
@@ -447,7 +447,7 @@ print(safe)   // "Card: ****-****-****-3456"
 
 ```tova
 // Split on any combination of whitespace and punctuation
-parts = regex_split("one, two; three  four", r"[,;\s]+")
+parts = regexSplit("one, two; three  four", r"[,;\s]+")
 print(parts)   // ["one", "two", "three", "four"]
 ```
 
@@ -456,7 +456,7 @@ print(parts)   // ["one", "two", "three", "four"]
 Returns a `Result` containing named capture groups:
 
 ```tova
-result = regex_capture(
+result = regexCapture(
   "2026-03-06",
   r"(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})"
 )
@@ -484,15 +484,15 @@ Tova's datetime module covers parsing, formatting, arithmetic, and human-readabl
 
 ```tova
 timestamp = now()         // Numeric timestamp (milliseconds)
-iso_string = now_iso()    // ISO 8601 string: "2026-03-06T14:30:45.123Z"
+iso_string = nowIso()    // ISO 8601 string: "2026-03-06T14:30:45.123Z"
 ```
 
 ### Parsing Dates
 
 ```tova
-d = date_parse("2026-03-06")
+d = dateParse("2026-03-06")
 match d {
-  Ok(date) => print("Parsed: {date_format(date, 'date')}")
+  Ok(date) => print("Parsed: {dateFormat(date, 'date')}")
   Err(msg) => print("Invalid: {msg}")
 }
 ```
@@ -505,14 +505,14 @@ match d {
 d = now()
 
 // Preset formats
-print(date_format(d, "iso"))       // "2026-03-06T14:30:45.123Z"
-print(date_format(d, "date"))      // "2026-03-06"
-print(date_format(d, "time"))      // "14:30:45"
-print(date_format(d, "datetime"))  // "2026-03-06 14:30:45"
+print(dateFormat(d, "iso"))       // "2026-03-06T14:30:45.123Z"
+print(dateFormat(d, "date"))      // "2026-03-06"
+print(dateFormat(d, "time"))      // "14:30:45"
+print(dateFormat(d, "datetime"))  // "2026-03-06 14:30:45"
 
 // Custom format tokens
-print(date_format(d, "DD/MM/YYYY"))          // "06/03/2026"
-print(date_format(d, "YYYY-MM-DD HH:mm"))    // "2026-03-06 14:30"
+print(dateFormat(d, "DD/MM/YYYY"))          // "06/03/2026"
+print(dateFormat(d, "YYYY-MM-DD HH:mm"))    // "2026-03-06 14:30"
 ```
 
 | Token | Meaning | Example |
@@ -529,49 +529,49 @@ print(date_format(d, "YYYY-MM-DD HH:mm"))    // "2026-03-06 14:30"
 ```tova
 today = now()
 
-tomorrow = date_add(today, 1, "days")
-next_week = date_add(today, 7, "days")
-next_month = date_add(today, 1, "months")
-next_year = date_add(today, 1, "years")
-two_hours_later = date_add(today, 2, "hours")
+tomorrow = dateAdd(today, 1, "days")
+next_week = dateAdd(today, 7, "days")
+next_month = dateAdd(today, 1, "months")
+next_year = dateAdd(today, 1, "years")
+two_hours_later = dateAdd(today, 2, "hours")
 ```
 
 ### Date Differences
 
 ```tova
-start = date_parse("2026-01-01").unwrap()
-end_d = date_parse("2026-12-31").unwrap()
+start = dateParse("2026-01-01").unwrap()
+end_d = dateParse("2026-12-31").unwrap()
 
-print(date_diff(start, end_d, "days"))     // 364
-print(date_diff(start, end_d, "months"))   // 11
-print(date_diff(start, end_d, "hours"))    // 8736
+print(dateDiff(start, end_d, "days"))     // 364
+print(dateDiff(start, end_d, "months"))   // 11
+print(dateDiff(start, end_d, "hours"))    // 8736
 ```
 
 ### Creating Dates from Parts
 
 ```tova
-birthday = date_from({ year: 1990, month: 6, day: 15 })
-meeting = date_from({ year: 2026, month: 3, day: 10, hour: 14, minute: 30 })
+birthday = dateFrom({ year: 1990, month: 6, day: 15 })
+meeting = dateFrom({ year: 2026, month: 3, day: 10, hour: 14, minute: 30 })
 ```
 
 ### Extracting Parts
 
 ```tova
 d = now()
-print(date_part(d, "year"))      // 2026
-print(date_part(d, "month"))     // 3
-print(date_part(d, "day"))       // 6
-print(date_part(d, "weekday"))   // "Thursday" (or similar)
+print(datePart(d, "year"))      // 2026
+print(datePart(d, "month"))     // 3
+print(datePart(d, "day"))       // 6
+print(datePart(d, "weekday"))   // "Thursday" (or similar)
 ```
 
 ### Human-Readable Relative Time
 
 ```tova
-recent = date_add(now(), -45, "minutes")
-print(time_ago(recent))   // "45 minutes ago"
+recent = dateAdd(now(), -45, "minutes")
+print(timeAgo(recent))   // "45 minutes ago"
 
-old = date_add(now(), -3, "days")
-print(time_ago(old))      // "3 days ago"
+old = dateAdd(now(), -3, "days")
+print(timeAgo(old))      // "3 days ago"
 ```
 
 <TryInPlayground :code="datetimeCode" label="Date/Time" />
@@ -582,25 +582,25 @@ Quick checks for common string formats:
 
 ```tova
 // Email validation
-print(is_email("alice@example.com"))   // true
-print(is_email("not-an-email"))        // false
+print(isEmail("alice@example.com"))   // true
+print(isEmail("not-an-email"))        // false
 
 // URL validation
-print(is_url("https://tova.dev"))      // true
-print(is_url("not a url"))            // false
+print(isUrl("https://tova.dev"))      // true
+print(isUrl("not a url"))            // false
 
 // String content checks
-print(is_numeric("12345"))      // true
-print(is_numeric("12.5"))       // true
-print(is_alpha("hello"))        // true
-print(is_alpha("hello123"))     // false
-print(is_alphanumeric("abc123")) // true
-print(is_hex("deadbeef"))       // true
-print(is_uuid("550e8400-e29b-41d4-a716-446655440000"))  // true
+print(isNumeric("12345"))      // true
+print(isNumeric("12.5"))       // true
+print(isAlpha("hello"))        // true
+print(isAlpha("hello123"))     // false
+print(isAlphanumeric("abc123")) // true
+print(isHex("deadbeef"))       // true
+print(isUuid("550e8400-e29b-41d4-a716-446655440000"))  // true
 
 // Emptiness
-print(is_empty(""))      // true
-print(is_empty("  "))    // false (whitespace is not empty)
+print(isEmpty(""))      // true
+print(isEmpty("  "))    // false (whitespace is not empty)
 ```
 
 ### Combining Validators
@@ -609,9 +609,9 @@ Build validation pipelines using these as building blocks:
 
 ```tova
 fn validate_signup(data) {
-  guard is_email(data.email) else { return Err("Invalid email") }
+  guard isEmail(data.email) else { return Err("Invalid email") }
   guard len(data.password) >= 8 else { return Err("Password too short") }
-  guard is_alphanumeric(data.username) else { return Err("Username must be alphanumeric") }
+  guard isAlphanumeric(data.username) else { return Err("Username must be alphanumeric") }
   Ok(data)
 }
 ```
@@ -625,10 +625,10 @@ Convert data between formats for storage, transmission, or display:
 ### Base64
 
 ```tova
-encoded = base64_encode("Hello, Tova!")
+encoded = base64Encode("Hello, Tova!")
 print(encoded)   // "SGVsbG8sIFRvdmEh"
 
-decoded = base64_decode(encoded)
+decoded = base64Decode(encoded)
 print(decoded)   // "Hello, Tova!"
 ```
 
@@ -637,10 +637,10 @@ Base64 is used for embedding binary data in text formats (emails, JSON, data URI
 ### Hex
 
 ```tova
-hex = hex_encode("Hello")
+hex = hexEncode("Hello")
 print(hex)   // "48656c6c6f"
 
-original = hex_decode(hex)
+original = hexDecode(hex)
 print(original)   // "Hello"
 ```
 
@@ -649,10 +649,10 @@ Hex encoding is common for hashes, colors, and binary inspection.
 ### URL Encoding
 
 ```tova
-safe = url_encode("hello world & more")
+safe = urlEncode("hello world & more")
 print(safe)   // "hello%20world%20%26%20more"
 
-original = url_decode(safe)
+original = urlDecode(safe)
 print(original)   // "hello world & more"
 ```
 
@@ -665,16 +665,16 @@ Parse, stringify, and pretty-print JSON:
 ```tova
 // Object to JSON string
 data = { name: "Alice", scores: [95, 87, 92], active: true }
-json_str = json_stringify(data)
+json_str = jsonStringify(data)
 print(json_str)   // '{"name":"Alice","scores":[95,87,92],"active":true}'
 
 // JSON string to object (returns Result — unwrap or match)
-parsed = json_parse(json_str).unwrap()
+parsed = jsonParse(json_str).unwrap()
 print(parsed.name)      // "Alice"
 print(parsed.scores[0]) // 95
 
 // Pretty-printed JSON (for display and debugging)
-pretty = json_pretty(data)
+pretty = jsonPretty(data)
 print(pretty)
 // {
 //   "name": "Alice",
@@ -692,7 +692,7 @@ print(pretty)
 ### Parsing URLs
 
 ```tova
-result = parse_url("https://api.example.com/users?page=2&limit=10#results")
+result = parseUrl("https://api.example.com/users?page=2&limit=10#results")
 match result {
   Ok(parts) => {
     print(parts.protocol)   // "https"
@@ -708,7 +708,7 @@ match result {
 ### Building URLs
 
 ```tova
-url = build_url({
+url = buildUrl({
   protocol: "https",
   host: "api.tova.dev",
   pathname: "/v2/search",
@@ -721,12 +721,12 @@ print(url)   // "https://api.tova.dev/v2/search?q=hello&lang=en"
 
 ```tova
 // Parse query string to object
-params = parse_query("name=Alice&age=30&city=Portland")
+params = parseQuery("name=Alice&age=30&city=Portland")
 print(params.name)   // "Alice"
 print(params.age)    // "30"
 
 // Build query string from object
-qs = build_query({ search: "hello world", page: "1", sort: "date" })
+qs = buildQuery({ search: "hello world", page: "1", sort: "date" })
 print(qs)   // "search=hello%20world&page=1&sort=date"
 ```
 
@@ -739,8 +739,8 @@ Generate random values and sample from collections:
 ```tova
 // Random numbers
 print(random())              // Float between 0 and 1
-print(random_int(1, 100))    // Int between 1 and 100
-print(random_float(0, 10))   // Float between 0 and 10
+print(randomInt(1, 100))    // Int between 1 and 100
+print(randomFloat(0, 10))   // Float between 0 and 10
 
 // Pick from collections
 colors = ["red", "green", "blue", "yellow"]
@@ -951,7 +951,7 @@ result = await spin("Loading data...", fn() {
 name = ask("What is your name?")
 confirmed = confirm("Deploy to production?")
 color = choose("Pick a theme:", ["Dark", "Light", "Auto"])
-colors = choose_many("Select languages:", ["Tova", "Python", "JavaScript", "Go"])
+colors = chooseMany("Select languages:", ["Tova", "Python", "JavaScript", "Go"])
 password = secret("Enter API key:")
 ```
 
@@ -976,7 +976,7 @@ logs = [
 
 // Parse each line with regex (regex_match returns Result)
 fn parse_log(line) {
-  match regex_match(line, r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)") {
+  match regexMatch(line, r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.+)") {
     Ok(m) => Ok({ date: m.groups[0], time: m.groups[1], level: m.groups[2], message: m.groups[3] })
     Err(_) => Err("Parse error")
   }
@@ -997,13 +997,13 @@ for entry in levels.most_common() {
     "WARN" => yellow
     _ => green
   }
-  print("  {color_fn(pad_end(entry[0], 7))} {repeat('█', entry[1])} ({entry[1]})")
+  print("  {color_fn(padEnd(entry[0], 7))} {repeat('█', entry[1])} ({entry[1]})")
 }
 
 // Extract response times
 fn extract_ms(msg) {
-  match regex_match(msg, r"\((\d+)ms\)") {
-    Ok(m) => Some(to_int(m.groups[0]))
+  match regexMatch(msg, r"\((\d+)ms\)") {
+    Ok(m) => Some(toInt(m.groups[0]))
     Err(_) => None
   }
 }

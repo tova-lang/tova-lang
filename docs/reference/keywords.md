@@ -568,7 +568,7 @@ Defines a structural contract that types can implement.
 
 ```tova
 interface Printable {
-  fn to_string(self) -> String
+  fn toString(self) -> String
 }
 ```
 
@@ -658,7 +658,7 @@ result = nil
 Logical NOT operator (keyword form).
 
 ```tova
-if not is_empty(list) {
+if not isEmpty(list) {
   process(list)
 }
 ```
@@ -679,7 +679,7 @@ Declares a named transform chain inside a `data {}` block. Pipelines can referen
 data {
   source users = read("users.csv")
   pipeline active = users |> where(.active)
-  pipeline summary = active |> group_by(.role) |> agg(count: count())
+  pipeline summary = active |> groupBy(.role) |> agg(count: count())
 }
 ```
 
@@ -848,12 +848,12 @@ Defines a test block with a description string and body containing assertions. T
 
 ```tova
 test "addition works" {
-  assert_eq(1 + 1, 2)
+  assertEq(1 + 1, 2)
 }
 
 test "string interpolation" {
   name = "world"
-  assert_eq("Hello, {name}!", "Hello, world!")
+  assertEq("Hello, {name}!", "Hello, world!")
 }
 ```
 

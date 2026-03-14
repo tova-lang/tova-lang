@@ -294,7 +294,7 @@ server {
   // List uploaded files
   route GET "/api/uploads" => fn() {
     files = fs.read_dir("./uploads")
-      |> filter(fn(f) not f.starts_with("."))
+      |> filter(fn(f) not f.startsWith("."))
       |> map(fn(f) {
         stat = fs.stat("./uploads/{f}")
         { name: f, url: "/uploads/{f}", size: stat.size }
@@ -779,7 +779,7 @@ Process and transform data using pipes.
 ```tova
 // Process a CSV file
 fn process_sales_data(csv_path) {
-  raw = fs.read_text(csv_path)
+  raw = fs.readText(csv_path)
 
   sales = raw
     |> trim()
@@ -787,7 +787,7 @@ fn process_sales_data(csv_path) {
     |> map(fn(line) split(line, ","))
     |> filter(fn(row) len(row) == 4)      // skip malformed rows
     |> map(fn(row) {
-      { date: row[0], region: row[1], product: row[2], amount: to_float(row[3]) }
+      { date: row[0], region: row[1], product: row[2], amount: toFloat(row[3]) }
     })
 
   // Aggregate by region
@@ -842,13 +842,13 @@ fn main(args) {
 }
 
 fn count_lines(path) {
-  content = fs.read_text(path)
+  content = fs.readText(path)
   lines = content |> split("\n")
   print("{len(lines)} lines in {path}")
 }
 
 fn search_file(pattern, path) {
-  content = fs.read_text(path)
+  content = fs.readText(path)
   lines = content |> split("\n")
   for i, line in lines {
     if line.contains(pattern) {
@@ -858,15 +858,15 @@ fn search_file(pattern, path) {
 }
 
 fn replace_in_file(old, new, path) {
-  content = fs.read_text(path)
+  content = fs.readText(path)
   updated = content.replace(old, new)
-  fs.write_text(path, updated)
+  fs.writeText(path, updated)
   count = len(content.split(old)) - 1
   print("Replaced {count} occurrences of '{old}' with '{new}'")
 }
 
 fn file_stats(path) {
-  content = fs.read_text(path)
+  content = fs.readText(path)
   lines = content |> split("\n")
   words = content |> words()
   chars = content |> chars()

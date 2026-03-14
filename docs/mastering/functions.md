@@ -117,7 +117,7 @@ for i in range(10) {
 fn flatten(items) {
   var result = []
   for item in items {
-    if type_of(item) == "List" {
+    if typeOf(item) == "List" {
       for sub in flatten(item) {
         result.push(sub)
       }
@@ -180,13 +180,13 @@ fn sum_series(from_n, to_n, term) {
 }
 
 // Sum of squares: 1² + 2² + ... + 10²
-sum_sq = sum_series(1, 10, fn(n) to_float(n * n))
+sum_sq = sum_series(1, 10, fn(n) toFloat(n * n))
 print("Sum of squares 1..10: {sum_sq}")
 
 // Approximate pi using Leibniz formula
 pi_approx = 4.0 * sum_series(0, 10000, fn(k) {
   sign = if k % 2 == 0 { 1.0 } else { -1.0 }
-  sign / (2.0 * to_float(k) + 1.0)
+  sign / (2.0 * toFloat(k) + 1.0)
 })
 print("Pi approx: {pi_approx}")`
 </script>
@@ -571,7 +571,7 @@ Some decorators accept configuration:
 ```tova
 @fast fn vector_add(a: [Float], b: [Float]) -> [Float] {
   // @fast with typed parameters
-  typed_add(a, b)
+  typedAdd(a, b)
 }
 ```
 
@@ -583,7 +583,7 @@ Multiple decorators can be stacked on a single function:
 @memoize
 @fast
 fn cached_dot(a: [Float], b: [Float]) -> Float {
-  typed_dot(a, b)
+  typedDot(a, b)
 }
 ```
 
@@ -668,8 +668,8 @@ fn repeat_value<T>(value: T, n: Int) -> [T] {
   result
 }
 
-print(repeat_value("hello", 3))   // ["hello", "hello", "hello"]
-print(repeat_value(42, 5))         // [42, 42, 42, 42, 42]
+print(repeatValue("hello", 3))   // ["hello", "hello", "hello"]
+print(repeatValue(42, 5))         // [42, 42, 42, 42, 42]
 ```
 
 ::: tip When to Use Generics
@@ -788,7 +788,7 @@ print(apply_n(fn(x) x * 2, 10, 1))   // 1024
 // Approximate pi with Leibniz series
 pi = 4.0 * sum_series(0, 10000, fn(k) {
   sign = if k % 2 == 0 { 1.0 } else { -1.0 }
-  sign / (2.0 * to_float(k) + 1.0)
+  sign / (2.0 * toFloat(k) + 1.0)
 })
 print("Pi ≈ {pi}")
 ```

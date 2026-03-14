@@ -63,7 +63,7 @@ crypto.hash_password(password) -> Result<String, String>
 crypto.verify_password(password, hash) -> Bool
 crypto.encrypt(plaintext, key) -> Result<String, String>     // AES-256-GCM
 crypto.decrypt(ciphertext, key) -> Result<String, String>
-crypto.random_int(min, max) -> Int
+crypto.randomInt(min, max) -> Int
 crypto.uuid_v4() -> String
 crypto.constant_time_equal(a, b) -> Bool
 ```
@@ -146,7 +146,7 @@ Collection-centric (Lodash/Ramda style). All functions auto-curried and pipe-fri
 `fp.both(p1, p2)`, `fp.either(p1, p2)`, `fp.where({age: fp.gt(18)})`
 
 **Advanced collections:**
-`fp.zip_with(fn)`, `fp.flat_map(fn)`, `fp.unfold(fn, seed)`,
+`fp.zipWith(fn)`, `fp.flatMap(fn)`, `fp.unfold(fn, seed)`,
 `fp.iterate(fn, seed, n)`, `fp.window(n)`, `fp.sliding(n, step)`,
 `fp.interleave`, `fp.interpose(sep)`, `fp.frequencies`
 
@@ -205,7 +205,7 @@ Zod-style declarative schemas, always returns `Result`.
 Arbitraries: `arb.int(min, max)`, `arb.string()`, `arb.array(arb.int())`, `arb.object({...})`, `arb.one_of([...])`
 
 **Snapshots:**
-`assert_snapshot(value, "name")` — auto-creates/compares `.snap` files
+`assertSnapshot(value, "name")` — auto-creates/compares `.snap` files
 
 **Time control:**
 `fake_time.freeze(date)`, `fake_time.advance(ms)`, `fake_time.restore()`
@@ -269,7 +269,7 @@ Columnar storage backed by TypedArrays for numeric columns. Leverages `@fast` op
 `df.rename({old: "new"})`, `df.cast("age", "float")`
 
 **Aggregation:**
-`df.group_by("city").agg({pop: "sum", age: "mean"})`,
+`df.groupBy("city").agg({pop: "sum", age: "mean"})`,
 `df.describe()` — min/max/mean/median/std/count per column
 
 **Joins:**

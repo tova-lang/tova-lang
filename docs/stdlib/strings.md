@@ -62,25 +62,25 @@ trim("\n\thello\n")     // "hello"
 ### trim_start
 
 ```tova
-trim_start(s) -> String
+trimStart(s) -> String
 ```
 
 Removes whitespace from the beginning of a string.
 
 ```tova
-trim_start("  hello  ")    // "hello  "
+trimStart("  hello  ")    // "hello  "
 ```
 
 ### trim_end
 
 ```tova
-trim_end(s) -> String
+trimEnd(s) -> String
 ```
 
 Removes whitespace from the end of a string.
 
 ```tova
-trim_end("  hello  ")      // "  hello"
+trimEnd("  hello  ")      // "  hello"
 ```
 
 ### split
@@ -172,31 +172,31 @@ contains("hello world", "xyz")      // false
 ### starts_with
 
 ```tova
-starts_with(s, prefix) -> Bool
+startsWith(s, prefix) -> Bool
 ```
 
 Returns `true` if the string starts with the given prefix.
 
 ```tova
-starts_with("hello", "hel")    // true
-starts_with("hello", "world")  // false
+startsWith("hello", "hel")    // true
+startsWith("hello", "world")  // false
 
-"hello".starts_with("hel")     // true
+"hello".startsWith("hel")     // true
 ```
 
 ### ends_with
 
 ```tova
-ends_with(s, suffix) -> Bool
+endsWith(s, suffix) -> Bool
 ```
 
 Returns `true` if the string ends with the given suffix.
 
 ```tova
-ends_with("hello.tova", ".tova")     // true
-ends_with("hello.tova", ".js")      // false
+endsWith("hello.tova", ".tova")     // true
+endsWith("hello.tova", ".js")      // false
 
-"photo.png".ends_with(".png")       // true
+"photo.png".endsWith(".png")       // true
 ```
 
 ---
@@ -222,14 +222,14 @@ replace("aabbcc", "b", "x")
 ### replace_first
 
 ```tova
-replace_first(s, from, to) -> String
+replaceFirst(s, from, to) -> String
 ```
 
 Replaces only the first occurrence of `from` with `to`.
 
 ```tova
-replace_first("aabb", "a", "x")    // "xabb"
-replace_first("hello hello", "hello", "hi")  // "hi hello"
+replaceFirst("aabb", "a", "x")    // "xabb"
+replaceFirst("hello hello", "hello", "hi")  // "hi hello"
 ```
 
 ### repeat
@@ -253,28 +253,28 @@ repeat("ab", 0)          // ""
 ### pad_start
 
 ```tova
-pad_start(s, n, fill?) -> String
+padStart(s, n, fill?) -> String
 ```
 
 Pads the beginning of a string to reach length `n`. Uses spaces by default, or the optional `fill` character.
 
 ```tova
-pad_start("5", 3, "0")       // "005"
-pad_start("hi", 5)            // "   hi"
-pad_start("42", 5, ".")       // "...42"
+padStart("5", 3, "0")       // "005"
+padStart("hi", 5)            // "   hi"
+padStart("42", 5, ".")       // "...42"
 ```
 
 ### pad_end
 
 ```tova
-pad_end(s, n, fill?) -> String
+padEnd(s, n, fill?) -> String
 ```
 
 Pads the end of a string to reach length `n`.
 
 ```tova
-pad_end("5", 3, "0")         // "500"
-pad_end("hi", 5)              // "hi   "
+padEnd("5", 3, "0")         // "500"
+padEnd("hi", 5)              // "hi   "
 ```
 
 ---
@@ -284,15 +284,15 @@ pad_end("hi", 5)              // "hi   "
 ### char_at
 
 ```tova
-char_at(s, i) -> String | Nil
+charAt(s, i) -> String | Nil
 ```
 
 Returns the character at position `i`, or `nil` if out of bounds.
 
 ```tova
-char_at("hello", 0)    // "h"
-char_at("hello", 4)    // "o"
-char_at("hello", 10)   // nil
+charAt("hello", 0)    // "h"
+charAt("hello", 4)    // "o"
+charAt("hello", 10)   // nil
 ```
 
 ---
@@ -341,57 +341,57 @@ capitalize("hello world")  // "Hello world"
 ### title_case
 
 ```tova
-title_case(s) -> String
+titleCase(s) -> String
 ```
 
 Uppercases the first letter of each word.
 
 ```tova
-title_case("hello world")       // "Hello World"
-title_case("the quick brown fox")  // "The Quick Brown Fox"
+titleCase("hello world")       // "Hello World"
+titleCase("the quick brown fox")  // "The Quick Brown Fox"
 ```
 
 ### snake_case
 
 ```tova
-snake_case(s) -> String
+snakeCase(s) -> String
 ```
 
 Converts a string to `snake_case`. Handles camelCase, spaces, and hyphens.
 
 ```tova
-snake_case("helloWorld")         // "hello_world"
-snake_case("Hello World")        // "hello_world"
-snake_case("some-thing")         // "some_thing"
-snake_case("XMLParser")          // "xmlparser"
+snakeCase("helloWorld")         // "hello_world"
+snakeCase("Hello World")        // "hello_world"
+snakeCase("some-thing")         // "some_thing"
+snakeCase("XMLParser")          // "xmlparser"
 ```
 
 ### camel_case
 
 ```tova
-camel_case(s) -> String
+camelCase(s) -> String
 ```
 
 Converts a string to `camelCase`. Handles snake_case, spaces, and hyphens.
 
 ```tova
-camel_case("hello_world")       // "helloWorld"
-camel_case("Hello World")       // "helloWorld"
-camel_case("some-thing")        // "someThing"
+camelCase("hello_world")       // "helloWorld"
+camelCase("Hello World")       // "helloWorld"
+camelCase("some-thing")        // "someThing"
 ```
 
 ### kebab_case
 
 ```tova
-kebab_case(s) -> String
+kebabCase(s) -> String
 ```
 
 Converts a string to `kebab-case`. Handles camelCase, spaces, and underscores.
 
 ```tova
-kebab_case("helloWorld")         // "hello-world"
-kebab_case("Hello World")        // "hello-world"
-kebab_case("some_thing")         // "some-thing"
+kebabCase("helloWorld")         // "hello-world"
+kebabCase("Hello World")        // "hello-world"
+kebabCase("some_thing")         // "some-thing"
 ```
 
 ---
@@ -401,43 +401,43 @@ kebab_case("some_thing")         // "some-thing"
 ### index_of
 
 ```tova
-index_of(s, sub) -> Int | Nil
+indexOf(s, sub) -> Int | Nil
 ```
 
 Returns the position of the first occurrence of `sub` in `s`. Returns `nil` if not found.
 
 ```tova
-index_of("hello world", "world")    // 6
-index_of("abcabc", "bc")            // 1
-index_of("hello", "xyz")            // nil
+indexOf("hello world", "world")    // 6
+indexOf("abcabc", "bc")            // 1
+indexOf("hello", "xyz")            // nil
 ```
 
 ### last_index_of
 
 ```tova
-last_index_of(s, sub) -> Int | Nil
+lastIndexOf(s, sub) -> Int | Nil
 ```
 
 Returns the position of the last occurrence of `sub` in `s`. Returns `nil` if not found.
 
 ```tova
-last_index_of("abcabc", "bc")      // 4
-last_index_of("hello", "l")         // 3
-last_index_of("hello", "xyz")       // nil
+lastIndexOf("abcabc", "bc")      // 4
+lastIndexOf("hello", "l")         // 3
+lastIndexOf("hello", "xyz")       // nil
 ```
 
 ### count_of
 
 ```tova
-count_of(s, sub) -> Int
+countOf(s, sub) -> Int
 ```
 
 Counts the number of non-overlapping occurrences of `sub` in `s`.
 
 ```tova
-count_of("banana", "an")            // 2
-count_of("mississippi", "s")        // 4
-count_of("hello", "xyz")            // 0
+countOf("banana", "an")            // 2
+countOf("mississippi", "s")        // 4
+countOf("hello", "xyz")            // 0
 ```
 
 ---
@@ -461,15 +461,15 @@ substr("hello", -3)                 // "llo"
 ### reverse_str
 
 ```tova
-reverse_str(s) -> String
+reverseStr(s) -> String
 ```
 
 Reverses a string.
 
 ```tova
-reverse_str("hello")               // "olleh"
-reverse_str("racecar")             // "racecar"
-reverse_str("")                     // ""
+reverseStr("hello")               // "olleh"
+reverseStr("racecar")             // "racecar"
+reverseStr("")                     // ""
 ```
 
 ### center
@@ -490,17 +490,17 @@ center("hello", 3)                 // "hello"
 ### is_empty
 
 ```tova
-is_empty(v) -> Bool
+isEmpty(v) -> Bool
 ```
 
 Returns `true` if a value is empty. Works for strings, arrays, objects, and nil.
 
 ```tova
-is_empty("")                        // true
-is_empty("hello")                   // false
-is_empty([])                        // true
-is_empty({})                        // true
-is_empty(nil)                       // true
+isEmpty("")                        // true
+isEmpty("hello")                   // false
+isEmpty([])                        // true
+isEmpty({})                        // true
+isEmpty(nil)                       // true
 ```
 
 ---
@@ -524,16 +524,16 @@ truncate("Hello World", 8, "..")       // "Hello .."
 ### word_wrap
 
 ```tova
-word_wrap(s, width) -> String
+wordWrap(s, width) -> String
 ```
 
 Wraps text at word boundaries to fit within `width` characters per line.
 
 ```tova
-word_wrap("one two three four", 10)
+wordWrap("one two three four", 10)
 // "one two\nthree four"
 
-word_wrap("the quick brown fox", 12)
+wordWrap("the quick brown fox", 12)
 // "the quick\nbrown fox"
 ```
 
@@ -553,14 +553,14 @@ dedent("    line1\n  line2")   // "  line1\nline2"
 ### indent_str
 
 ```tova
-indent_str(s, n, ch?) -> String
+indentStr(s, n, ch?) -> String
 ```
 
 Adds `n` repetitions of `ch` (default: space) to the beginning of each line.
 
 ```tova
-indent_str("hello\nworld", 2)         // "  hello\n  world"
-indent_str("a\nb", 1, ">")            // ">a\n>b"
+indentStr("hello\nworld", 2)         // "  hello\n  world"
+indentStr("a\nb", 1, ">")            // ">a\n>b"
 ```
 
 ### slugify
@@ -580,29 +580,29 @@ slugify("  My Blog Post  ")       // "my-blog-post"
 ### escape_html
 
 ```tova
-escape_html(s) -> String
+escapeHtml(s) -> String
 ```
 
 Escapes HTML special characters (`<`, `>`, `&`, `"`, `'`).
 
 ```tova
-escape_html("<b>Hello</b>")
+escapeHtml("<b>Hello</b>")
 // "&lt;b&gt;Hello&lt;/b&gt;"
 
-escape_html("a > b & c < d")
+escapeHtml("a > b & c < d")
 // "a &gt; b &amp; c &lt; d"
 ```
 
 ### unescape_html
 
 ```tova
-unescape_html(s) -> String
+unescapeHtml(s) -> String
 ```
 
 Reverses HTML entity escaping.
 
 ```tova
-unescape_html("&lt;b&gt;Hello&lt;/b&gt;")
+unescapeHtml("&lt;b&gt;Hello&lt;/b&gt;")
 // "<b>Hello</b>"
 ```
 
@@ -654,7 +654,7 @@ input
 // Escape user input for HTML
 user_input
   |> trim()
-  |> escape_html()
+  |> escapeHtml()
 ```
 
 ## String Concatenation

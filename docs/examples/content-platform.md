@@ -63,16 +63,16 @@ data {
 
   // Cleaning pipeline
   pipeline articles = raw_articles
-    |> drop_nil(.title)
-    |> drop_nil(.body)
+    |> dropNil(.title)
+    |> dropNil(.body)
     |> derive(
       .title = .title |> trim(),
       .author = .author |> trim() |> unwrapOr("Unknown"),
       .body = .body |> trim()
     )
     |> where(.body |> len() > 100)
-    |> drop_duplicates(by: .url)
-    |> sort_by(.published_at, desc: true)
+    |> dropDuplicates(by: .url)
+    |> sortBy(.published_at, desc: true)
 
   // AI enrichment pipeline
   pipeline enriched = articles
@@ -98,22 +98,22 @@ data {
 
   // Aggregation pipelines
   pipeline by_category = enriched
-    |> group_by(.category)
+    |> groupBy(.category)
     |> agg(
       count: count(),
       avg_sentiment_score: count()
     )
-    |> sort_by(.count, desc: true)
+    |> sortBy(.count, desc: true)
 
   pipeline by_sentiment = enriched
-    |> group_by(.sentiment)
+    |> groupBy(.sentiment)
     |> agg(count: count())
-    |> sort_by(.count, desc: true)
+    |> sortBy(.count, desc: true)
 
   validate Article {
     .title |> len() > 0,
     .body |> len() > 100,
-    .url |> starts_with("http")
+    .url |> startsWith("http")
   }
 
   refresh raw_articles every 30.minutes
@@ -140,12 +140,12 @@ server {
     result = enriched
 
     result = match category {
-      Some(cat) => result |> where(.category |> to_string() == cat)
+      Some(cat) => result |> where(.category |> toString() == cat)
       None => result
     }
 
     result = match sentiment {
-      Some(s) => result |> where(.sentiment |> to_string() == s)
+      Some(s) => result |> where(.sentiment |> toString() == s)
       None => result
     }
 
@@ -175,9 +175,9 @@ server {
     all_keywords = enriched
       |> select(.keywords)
       |> explode(.keywords)
-      |> group_by(.keywords)
+      |> groupBy(.keywords)
       |> agg(count: count())
-      |> sort_by(.count, desc: true)
+      |> sortBy(.count, desc: true)
       |> limit(20)
       |> select(.keywords)
       |> to_list()
@@ -234,12 +234,12 @@ browser {
     }
 
     result = match category_filter {
-      Some(cat) => result |> filter(fn(a) a.category |> to_string() == cat)
+      Some(cat) => result |> filter(fn(a) a.category |> toString() == cat)
       None => result
     }
 
     match sentiment_filter {
-      Some(s) => result |> filter(fn(a) a.sentiment |> to_string() == s)
+      Some(s) => result |> filter(fn(a) a.sentiment |> toString() == s)
       None => result
     }
   }
@@ -247,7 +247,7 @@ browser {
   computed filtered = filter_articles()
 
   computed category_counts = articles
-    |> group_by(fn(a) a.category |> to_string())
+    |> groupBy(fn(a) a.category |> toString())
     |> entries()
     |> map(fn(pair) ({ category: pair[0], count: pair[1] |> len() }))
     |> sorted(fn(a, b) b.count - a.count)
@@ -338,8 +338,8 @@ browser {
   component ArticleCard(article: EnrichedArticle) {
     <div class="article-card" onclick={fn() { selected_article = Some(article) }}>
       <div class="meta">
-        <span class="category">{article.category |> to_string()}</span>
-        <span class="sentiment">{article.sentiment |> to_string()}</span>
+        <span class="category">{article.category |> toString()}</span>
+        <span class="sentiment">{article.sentiment |> toString()}</span>
         <span class="time">"{article.reading_time_min} min read"</span>
       </div>
       <h3>{article.title}</h3>
@@ -370,8 +370,8 @@ browser {
           <div class="meta">
             <span>{current_article.author}</span>
             <span>{current_article.published_at}</span>
-            <span class="category">{current_article.category |> to_string()}</span>
-            <span class="sentiment">{current_article.sentiment |> to_string()}</span>
+            <span class="category">{current_article.category |> toString()}</span>
+            <span class="sentiment">{current_article.sentiment |> toString()}</span>
           </div>
           <div class="summary-box">
             <h3>"AI Summary"</h3>
@@ -435,7 +435,7 @@ The data block layers raw → clean → enriched pipelines:
 source raw_articles = read("https://api.example.com/articles.json")
 
 pipeline articles = raw_articles
-  |> drop_nil(.title)
+  |> dropNil(.title)
   |> derive(.author = .author |> trim() |> unwrapOr("Unknown"))
   |> where(.body |> len() > 100)
 
@@ -482,9 +482,9 @@ type Category { Tech, Business, Science, Health, Politics, Sports, Entertainment
 
 ```tova
 pipeline by_category = enriched
-  |> group_by(.category)
+  |> groupBy(.category)
   |> agg(count: count())
-  |> sort_by(.count, desc: true)
+  |> sortBy(.count, desc: true)
 ```
 
 Aggregation pipelines turn enriched data into summary statistics. Server functions and client components reference these pipelines by name.

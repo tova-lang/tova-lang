@@ -117,17 +117,17 @@ type LogReport {
 // --- CSV to JSON Converter ---
 
 fn convert_csv_to_json(input_path: String, output_path: String) -> Result<String, String> {
-  guard input_path |> ends_with(".csv") else {
+  guard input_path |> endsWith(".csv") else {
     return Err("Input must be a .csv file")
   }
 
   table = read(input_path)
-    |> drop_nil(.name)
+    |> dropNil(.name)
     |> derive(
       .name = .name |> trim(),
       .email = .email |> lower() |> trim()
     )
-    |> sort_by(.name)
+    |> sortBy(.name)
 
   write(table, output_path)
   Ok("Converted {table.rows} rows to {output_path}")
@@ -142,13 +142,13 @@ fn analyze_logs(log_path: String) -> Result<LogReport, String> {
   warnings = entries |> where(.level == "WARN")
 
   by_service = entries
-    |> group_by(.service)
+    |> groupBy(.service)
     |> agg(count: count())
-    |> sort_by(.count, desc: true)
+    |> sortBy(.count, desc: true)
 
   error_messages = errors
     |> select(.message)
-    |> drop_duplicates(by: .message)
+    |> dropDuplicates(by: .message)
     |> limit(20)
 
   report = LogReport {
@@ -245,7 +245,7 @@ fn main(args: [String]) {
       lines = read(file_path) |> split("\n")
       lines
         |> filter(fn(line) line |> len() > 0)
-        |> filter(fn(line) not (line |> starts_with("#")))
+        |> filter(fn(line) not (line |> startsWith("#")))
         |> map(fn(line) {
           match parse_key_value(line) {
             Some((key, value)) => print("{key} => {value}")
@@ -316,9 +316,9 @@ The `analyze_logs` function chains table operations with pipes:
 
 ```tova
 by_service = entries
-  |> group_by(.service)
+  |> groupBy(.service)
   |> agg(count: count())
-  |> sort_by(.count, desc: true)
+  |> sortBy(.count, desc: true)
 ```
 
 The `format_report` function chains string transformations:
@@ -335,7 +335,7 @@ Functions return `Result<T, E>` for operations that can fail:
 
 ```tova
 fn convert_csv_to_json(input_path: String, output_path: String) -> Result<String, String> {
-  guard input_path |> ends_with(".csv") else {
+  guard input_path |> endsWith(".csv") else {
     return Err("Input must be a .csv file")
   }
   // ...

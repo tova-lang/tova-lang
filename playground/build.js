@@ -265,27 +265,27 @@ x, y = y, x
 print("After swap: x={x}, y={y}")
 
 // Type checking
-print(type_of(42))
-print(type_of("hello"))
-print(type_of(true))
-print(type_of([1, 2, 3]))
-print(type_of(nil))
+print(typeOf(42))
+print(typeOf("hello"))
+print(typeOf(true))
+print(typeOf([1, 2, 3]))
+print(typeOf(nil))
 ` },
     { category: 'Getting Started', name: 'String Operations', code: `// String interpolation with expressions
 name = "hello world"
 print("Upper: {name.upper()}")
 print("Capitalized: {name.capitalize()}")
-print("Title: {name.title_case()}")
+print("Title: {name.titleCase()}")
 
 // String methods
 sentence = "the quick brown fox jumps"
 print("Words: {sentence.words()}")
-print("Starts with 'the': {sentence.starts_with("the")}")
+print("Starts with 'the': {sentence.startsWith("the")}")
 print("Contains 'brown': {sentence.contains("brown")}")
 
 // Useful conversions
-print("snake_case: {"helloWorld".snake_case()}")
-print("camelCase: {"hello_world".camel_case()}")
+print("snake_case: {"helloWorld".snakeCase()}")
+print("camelCase: {"hello_world".camelCase()}")
 
 // String multiply (repeat)
 border = "-" * 30
@@ -409,7 +409,7 @@ evens = [x for x in range(1, 21) if x % 2 == 0]
 print("Evens: {evens}")
 
 // Build pairs with flat_map
-pairs = flat_map(range(1, 4), fn(x) [[x, y] for y in range(1, 4) if x != y])
+pairs = flatMap(range(1, 4), fn(x) [[x, y] for y in range(1, 4) if x != y])
 print("Pairs: {pairs}")
 
 // Dict comprehension
@@ -582,7 +582,7 @@ type Color {
   Custom(r: Int, g: Int, b: Int)
 }
 
-fn to_hex(c) {
+fn toHex(c) {
   match c {
     Red => "#FF0000"
     Green => "#00FF00"
@@ -591,8 +591,8 @@ fn to_hex(c) {
   }
 }
 
-print(to_hex(Red))
-print(to_hex(Custom(255, 128, 0)))
+print(toHex(Red))
+print(toHex(Custom(255, 128, 0)))
 
 // Option — built-in type: Some(value) or None
 fn safe_divide(a, b) {
@@ -694,12 +694,12 @@ vals = ["Alice", 30, "NYC"]
 print("zipped: {zip(labels, vals)}")
 
 // type_of — runtime type checking
-print("type_of(42): {type_of(42)}")
-print("type_of(3.14): {type_of(3.14)}")
-print("type_of('hi'): {type_of("hi")}")
-print("type_of(true): {type_of(true)}")
-print("type_of(nil): {type_of(nil)}")
-print("type_of([1]): {type_of([1, 2])}")
+print("typeOf(42): {typeOf(42)}")
+print("typeOf(3.14): {typeOf(3.14)}")
+print("typeOf('hi'): {typeOf("hi")}")
+print("typeOf(true): {typeOf(true)}")
+print("typeOf(nil): {typeOf(nil)}")
+print("typeOf([1]): {typeOf([1, 2])}")
 ` },
 
     // ── Reactive UI ──
@@ -880,7 +880,7 @@ print("\\nFirst 20: {fibs}")
 print("Sum: {sum(fibs)}")
 ` },
     { category: 'Algorithms', name: 'Binary Search', code: `// Binary search on sorted array
-fn binary_search(items, target) {
+fn binarySearch(items, target) {
   var lo = 0
   var hi = len(items) - 1
   while lo <= hi {
@@ -901,7 +901,7 @@ nums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
 print("Array: {nums}")
 
 for target in [23, 72, 15, 2, 91] {
-  idx = binary_search(nums, target)
+  idx = binarySearch(nums, target)
   if idx >= 0 {
     print("Found {target} at index {idx}")
   } else {
@@ -913,7 +913,7 @@ for target in [23, 72, 15, 2, 91] {
 word_list = ["banana", "apple", "cherry", "date", "elderberry", "fig"]
 sorted_words = sorted(word_list)
 print("\\nSorted: {sorted_words}")
-print("Index of 'cherry': {binary_search(sorted_words, "cherry")}")
+print("Index of 'cherry': {binarySearch(sorted_words, "cherry")}")
 ` },
     { category: 'Algorithms', name: 'Linked List with ADTs', code: `// Linked List using algebraic data types
 type List {
@@ -1075,9 +1075,9 @@ function getReference() {
     { title: 'Strings', items: [
       { syntax: '"Hello, {name}!"', desc: 'Interpolation' },
       { syntax: '.upper() .lower() .trim()', desc: 'Case methods' },
-      { syntax: '.contains(s) .starts_with(s)', desc: 'Search methods' },
+      { syntax: '.contains(s) .startsWith(s)', desc: 'Search methods' },
       { syntax: '.words() .chars() .lines()', desc: 'Split methods' },
-      { syntax: '.capitalize() .title_case()', desc: 'Format methods' },
+      { syntax: '.capitalize() .titleCase()', desc: 'Format methods' },
       { syntax: '"-" * 20', desc: 'String repeat' },
     ]},
     { title: 'Collections', items: [
@@ -1106,7 +1106,7 @@ function getReference() {
       { syntax: 'enumerate(arr)', desc: 'Index-value pairs' },
       { syntax: 'zip(a, b, ...)', desc: 'Combine arrays' },
       { syntax: 'map(arr, fn) filter(arr, fn)', desc: 'Transform/filter' },
-      { syntax: 'type_of(value)', desc: 'Runtime type name' },
+      { syntax: 'typeOf(value)', desc: 'Runtime type name' },
     ]},
     { title: 'Reactive (browser)', items: [
       { syntax: 'state counter = 0', desc: 'Reactive variable (signal)' },
@@ -1293,11 +1293,11 @@ print("{x} squared is {x * x}")
 greeting = "hello world"
 print(greeting.upper())
 print(greeting.capitalize())
-print(greeting.title_case())
+print(greeting.titleCase())
 
 // Useful checks
 print("contains 'world': {greeting.contains("world")}")
-print("starts with 'hello': {greeting.starts_with("hello")}")
+print("starts with 'hello': {greeting.startsWith("hello")}")
 
 // String repetition
 border = "=" * 30

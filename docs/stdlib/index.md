@@ -23,32 +23,32 @@ Tova's standard library follows a few guiding principles:
 
 | Category | Functions | Page |
 |---|---|---|
-| **Collections** | `len`, `range`, `filled`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `type_of`, `filter`, `map`, `find`, `find_index`, `includes`, `any`, `all`, `flat_map`, `reduce`, `unique`, `group_by`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print`, `zip_with`, `frequencies`, `scan`, `min_by`, `max_by`, `sum_by`, `product`, `sliding_window`, `intersection`, `difference`, `symmetric_difference`, `is_subset`, `is_superset`, `union`, `pairwise`, `combinations`, `permutations`, `intersperse`, `interleave`, `repeat_value`, `binary_search`, `is_sorted`, `compact`, `rotate`, `insert_at`, `remove_at`, `update_at`, `parallel_map` | [Collections](./collections) |
-| **Strings** | `trim`, `trim_start`, `trim_end`, `split`, `join`, `replace`, `replace_first`, `repeat`, `upper`, `lower`, `contains`, `starts_with`, `ends_with`, `chars`, `words`, `lines`, `char_at`, `pad_start`, `pad_end`, `capitalize`, `title_case`, `snake_case`, `camel_case`, `kebab_case`, `index_of`, `last_index_of`, `count_of`, `substr`, `reverse_str`, `center`, `is_empty`, `truncate`, `word_wrap`, `dedent`, `indent_str`, `slugify`, `escape_html`, `unescape_html`, `fmt` | [Strings](./strings) |
-| **Math & Stats** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `ln`, `log2`, `log10`, `exp`, `is_nan`, `is_finite`, `is_close`, `to_radians`, `to_degrees`, `gcd`, `lcm`, `factorial`, `random`, `random_int`, `random_float`, `choice`, `sample`, `shuffle`, `sleep`, `hypot`, `lerp`, `divmod`, `avg`, `mean`, `median`, `mode`, `stdev`, `variance`, `percentile`, `format_number`, `to_hex`, `to_binary`, `to_octal`, `to_fixed`, `typed_sum`, `typed_dot`, `typed_norm`, `typed_add`, `typed_scale`, `typed_map`, `typed_reduce`, `typed_sort`, `typed_zeros`, `typed_ones`, `typed_fill`, `typed_range`, `typed_linspace` | [Math & Stats](./math) |
-| **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone`, `has_key`, `get`, `from_entries`, `pick`, `omit`, `map_values` | [Objects & Utilities](./objects) |
-| **Functional** | `compose`, `pipe_fn`, `identity`, `memoize`, `debounce`, `throttle`, `once`, `negate`, `partial`, `curry`, `flip` | [Functional](./functional) |
-| **Regex** | `regex_test`, `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`, `regex_capture`, `regex_builder` | [Regex](./regex) |
-| **Validation** | `is_email`, `is_url`, `is_numeric`, `is_alpha`, `is_alphanumeric`, `is_uuid`, `is_hex` | [Validation](./validation) |
-| **URL & UUID** | `uuid`, `parse_url`, `build_url`, `parse_query`, `build_query` | [URL & UUID](./url) |
+| **Collections** | `len`, `range`, `filled`, `enumerate`, `sum`, `sorted`, `reversed`, `zip`, `min`, `max`, `typeOf`, `filter`, `map`, `find`, `findIndex`, `includes`, `any`, `all`, `flatMap`, `reduce`, `unique`, `groupBy`, `chunk`, `flatten`, `take`, `drop`, `first`, `last`, `count`, `partition`, `print`, `zipWith`, `frequencies`, `scan`, `minBy`, `maxBy`, `sumBy`, `product`, `slidingWindow`, `intersection`, `difference`, `symmetricDifference`, `isSubset`, `isSuperset`, `union`, `pairwise`, `combinations`, `permutations`, `intersperse`, `interleave`, `repeatValue`, `binarySearch`, `isSorted`, `compact`, `rotate`, `insertAt`, `removeAt`, `updateAt`, `parallelMap` | [Collections](./collections) |
+| **Strings** | `trim`, `trimStart`, `trimEnd`, `split`, `join`, `replace`, `replaceFirst`, `repeat`, `upper`, `lower`, `contains`, `startsWith`, `endsWith`, `chars`, `words`, `lines`, `charAt`, `padStart`, `padEnd`, `capitalize`, `titleCase`, `snakeCase`, `camelCase`, `kebabCase`, `indexOf`, `lastIndexOf`, `countOf`, `substr`, `reverseStr`, `center`, `isEmpty`, `truncate`, `wordWrap`, `dedent`, `indentStr`, `slugify`, `escapeHtml`, `unescapeHtml`, `fmt` | [Strings](./strings) |
+| **Math & Stats** | `PI`, `E`, `INF`, `abs`, `floor`, `ceil`, `round`, `trunc`, `sign`, `clamp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `ln`, `log2`, `log10`, `exp`, `isNaN`, `isFinite`, `isClose`, `toRadians`, `toDegrees`, `gcd`, `lcm`, `factorial`, `random`, `randomInt`, `randomFloat`, `choice`, `sample`, `shuffle`, `sleep`, `hypot`, `lerp`, `divmod`, `avg`, `mean`, `median`, `mode`, `stdev`, `variance`, `percentile`, `formatNumber`, `toHex`, `toBinary`, `toOctal`, `toFixed`, `typedSum`, `typedDot`, `typedNorm`, `typedAdd`, `typedScale`, `typedMap`, `typedReduce`, `typedSort`, `typedZeros`, `typedOnes`, `typedFill`, `typedRange`, `typedLinspace` | [Math & Stats](./math) |
+| **Objects & Utilities** | `keys`, `values`, `entries`, `merge`, `freeze`, `clone`, `hasKey`, `get`, `fromEntries`, `pick`, `omit`, `mapValues` | [Objects & Utilities](./objects) |
+| **Functional** | `compose`, `pipeFn`, `identity`, `memoize`, `debounce`, `throttle`, `once`, `negate`, `partial`, `curry`, `flip` | [Functional](./functional) |
+| **Regex** | `regexTest`, `regexMatch`, `regexFindAll`, `regexReplace`, `regexSplit`, `regexCapture`, `regexBuilder` | [Regex](./regex) |
+| **Validation** | `isEmail`, `isUrl`, `isNumeric`, `isAlpha`, `isAlphanumeric`, `isUuid`, `isHex` | [Validation](./validation) |
+| **URL & UUID** | `uuid`, `parseUrl`, `buildUrl`, `parseQuery`, `buildQuery` | [URL & UUID](./url) |
 | **HTTP Client** | `http.get`, `http.post`, `http.put`, `http.patch`, `http.delete`, `http.head`, `http.get_stream` | [HTTP Client](./http) |
-| **Date & Time** | `now`, `now_iso`, `date_parse`, `date_format`, `date_add`, `date_diff`, `date_from`, `date_part`, `time_ago` | [Date & Time](./datetime) |
-| **JSON** | `json_parse`, `json_stringify`, `json_pretty` | [JSON](./json) |
-| **Encoding** | `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode` | [Encoding](./encoding) |
-| **Async & Error Handling** | `try_fn`, `try_async`, `parallel`, `race`, `timeout`, `retry`, `sleep` | [Async & Error Handling](./async) |
-| **Result & Option** | `Ok`, `Err`, `Some`, `None`, `?` (propagation), `filter_ok`, `filter_err` | [Result & Option](./result-option) |
-| **Type Conversion** | `to_int`, `to_float`, `to_string`, `to_bool` | [Type Conversion](./conversion) |
-| **Assertions** | `assert`, `assert_eq`, `assert_ne`, `assert_throws`, `assert_snapshot` | [Assertions](./assertions) |
-| **Lazy Iterators** | `iter`, `Seq.filter`, `Seq.map`, `Seq.take`, `Seq.drop`, `Seq.zip`, `Seq.flat_map`, `Seq.enumerate`, `Seq.collect`, `Seq.reduce`, `Seq.first`, `Seq.count`, `Seq.forEach`, `Seq.any`, `Seq.all`, `Seq.find` | [Lazy Iterators](./iterators) |
+| **Date & Time** | `now`, `nowIso`, `dateParse`, `dateFormat`, `dateAdd`, `dateDiff`, `dateFrom`, `datePart`, `timeAgo` | [Date & Time](./datetime) |
+| **JSON** | `jsonParse`, `jsonStringify`, `jsonPretty` | [JSON](./json) |
+| **Encoding** | `base64Encode`, `base64Decode`, `urlEncode`, `urlDecode`, `hexEncode`, `hexDecode` | [Encoding](./encoding) |
+| **Async & Error Handling** | `tryFn`, `tryAsync`, `parallel`, `race`, `timeout`, `retry`, `sleep` | [Async & Error Handling](./async) |
+| **Result & Option** | `Ok`, `Err`, `Some`, `None`, `?` (propagation), `filterOk`, `filterErr` | [Result & Option](./result-option) |
+| **Type Conversion** | `toInt`, `toFloat`, `toString`, `toBool` | [Type Conversion](./conversion) |
+| **Assertions** | `assert`, `assertEq`, `assertNe`, `assertThrows`, `assertSnapshot` | [Assertions](./assertions) |
+| **Lazy Iterators** | `iter`, `Seq.filter`, `Seq.map`, `Seq.take`, `Seq.drop`, `Seq.zip`, `Seq.flatMap`, `Seq.enumerate`, `Seq.collect`, `Seq.reduce`, `Seq.first`, `Seq.count`, `Seq.forEach`, `Seq.any`, `Seq.all`, `Seq.find` | [Lazy Iterators](./iterators) |
 | **Advanced Collections** | `OrderedDict`, `DefaultDict`, `Counter`, `Deque` | [Advanced Collections](./advanced-collections) |
 | **Channels** | `Channel.new`, `ch.send`, `ch.receive`, `ch.close` | [Channels](./channels) |
-| **Terminal & CLI** | `color`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gray`, `bold`, `dim`, `underline`, `strikethrough`, `table`, `panel`, `progress`, `spin`, `ask`, `confirm`, `choose`, `choose_many`, `secret` | [Terminal & CLI](./terminal) |
-| **Scripting I/O** | `read`, `write`, `fs.exists`, `fs.read_text`, `fs.write_text`, `fs.ls`, `fs.mkdir`, `fs.rm`, `fs.glob_files`, `sh`, `exec`, `spawn`, `env`, `args`, `parse_args`, `exit`, `path_join`, `path_basename`, `path_dirname` | [Scripting I/O](./io) |
-| **Tables** | `Table`, `where`, `select`, `derive`, `sort_by`, `group_by`, `agg`, `window`, `join`, `pivot`, `unpivot`, `explode`, `peek`, `describe` | [Tables](./tables) |
-| **Charting** | `bar_chart`, `line_chart`, `scatter_chart`, `histogram`, `pie_chart`, `heatmap` | [Charting](./charting) |
+| **Terminal & CLI** | `color`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gray`, `bold`, `dim`, `underline`, `strikethrough`, `table`, `panel`, `progress`, `spin`, `ask`, `confirm`, `choose`, `chooseMany`, `secret` | [Terminal & CLI](./terminal) |
+| **Scripting I/O** | `read`, `write`, `fs.exists`, `fs.readText`, `fs.writeText`, `fs.ls`, `fs.mkdir`, `fs.rm`, `fs.globFiles`, `sh`, `exec`, `spawn`, `env`, `args`, `parseArgs`, `exit`, `pathJoin`, `pathBasename`, `pathDirname` | [Scripting I/O](./io) |
+| **Tables** | `Table`, `where`, `select`, `derive`, `sortBy`, `groupBy`, `agg`, `window`, `join`, `pivot`, `unpivot`, `explode`, `peek`, `describe` | [Tables](./tables) |
+| **Charting** | `barChart`, `lineChart`, `scatterChart`, `histogram`, `pieChart`, `heatmap` | [Charting](./charting) |
 | **Sampling** | `sample`, `stratified_sample` | [Sampling](./sampling) |
 | **Database** | `sqlite`, `db.query`, `db.exec`, `db.writeTable`, `db.close` | [Database](./database) |
-| **Testing** | `Gen.int`, `Gen.float`, `Gen.bool`, `Gen.string`, `Gen.array`, `Gen.oneOf`, `forAll`, `create_spy`, `create_mock` | [Testing](./testing) |
+| **Testing** | `Gen.int`, `Gen.float`, `Gen.bool`, `Gen.string`, `Gen.array`, `Gen.oneOf`, `forAll`, `createSpy`, `createMock` | [Testing](./testing) |
 
 ## Quick Reference
 
@@ -105,34 +105,34 @@ run_once = once(fn() init_app())
 ### JSON & Encoding
 
 ```tova
-json_parse('{"a": 1}')          // Ok({ a: 1 })
-json_pretty({ a: 1 })           // formatted JSON string
-base64_encode("hello")          // "aGVsbG8="
-url_encode("hello world")       // "hello%20world"
+jsonParse('{"a": 1}')          // Ok({ a: 1 })
+jsonPretty({ a: 1 })           // formatted JSON string
+base64Encode("hello")          // "aGVsbG8="
+urlEncode("hello world")       // "hello%20world"
 ```
 
 ### Regex
 
 ```tova
-regex_test("hello123", "\\d+")         // true
-regex_replace("a1b2c3", "\\d", "X")   // "aXbXcX"
-regex_find_all("a1b2c3", "\\d")        // [{match: "1"}, ...]
+regexTest("hello123", "\\d+")         // true
+regexReplace("a1b2c3", "\\d", "X")   // "aXbXcX"
+regexFindAll("a1b2c3", "\\d")        // [{match: "1"}, ...]
 ```
 
 ### Validation
 
 ```tova
-is_email("user@example.com")           // true
-is_url("https://tova.dev")            // true
-is_uuid("550e8400-e29b-41d4-a716-446655440000")  // true
+isEmail("user@example.com")           // true
+isUrl("https://tova.dev")            // true
+isUuid("550e8400-e29b-41d4-a716-446655440000")  // true
 ```
 
 ### URL & UUID
 
 ```tova
 id = uuid()                             // "a1b2c3d4-..."
-parse_query("a=1&b=2")                 // { a: "1", b: "2" }
-build_url({ host: "api.com", pathname: "/v1" })
+parseQuery("a=1&b=2")                 // { a: "1", b: "2" }
+buildUrl({ host: "api.com", pathname: "/v1" })
 ```
 
 ### HTTP Client
@@ -155,16 +155,16 @@ result = http.get("https://api.example.com/search", {
 ### Date & Time
 
 ```tova
-d = date_parse("2024-01-15")           // Ok(Date)
-date_format(d.unwrap(), "YYYY-MM-DD")  // "2024-01-15"
-date_add(d.unwrap(), 7, "days")        // Date (7 days later)
-time_ago(d.unwrap())                    // "3 months ago"
+d = dateParse("2024-01-15")           // Ok(Date)
+dateFormat(d.unwrap(), "YYYY-MM-DD")  // "2024-01-15"
+dateAdd(d.unwrap(), 7, "days")        // Date (7 days later)
+timeAgo(d.unwrap())                    // "3 months ago"
 ```
 
 ### Async & Error Handling
 
 ```tova
-result = try_fn(fn() risky_operation())
+result = tryFn(fn() risky_operation())
 data = await parallel([fetch("/a"), fetch("/b")])
 data = await retry(fn() fetch("/api"), { times: 3 })
 ```
@@ -194,7 +194,7 @@ ok = await confirm("Deploy to production?")
 
 ```tova
 assert(len(items) > 0, "items must not be empty")
-assert_eq(add(2, 3), 5)
+assertEq(add(2, 3), 5)
 ```
 
 ## Using with Pipes
@@ -214,3 +214,49 @@ All standard library functions are designed to work with the pipe operator `|>`:
   |> first()
 // "hello"
 ```
+
+## Migration to camelCase
+
+As of v0.9.16, Tova's standard library uses **camelCase** naming for all multi-word functions. The old `snake_case` names still work but emit a deprecation warning:
+
+```tova
+// Old (deprecated — produces a warning):
+x = group_by(users, fn(u) u.city)
+
+// New (preferred):
+x = groupBy(users, fn(u) u.city)
+```
+
+The compiler will display a warning with a hint showing the new name:
+
+```
+warning: [W_DEPRECATED_STDLIB] 'group_by' is deprecated, use 'groupBy' instead
+    --> app.tova:5:5
+    |
+  5 | x = group_by(users, fn(u) u.city)
+    |     ^^^^^^^^
+    = hint: rename to groupBy
+```
+
+In your IDE, deprecated names will appear with a ~~strikethrough~~ in autocomplete.
+
+### Common renames
+
+| Old name | New name |
+|---|---|
+| `type_of` | `typeOf` |
+| `flat_map` | `flatMap` |
+| `group_by` | `groupBy` |
+| `sort_by` | `sortBy` |
+| `find_index` | `findIndex` |
+| `starts_with` | `startsWith` |
+| `ends_with` | `endsWith` |
+| `json_parse` | `jsonParse` |
+| `assert_eq` | `assertEq` |
+| `to_int` | `toInt` |
+| `to_string` | `toString` |
+| `is_empty` | `isEmpty` |
+| `table_where` | `tableWhere` |
+| `bar_chart` | `barChart` |
+
+The full list of renames is available in the [migration guide](/guide/migration).

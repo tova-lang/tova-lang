@@ -190,7 +190,7 @@ Ok(84)
 tova> Some("hello") |> unwrap_or("default")
 hello
 
-tova> type_of([1, 2, 3])
+tova> typeOf([1, 2, 3])
 Array
 ```
 
@@ -207,7 +207,7 @@ Array
 ## Tips
 
 - **Quick experiments**: Use the REPL to test pattern matching, pipe chains, or standard library functions before adding them to your source files.
-- **Exploring types**: Use `:type value` or `type_of(value)` to inspect the runtime type of any value.
+- **Exploring types**: Use `:type value` or `typeOf(value)` to inspect the runtime type of any value.
 - **Error handling**: Test `Result` and `Option` chains interactively to verify your error handling logic.
 - **No imports needed**: The standard library is pre-loaded, so you can use `map`, `filter`, `sorted`, `Ok`, `Err`, `Some`, `None`, and all other built-ins immediately.
 - **Incremental exploration**: Build up complex expressions step-by-step, using `_` to reference intermediate results.

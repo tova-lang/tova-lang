@@ -52,7 +52,7 @@ browser {
   // not every time a component reads filtered_items
   computed filtered_items = [
     item for item in items
-    if to_string(item) |> contains(filter_text)
+    if toString(item) |> contains(filter_text)
   ]
 }
 ```

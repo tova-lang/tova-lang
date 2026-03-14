@@ -449,7 +449,7 @@ Interfaces define a structural contract that types can implement:
 
 ```tova
 interface Printable {
-  fn to_string(self) -> String
+  fn toString(self) -> String
 }
 
 interface Comparable {
@@ -461,7 +461,7 @@ Types satisfy an interface by implementing the required methods via `impl`:
 
 ```tova
 impl Printable for Point {
-  fn to_string(self) -> String {
+  fn toString(self) -> String {
     "({self.x}, {self.y})"
   }
 }
@@ -502,7 +502,7 @@ When implementing a trait or interface via `impl`, the compiler checks that all 
 
 ```tova
 interface Printable {
-  fn to_string(self) -> String
+  fn toString(self) -> String
 }
 
 impl Printable for Point {
@@ -677,16 +677,16 @@ fn display(maybe_user: Option<User>) {
 }
 ```
 
-### `type_of()` Narrowing
+### `typeOf()` Narrowing
 
-The compiler recognizes `type_of()` checks and narrows accordingly. `type_of()` is a Tova stdlib function that returns capitalized type name strings: `"String"`, `"Int"`, `"Float"`, `"Bool"`, `"List"`, `"Function"`, `"Object"`, `"Nil"`, or the `__tag` name for ADT variants:
+The compiler recognizes `typeOf()` checks and narrows accordingly. `typeOf()` is a Tova stdlib function that returns capitalized type name strings: `"String"`, `"Int"`, `"Float"`, `"Bool"`, `"List"`, `"Function"`, `"Object"`, `"Nil"`, or the `__tag` name for ADT variants:
 
 ```tova
 fn serialize(value) {
-  if type_of(value) == "String" {
+  if typeOf(value) == "String" {
     // value is narrowed to String
     "\"" ++ value ++ "\""
-  } elif type_of(value) == "Int" {
+  } elif typeOf(value) == "Int" {
     // value is narrowed to Int
     str(value)
   } else {
@@ -757,7 +757,7 @@ fn format(value: String | Int | Float) {
 | `x.isSome()` | Some variant in consequent; None in alternate | Implemented |
 | `x.isNone()` | None in consequent; Some in alternate | Use `else` branch of `.isSome()` |
 | `x is Type` | The checked type | Not yet implemented |
-| `type_of(x) == "String"` | The corresponding Tova type | Implemented (use capitalized type names) |
+| `typeOf(x) == "String"` | The corresponding Tova type | Implemented (use capitalized type names) |
 | `guard x != nil else { ... }` | Non-nil for rest of scope | Implemented |
 
 ## Refinement Types

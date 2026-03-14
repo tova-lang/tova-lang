@@ -99,7 +99,7 @@ server {
   // --- Product Endpoints ---
 
   fn get_products() -> [Product] {
-    Product.all() |> sort_by(.name)
+    Product.all() |> sortBy(.name)
   }
 
   fn get_product(id: Int) -> Result<Product, String> {
@@ -163,7 +163,7 @@ server {
   }
 
   fn get_orders() -> [Order] {
-    Order.all() |> sort_by(.created_at, desc: true)
+    Order.all() |> sortBy(.created_at, desc: true)
   }
 
   fn get_order(id: Int) -> Result<Order, String> {

@@ -56,7 +56,7 @@ fn describe(shape) {
 
 match args() {
   ["add", name]      => add_task(name)
-  ["done", id]       => complete_task(to_int(id))
+  ["done", id]       => complete_task(toInt(id))
   ["list"]           => list_tasks() |> each(fn(t) print(t))
   _                  => print("Usage: tasks <add|done|list>")
 }
@@ -70,7 +70,7 @@ The compiler checks exhaustiveness and warns on uncovered variants.
 result = data
   |> filter(fn(x) x > 0)
   |> map(fn(x) x * 2)
-  |> sort_by(.value)
+  |> sortBy(.value)
   |> take(10)
   |> sum()
 ```
@@ -101,7 +101,7 @@ type Shape {
 } derive [Eq, Show, JSON]
 
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 ```
 
@@ -113,9 +113,9 @@ Tova works without web blocks. Scripts, CLI tools, data pipelines, AI apps:
 // Data pipeline with pipes
 data = read("sales.csv")
   |> filter(fn(row) row.revenue > 1000)
-  |> sort_by(.region)
-  |> group_by(.region, fn(rows) {
-    { total: sum_by(rows, .revenue), count: len(rows) }
+  |> sortBy(.region)
+  |> groupBy(.region, fn(rows) {
+    { total: sumBy(rows, .revenue), count: len(rows) }
   })
 
 write(data, "summary.json")

@@ -74,7 +74,7 @@ fn eval_expr(expr) {
 
 fn show(expr) {
   match expr {
-    Num(v) => to_string(v)
+    Num(v) => toString(v)
     Add(l, r) => "({show(l)} + {show(r)})"
     Mul(l, r) => "({show(l)} * {show(r)})"
     Neg(e) => "-{show(e)}"
@@ -106,7 +106,7 @@ fn parse_command(input) {
     "add " ++ args => {
       parts = split(args, " ")
       if len(parts) == 2 {
-        Add(to_float(parts[0]), to_float(parts[1]))
+        Add(toFloat(parts[0]), toFloat(parts[1]))
       } else {
         Unknown(cleaned)
       }
@@ -114,7 +114,7 @@ fn parse_command(input) {
     "repeat " ++ args => {
       parts = split(args, " ")
       if len(parts) >= 2 {
-        n = to_int(parts[0])
+        n = toInt(parts[0])
         msg = join(drop(parts, 1), " ")
         Repeat(n, msg)
       } else {
@@ -510,7 +510,7 @@ fn eval_expr(expr) {
 
 fn show(expr) {
   match expr {
-    Num(v) => to_string(v)
+    Num(v) => toString(v)
     Add(l, r) => "({show(l)} + {show(r)})"
     Mul(l, r) => "({show(l)} * {show(r)})"
     Neg(e) => "-{show(e)}"
@@ -630,7 +630,7 @@ fn parse_command(input) {
     "add " ++ args => {
       parts = split(args, " ")
       if len(parts) == 2 {
-        Add(to_float(parts[0]), to_float(parts[1]))
+        Add(toFloat(parts[0]), toFloat(parts[1]))
       } else {
         Unknown(cleaned)
       }
@@ -638,7 +638,7 @@ fn parse_command(input) {
     "repeat " ++ args => {
       parts = split(args, " ")
       if len(parts) >= 2 {
-        n = to_int(parts[0])
+        n = toInt(parts[0])
         msg = join(drop(parts, 1), " ")
         Repeat(n, msg)
       } else {

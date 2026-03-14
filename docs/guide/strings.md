@@ -83,11 +83,11 @@ email_re = /^[\w.]+@[\w.]+\.\w+$/i
 Regex literals compile to JavaScript `RegExp` objects and work with the [regex stdlib functions](../stdlib/regex.md):
 
 ```tova
-if regex_test("hello123", /\d+/) {
+if regexTest("hello123", /\d+/) {
   print("Contains digits")
 }
 
-matches = regex_find_all("a1b2c3", /\d/)
+matches = regexFindAll("a1b2c3", /\d/)
 ```
 
 ### Escape Sequences
@@ -152,17 +152,17 @@ text = "hello world"
 text.upper()          // "HELLO WORLD"
 text.lower()          // "hello world"
 text.capitalize()     // "Hello world"
-text.title_case()     // "Hello World"
+text.titleCase()     // "Hello World"
 ```
 
 Converting between naming conventions:
 
 ```tova
 name = "myVariableName"
-name.snake_case()     // "my_variable_name"
+name.snakeCase()     // "my_variable_name"
 
 name2 = "my_variable_name"
-name2.camel_case()    // "myVariableName"
+name2.camelCase()    // "myVariableName"
 ```
 
 ### Searching and Testing
@@ -171,8 +171,8 @@ name2.camel_case()    // "myVariableName"
 text = "Hello, World!"
 
 text.contains("World")       // true
-text.starts_with("Hello")    // true
-text.ends_with("!")          // true
+text.startsWith("Hello")    // true
+text.endsWith("!")          // true
 text.contains("xyz")        // false
 ```
 
@@ -221,17 +221,17 @@ join(names, " and ")       // "Alice and Bob and Carol"
 upper("hello")          // "HELLO"
 lower("HELLO")          // "hello"
 capitalize("hello")     // "Hello"
-title_case("hello world")   // "Hello World"
-snake_case("helloWorld")    // "hello_world"
-camel_case("hello_world")  // "helloWorld"
+titleCase("hello world")   // "Hello World"
+snakeCase("helloWorld")    // "hello_world"
+camelCase("hello_world")  // "helloWorld"
 ```
 
 ### Searching (Standalone)
 
 ```tova
 contains("hello world", "world")    // true
-starts_with("hello", "hel")        // true
-ends_with("hello", "llo")          // true
+startsWith("hello", "hel")        // true
+endsWith("hello", "llo")          // true
 ```
 
 ### Splitting into Parts (Standalone)

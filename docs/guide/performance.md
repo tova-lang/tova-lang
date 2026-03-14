@@ -265,16 +265,16 @@ The `@fast` decorator enables TypedArray coercion for function parameters. Array
 
 ```tova
 @fast fn dot_product(a: [Float], b: [Float]) -> Float {
-  typed_dot(a, b)
+  typedDot(a, b)
 }
 
 @fast fn scale_vector(v: [Float], factor: Float) -> [Float] {
-  typed_scale(v, factor)
+  typedScale(v, factor)
 }
 
 @fast fn normalize(v: [Float]) -> [Float] {
-  n = typed_norm(v)
-  typed_scale(v, 1.0 / n)
+  n = typedNorm(v)
+  typedScale(v, 1.0 / n)
 }
 ```
 
@@ -307,19 +307,19 @@ These are optimized for TypedArray input and available without imports:
 
 | Function | Description |
 |----------|-------------|
-| `typed_sum(arr)` | Sum with Kahan compensation (minimizes float error) |
-| `typed_dot(a, b)` | Dot product of two arrays |
-| `typed_norm(arr)` | L2 norm (Euclidean length) |
-| `typed_add(a, b)` | Element-wise addition (returns new typed array) |
-| `typed_scale(arr, s)` | Multiply every element by scalar |
-| `typed_map(arr, f)` | Map function over elements, preserving type |
-| `typed_reduce(arr, f, init)` | Reduce with typed array input |
-| `typed_sort(arr)` | Sort (returns new typed array) |
-| `typed_zeros(n)` | Float64Array of zeros |
-| `typed_ones(n)` | Float64Array of ones |
-| `typed_fill(n, val)` | New Float64Array filled with value |
-| `typed_range(start, end, step)` | Float64Array range |
-| `typed_linspace(start, end, n)` | n evenly-spaced Float64Array values |
+| `typedSum(arr)` | Sum with Kahan compensation (minimizes float error) |
+| `typedDot(a, b)` | Dot product of two arrays |
+| `typedNorm(arr)` | L2 norm (Euclidean length) |
+| `typedAdd(a, b)` | Element-wise addition (returns new typed array) |
+| `typedScale(arr, s)` | Multiply every element by scalar |
+| `typedMap(arr, f)` | Map function over elements, preserving type |
+| `typedReduce(arr, f, init)` | Reduce with typed array input |
+| `typedSort(arr)` | Sort (returns new typed array) |
+| `typedZeros(n)` | Float64Array of zeros |
+| `typedOnes(n)` | Float64Array of ones |
+| `typedFill(n, val)` | New Float64Array filled with value |
+| `typedRange(start, end, step)` | Float64Array range |
+| `typedLinspace(start, end, n)` | n evenly-spaced Float64Array values |
 
 ### Performance
 
@@ -334,7 +334,7 @@ These are optimized for TypedArray input and available without imports:
 
 ```tova
 @fast fn precise_sum(data: [Float]) -> Float {
-  typed_sum(data)
+  typedSum(data)
 }
 
 // Regular sum of [1e16, 1, -1e16] might lose the 1
@@ -352,7 +352,7 @@ Use `@fast` for array-heavy numeric code: signal processing, statistics, linear 
 `parallel_map` distributes array processing across all CPU cores using a persistent worker pool:
 
 ```tova
-results = await parallel_map(large_array, fn(item) {
+results = await parallelMap(large_array, fn(item) {
   expensive_computation(item)
 })
 ```
@@ -367,7 +367,7 @@ results = await parallel_map(large_array, fn(item) {
 
 ```tova
 // Specify number of workers explicitly
-results = await parallel_map(data, process_item, 8)
+results = await parallelMap(data, process_item, 8)
 ```
 
 ### Performance
@@ -419,11 +419,11 @@ These features compose naturally:
 
 ```tova
 @fast fn process_batch(data: [Float]) -> Float {
-  typed_dot(data, data) |> Math.sqrt()
+  typedDot(data, data) |> Math.sqrt()
 }
 
 // Process many batches in parallel across all CPU cores
-norms = await parallel_map(all_batches, process_batch)
+norms = await parallelMap(all_batches, process_batch)
 ```
 
 For the most demanding workloads, layer them:
@@ -442,11 +442,11 @@ For the most demanding workloads, layer them:
 
 @fast fn process(data: [Float]) -> [Float] {
   // TypedArray operations with WASM kernel
-  typed_map(data, fn(x) kernel(x, 1.0))
+  typedMap(data, fn(x) kernel(x, 1.0))
 }
 
 // Distribute across cores
-results = await parallel_map(batches, fn(batch) process(batch))
+results = await parallelMap(batches, fn(batch) process(batch))
 ```
 
 ## Running the Benchmarks

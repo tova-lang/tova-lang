@@ -1,6 +1,6 @@
 import { Scope, Symbol } from './scope.js';
 import { PIPE_TARGET } from '../parser/ast.js';
-import { BUILTIN_NAMES } from '../stdlib/inline.js';
+import { BUILTIN_NAMES, DEPRECATED_NAMES, SNAKE_TO_CAMEL } from '../stdlib/inline.js';
 import { BlockRegistry } from '../registry/register-all.js';
 import {
   Type, PrimitiveType, NilType, AnyType, UnknownType,
@@ -854,6 +854,15 @@ export class Analyzer {
         this.visitExpression(node.collection);
         return;
       case 'CallExpression':
+        // W_DEPRECATED_STDLIB: warn on snake_case stdlib function usage
+        if (node.callee.type === 'Identifier' && DEPRECATED_NAMES.has(node.callee.name)) {
+          this.warn(
+            `'${node.callee.name}' is deprecated, use '${SNAKE_TO_CAMEL[node.callee.name]}' instead`,
+            node.callee.loc || node.loc,
+            `rename to ${SNAKE_TO_CAMEL[node.callee.name]}`,
+            { code: 'W_DEPRECATED_STDLIB' }
+          );
+        }
         // W_DANGEROUS_API: detect setTimeout/setInterval with string args
         if (node.callee.type === 'Identifier') {
           const calleeName = node.callee.name;

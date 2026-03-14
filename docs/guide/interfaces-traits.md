@@ -8,7 +8,7 @@ An `interface` declares a contract -- a set of method signatures that any implem
 
 ```tova
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 ```
 
@@ -24,17 +24,17 @@ type User {
 }
 
 impl Printable for User {
-  fn to_string() {
+  fn toString() {
     "{self.name} <{self.email}>"
   }
 }
 ```
 
-Now any `User` value can call `.to_string()`:
+Now any `User` value can call `.toString()`:
 
 ```tova
 alice = User(1, "Alice", "alice@example.com")
-print(alice.to_string())   // "Alice <alice@example.com>"
+print(alice.toString())   // "Alice <alice@example.com>"
 ```
 
 ### Multiple Interfaces
@@ -43,7 +43,7 @@ A type can implement as many interfaces as needed:
 
 ```tova
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 
 interface Comparable {
@@ -56,7 +56,7 @@ type Temperature {
 }
 
 impl Printable for Temperature {
-  fn to_string() {
+  fn toString() {
     "{self.degrees}{self.unit}"
   }
 }
@@ -77,7 +77,7 @@ Interfaces can require more than one method:
 ```tova
 interface Collection {
   fn length() -> Int
-  fn is_empty() -> Bool
+  fn isEmpty() -> Bool
   fn contains(item) -> Bool
 }
 
@@ -90,7 +90,7 @@ impl Collection for Stack {
     len(self.items)
   }
 
-  fn is_empty() {
+  fn isEmpty() {
     len(self.items) == 0
   }
 
@@ -385,7 +385,7 @@ impl Point {
 }
 
 impl Printable for Point {
-  fn to_string() {
+  fn toString() {
     "({self.x}, {self.y})"
   }
 }
@@ -407,7 +407,7 @@ type User {
 } derive [Eq, JSON]
 
 impl Printable for User {
-  fn to_string() { self.name }
+  fn toString() { self.name }
 }
 
 impl Comparable for User {

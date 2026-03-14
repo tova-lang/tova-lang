@@ -5,20 +5,20 @@ Generate zero-dependency SVG charts directly from your data pipelines -- no exte
 ## What you'll learn
 
 - Creating bar, line, scatter, pie, histogram, and heatmap charts
-- Saving SVG output with `write_text()`
+- Saving SVG output with `writeText()`
 - Customizing chart appearance with options
 - The aggregate-then-chart pattern for grouped data
 - Combining `table_group_by`, `table_agg`, and `table_derive` with chart functions
 
 ## Overview
 
-Every chart function in Tova returns an SVG string. You save it to a file with `write_text()`, open it in any browser, or embed it in an HTML page. There are no runtime dependencies -- the SVG is self-contained.
+Every chart function in Tova returns an SVG string. You save it to a file with `writeText()`, open it in any browser, or embed it in an HTML page. There are no runtime dependencies -- the SVG is self-contained.
 
 All six chart functions follow the same pattern:
 
 ```text
 svg_string = chart_function(table, {options})
-write_text("path/to/chart.svg", svg_string)
+writeText("path/to/chart.svg", svg_string)
 ```
 
 The `x`, `y`, `label`, `value`, and `col` options are lambdas that extract a field from each row. This keeps the chart functions flexible -- you decide what data maps to each axis.
@@ -36,10 +36,10 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   dept_counts = employees
-    |> table_group_by("department")
-    |> table_agg({headcount: agg_count()})
+    |> tableGroupBy("department")
+    |> tableAgg({headcount: aggCount()})
 
-  chart_svg = bar_chart(dept_counts, {
+  chart_svg = barChart(dept_counts, {
     x: fn(r) r._group,
     y: fn(r) r.headcount,
     title: "Headcount by Department",
@@ -47,7 +47,7 @@ async fn main() {
   })
 
   mkdir("data/charts")
-  write_text("data/charts/dept_headcount.svg", chart_svg)
+  writeText("data/charts/dept_headcount.svg", chart_svg)
 }
 ```
 
@@ -71,12 +71,12 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   monthly = sales
-    |> table_derive({month: fn(r) r.date.slice(0, 7)})
-    |> table_group_by("month")
-    |> table_agg({revenue: agg_sum("amount")})
-    |> table_sort_by("_group")
+    |> tableDerive({month: fn(r) r.date.slice(0, 7)})
+    |> tableGroupBy("month")
+    |> tableAgg({revenue: aggSum("amount")})
+    |> tableSortBy("_group")
 
-  line_svg = line_chart(monthly, {
+  line_svg = lineChart(monthly, {
     x: fn(r) r._group,
     y: fn(r) r.revenue,
     title: "Monthly Revenue Trend",
@@ -84,7 +84,7 @@ async fn main() {
     points: true
   })
 
-  write_text("data/charts/monthly_revenue.svg", line_svg)
+  writeText("data/charts/monthly_revenue.svg", line_svg)
 }
 ```
 
@@ -108,14 +108,14 @@ Scatter charts reveal relationships between two numeric variables. Use them when
 async fn main() {
   employees = await read("data/employees.csv")
 
-  scatter_svg = scatter_chart(employees, {
+  scatter_svg = scatterChart(employees, {
     x: fn(r) r.salary,
     y: fn(r) r.performance_score,
     title: "Salary vs Performance Score",
     color: "#9B59B6"
   })
 
-  write_text("data/charts/salary_vs_perf.svg", scatter_svg)
+  writeText("data/charts/salary_vs_perf.svg", scatter_svg)
 }
 ```
 
@@ -145,7 +145,7 @@ async fn main() {
     color: "#F39C12"
   })
 
-  write_text("data/charts/salary_histogram.svg", hist_svg)
+  writeText("data/charts/salary_histogram.svg", hist_svg)
 }
 ```
 
@@ -169,16 +169,16 @@ async fn main() {
   sales = await read("data/sales.csv")
 
   cat_revenue = sales
-    |> table_group_by("category")
-    |> table_agg({revenue: agg_sum("amount")})
+    |> tableGroupBy("category")
+    |> tableAgg({revenue: aggSum("amount")})
 
-  pie_svg = pie_chart(cat_revenue, {
+  pie_svg = pieChart(cat_revenue, {
     label: fn(r) r._group,
     value: fn(r) r.revenue,
     title: "Revenue by Category"
   })
 
-  write_text("data/charts/revenue_by_category.svg", pie_svg)
+  writeText("data/charts/revenue_by_category.svg", pie_svg)
 }
 ```
 
@@ -201,9 +201,9 @@ async fn main() {
   employees = await read("data/employees.csv")
 
   dept_city = employees
-    |> table_group_by(fn(r) "{r.department}|{r.city}")
-    |> table_agg({avg_salary: agg_mean("salary")})
-    |> table_derive({
+    |> tableGroupBy(fn(r) "{r.department}|{r.city}")
+    |> tableAgg({avg_salary: aggMean("salary")})
+    |> tableDerive({
       department: fn(r) r._group.split("|")[0],
       city: fn(r) r._group.split("|")[1]
     })
@@ -215,7 +215,7 @@ async fn main() {
     title: "Avg Salary: Department x City"
   })
 
-  write_text("data/charts/dept_city_heatmap.svg", heat_svg)
+  writeText("data/charts/dept_city_heatmap.svg", heat_svg)
 }
 ```
 
@@ -245,18 +245,18 @@ async fn main() {
 
   // Step 1-3: aggregate and sort
   region_revenue = sales
-    |> table_group_by("region")
-    |> table_agg({total: agg_sum("amount")})
-    |> table_sort_by("total", {desc: true})
+    |> tableGroupBy("region")
+    |> tableAgg({total: aggSum("amount")})
+    |> tableSortBy("total", {desc: true})
 
   // Step 4: chart
-  svg = bar_chart(region_revenue, {
+  svg = barChart(region_revenue, {
     x: fn(r) r._group,
     y: fn(r) r.total,
     title: "Revenue by Region"
   })
 
-  write_text("data/charts/region_revenue.svg", svg)
+  writeText("data/charts/region_revenue.svg", svg)
 }
 ```
 
@@ -266,18 +266,18 @@ The two exceptions to this pattern are scatter charts and histograms, which typi
 
 | Function | Purpose | Key options |
 |----------|---------|-------------|
-| `bar_chart(table, opts)` | Compare values across categories | `x`, `y`, `title`, `color` |
-| `line_chart(table, opts)` | Show trends over ordered values | `x`, `y`, `title`, `color`, `points` |
-| `scatter_chart(table, opts)` | Reveal relationships between two numbers | `x`, `y`, `title`, `color` |
+| `barChart(table, opts)` | Compare values across categories | `x`, `y`, `title`, `color` |
+| `lineChart(table, opts)` | Show trends over ordered values | `x`, `y`, `title`, `color`, `points` |
+| `scatterChart(table, opts)` | Reveal relationships between two numbers | `x`, `y`, `title`, `color` |
 | `histogram(table, opts)` | Show distribution of a numeric column | `col`, `bins`, `title`, `color` |
-| `pie_chart(table, opts)` | Show proportional breakdown | `label`, `value`, `title` |
+| `pieChart(table, opts)` | Show proportional breakdown | `label`, `value`, `title` |
 | `heatmap(table, opts)` | Show intensity across two categories | `x`, `y`, `value`, `title` |
 
 ## Try it yourself
 
-1. **Top products bar chart**: Group sales by `product`, aggregate total revenue with `agg_sum("amount")`, sort descending, and create a bar chart. Save it to `data/charts/product_revenue.svg`.
+1. **Top products bar chart**: Group sales by `product`, aggregate total revenue with `aggSum("amount")`, sort descending, and create a bar chart. Save it to `data/charts/product_revenue.svg`.
 
-2. **Deal count line chart**: Derive a `month` column from the sales date, group by month, count deals with `agg_count()`, sort by month, and create a line chart with `points: true`. Save it to `data/charts/monthly_deals.svg`.
+2. **Deal count line chart**: Derive a `month` column from the sales date, group by month, count deals with `aggCount()`, sort by month, and create a line chart with `points: true`. Save it to `data/charts/monthly_deals.svg`.
 
 3. **Salary scatter by tenure**: Derive a `tenure` column (`2024 - parseInt(r.hire_date.split("-")[0])`) on employees, then create a scatter chart with tenure on the x-axis and salary on the y-axis. Does experience correlate with pay?
 
@@ -285,7 +285,7 @@ The two exceptions to this pattern are scatter charts and histograms, which typi
 
 5. **Region pie chart**: Group sales by `region`, aggregate total revenue, and create a pie chart showing each region's share. Save it to `data/charts/region_share.svg`.
 
-6. **Cross-tabulation heatmap**: Build a heatmap of average deal size (`agg_mean("amount")`) with `region` on the x-axis and `category` on the y-axis. Which region-category pair has the largest average deal?
+6. **Cross-tabulation heatmap**: Build a heatmap of average deal size (`aggMean("amount")`) with `region` on the x-axis and `category` on the y-axis. Which region-category pair has the largest average deal?
 
 ## Next
 

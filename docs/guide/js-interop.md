@@ -136,7 +136,7 @@ Use `try_async` for safe error handling:
 
 ```tova
 async fn safe_fetch(url) {
-  result = await try_async(fn() fetch(url))
+  result = await tryAsync(fn() fetch(url))
   match result {
     Ok(response) => Ok(await response.json())
     Err(msg) => Err("Network error: {msg}")
@@ -157,7 +157,7 @@ import axios from "axios"
 /// @param url The URL to fetch
 /// @returns Result with response data or error message
 async fn http_get(url: String) -> Result {
-  result = await try_async(fn() axios.get(url))
+  result = await tryAsync(fn() axios.get(url))
   match result {
     Ok(response) => Ok(response.data)
     Err(msg) => Err("HTTP GET failed: {msg}")
@@ -166,7 +166,7 @@ async fn http_get(url: String) -> Result {
 
 /// Make an HTTP POST request
 async fn http_post(url: String, body) -> Result {
-  result = await try_async(fn() axios.post(url, body))
+  result = await tryAsync(fn() axios.post(url, body))
   match result {
     Ok(response) => Ok(response.data)
     Err(msg) => Err("HTTP POST failed: {msg}")
@@ -193,11 +193,11 @@ browser {
   ws = WebSocket.new("ws://localhost:8080")
 
   ws.onopen = fn() {
-    ws.send(json_stringify({ type: "hello" }))
+    ws.send(jsonStringify({ type: "hello" }))
   }
 
   ws.onmessage = fn(event) {
-    data = json_parse(event.data)
+    data = jsonParse(event.data)
     match data {
       Ok(msg) => print("Message: {msg.type}")
       Err(e) => print("Parse error: {e}")
@@ -217,8 +217,8 @@ Tova provides a rich standard library that wraps common JavaScript operations in
 | `filter(arr, fn)` | `arr.filter(fn)` |
 | `map(arr, fn)` | `arr.map(fn)` |
 | `keys(obj)` | `Object.keys(obj)` |
-| `json_parse(s)` | `JSON.parse(s)` (but returns Result) |
+| `jsonParse(s)` | `JSON.parse(s)` (but returns Result) |
 | `sleep(ms)` | `new Promise(r => setTimeout(r, ms))` |
-| `read_text(path)` | `fs.readFileSync(path, 'utf-8')` (but returns Result) |
+| `readText(path)` | `fs.readFileSync(path, 'utf-8')` (but returns Result) |
 
 You can use either style — Tova stdlib functions or direct JavaScript methods.

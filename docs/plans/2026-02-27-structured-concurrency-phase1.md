@@ -96,7 +96,7 @@ use napi_derive::napi;
 
 #[napi]
 pub fn health_check() -> String {
-    "tova_runtime ok".to_string()
+    "tova_runtime ok".toString()
 }
 ```
 
@@ -263,7 +263,7 @@ use napi_derive::napi;
 
 #[napi]
 pub fn health_check() -> String {
-    "tova_runtime ok".to_string()
+    "tova_runtime ok".toString()
 }
 
 #[napi]
@@ -482,7 +482,7 @@ pub fn exec_wasm_sync(wasm_bytes: &[u8], func_name: &str, args: &[i64]) -> Resul
     match results[0] {
         Val::I64(v) => Ok(v),
         Val::I32(v) => Ok(v as i64),
-        _ => Err("unexpected return type".to_string()),
+        _ => Err("unexpected return type".toString()),
     }
 }
 
@@ -521,7 +521,7 @@ pub fn exec_many_shared(
             match results[0] {
                 Val::I64(v) => Ok(v),
                 Val::I32(v) => Ok(v as i64),
-                _ => Err("unexpected return type".to_string()),
+                _ => Err("unexpected return type".toString()),
             }
         })
         .collect()
@@ -542,7 +542,7 @@ use std::sync::Arc;
 
 #[napi]
 pub fn health_check() -> String {
-    "tova_runtime ok".to_string()
+    "tova_runtime ok".toString()
 }
 
 #[napi]
@@ -606,7 +606,7 @@ pub async fn concurrent_wasm(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
 
 #[napi]
 pub async fn concurrent_wasm_shared(tasks: Vec<WasmTask>) -> Result<Vec<i64>> {
-    if tasks.is_empty() {
+    if tasks.isEmpty() {
         return Ok(vec![]);
     }
 
@@ -1138,7 +1138,7 @@ pub fn exec_wasm_with_channels(wasm_bytes: &[u8], func_name: &str, args: &[i64])
     match results[0] {
         Val::I64(v) => Ok(v),
         Val::I32(v) => Ok(v as i64),
-        _ => Err("unexpected return type".to_string()),
+        _ => Err("unexpected return type".toString()),
     }
 }
 ```

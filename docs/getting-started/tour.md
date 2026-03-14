@@ -526,7 +526,7 @@ Define shared behavior across types:
 
 ```tova
 interface Printable {
-  fn to_string() -> String
+  fn toString() -> String
 }
 
 interface Comparable {

@@ -368,7 +368,7 @@ fn format_date(date) {
   dayjs(date).format("YYYY-MM-DD")
 }
 
-fn time_ago(date) {
+fn timeAgo(date) {
   dayjs(date).fromNow()
 }
 ```

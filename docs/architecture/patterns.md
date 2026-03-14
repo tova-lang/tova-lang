@@ -104,8 +104,8 @@ Each layer has one job:
 ```tova
 data {
   source raw = read("data.csv")                     // Raw input
-  pipeline clean = raw |> drop_nil(.id) |> trim()   // Cleaning
-  pipeline grouped = clean |> group_by(.cat) |> agg() // Aggregation
+  pipeline clean = raw |> dropNil(.id) |> trim()   // Cleaning
+  pipeline grouped = clean |> groupBy(.cat) |> agg() // Aggregation
   pipeline enriched = clean |> derive(.label = ai.classify(...)) // Enrichment
 }
 ```

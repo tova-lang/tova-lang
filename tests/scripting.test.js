@@ -58,8 +58,8 @@ describe('scripting: no undefined warnings', () => {
     expect(getWarnings('x = env("HOME")')).toEqual([]);
   });
 
-  test('set_env() produces no warnings', () => {
-    expect(getWarnings('set_env("FOO", "bar")')).toEqual([]);
+  test('setEnv() produces no warnings', () => {
+    expect(getWarnings('setEnv("FOO", "bar")')).toEqual([]);
   });
 
   test('args() produces no warnings', () => {
@@ -74,20 +74,20 @@ describe('scripting: no undefined warnings', () => {
     expect(getWarnings('x = exists("./file.txt")')).toEqual([]);
   });
 
-  test('is_dir() produces no warnings', () => {
-    expect(getWarnings('x = is_dir("./src")')).toEqual([]);
+  test('isDir() produces no warnings', () => {
+    expect(getWarnings('x = isDir("./src")')).toEqual([]);
   });
 
-  test('is_file() produces no warnings', () => {
-    expect(getWarnings('x = is_file("./file.txt")')).toEqual([]);
+  test('isFile() produces no warnings', () => {
+    expect(getWarnings('x = isFile("./file.txt")')).toEqual([]);
   });
 
   test('ls() produces no warnings', () => {
     expect(getWarnings('x = ls(".")')).toEqual([]);
   });
 
-  test('glob_files() produces no warnings', () => {
-    expect(getWarnings('x = glob_files("*.js")')).toEqual([]);
+  test('globFiles() produces no warnings', () => {
+    expect(getWarnings('x = globFiles("*.js")')).toEqual([]);
   });
 
   test('mkdir() produces no warnings', () => {
@@ -114,16 +114,16 @@ describe('scripting: no undefined warnings', () => {
     expect(getWarnings('x = chdir("/tmp")')).toEqual([]);
   });
 
-  test('read_text() produces no warnings', () => {
-    expect(getWarnings('x = read_text("./file.txt")')).toEqual([]);
+  test('readText() produces no warnings', () => {
+    expect(getWarnings('x = readText("./file.txt")')).toEqual([]);
   });
 
-  test('read_bytes() produces no warnings', () => {
-    expect(getWarnings('x = read_bytes("./file.bin")')).toEqual([]);
+  test('readBytes() produces no warnings', () => {
+    expect(getWarnings('x = readBytes("./file.bin")')).toEqual([]);
   });
 
-  test('write_text() produces no warnings', () => {
-    expect(getWarnings('x = write_text("./out.txt", "hello")')).toEqual([]);
+  test('writeText() produces no warnings', () => {
+    expect(getWarnings('x = writeText("./out.txt", "hello")')).toEqual([]);
   });
 
   test('sh() produces no warnings', () => {
@@ -284,24 +284,24 @@ describe('scripting: new builtins registered', () => {
 // ── New scripting builtins: no warnings ──
 
 describe('scripting: new builtins no warnings', () => {
-  test('read_stdin() produces no warnings', () => {
-    expect(getWarnings('x = read_stdin()')).toEqual([]);
+  test('readStdin() produces no warnings', () => {
+    expect(getWarnings('x = readStdin()')).toEqual([]);
   });
 
-  test('read_lines() produces no warnings', () => {
-    expect(getWarnings('x = read_lines()')).toEqual([]);
+  test('readLines() produces no warnings', () => {
+    expect(getWarnings('x = readLines()')).toEqual([]);
   });
 
-  test('script_path() produces no warnings', () => {
-    expect(getWarnings('x = script_path()')).toEqual([]);
+  test('scriptPath() produces no warnings', () => {
+    expect(getWarnings('x = scriptPath()')).toEqual([]);
   });
 
-  test('script_dir() produces no warnings', () => {
-    expect(getWarnings('x = script_dir()')).toEqual([]);
+  test('scriptDir() produces no warnings', () => {
+    expect(getWarnings('x = scriptDir()')).toEqual([]);
   });
 
-  test('parse_args() produces no warnings', () => {
-    expect(getWarnings('x = parse_args(args())')).toEqual([]);
+  test('parseArgs() produces no warnings', () => {
+    expect(getWarnings('x = parseArgs(args())')).toEqual([]);
   });
 
   test('color() produces no warnings', () => {
@@ -434,40 +434,40 @@ describe('scripting: gap builtins registered', () => {
 // ── Gap builtins: no undefined warnings ──
 
 describe('scripting: gap builtins no warnings', () => {
-  test('on_signal() produces no warnings', () => {
-    expect(getWarnings('on_signal("SIGINT", fn() { print("bye") })')).toEqual([]);
+  test('onSignal() produces no warnings', () => {
+    expect(getWarnings('onSignal("SIGINT", fn() { print("bye") })')).toEqual([]);
   });
 
-  test('file_stat() produces no warnings', () => {
-    expect(getWarnings('x = file_stat("./file.txt")')).toEqual([]);
+  test('fileStat() produces no warnings', () => {
+    expect(getWarnings('x = fileStat("./file.txt")')).toEqual([]);
   });
 
-  test('file_size() produces no warnings', () => {
-    expect(getWarnings('x = file_size("./file.txt")')).toEqual([]);
+  test('fileSize() produces no warnings', () => {
+    expect(getWarnings('x = fileSize("./file.txt")')).toEqual([]);
   });
 
-  test('path_join() produces no warnings', () => {
-    expect(getWarnings('x = path_join("a", "b")')).toEqual([]);
+  test('pathJoin() produces no warnings', () => {
+    expect(getWarnings('x = pathJoin("a", "b")')).toEqual([]);
   });
 
-  test('path_dirname() produces no warnings', () => {
-    expect(getWarnings('x = path_dirname("/a/b/c")')).toEqual([]);
+  test('pathDirname() produces no warnings', () => {
+    expect(getWarnings('x = pathDirname("/a/b/c")')).toEqual([]);
   });
 
-  test('path_basename() produces no warnings', () => {
-    expect(getWarnings('x = path_basename("/a/b/c.js")')).toEqual([]);
+  test('pathBasename() produces no warnings', () => {
+    expect(getWarnings('x = pathBasename("/a/b/c.js")')).toEqual([]);
   });
 
-  test('path_resolve() produces no warnings', () => {
-    expect(getWarnings('x = path_resolve("./file.txt")')).toEqual([]);
+  test('pathResolve() produces no warnings', () => {
+    expect(getWarnings('x = pathResolve("./file.txt")')).toEqual([]);
   });
 
-  test('path_ext() produces no warnings', () => {
-    expect(getWarnings('x = path_ext("file.js")')).toEqual([]);
+  test('pathExt() produces no warnings', () => {
+    expect(getWarnings('x = pathExt("file.js")')).toEqual([]);
   });
 
-  test('path_relative() produces no warnings', () => {
-    expect(getWarnings('x = path_relative("/a", "/a/b")')).toEqual([]);
+  test('pathRelative() produces no warnings', () => {
+    expect(getWarnings('x = pathRelative("/a", "/a/b")')).toEqual([]);
   });
 
   test('symlink() produces no warnings', () => {
@@ -478,8 +478,8 @@ describe('scripting: gap builtins no warnings', () => {
     expect(getWarnings('x = readlink("link")')).toEqual([]);
   });
 
-  test('is_symlink() produces no warnings', () => {
-    expect(getWarnings('x = is_symlink("link")')).toEqual([]);
+  test('isSymlink() produces no warnings', () => {
+    expect(getWarnings('x = isSymlink("link")')).toEqual([]);
   });
 
   test('spawn() produces no warnings', () => {
@@ -657,5 +657,33 @@ describe('scripting: gap builtins codegen', () => {
     const code = compile('x = spawn("echo", ["hi"])');
     expect(code).toContain('new Promise');
     expect(code).toContain('child_process');
+  });
+});
+
+// ── camelCase migration: deprecation warnings ──
+
+describe('scripting: camelCase migration', () => {
+  test('snake_case name produces deprecation warning', () => {
+    const warnings = getWarnings('x = read_text("./f")');
+    expect(warnings.length).toBe(1);
+    expect(warnings[0].code).toBe('W_DEPRECATED_STDLIB');
+    expect(warnings[0].message).toContain("'read_text' is deprecated");
+    expect(warnings[0].message).toContain('readText');
+  });
+
+  test('camelCase name produces no deprecation warning', () => {
+    expect(getWarnings('x = readText("./f")')).toEqual([]);
+  });
+
+  test('both names compile to working code', () => {
+    const oldCode = compile('x = read_text("./f")');
+    const newCode = compile('x = readText("./f")');
+    expect(oldCode).toContain('function read_text(');
+    expect(newCode).toContain('function readText(');
+    expect(newCode).toContain('function read_text('); // wrapper depends on original
+  });
+
+  test('non-deprecated functions produce no warning', () => {
+    expect(getWarnings('x = env("HOME")')).toEqual([]);
   });
 });

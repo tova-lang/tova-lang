@@ -176,7 +176,7 @@ type Color {
   Custom(r: Int, g: Int, b: Int)
 }
 
-fn to_hex(color) {
+fn toHex(color) {
   match color {
     Red => "#FF0000"
     Green => "#00FF00"
@@ -298,7 +298,7 @@ greeting = match time_of_day {
 ```
 
 ```tova
-fn to_string(color) {
+fn toString(color) {
   match color {
     Red => "red"
     Green => "green"

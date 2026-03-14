@@ -13,13 +13,13 @@ sales = read("sales.csv")
 
 // Generate a chart and save it
 sales
-  |> group_by(.region)
+  |> groupBy(.region)
   |> agg(revenue: sum(.amount))
-  |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
-  |> write_text("chart.svg")
+  |> barChart(x: .region, y: .revenue, title: "Revenue by Region")
+  |> writeText("chart.svg")
 ```
 
-All chart functions are pipe-friendly. They return SVG strings that you can save with `write_text()`, embed in HTML, or inspect in a browser.
+All chart functions are pipe-friendly. They return SVG strings that you can save with `writeText()`, embed in HTML, or inspect in a browser.
 
 ---
 
@@ -41,14 +41,14 @@ The default palette for multi-series or multi-category charts uses 8 perceptuall
 ## bar_chart
 
 ```tova
-bar_chart(data, x:, y:, title?, width?, height?, color?, colors?) -> String
+barChart(data, x:, y:, title?, width?, height?, color?, colors?) -> String
 ```
 
 Vertical bar chart with one bar per row. The `x` column provides category labels, `y` provides bar heights.
 
 ```tova
-sales |> bar_chart(x: .region, y: .revenue)
-sales |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
+sales |> barChart(x: .region, y: .revenue)
+sales |> barChart(x: .region, y: .revenue, title: "Revenue by Region")
 ```
 
 **Options:**
@@ -70,14 +70,14 @@ sales |> bar_chart(x: .region, y: .revenue, title: "Revenue by Region")
 ## line_chart
 
 ```tova
-line_chart(data, x:, y:, title?, width?, height?, color?, points?) -> String
+lineChart(data, x:, y:, title?, width?, height?, color?, points?) -> String
 ```
 
 Line chart connecting data points with a `<polyline>`. Supports both numeric and categorical x-axes.
 
 ```tova
-prices |> line_chart(x: .date, y: .price, title: "Price History")
-prices |> line_chart(x: .date, y: .price, points: true)
+prices |> lineChart(x: .date, y: .price, title: "Price History")
+prices |> lineChart(x: .date, y: .price, points: true)
 ```
 
 **Options:**
@@ -99,13 +99,13 @@ prices |> line_chart(x: .date, y: .price, points: true)
 ## scatter_chart
 
 ```tova
-scatter_chart(data, x:, y:, title?, width?, height?, color?, r?) -> String
+scatterChart(data, x:, y:, title?, width?, height?, color?, r?) -> String
 ```
 
 Scatter plot with one `<circle>` per data point. Both axes are numeric with auto-scaled gridlines.
 
 ```tova
-users |> scatter_chart(x: .age, y: .income, title: "Age vs Income")
+users |> scatterChart(x: .age, y: .income, title: "Age vs Income")
 ```
 
 **Options:**
@@ -156,13 +156,13 @@ users |> histogram(col: .salary, bins: 30, title: "Salary Distribution")
 ## pie_chart
 
 ```tova
-pie_chart(data, label:, value:, title?, width?, height?, colors?) -> String
+pieChart(data, label:, value:, title?, width?, height?, colors?) -> String
 ```
 
 Circular pie chart with labeled segments. Default size is 400x400.
 
 ```tova
-sales |> pie_chart(label: .category, value: .revenue, title: "Revenue Split")
+sales |> pieChart(label: .category, value: .revenue, title: "Revenue Split")
 ```
 
 **Options:**
@@ -211,17 +211,17 @@ data |> heatmap(x: .month, y: .product, value: .sales, title: "Sales Heatmap")
 
 ## Saving Charts
 
-All chart functions return SVG strings. Use `write_text()` to save:
+All chart functions return SVG strings. Use `writeText()` to save:
 
 ```tova
 // Save single chart
-chart = sales |> bar_chart(x: .region, y: .revenue)
-write_text("chart.svg", chart)
+chart = sales |> barChart(x: .region, y: .revenue)
+writeText("chart.svg", chart)
 
 // Pipe-friendly
 sales
-  |> bar_chart(x: .region, y: .revenue)
-  |> write_text("chart.svg")
+  |> barChart(x: .region, y: .revenue)
+  |> writeText("chart.svg")
 ```
 
 SVG files can be opened directly in any browser, embedded in HTML, or converted to PNG/PDF with external tools.
@@ -238,20 +238,20 @@ orders = read("orders.csv")
 
 orders
   |> where(.status == "completed")
-  |> group_by(.category)
+  |> groupBy(.category)
   |> agg(total: sum(.amount), orders: count())
-  |> sort_by(.total, desc: true)
+  |> sortBy(.total, desc: true)
   |> limit(10)
-  |> bar_chart(x: .category, y: .total, title: "Top 10 Categories")
-  |> write_text("top_categories.svg")
+  |> barChart(x: .category, y: .total, title: "Top 10 Categories")
+  |> writeText("top_categories.svg")
 
 // Multiple charts from the same data
 by_month = orders
-  |> group_by(.month)
+  |> groupBy(.month)
   |> agg(revenue: sum(.amount))
 
-by_month |> line_chart(x: .month, y: .revenue) |> write_text("trend.svg")
-by_month |> bar_chart(x: .month, y: .revenue) |> write_text("bars.svg")
+by_month |> lineChart(x: .month, y: .revenue) |> writeText("trend.svg")
+by_month |> barChart(x: .month, y: .revenue) |> writeText("bars.svg")
 ```
 
 ---
