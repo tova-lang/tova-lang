@@ -2,6 +2,32 @@
 
 All notable changes to Tova are documented in this file.
 
+## [0.10.0] - 2026-03-14
+
+### Breaking Changes
+- **Stdlib naming convention: snake_case to camelCase** — All ~170 multi-word stdlib functions now use camelCase as the primary convention (e.g. `flatMap`, `groupBy`, `sortBy`, `jsonParse`, `toInt`). Old snake_case names still work but emit a `W_DEPRECATED_STDLIB` compiler warning.
+
+### Features
+- camelCase wrappers for all multi-word stdlib functions — both names work, old names are deprecated
+- `W_DEPRECATED_STDLIB` analyzer warning with suggested replacement name
+- LSP deprecation markers — snake_case names show strikethrough in IDE autocomplete
+
+### Docs
+- Updated all code examples across ~100 doc files to use camelCase stdlib names
+- Updated playground examples, autocomplete references, and code comments to camelCase
+- Added "Migration to camelCase" section in stdlib reference with common renames table
+
+## [0.9.15] - 2026-03-14
+
+### Fixes
+- Fixed intellisense implementations in playground
+- Fixed scrolling of the playground
+
+## [0.9.14] - 2026-03-14
+
+### Fixes
+- Fixed server codegen error issue
+
 ## [0.9.1] - 2026-03-06
 
 ### Docs
