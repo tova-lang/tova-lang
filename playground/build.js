@@ -1484,6 +1484,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 }
 .pane { display: flex; flex-direction: column; overflow: hidden; min-width: 200px; }
 .pane-editor { flex: 1; position: relative; }
+.pane-editor #editor { height: 100%; overflow: hidden; }
 .pane-output { flex: 1; }
 
 /* ─── Drag Handle ──────────────────────────────────── */
@@ -1808,7 +1809,7 @@ select.examples-select option { background: var(--bg); color: var(--text); }
 
 /* ─── CodeMirror Overrides ─────────────────────────── */
 .cm-editor { height: 100%; font-size: var(--editor-font-size); }
-.cm-editor .cm-scroller { font-family: var(--font-mono) !important; }
+.cm-editor .cm-scroller { font-family: var(--font-mono) !important; overflow-y: scroll !important; overscroll-behavior: contain; }
 .cm-editor .cm-content { padding: 8px 0; }
 .cm-editor .cm-gutters {
   background: var(--bg-surface); border-right: 1px solid var(--border);
