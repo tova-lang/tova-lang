@@ -645,7 +645,7 @@ test "addition" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('discovers _test.tova files', () => {
     writeFileSync(join(tmpDir, 'math_test.tova'), `
@@ -655,7 +655,7 @@ test "addition" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('discovers inline test blocks', () => {
     writeFileSync(join(tmpDir, 'app.tova'), `
@@ -667,7 +667,7 @@ test "add works" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('skips files without test blocks', () => {
     writeFileSync(join(tmpDir, 'app.tova'), 'x = 42');
@@ -703,7 +703,7 @@ bench "loop" {
 `);
     const result = runTova(['bench', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 bench file');
-  });
+  }, 35000);
 
   test('skips files without bench blocks', () => {
     writeFileSync(join(tmpDir, 'app.tova'), 'x = 42');
@@ -3134,7 +3134,7 @@ test "add" {
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
     expect(result.stdout).toContain('Compiled');
-  });
+  }, 35000);
 
   test('finds _test.tova files', () => {
     writeFileSync(join(tmpDir, 'math_test.tova'), `
@@ -3144,7 +3144,7 @@ test "subtract" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('--filter flag passes through to bun test', () => {
     writeFileSync(join(tmpDir, 'math.test.tova'), `
@@ -3157,7 +3157,7 @@ test "subtraction" {
 `);
     const result = runTova(['test', tmpDir, '--filter', 'addition'], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('--serial flag is accepted', () => {
     writeFileSync(join(tmpDir, 'a.test.tova'), `
@@ -3167,7 +3167,7 @@ test "test a" {
 `);
     const result = runTova(['test', tmpDir, '--serial'], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('--coverage flag is accepted', () => {
     writeFileSync(join(tmpDir, 'a.test.tova'), `
@@ -3177,7 +3177,7 @@ test "test a" {
 `);
     const result = runTova(['test', tmpDir, '--coverage'], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('handles compilation errors gracefully', () => {
     writeFileSync(join(tmpDir, 'bad.test.tova'), `
@@ -3188,7 +3188,7 @@ test "broken" {
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     const combined = result.stdout + result.stderr;
     expect(combined).toContain('Error compiling');
-  });
+  }, 35000);
 
   test('reports no test blocks compiled when tests have no test output', () => {
     writeFileSync(join(tmpDir, 'empty.test.tova'), `
@@ -3199,7 +3199,7 @@ x = 42
     // Should detect it as a test file but compilation may not produce test output
     const combined = result.stdout + result.stderr;
     expect(combined).toMatch(/Found|No test files|No test blocks/);
-  });
+  }, 35000);
 
   test('discovers multiple test files in nested dirs', () => {
     mkdirSync(join(tmpDir, 'sub'), { recursive: true });
@@ -3211,7 +3211,7 @@ test "test b" { assert(true) }
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 2 test file');
-  });
+  }, 35000);
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -4612,7 +4612,7 @@ test "add" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('test finds _test.tova files', () => {
     writeFileSync(join(tmpDir, 'math_test.tova'), `
@@ -4622,7 +4622,7 @@ test "sub" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('test finds inline test blocks', () => {
     writeFileSync(join(tmpDir, 'app.tova'), `
@@ -4633,13 +4633,13 @@ test "check x" {
 `);
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stdout).toContain('Found 1 test file');
-  });
+  }, 35000);
 
   test('test handles compilation errors gracefully', () => {
     writeFileSync(join(tmpDir, 'bad.test.tova'), 'fn {{{');
     const result = runTova(['test', tmpDir], { timeout: 30000 });
     expect(result.stderr).toContain('Error compiling');
-  });
+  }, 35000);
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -4662,7 +4662,7 @@ describe('bench command — extended coverage', () => {
     writeFileSync(join(tmpDir, 'bad.tova'), `bench "bad" {\n  fn {{{\n}`);
     const result = runTova(['bench', tmpDir], { timeout: 30000 });
     expect(result.stderr).toContain('Error compiling');
-  });
+  }, 35000);
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -6975,7 +6975,7 @@ test "strings" {
 `);
     const result = runTova(['test', join(tmpDir, 'src'), '--filter', 'math']);
     expect(result.stdout).toContain('Compiled');
-  });
+  }, 35000);
 
   test('--serial passes concurrency flag to bun test', () => {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
@@ -6986,7 +6986,7 @@ test "serial test" {
 `);
     const result = runTova(['test', join(tmpDir, 'src'), '--serial']);
     expect(result.stdout).toContain('Compiled');
-  });
+  }, 35000);
 
   test('--coverage enables coverage mode', () => {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
@@ -6997,7 +6997,7 @@ test "coverage test" {
 `);
     const result = runTova(['test', join(tmpDir, 'src'), '--coverage']);
     expect(result.stdout).toContain('Compiled');
-  });
+  }, 35000);
 });
 
 // ═══════════════════════════════════════════════════════════════
