@@ -39,6 +39,7 @@ const SOURCE_FILES = [
   'src/parser/parser.js',
   'src/analyzer/scope.js',
   'src/analyzer/types.js',
+  'src/analyzer/type-registry.js',
   'src/analyzer/server-analyzer.js',
   'src/analyzer/form-analyzer.js',
   'src/analyzer/browser-analyzer.js',
@@ -157,6 +158,7 @@ function buildCompilerBundle() {
   parts.push(`window.Parser = Parser;`);
   parts.push(`window.Analyzer = Analyzer;`);
   parts.push(`window.CodeGenerator = CodeGenerator;`);
+  parts.push(`window.TypeRegistry = TypeRegistry;`);
   parts.push(`})();`);
 
   return parts.join('\n\n');
@@ -2114,7 +2116,107 @@ const tovaSnippets = [
   { label: 'route', detail: 'HTTP route', apply: 'route GET "/path" => fn(req) {\\n  \\n}', boost: -1 },
 ];
 
+// ─── Dot-Completion Helpers ─────────────────────────────
+
+function findSymbolInScopes(analyzer, name) {
+  const walk = (scope) => {
+    if (!scope) return null;
+    if (scope.symbols && scope.symbols.has(name)) return scope.symbols.get(name);
+    if (scope.children) {
+      for (const child of scope.children) {
+        const found = walk(child);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  if (analyzer.globalScope) return walk(analyzer.globalScope);
+  if (analyzer.currentScope) return walk(analyzer.currentScope);
+  return null;
+}
+
+function getDotCompletionsForPlayground(objectName, partial) {
+  const options = [];
+  const analyzer = window.__tova_analyzer;
+  const typeRegistry = window.__tova_typeRegistry;
+  if (!analyzer || !typeRegistry) return options;
+
+  // Find symbol in analyzer scopes
+  const sym = findSymbolInScopes(analyzer, objectName);
+  if (!sym) return options;
+
+  // Determine type
+  var typeName = null;
+  const isTypeAccess = sym.kind === 'type';
+  if (sym.inferredType) typeName = sym.inferredType;
+  else if (sym._variantOf) typeName = sym._variantOf;
+  else if (isTypeAccess && sym._typeStructure) typeName = sym.name;
+  if (!typeName) return options;
+
+  if (isTypeAccess) {
+    // Associated functions (e.g., Point.new)
+    const assocFns = typeRegistry.getAssociatedFunctions(typeName);
+    for (const fn of assocFns) {
+      if (!partial || fn.name.startsWith(partial)) {
+        const paramStr = (fn.params || []).filter(function(p) { return p !== 'self'; }).join(', ');
+        const retStr = fn.returnType ? ' -> ' + fn.returnType : '';
+        options.push({ label: fn.name, type: 'function', detail: 'fn(' + paramStr + ')' + retStr, boost: 2 });
+      }
+    }
+  } else {
+    // Instance fields + methods (user-defined types)
+    const members = typeRegistry.getMembers(typeName);
+
+    for (const [fieldName, fieldType] of members.fields) {
+      if (!partial || fieldName.startsWith(partial)) {
+        options.push({ label: fieldName, type: 'property', detail: fieldType ? fieldType.toString() : 'field', boost: 3 });
+      }
+    }
+    for (const m of members.methods) {
+      if (!partial || m.name.startsWith(partial)) {
+        const paramStr = (m.params || []).filter(function(p) { return p !== 'self'; }).join(', ');
+        const retStr = m.returnType ? ' -> ' + m.returnType : '';
+        options.push({ label: m.name, type: 'method', detail: 'fn(' + paramStr + ')' + retStr, boost: 1 });
+      }
+    }
+
+    // Fall back to built-in type members
+    if (options.length === 0) {
+      const builtin = typeRegistry.getBuiltinMembers(typeName);
+      if (builtin) {
+        for (const [fieldName, fieldType] of builtin.fields) {
+          if (!partial || fieldName.startsWith(partial)) {
+            options.push({ label: fieldName, type: 'property', detail: fieldType || 'field', boost: 3 });
+          }
+        }
+        for (const bm of builtin.methods) {
+          if (!partial || bm.name.startsWith(partial)) {
+            const paramStr = (bm.params || []).join(', ');
+            const retStr = bm.returnType ? ' -> ' + bm.returnType : '';
+            options.push({ label: bm.name, type: 'method', detail: 'fn(' + paramStr + ')' + retStr, info: bm.doc, boost: 1 });
+          }
+        }
+      }
+    }
+  }
+  return options;
+}
+
 function tovaCompletions(context) {
+  // Dot completion: detect "expr." or "expr.partial"
+  const lineBefore = context.state.doc.sliceString(
+    context.state.doc.lineAt(context.pos).from, context.pos
+  );
+  const dotMatch = lineBefore.match(/(\\w+)\\.(\\w*)$/);
+  if (dotMatch) {
+    const objectName = dotMatch[1];
+    const partial = dotMatch[2] || '';
+    const items = getDotCompletionsForPlayground(objectName, partial);
+    if (items.length > 0) {
+      return { from: context.pos - partial.length, options: items, filter: true };
+    }
+  }
+
   const word = context.matchBefore(/[a-zA-Z_]\\w*/);
   if (!word && !context.explicit) return null;
   const from = word ? word.from : context.pos;
@@ -2273,6 +2375,18 @@ const editor = new EditorView({
         override: [tovaCompletions],
         icons: true,
         activateOnTyping: true,
+      }),
+      EditorView.inputHandler.of((view, from, to, text) => {
+        if (text === '.') {
+          // Insert the dot and move cursor after it, then trigger completion
+          view.dispatch({
+            changes: { from, to, insert: '.' },
+            selection: { anchor: from + 1 }
+          });
+          setTimeout(() => startCompletion(view), 0);
+          return true;
+        }
+        return false;
       }),
       EditorView.updateListener.of(update => {
         if (update.docChanged) {
@@ -2476,6 +2590,10 @@ function compile(isManual = true) {
 
     const analyzer = new Analyzer(ast, 'playground.tova');
     const { warnings } = analyzer.analyze();
+
+    // Cache analyzer for dot-completion intellisense
+    window.__tova_analyzer = analyzer;
+    try { window.__tova_typeRegistry = TypeRegistry.fromAnalyzer(analyzer); } catch(e) {}
 
     const codegen = new CodeGenerator(ast, 'playground.tova');
     const result = codegen.generate();

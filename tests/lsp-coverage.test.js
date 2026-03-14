@@ -141,33 +141,79 @@ function createServer() {
     const sym = srv._findSymbolInScopes(cached.analyzer, objectName);
     if (!sym) return items;
     let typeName = null;
+    const isTypeAccess = sym.kind === 'type';
     if (sym.inferredType) typeName = sym.inferredType;
     else if (sym._variantOf) typeName = sym._variantOf;
-    else if (sym.kind === 'type' && sym._typeStructure) typeName = sym.name;
+    else if (isTypeAccess && sym._typeStructure) typeName = sym.name;
     if (!typeName) return items;
     const typeRegistry = cached.typeRegistry;
     if (typeRegistry) {
-      const members = typeRegistry.getMembers(typeName);
-      for (const [fieldName, fieldType] of members.fields) {
-        if (!partial || fieldName.startsWith(partial)) {
-          items.push({
-            label: fieldName,
-            kind: 5,
-            detail: fieldType ? fieldType.toString() : 'field',
-            sortText: `0${fieldName}`,
-          });
+      if (isTypeAccess) {
+        const assocFns = typeRegistry.getAssociatedFunctions(typeName);
+        for (const fn of assocFns) {
+          if (!partial || fn.name.startsWith(partial)) {
+            const paramStr = (fn.params || []).filter(p => p !== 'self').join(', ');
+            const retStr = fn.returnType ? ` -> ${fn.returnType}` : '';
+            items.push({
+              label: fn.name,
+              kind: 3,
+              detail: `fn(${paramStr})${retStr}`,
+              sortText: `0${fn.name}`,
+            });
+          }
         }
-      }
-      for (const method of members.methods) {
-        if (!partial || method.name.startsWith(partial)) {
-          const paramStr = (method.params || []).filter(p => p !== 'self').join(', ');
-          const retStr = method.returnType ? ` -> ${method.returnType}` : '';
-          items.push({
-            label: method.name,
-            kind: 2,
-            detail: `fn(${paramStr})${retStr}`,
-            sortText: `1${method.name}`,
-          });
+      } else {
+        const members = typeRegistry.getMembers(typeName);
+        for (const [fieldName, fieldType] of members.fields) {
+          if (!partial || fieldName.startsWith(partial)) {
+            items.push({
+              label: fieldName,
+              kind: 5,
+              detail: fieldType ? fieldType.toString() : 'field',
+              sortText: `0${fieldName}`,
+            });
+          }
+        }
+        for (const m of members.methods) {
+          if (!partial || m.name.startsWith(partial)) {
+            const paramStr = (m.params || []).filter(p => p !== 'self').join(', ');
+            const retStr = m.returnType ? ` -> ${m.returnType}` : '';
+            items.push({
+              label: m.name,
+              kind: 2,
+              detail: `fn(${paramStr})${retStr}`,
+              sortText: `1${m.name}`,
+            });
+          }
+        }
+        // Fall back to built-in type members
+        if (items.length === 0) {
+          const builtin = typeRegistry.getBuiltinMembers(typeName);
+          if (builtin) {
+            for (const [fieldName, fieldType] of builtin.fields) {
+              if (!partial || fieldName.startsWith(partial)) {
+                items.push({
+                  label: fieldName,
+                  kind: 5,
+                  detail: fieldType || 'field',
+                  sortText: `0${fieldName}`,
+                });
+              }
+            }
+            for (const bm of builtin.methods) {
+              if (!partial || bm.name.startsWith(partial)) {
+                const paramStr = (bm.params || []).join(', ');
+                const retStr = bm.returnType ? ` -> ${bm.returnType}` : '';
+                items.push({
+                  label: bm.name,
+                  kind: 2,
+                  detail: `fn(${paramStr})${retStr}`,
+                  documentation: bm.doc,
+                  sortText: `1${bm.name}`,
+                });
+              }
+            }
+          }
         }
       }
     }
@@ -2088,5 +2134,187 @@ describe('LSP Coverage: edge cases and error paths', () => {
     const result = srv._lastResponse.result;
     expect(result).not.toBeNull();
     expect(result.signatures[0].label).toBe('Err(error)');
+  });
+});
+
+// ================================================================
+//  Built-in type dot-completion tests
+// ================================================================
+
+describe('LSP Coverage: built-in type dot-completions', () => {
+  test('String variable shows string methods and length field', () => {
+    const srv = createServer();
+    const source = `name = "hello"\nname.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 5 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('slice');
+    expect(labels).toContain('includes');
+    expect(labels).toContain('trim');
+    expect(labels).toContain('length');
+    expect(labels).toContain('toUpperCase');
+    expect(labels).toContain('split');
+    // length should be a field (kind 5)
+    const lengthItem = items.find(i => i.label === 'length');
+    expect(lengthItem.kind).toBe(5);
+    // slice should be a method (kind 2)
+    const sliceItem = items.find(i => i.label === 'slice');
+    expect(sliceItem.kind).toBe(2);
+    expect(sliceItem.detail).toContain('fn(');
+  });
+
+  test('Array variable shows array methods and length field', () => {
+    const srv = createServer();
+    const source = `items = [1, 2, 3]\nitems.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 6 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('push');
+    expect(labels).toContain('map');
+    expect(labels).toContain('filter');
+    expect(labels).toContain('length');
+    expect(labels).toContain('reduce');
+    expect(labels).toContain('find');
+  });
+
+  test('Result variable shows Result methods', () => {
+    const srv = createServer();
+    const source = `result = Ok(42)\nresult.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 7 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('unwrap');
+    expect(labels).toContain('map');
+    expect(labels).toContain('isOk');
+    expect(labels).toContain('isErr');
+    expect(labels).toContain('unwrapOr');
+    expect(labels).toContain('flatMap');
+  });
+
+  test('Option variable shows Option methods', () => {
+    const srv = createServer();
+    const source = `opt = Some("x")\nopt.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 4 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('unwrap');
+    expect(labels).toContain('isSome');
+    expect(labels).toContain('isNone');
+    expect(labels).toContain('filter');
+    expect(labels).toContain('unwrapOr');
+  });
+
+  test('Int variable shows numeric methods', () => {
+    const srv = createServer();
+    const source = `n = 42\nn.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 2 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('toString');
+    expect(labels).toContain('toFixed');
+  });
+
+  test('partial filter narrows results', () => {
+    const srv = createServer();
+    const source = `name = "hello"\nname.sl`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 7 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('slice');
+    expect(labels).not.toContain('trim');
+    expect(labels).not.toContain('includes');
+  });
+
+  test('user-defined ADT types still work (regression)', () => {
+    const srv = createServer();
+    const source = `type Shape {\n  Circle(radius: Float)\n  Rect(w: Float, h: Float)\n}\ns = Circle(radius: 5.0)\ns.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 5, character: 2 },
+    }));
+    const items = srv._lastResponse.result;
+    const labels = items.map(i => i.label);
+    expect(labels).toContain('radius');
+  });
+
+  test('TypeRegistry.extractBaseType works correctly', () => {
+    expect(TypeRegistry.extractBaseType('[Int]')).toBe('Array');
+    expect(TypeRegistry.extractBaseType('[String]')).toBe('Array');
+    expect(TypeRegistry.extractBaseType('Result<Int, String>')).toBe('Result');
+    expect(TypeRegistry.extractBaseType('Result')).toBe('Result');
+    expect(TypeRegistry.extractBaseType('Option<String>')).toBe('Option');
+    expect(TypeRegistry.extractBaseType('Option')).toBe('Option');
+    expect(TypeRegistry.extractBaseType('Map<String, Int>')).toBe('Map');
+    expect(TypeRegistry.extractBaseType('Set<Int>')).toBe('Set');
+    expect(TypeRegistry.extractBaseType('String')).toBe('String');
+    expect(TypeRegistry.extractBaseType('Int')).toBe('Int');
+    expect(TypeRegistry.extractBaseType('Float')).toBe('Float');
+    expect(TypeRegistry.extractBaseType(null)).toBe(null);
+  });
+
+  test('method completions include documentation', () => {
+    const srv = createServer();
+    const source = `name = "hello"\nname.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 5 },
+    }));
+    const items = srv._lastResponse.result;
+    const sliceItem = items.find(i => i.label === 'slice');
+    expect(sliceItem.documentation).toBeTruthy();
+  });
+
+  test('method completions include parameter signatures', () => {
+    const srv = createServer();
+    const source = `items = [1, 2, 3]\nitems.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 6 },
+    }));
+    const items = srv._lastResponse.result;
+    const reduceItem = items.find(i => i.label === 'reduce');
+    expect(reduceItem.detail).toContain('fn(');
+    expect(reduceItem.detail).toContain('->');
+  });
+
+  test('fields sort before methods', () => {
+    const srv = createServer();
+    const source = `name = "hello"\nname.`;
+    setupDocument(srv, TEST_URI, source);
+    srv._onCompletion(makeMsg(1, {
+      textDocument: { uri: TEST_URI },
+      position: { line: 1, character: 5 },
+    }));
+    const items = srv._lastResponse.result;
+    const lengthItem = items.find(i => i.label === 'length');
+    const sliceItem = items.find(i => i.label === 'slice');
+    expect(lengthItem.sortText < sliceItem.sortText).toBe(true);
   });
 });

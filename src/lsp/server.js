@@ -629,6 +629,36 @@ class TovaLanguageServer {
             });
           }
         }
+
+        // Fall back to built-in type members if no user-defined members found
+        if (items.length === 0) {
+          const builtin = typeRegistry.getBuiltinMembers(typeName);
+          if (builtin) {
+            for (const [fieldName, fieldType] of builtin.fields) {
+              if (!partial || fieldName.startsWith(partial)) {
+                items.push({
+                  label: fieldName,
+                  kind: 5, // Field
+                  detail: fieldType || 'field',
+                  sortText: `0${fieldName}`,
+                });
+              }
+            }
+            for (const m of builtin.methods) {
+              if (!partial || m.name.startsWith(partial)) {
+                const paramStr = (m.params || []).join(', ');
+                const retStr = m.returnType ? ` -> ${m.returnType}` : '';
+                items.push({
+                  label: m.name,
+                  kind: 2, // Method
+                  detail: `fn(${paramStr})${retStr}`,
+                  documentation: m.doc,
+                  sortText: `1${m.name}`,
+                });
+              }
+            }
+          }
+        }
       }
     }
 
