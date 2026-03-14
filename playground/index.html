@@ -19575,7 +19575,9 @@ class BaseCodegen {
       this.pushScope();
       for (const v of vars) this.declareVar(v);
       if (vars.length === 2) {
-        p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${tempVar}) {\n`);
+        // for i, v in collection => auto-enumerate: use .entries() for index-value pairs
+        const entriesExpr = `(Array.isArray(${tempVar}) ? ${tempVar}.entries() : Object.entries(${tempVar}))`;
+        p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${entriesExpr}) {\n`);
       } else {
         p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${tempVar}) {\n`);
       }
@@ -19604,7 +19606,9 @@ class BaseCodegen {
     for (const v of vars) this.declareVar(v);
     const p = [];
     if (vars.length === 2) {
-      p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${iterExpr}) {\n`);
+      // for i, v in collection => auto-enumerate: use .entries() for index-value pairs
+      const entriesExpr = `(Array.isArray(${iterExpr}) ? ${iterExpr}.entries() : Object.entries(${iterExpr}))`;
+      p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const [${vars[0]}, ${vars[1]}] of ${entriesExpr}) {\n`);
     } else {
       p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${iterExpr}) {\n`);
     }
