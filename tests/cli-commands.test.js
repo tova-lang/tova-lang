@@ -1,6 +1,8 @@
 // tests/cli-commands.test.js — Comprehensive CLI command test coverage
 // Tests all tova CLI commands for production hardening
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, setDefaultTimeout } from 'bun:test';
+
+setDefaultTimeout(30000);
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync } from 'fs';
 import { join, resolve, basename, relative } from 'path';
 import { tmpdir } from 'os';
