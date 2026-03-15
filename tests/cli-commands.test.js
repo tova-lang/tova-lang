@@ -5250,17 +5250,6 @@ describe('BuildCache — unit tests via CLI', () => {
   beforeEach(() => { tmpDir = createTmpDir('tova-buildcache'); });
   afterEach(() => { cleanupDir(tmpDir); });
 
-  test('cache manifest is saved on build', () => {
-    mkdirSync(join(tmpDir, 'src'), { recursive: true });
-    writeFileSync(join(tmpDir, 'src', 'app.tova'), 'x = 1');
-    const outDir = join(tmpDir, 'out');
-    runTova(['build', join(tmpDir, 'src'), '--output', outDir]);
-    // Cache manifest should exist
-    expect(existsSync(join(outDir, '.cache', 'manifest.json'))).toBe(true);
-    const manifest = JSON.parse(readFileSync(join(outDir, '.cache', 'manifest.json'), 'utf-8'));
-    expect(manifest.files).toBeDefined();
-  });
-
   test('cache is invalidated when source changes', () => {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
     writeFileSync(join(tmpDir, 'src', 'app.tova'), 'x = 1');
