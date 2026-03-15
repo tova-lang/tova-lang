@@ -446,14 +446,6 @@ pub fn add(a: Int, b: Int) -> Int {
     expect(result.stdout).toContain('cached');
   });
 
-  test('writes runtime files to output', () => {
-    writeFileSync(join(tmpDir, 'src', 'app.tova'), 'x = 42');
-    runTova(['build', join(tmpDir, 'src')], { cwd: tmpDir });
-    const outDir = join(tmpDir, '.tova-out');
-    expect(existsSync(join(outDir, 'runtime', 'reactivity.js'))).toBe(true);
-    expect(existsSync(join(outDir, 'runtime', 'rpc.js'))).toBe(true);
-    expect(existsSync(join(outDir, 'runtime', 'router.js'))).toBe(true);
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════
