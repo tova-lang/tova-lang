@@ -28,12 +28,12 @@ export async function doctorCommand() {
 
   // 2. Bun availability
   try {
-    const bunProc = _compatSpawnSync('bun', ['--version'], { stdout: 'pipe', stderr: 'pipe' });
+    const bunProc = _compatSpawnSync('bun', ['--version'], { stdout: 'pipe', stderr: 'pipe', timeout: 10000 });
     const bunVer = (bunProc.stdout || '').toString().trim();
     if ((bunProc.exitCode ?? bunProc.status) === 0 && bunVer) {
       const major = parseInt(bunVer.split('.')[0], 10);
       if (major >= 1) {
-        const whichProc = _compatSpawnSync('which', ['bun'], { stdout: 'pipe', stderr: 'pipe' });
+        const whichProc = _compatSpawnSync('which', ['bun'], { stdout: 'pipe', stderr: 'pipe', timeout: 5000 });
         pass(`Bun v${bunVer}`, (whichProc.stdout || '').toString().trim());
       } else {
         warn(`Bun v${bunVer}`, 'Bun >= 1.0 recommended');
@@ -82,7 +82,7 @@ export async function doctorCommand() {
 
   // 5. git
   try {
-    const gitProc = _compatSpawnSync('git', ['--version'], { stdout: 'pipe', stderr: 'pipe' });
+    const gitProc = _compatSpawnSync('git', ['--version'], { stdout: 'pipe', stderr: 'pipe', timeout: 10000 });
     if ((gitProc.exitCode ?? gitProc.status) === 0) {
       const gitVer = (gitProc.stdout || '').toString().trim();
       pass('git available', gitVer);

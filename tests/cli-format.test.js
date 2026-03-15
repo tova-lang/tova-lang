@@ -6,6 +6,9 @@ setDefaultTimeout(60000);
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
+import { Lexer } from '../src/lexer/lexer.js';
+import { Parser } from '../src/parser/parser.js';
+import { Formatter } from '../src/formatter/formatter.js';
 
 const TOVA = resolve(join(import.meta.dir, '..', 'bin', 'tova.js'));
 
@@ -332,15 +335,20 @@ fn classify(n: Int) -> String {
   });
 
   test('format server block', () => {
-    const filePath = join(tmpDir, 'server.tova');
-    writeFileSync(filePath, `
+    const source = `
 server {
   fn hello() { "world" }
   route GET "/api/hello" => hello
 }
-`);
-    const result = runTova(['fmt', filePath]);
-    expect(result.exitCode).toBe(0);
+`;
+    const lexer = new Lexer(source, 'server.tova');
+    const tokens = lexer.tokenize();
+    const parser = new Parser(tokens, 'server.tova');
+    const ast = parser.parse();
+    const formatter = new Formatter();
+    const formatted = formatter.format(ast);
+    expect(formatted).toContain('server');
+    expect(formatted).toContain('fn hello');
   });
 
   test('format browser block', () => {
