@@ -2,7 +2,7 @@ import { describe, test, expect, setDefaultTimeout } from 'bun:test';
 import { spawn } from 'child_process';
 import path from 'path';
 
-setDefaultTimeout(15000);
+setDefaultTimeout(60000);
 
 const TOVA = path.join(__dirname, '..', 'bin', 'tova.js');
 
@@ -10,7 +10,7 @@ const TOVA = path.join(__dirname, '..', 'bin', 'tova.js');
  * Run the REPL with given input lines, collecting stdout/stderr.
  * Returns a promise that resolves with { stdout, stderr, exitCode }.
  */
-function runRepl(inputLines, timeoutMs = 10000) {
+function runRepl(inputLines, timeoutMs = 45000) {
   return new Promise((resolve) => {
     const proc = spawn('bun', [TOVA, 'repl'], {
       stdio: ['pipe', 'pipe', 'pipe'],

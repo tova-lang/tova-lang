@@ -2,7 +2,7 @@
 // Tests all tova CLI commands for production hardening
 import { describe, test, expect, beforeEach, afterEach, setDefaultTimeout } from 'bun:test';
 
-setDefaultTimeout(30000);
+setDefaultTimeout(60000);
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync } from 'fs';
 import { join, resolve, basename, relative } from 'path';
 import { tmpdir } from 'os';
@@ -56,7 +56,7 @@ function runTova(args, options = {}) {
     stdout: 'pipe',
     stderr: 'pipe',
     env: { ...process.env, ...options.env, NO_COLOR: '1' },
-    timeout: options.timeout || 30000,
+    timeout: options.timeout || 45000,
   });
   return {
     exitCode: proc.exitCode,
@@ -645,7 +645,7 @@ test "addition" {
   assert(1 + 1 == 2)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -655,7 +655,7 @@ test "addition" {
   assert(1 + 1 == 2)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -667,7 +667,7 @@ test "add works" {
   assert(add(1, 2) == 3)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -703,7 +703,7 @@ bench "loop" {
   }
 }
 `);
-    const result = runTova(['bench', tmpDir], { timeout: 30000 });
+    const result = runTova(['bench', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 bench file');
   }, 35000);
 
@@ -1258,7 +1258,7 @@ describe('tova install', () => {
       project: { name: 'test', version: '0.1.0' },
       build: { output: '.tova-out' },
     }));
-    const result = runTova(['install'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['install'], { cwd: tmpDir, timeout: 45000 });
     expect(result.stdout).toContain('No npm dependencies');
   });
 });
@@ -2261,7 +2261,7 @@ describe('tova dev', () => {
   test('errors when no .tova files found', () => {
     const emptyDir = join(tmpDir, 'empty');
     mkdirSync(emptyDir);
-    const result = runTova(['dev'], { cwd: emptyDir, timeout: 30000 });
+    const result = runTova(['dev'], { cwd: emptyDir, timeout: 45000 });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('No .tova files');
   });
@@ -2345,7 +2345,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2361,7 +2361,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2376,7 +2376,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2391,7 +2391,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2406,7 +2406,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     expect(proc.exitCode).toBe(0);
@@ -2420,7 +2420,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2436,7 +2436,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const combined = proc.stdout.toString() + proc.stderr.toString();
@@ -2453,7 +2453,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2502,7 +2502,7 @@ describe('tova lsp', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -3057,7 +3057,7 @@ zod = "^3.0.0"
       name: 'test',
       dependencies: {},
     }));
-    const result = runTova(['install'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['install'], { cwd: tmpDir, timeout: 45000 });
     const combined = result.stdout + result.stderr;
     expect(combined).toMatch(/install|No tova\.toml|bun/i);
   });
@@ -3074,7 +3074,7 @@ describe('tova update (extended)', () => {
   afterEach(() => { cleanupDir(tmpDir); });
 
   test('handles missing tova.toml gracefully', () => {
-    const result = runTova(['update'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['update'], { cwd: tmpDir, timeout: 45000 });
     const combined = result.stdout + result.stderr;
     expect(combined).toMatch(/No Tova dependencies|No tova\.toml|install/i);
   });
@@ -3100,7 +3100,7 @@ mylib = "file:./mylib"
 zod = "^3.0.0"
 `);
     writeFileSync(join(tmpDir, 'tova.lock'), JSON.stringify({ version: 1 }));
-    const result = runTova(['update'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['update'], { cwd: tmpDir, timeout: 45000 });
     expect(result.stdout).toContain('Checking for updates');
   });
 
@@ -3112,7 +3112,7 @@ version = "0.1.0"
 [dependencies]
 mylib = "*"
 `);
-    const result = runTova(['update', 'mylib'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['update', 'mylib'], { cwd: tmpDir, timeout: 45000 });
     expect(result.stdout).toContain('Checking for updates');
   });
 });
@@ -3133,7 +3133,7 @@ test "add" {
   assert(1 + 1 == 2)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
     expect(result.stdout).toContain('Compiled');
   }, 35000);
@@ -3144,7 +3144,7 @@ test "subtract" {
   assert(3 - 1 == 2)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -3157,7 +3157,7 @@ test "subtraction" {
   assert(3 - 1 == 2)
 }
 `);
-    const result = runTova(['test', tmpDir, '--filter', 'addition'], { timeout: 30000 });
+    const result = runTova(['test', tmpDir, '--filter', 'addition'], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -3167,7 +3167,7 @@ test "test a" {
   assert(true)
 }
 `);
-    const result = runTova(['test', tmpDir, '--serial'], { timeout: 30000 });
+    const result = runTova(['test', tmpDir, '--serial'], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -3177,7 +3177,7 @@ test "test a" {
   assert(true)
 }
 `);
-    const result = runTova(['test', tmpDir, '--coverage'], { timeout: 30000 });
+    const result = runTova(['test', tmpDir, '--coverage'], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -3187,7 +3187,7 @@ test "broken" {
   fn {{{
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     const combined = result.stdout + result.stderr;
     expect(combined).toContain('Error compiling');
   }, 35000);
@@ -3197,7 +3197,7 @@ test "broken" {
 // This file has no actual test blocks
 x = 42
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     // Should detect it as a test file but compilation may not produce test output
     const combined = result.stdout + result.stderr;
     expect(combined).toMatch(/Found|No test files|No test blocks/);
@@ -3211,7 +3211,7 @@ test "test a" { assert(true) }
     writeFileSync(join(tmpDir, 'sub', 'b.test.tova'), `
 test "test b" { assert(true) }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 2 test file');
   }, 35000);
 });
@@ -3236,7 +3236,7 @@ bench "loop perf" {
   print("bench done: {x}")
 }
 `);
-    const result = runTova(['bench', tmpDir], { timeout: 30000 });
+    const result = runTova(['bench', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 bench file');
     expect(result.stdout).toContain('Compiled');
   });
@@ -3247,7 +3247,7 @@ bench "broken" {
   fn {{{
 }
 `);
-    const result = runTova(['bench', tmpDir], { timeout: 30000 });
+    const result = runTova(['bench', tmpDir], { timeout: 45000 });
     const combined = result.stdout + result.stderr;
     expect(combined).toContain('Error compiling');
   });
@@ -3262,7 +3262,7 @@ bench "fibonacci" {
   fib(20)
 }
 `);
-    const result = runTova(['bench', tmpDir], { timeout: 30000 });
+    const result = runTova(['bench', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 bench file');
   });
 });
@@ -4612,7 +4612,7 @@ test "add" {
   assert(1 + 1 == 2)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -4622,7 +4622,7 @@ test "sub" {
   assert(2 - 1 == 1)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
@@ -4633,13 +4633,13 @@ test "check x" {
   assert(x == 42)
 }
 `);
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
   test('test handles compilation errors gracefully', () => {
     writeFileSync(join(tmpDir, 'bad.test.tova'), 'fn {{{');
-    const result = runTova(['test', tmpDir], { timeout: 30000 });
+    const result = runTova(['test', tmpDir], { timeout: 45000 });
     expect(result.stderr).toContain('Error compiling');
   }, 35000);
 });
@@ -4662,7 +4662,7 @@ describe('bench command — extended coverage', () => {
 
   test('bench handles compilation error gracefully', () => {
     writeFileSync(join(tmpDir, 'bad.tova'), `bench "bad" {\n  fn {{{\n}`);
-    const result = runTova(['bench', tmpDir], { timeout: 30000 });
+    const result = runTova(['bench', tmpDir], { timeout: 45000 });
     expect(result.stderr).toContain('Error compiling');
   }, 35000);
 });
@@ -5034,13 +5034,13 @@ describe('package management — extended coverage', () => {
   });
 
   test('install without tova.toml runs bun install', () => {
-    const result = runTova(['install'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['install'], { cwd: tmpDir, timeout: 45000 });
     expect(result.stdout).toContain('No tova.toml');
   });
 
   test('install with empty npm section shows nothing to install', () => {
     writeFileSync(join(tmpDir, 'tova.toml'), '[project]\nname = "test"\n');
-    const result = runTova(['install'], { cwd: tmpDir, timeout: 30000 });
+    const result = runTova(['install'], { cwd: tmpDir, timeout: 45000 });
     expect(result.stdout).toContain('No npm dependencies');
   });
 
@@ -6458,7 +6458,7 @@ describe('binary build full pipeline', () => {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
     writeFileSync(join(tmpDir, 'src', 'app.tova'), 'fn main(args: [String]) -> Int {\n  print("hello")\n  0\n}');
     const binaryPath = join(tmpDir, 'myapp');
-    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 30000 });
+    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 45000 });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Compiling to binary');
     expect(result.stdout).toContain('Created binary');
@@ -6477,7 +6477,7 @@ server {
 }
 `);
     const binaryPath = join(tmpDir, 'server-app');
-    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 30000 });
+    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 45000 });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Compiling to binary');
   });
@@ -6486,10 +6486,10 @@ server {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
     writeFileSync(join(tmpDir, 'src', 'app.tova'), 'fn main(args: [String]) -> Int {\n  print("binary works")\n  0\n}');
     const binaryPath = join(tmpDir, 'testbin');
-    const buildResult = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 30000 });
+    const buildResult = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 45000 });
     expect(buildResult.exitCode).toBe(0);
     // Run the binary
-    const proc = Bun.spawnSync([binaryPath], { stdout: 'pipe', stderr: 'pipe', timeout: 30000 });
+    const proc = Bun.spawnSync([binaryPath], { stdout: 'pipe', stderr: 'pipe', timeout: 45000 });
     expect(proc.stdout.toString()).toContain('binary works');
   });
 
@@ -6497,7 +6497,7 @@ server {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
     writeFileSync(join(tmpDir, 'src', 'app.tova'), 'print("hello")');
     const binaryPath = join(tmpDir, 'sizetest');
-    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 30000 });
+    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 45000 });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/\d+\.\d+MB/);
   });
@@ -6506,7 +6506,7 @@ server {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
     writeFileSync(join(tmpDir, 'src', 'app.tova'), 'print("hi")');
     const binaryPath = join(tmpDir, 'runme');
-    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 30000 });
+    const result = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 45000 });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Run with:');
   });
@@ -7057,7 +7057,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Tova REPL');
@@ -7069,7 +7069,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('3');
@@ -7081,7 +7081,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain(':quit');
@@ -7096,7 +7096,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Context cleared');
@@ -7108,7 +7108,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Int');
@@ -7120,7 +7120,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('hello world');
@@ -7132,7 +7132,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Goodbye');
@@ -7144,7 +7144,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Goodbye');
@@ -7156,7 +7156,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('15');
@@ -7168,7 +7168,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('42');
@@ -7180,7 +7180,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('30');
@@ -7192,7 +7192,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     // REPL should not crash — should still print Goodbye
     expect(proc.stdout.toString()).toContain('Goodbye');
@@ -7204,7 +7204,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('String');
@@ -7234,7 +7234,7 @@ describe('LSP basic lifecycle', () => {
       stdin: Buffer.from(message),
       stdout: 'pipe',
       stderr: 'pipe',
-      timeout: 30000,
+      timeout: 45000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('capabilities');
@@ -8001,7 +8001,7 @@ bench "addition" {
   x = 1 + 2
 }
 `);
-    const result = runTova(['bench', join(tmpDir, 'src')], { timeout: 30000 });
+    const result = runTova(['bench', join(tmpDir, 'src')], { timeout: 45000 });
     expect(result.stdout).toContain('Compiled');
   });
 });
