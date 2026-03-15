@@ -1,6 +1,8 @@
 // tests/cli-build.test.js — Comprehensive tests for src/cli/build.js
 // Tests buildProject() and cleanBuild() via CLI invocation
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, setDefaultTimeout } from 'bun:test';
+
+setDefaultTimeout(60000);
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';

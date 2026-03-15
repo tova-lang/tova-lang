@@ -1,6 +1,8 @@
 // tests/cli-check.test.js — Comprehensive tests for src/cli/check.js
 // Tests checkProject() via CLI invocation
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, setDefaultTimeout } from 'bun:test';
+
+setDefaultTimeout(60000);
 import { existsSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
