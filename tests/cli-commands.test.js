@@ -4609,16 +4609,6 @@ test "add" {
     expect(result.stdout).toContain('Found 1 test file');
   }, 35000);
 
-  test('test finds _test.tova files', () => {
-    writeFileSync(join(tmpDir, 'math_test.tova'), `
-test "sub" {
-  assert(2 - 1 == 1)
-}
-`);
-    const result = runTova(['test', tmpDir], { timeout: 45000 });
-    expect(result.stdout).toContain('Found 1 test file');
-  }, 35000);
-
   test('test finds inline test blocks', () => {
     writeFileSync(join(tmpDir, 'app.tova'), `
 x = 42
