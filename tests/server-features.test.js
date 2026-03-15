@@ -4652,22 +4652,22 @@ describe('Gap 2 — Migration CLI helpers', () => {
 
   test('discoverDbConfig function parses db declaration from AST', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
-    expect(cliCode).toContain('discoverDbConfig');
-    expect(cliCode).toContain('DbDeclaration');
+    const migrateCode = readFileSync(new URL('../src/cli/migrate.js', import.meta.url), 'utf-8');
+    expect(migrateCode).toContain('discoverDbConfig');
+    expect(migrateCode).toContain('DbDeclaration');
   });
 
   test('migrateUp creates __migrations table', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
-    expect(cliCode).toContain('CREATE TABLE IF NOT EXISTS __migrations');
+    const migrateCode = readFileSync(new URL('../src/cli/migrate.js', import.meta.url), 'utf-8');
+    expect(migrateCode).toContain('CREATE TABLE IF NOT EXISTS __migrations');
   });
 
   test('migration template includes up and down exports', async () => {
     const { readFileSync } = await import('fs');
-    const cliCode = readFileSync(new URL('../bin/tova.js', import.meta.url), 'utf-8');
-    expect(cliCode).toContain('export const up');
-    expect(cliCode).toContain('export const down');
+    const migrateCode = readFileSync(new URL('../src/cli/migrate.js', import.meta.url), 'utf-8');
+    expect(migrateCode).toContain('export const up');
+    expect(migrateCode).toContain('export const down');
   });
 });
 

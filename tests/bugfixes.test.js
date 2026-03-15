@@ -178,11 +178,11 @@ describe('CLI: async function calls', () => {
 describe('CLI: migration INSERT', () => {
   test('migration uses db.query for parameterized INSERT', async () => {
     const fs = await import('fs');
-    const cliSource = fs.readFileSync(path.join(ROOT, 'bin', 'tova.js'), 'utf-8');
+    const migrateSource = fs.readFileSync(path.join(ROOT, 'src', 'cli', 'migrate.js'), 'utf-8');
     // Should use db.query for INSERT INTO __migrations (supports parameters)
-    expect(cliSource).toContain('await db.query(`INSERT INTO __migrations');
+    expect(migrateSource).toContain('await db.query(`INSERT INTO __migrations');
     // Should NOT use db.exec for parameterized INSERT
-    expect(cliSource).not.toContain('await db.exec(`INSERT INTO __migrations');
+    expect(migrateSource).not.toContain('await db.exec(`INSERT INTO __migrations');
   });
 });
 
