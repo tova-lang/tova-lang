@@ -281,7 +281,7 @@ print(typeOf(nil))
 name = "hello world"
 print("Upper: {name.upper()}")
 print("Capitalized: {name.capitalize()}")
-print("Title: {name.titleCase()}")
+print("Title: {name.title_case()}")
 
 // String methods
 sentence = "the quick brown fox jumps"
@@ -290,8 +290,8 @@ print("Starts with 'the': {sentence.startsWith("the")}")
 print("Contains 'brown': {sentence.contains("brown")}")
 
 // Useful conversions
-print("snake_case: {"helloWorld".snakeCase()}")
-print("camelCase: {"hello_world".camelCase()}")
+print("snake_case: {"helloWorld".snake_case()}")
+print("camelCase: {"hello_world".camel_case()}")
 
 // String multiply (repeat)
 border = "-" * 30
@@ -1083,7 +1083,7 @@ function getReference() {
       { syntax: '.upper() .lower() .trim()', desc: 'Case methods' },
       { syntax: '.contains(s) .startsWith(s)', desc: 'Search methods' },
       { syntax: '.words() .chars() .lines()', desc: 'Split methods' },
-      { syntax: '.capitalize() .titleCase()', desc: 'Format methods' },
+      { syntax: '.capitalize() .title_case()', desc: 'Format methods' },
       { syntax: '"-" * 20', desc: 'String repeat' },
     ]},
     { title: 'Collections', items: [
@@ -1299,7 +1299,7 @@ print("{x} squared is {x * x}")
 greeting = "hello world"
 print(greeting.upper())
 print(greeting.capitalize())
-print(greeting.titleCase())
+print(greeting.title_case())
 
 // Useful checks
 print("contains 'world': {greeting.contains("world")}")
