@@ -168,9 +168,11 @@ export class Analyzer {
       // Async
       'sleep',
       // String functions
-      'upper', 'lower', 'contains', 'starts_with', 'ends_with',
-      'chars', 'words', 'lines', 'capitalize', 'title_case',
-      'snake_case', 'camel_case',
+      'upper', 'lower', 'contains', 'startsWith', 'endsWith',
+      'starts_with', 'ends_with',
+      'chars', 'words', 'lines', 'capitalize', 'titleCase',
+      'snakeCase', 'camelCase',
+      'title_case', 'snake_case', 'camel_case',
       // Math extras
       'min', 'max',
       // Table operations
