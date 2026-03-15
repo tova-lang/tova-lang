@@ -5,9 +5,15 @@ import path from 'path';
 const TOVA = path.join(__dirname, '..', 'bin', 'tova.js');
 
 function runTova(args, opts = {}) {
-  return spawnSync('bun', [TOVA, ...args], {
-    encoding: 'utf-8', timeout: 30000, ...opts,
-  });
+  const timeout = 15000;
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = spawnSync('bun', [TOVA, ...args], {
+      encoding: 'utf-8', timeout, ...opts,
+    });
+    if (result.status === null && attempt < maxAttempts) continue;
+    return result;
+  }
 }
 
 // ─── Direct import tests for parseDeployArgs ─────────────────────

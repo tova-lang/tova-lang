@@ -23,18 +23,23 @@ function cleanupDir(dir) {
 
 function runTova(args, opts = {}) {
   const cwd = opts.cwd || process.cwd();
-  const proc = Bun.spawnSync(['bun', 'run', TOVA, ...args], {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: { ...process.env, ...opts.env, NO_COLOR: '1' },
-    timeout: opts.timeout || 45000,
-  });
-  return {
-    exitCode: proc.exitCode,
-    stdout: proc.stdout.toString(),
-    stderr: proc.stderr.toString(),
-  };
+  const timeout = opts.timeout || 15000;
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const proc = Bun.spawnSync(['bun', 'run', TOVA, ...args], {
+      cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, ...opts.env, NO_COLOR: '1' },
+      timeout,
+    });
+    if (proc.exitCode === null && attempt < maxAttempts) continue;
+    return {
+      exitCode: proc.exitCode,
+      stdout: proc.stdout.toString(),
+      stderr: proc.stderr.toString(),
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

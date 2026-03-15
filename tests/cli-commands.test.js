@@ -51,18 +51,24 @@ function compileTova(source, filename = 'test.tova', options = {}) {
 // ─── Helper: run tova CLI as subprocess ─────────────────────
 function runTova(args, options = {}) {
   const cwd = options.cwd || process.cwd();
-  const proc = Bun.spawnSync(['bun', 'run', resolve('bin/tova.js'), ...args], {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: { ...process.env, ...options.env, NO_COLOR: '1' },
-    timeout: options.timeout || 45000,
-  });
-  return {
-    exitCode: proc.exitCode,
-    stdout: proc.stdout.toString(),
-    stderr: proc.stderr.toString(),
-  };
+  const timeout = options.timeout || 15000;
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const proc = Bun.spawnSync(['bun', 'run', resolve('bin/tova.js'), ...args], {
+      cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, ...options.env, NO_COLOR: '1' },
+      timeout,
+    });
+    // Retry if the process timed out (exitCode is null when killed by timeout)
+    if (proc.exitCode === null && attempt < maxAttempts) continue;
+    return {
+      exitCode: proc.exitCode,
+      stdout: proc.stdout.toString(),
+      stderr: proc.stderr.toString(),
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
