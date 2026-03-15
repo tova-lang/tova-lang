@@ -41,6 +41,7 @@ const SOURCE_FILES = [
   'src/analyzer/types.js',
   'src/analyzer/type-registry.js',
   'src/analyzer/server-analyzer.js',
+  'src/analyzer/security-analyzer.js',
   'src/analyzer/form-analyzer.js',
   'src/analyzer/browser-analyzer.js',
   'src/analyzer/analyzer.js',
