@@ -1,6 +1,8 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, setDefaultTimeout } from 'bun:test';
 import { spawn } from 'child_process';
 import path from 'path';
+
+setDefaultTimeout(15000);
 
 const TOVA = path.join(__dirname, '..', 'bin', 'tova.js');
 
@@ -37,7 +39,13 @@ function runRepl(inputLines, timeoutMs = 10000) {
       }
     };
 
-    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stdout.on('data', (d) => {
+      stdout += d.toString();
+      // Send input once we see the REPL prompt (ready to accept input)
+      if (!inputSent && stdout.includes('tova>')) {
+        sendInput();
+      }
+    });
     proc.stderr.on('data', (d) => { stderr += d.toString(); });
 
     const timeout = setTimeout(() => {
@@ -57,10 +65,10 @@ function runRepl(inputLines, timeoutMs = 10000) {
       finish(-1);
     });
 
-    // Write input lines with a small delay to ensure REPL is ready
+    // Fallback: send input after delay if prompt detection didn't trigger
     setTimeout(() => {
       sendInput();
-    }, 300);
+    }, 2000);
   });
 }
 
