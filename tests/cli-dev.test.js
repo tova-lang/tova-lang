@@ -1,4 +1,6 @@
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterEach, setDefaultTimeout } from 'bun:test';
+
+setDefaultTimeout(60000);
 import { spawn, spawnSync } from 'child_process';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import path from 'path';

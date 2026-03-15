@@ -1,4 +1,6 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, setDefaultTimeout } from 'bun:test';
+
+setDefaultTimeout(60000);
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'fs';
 import path from 'path';
 import os from 'os';

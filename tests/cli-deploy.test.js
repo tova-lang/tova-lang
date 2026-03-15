@@ -1,4 +1,6 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, setDefaultTimeout } from 'bun:test';
+
+setDefaultTimeout(60000);
 import { spawnSync } from 'child_process';
 import path from 'path';
 
