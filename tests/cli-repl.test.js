@@ -17,39 +17,49 @@ function runRepl(inputLines, timeoutMs = 10000) {
     let stdout = '';
     let stderr = '';
     let resolved = false;
+    let inputSent = false;
 
-    proc.stdout.on('data', (d) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d) => { stderr += d.toString(); });
-
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        try { proc.kill('SIGKILL'); } catch {}
-        resolve({ stdout, stderr, exitCode: null });
-      }
-    }, timeoutMs);
-
-    proc.on('close', (exitCode) => {
+    const finish = (exitCode) => {
       if (!resolved) {
         resolved = true;
         clearTimeout(timeout);
         resolve({ stdout, stderr, exitCode });
       }
+    };
+
+    const sendInput = () => {
+      if (inputSent || resolved) return;
+      inputSent = true;
+      const input = inputLines.join('\n') + '\n';
+      if (proc.stdin.writable) {
+        proc.stdin.write(input);
+        proc.stdin.end();
+      }
+    };
+
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    const timeout = setTimeout(() => {
+      try { proc.kill('SIGKILL'); } catch {}
+      finish(null);
+    }, timeoutMs);
+
+    proc.on('exit', (exitCode) => {
+      finish(exitCode);
+    });
+
+    proc.on('close', (exitCode) => {
+      finish(exitCode);
     });
 
     proc.on('error', (err) => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        resolve({ stdout, stderr, exitCode: -1 });
-      }
+      finish(-1);
     });
 
     // Write input lines with a small delay to ensure REPL is ready
     setTimeout(() => {
-      const input = inputLines.join('\n') + '\n';
-      proc.stdin.write(input);
-      proc.stdin.end();
+      sendInput();
     }, 300);
   });
 }
