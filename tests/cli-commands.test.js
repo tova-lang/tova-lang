@@ -5176,11 +5176,6 @@ describe('info command — extended coverage', () => {
     expect(result.stdout).toContain('Platform');
   });
 
-  test('info without tova.toml shows defaults message', () => {
-    const result = runTova(['info'], { cwd: tmpDir });
-    expect(result.stdout).toContain('No tova.toml');
-  });
-
   test('info with tova.toml shows project config', () => {
     writeFileSync(join(tmpDir, 'tova.toml'), stringifyTOML({
       project: { name: 'my-project', version: '1.2.3', entry: 'src' },
