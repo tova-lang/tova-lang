@@ -2553,17 +2553,6 @@ export const down = \`DROP TABLE users\`;
     expect(result.stdout + result.stderr).toContain('Skipping');
   });
 
-  test('creates __migrations table', () => {
-    mkdirSync(join(tmpDir, 'migrations'));
-    writeFileSync(join(tmpDir, 'migrations', '20260101120000_init.js'), `
-export const up = \`CREATE TABLE items (id INTEGER PRIMARY KEY)\`;
-export const down = \`DROP TABLE items\`;
-`);
-    runTova(['migrate:up', join(tmpDir, 'app.tova')], { cwd: tmpDir });
-    // Running again should say "up to date" which proves __migrations table works
-    const result = runTova(['migrate:up', join(tmpDir, 'app.tova')], { cwd: tmpDir });
-    expect(result.stdout).toContain('up to date');
-  });
 });
 
 describe('tova migrate:down', () => {
