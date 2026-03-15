@@ -1,4 +1,5 @@
 import { installSecurityParser } from '../../parser/security-parser.js';
+import { installSecurityAnalyzer } from '../../analyzer/security-analyzer.js';
 
 export const securityPlugin = {
   name: 'security',
@@ -13,7 +14,12 @@ export const securityPlugin = {
     method: 'parseSecurityBlock',
   },
   analyzer: {
-    visit: (analyzer, node) => analyzer.visitSecurityBlock(node),
+    visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._securityAnalyzerInstalled) {
+        installSecurityAnalyzer(analyzer.constructor);
+      }
+      return analyzer.visitSecurityBlock(node);
+    },
     noopNodeTypes: [
       'SecurityAuthDeclaration', 'SecurityRoleDeclaration',
       'SecurityProtectDeclaration', 'SecuritySensitiveDeclaration',
@@ -21,7 +27,12 @@ export const securityPlugin = {
       'SecurityRateLimitDeclaration', 'SecurityCsrfDeclaration',
       'SecurityAuditDeclaration',
     ],
-    crossBlockValidate: (analyzer) => analyzer._validateSecurityCrossBlock(),
+    crossBlockValidate: (analyzer) => {
+      if (!analyzer.constructor.prototype._securityAnalyzerInstalled) {
+        installSecurityAnalyzer(analyzer.constructor);
+      }
+      return analyzer._validateSecurityCrossBlock();
+    },
   },
   codegen: {},
 };

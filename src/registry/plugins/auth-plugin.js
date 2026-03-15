@@ -1,4 +1,5 @@
 import { installAuthParser } from '../../parser/auth-parser.js';
+import { installAuthAnalyzer } from '../../analyzer/auth-analyzer.js';
 
 export const authPlugin = {
   name: 'auth',
@@ -13,12 +14,22 @@ export const authPlugin = {
     method: 'parseAuthBlock',
   },
   analyzer: {
-    visit: (analyzer, node) => analyzer.visitAuthBlock(node),
+    visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._authAnalyzerInstalled) {
+        installAuthAnalyzer(analyzer.constructor);
+      }
+      return analyzer.visitAuthBlock(node);
+    },
     noopNodeTypes: [
       'AuthConfigField', 'AuthProviderDeclaration',
       'AuthHookDeclaration', 'AuthProtectedRoute',
     ],
-    crossBlockValidate: (analyzer) => analyzer._validateAuthCrossBlock(),
+    crossBlockValidate: (analyzer) => {
+      if (!analyzer.constructor.prototype._authAnalyzerInstalled) {
+        installAuthAnalyzer(analyzer.constructor);
+      }
+      return analyzer._validateAuthCrossBlock();
+    },
   },
   codegen: {},
 };

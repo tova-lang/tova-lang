@@ -1,4 +1,5 @@
 import { installEdgeParser } from '../../parser/edge-parser.js';
+import { installEdgeAnalyzer } from '../../analyzer/edge-analyzer.js';
 import { TokenType } from '../../lexer/tokens.js';
 
 export const edgePlugin = {
@@ -19,14 +20,24 @@ export const edgePlugin = {
     method: 'parseEdgeBlock',
   },
   analyzer: {
-    visit: (analyzer, node) => analyzer.visitEdgeBlock(node),
+    visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._edgeAnalyzerInstalled) {
+        installEdgeAnalyzer(analyzer.constructor);
+      }
+      return analyzer.visitEdgeBlock(node);
+    },
     childNodeTypes: [],
     noopNodeTypes: [
       'EdgeKVDeclaration', 'EdgeSQLDeclaration', 'EdgeStorageDeclaration',
       'EdgeQueueDeclaration', 'EdgeEnvDeclaration', 'EdgeSecretDeclaration',
       'EdgeScheduleDeclaration', 'EdgeConsumeDeclaration', 'EdgeConfigField',
     ],
-    crossBlockValidate: (analyzer) => analyzer._validateEdgeCrossBlock(),
+    crossBlockValidate: (analyzer) => {
+      if (!analyzer.constructor.prototype._edgeAnalyzerInstalled) {
+        installEdgeAnalyzer(analyzer.constructor);
+      }
+      return analyzer._validateEdgeCrossBlock();
+    },
   },
   codegen: {},
 };

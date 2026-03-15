@@ -1,5 +1,6 @@
 import { TokenType } from '../../lexer/tokens.js';
 import { installConcurrencyParser } from '../../parser/concurrency-parser.js';
+import { installConcurrencyAnalyzer } from '../../analyzer/concurrency-analyzer.js';
 
 export const concurrencyPlugin = {
   name: 'concurrency',
@@ -22,6 +23,9 @@ export const concurrencyPlugin = {
   },
   analyzer: {
     visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._concurrencyAnalyzerInstalled) {
+        installConcurrencyAnalyzer(analyzer.constructor);
+      }
       if (node.type === 'SelectStatement') return analyzer.visitSelectStatement(node);
       return analyzer.visitConcurrentBlock(node);
     },

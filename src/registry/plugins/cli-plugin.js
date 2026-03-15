@@ -1,4 +1,5 @@
 import { installCliParser } from '../../parser/cli-parser.js';
+import { installCliAnalyzer } from '../../analyzer/cli-analyzer.js';
 
 export const cliPlugin = {
   name: 'cli',
@@ -13,9 +14,19 @@ export const cliPlugin = {
     method: 'parseCliBlock',
   },
   analyzer: {
-    visit: (analyzer, node) => analyzer.visitCliBlock(node),
+    visit: (analyzer, node) => {
+      if (!analyzer.constructor.prototype._cliAnalyzerInstalled) {
+        installCliAnalyzer(analyzer.constructor);
+      }
+      return analyzer.visitCliBlock(node);
+    },
     noopNodeTypes: ['CliConfigField', 'CliCommandDeclaration', 'CliParam'],
-    crossBlockValidate: (analyzer) => analyzer._validateCliCrossBlock(),
+    crossBlockValidate: (analyzer) => {
+      if (!analyzer.constructor.prototype._cliAnalyzerInstalled) {
+        installCliAnalyzer(analyzer.constructor);
+      }
+      return analyzer._validateCliCrossBlock();
+    },
   },
   codegen: {
     earlyReturn: true,

@@ -5,23 +5,57 @@
 import { SharedCodegen } from './shared-codegen.js';
 import { BUILTIN_NAMES } from '../stdlib/inline.js';
 import { BlockRegistry } from '../registry/register-all.js';
-import { ServerCodegen } from './server-codegen.js';
-import { BrowserCodegen } from './browser-codegen.js';
-import { SecurityCodegen } from './security-codegen.js';
-import { CliCodegen } from './cli-codegen.js';
-import { EdgeCodegen } from './edge-codegen.js';
-import { DeployCodegen } from './deploy-codegen.js';
-import { ThemeCodegen } from './theme-codegen.js';
-import { AuthCodegen } from './auth-codegen.js';
+import { createRequire } from 'node:module';
 
-function getServerCodegen() { return ServerCodegen; }
-function getBrowserCodegen() { return BrowserCodegen; }
-function getSecurityCodegen() { return SecurityCodegen; }
-function getCliCodegen() { return CliCodegen; }
-function getEdgeCodegen() { return EdgeCodegen; }
-function getDeployCodegen() { return DeployCodegen; }
-function getThemeCodegen() { return ThemeCodegen; }
-function getAuthCodegen() { return AuthCodegen; }
+const _require = createRequire(import.meta.url);
+
+let _ServerCodegen = null;
+function getServerCodegen() {
+  if (!_ServerCodegen) _ServerCodegen = _require('./server-codegen.js').ServerCodegen;
+  return _ServerCodegen;
+}
+
+let _BrowserCodegen = null;
+function getBrowserCodegen() {
+  if (!_BrowserCodegen) _BrowserCodegen = _require('./browser-codegen.js').BrowserCodegen;
+  return _BrowserCodegen;
+}
+
+let _SecurityCodegen = null;
+function getSecurityCodegen() {
+  if (!_SecurityCodegen) _SecurityCodegen = _require('./security-codegen.js').SecurityCodegen;
+  return _SecurityCodegen;
+}
+
+let _CliCodegen = null;
+function getCliCodegen() {
+  if (!_CliCodegen) _CliCodegen = _require('./cli-codegen.js').CliCodegen;
+  return _CliCodegen;
+}
+
+let _EdgeCodegen = null;
+function getEdgeCodegen() {
+  if (!_EdgeCodegen) _EdgeCodegen = _require('./edge-codegen.js').EdgeCodegen;
+  return _EdgeCodegen;
+}
+
+let _DeployCodegen = null;
+function getDeployCodegen() {
+  if (!_DeployCodegen) _DeployCodegen = _require('./deploy-codegen.js').DeployCodegen;
+  return _DeployCodegen;
+}
+
+let _ThemeCodegen = null;
+function getThemeCodegen() {
+  if (!_ThemeCodegen) _ThemeCodegen = _require('./theme-codegen.js').ThemeCodegen;
+  return _ThemeCodegen;
+}
+
+let _AuthCodegen = null;
+function getAuthCodegen() {
+  if (!_AuthCodegen) _AuthCodegen = _require('./auth-codegen.js').AuthCodegen;
+  return _AuthCodegen;
+}
 
 export class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
