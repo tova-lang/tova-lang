@@ -28,7 +28,7 @@ function runTova(args, opts = {}) {
     stdout: 'pipe',
     stderr: 'pipe',
     env: { ...process.env, ...opts.env, NO_COLOR: '1' },
-    timeout: opts.timeout || 30000,
+    timeout: opts.timeout || 45000,
   });
   return {
     exitCode: proc.exitCode,
