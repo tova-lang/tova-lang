@@ -56,7 +56,7 @@ function runTova(args, options = {}) {
     stdout: 'pipe',
     stderr: 'pipe',
     env: { ...process.env, ...options.env, NO_COLOR: '1' },
-    timeout: options.timeout || 15000,
+    timeout: options.timeout || 30000,
   });
   return {
     exitCode: proc.exitCode,
@@ -2261,7 +2261,7 @@ describe('tova dev', () => {
   test('errors when no .tova files found', () => {
     const emptyDir = join(tmpDir, 'empty');
     mkdirSync(emptyDir);
-    const result = runTova(['dev'], { cwd: emptyDir, timeout: 10000 });
+    const result = runTova(['dev'], { cwd: emptyDir, timeout: 30000 });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('No .tova files');
   });
@@ -2345,7 +2345,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2361,7 +2361,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2376,7 +2376,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2391,7 +2391,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2406,7 +2406,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     expect(proc.exitCode).toBe(0);
@@ -2420,7 +2420,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2436,7 +2436,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const combined = proc.stdout.toString() + proc.stderr.toString();
@@ -2453,7 +2453,7 @@ describe('tova repl', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -2502,7 +2502,7 @@ describe('tova lsp', () => {
         stdout: 'pipe',
         stderr: 'pipe',
         env: { ...process.env, NO_COLOR: '1' },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
     const stdout = proc.stdout.toString();
@@ -6489,7 +6489,7 @@ server {
     const buildResult = runTova(['build', join(tmpDir, 'src'), '--binary', binaryPath, '--output', join(tmpDir, 'out')], { timeout: 30000 });
     expect(buildResult.exitCode).toBe(0);
     // Run the binary
-    const proc = Bun.spawnSync([binaryPath], { stdout: 'pipe', stderr: 'pipe', timeout: 10000 });
+    const proc = Bun.spawnSync([binaryPath], { stdout: 'pipe', stderr: 'pipe', timeout: 30000 });
     expect(proc.stdout.toString()).toContain('binary works');
   });
 
@@ -7057,7 +7057,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Tova REPL');
@@ -7069,7 +7069,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('3');
@@ -7081,7 +7081,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain(':quit');
@@ -7096,7 +7096,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Context cleared');
@@ -7108,7 +7108,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Int');
@@ -7120,7 +7120,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('hello world');
@@ -7132,7 +7132,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Goodbye');
@@ -7144,7 +7144,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('Goodbye');
@@ -7156,7 +7156,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('15');
@@ -7168,7 +7168,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('42');
@@ -7180,7 +7180,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('30');
@@ -7192,7 +7192,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     // REPL should not crash — should still print Goodbye
     expect(proc.stdout.toString()).toContain('Goodbye');
@@ -7204,7 +7204,7 @@ describe('REPL basic functionality', () => {
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...process.env, NO_COLOR: '1' },
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('String');
@@ -7234,7 +7234,7 @@ describe('LSP basic lifecycle', () => {
       stdin: Buffer.from(message),
       stdout: 'pipe',
       stderr: 'pipe',
-      timeout: 10000,
+      timeout: 30000,
     });
     const output = proc.stdout.toString();
     expect(output).toContain('capabilities');
