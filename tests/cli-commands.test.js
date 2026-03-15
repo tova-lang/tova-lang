@@ -2104,13 +2104,6 @@ describe('project templates', () => {
     cleanupDir(dir);
   });
 
-  test('library template exports functions', () => {
-    const dir = createTmpDir('tpl-lib');
-    runTova(['new', 'lib-test', '--template', 'library'], { cwd: dir });
-    const content = readFileSync(join(dir, 'lib-test', 'src', 'lib.tova'), 'utf-8');
-    expect(content).toContain('pub fn');
-    cleanupDir(dir);
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════

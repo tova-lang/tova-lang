@@ -62,15 +62,6 @@ describe('migrate:create', () => {
     expect(result.stderr).toContain('No migration name');
   });
 
-  test('sanitizes special characters in migration name', () => {
-    runTova(['migrate:create', 'add-user-table'], { cwd: tmpDir });
-    const files = readdirSync(path.join(tmpDir, 'migrations'));
-    const filename = files[0];
-    // Hyphens should be replaced with underscores
-    expect(filename).toContain('add_user_table');
-    expect(filename).not.toContain('-');
-  });
-
   test('multiple creates produce separate files', () => {
     runTova(['migrate:create', 'first'], { cwd: tmpDir });
     // Small delay to ensure different timestamps

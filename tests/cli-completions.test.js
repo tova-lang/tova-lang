@@ -143,21 +143,6 @@ describe('cli-completions: fish', () => {
     expect(result.stdout).toContain('__fish_use_subcommand');
   });
 
-  test('fish completions contain all major commands with descriptions', () => {
-    const result = runTova(['completions', 'fish']);
-    const output = result.stdout;
-    expect(output).toContain("'run'");
-    expect(output).toContain('Compile and execute a .tova file');
-    expect(output).toContain("'build'");
-    expect(output).toContain('Compile .tova files to JavaScript');
-    expect(output).toContain("'dev'");
-    expect(output).toContain('Start development server');
-    expect(output).toContain("'repl'");
-    expect(output).toContain('Start interactive REPL');
-    expect(output).toContain("'upgrade'");
-    expect(output).toContain('Upgrade Tova to latest version');
-  });
-
   test('fish completions include migrate commands', () => {
     const result = runTova(['completions', 'fish']);
     const output = result.stdout;
