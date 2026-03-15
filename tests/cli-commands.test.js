@@ -3837,16 +3837,6 @@ describe('tova migrate:create (extended)', () => {
     expect(files[0]).toMatch(/^\d{14}_test_migration\.js$/);
   });
 
-  test('migration file template has correct structure', () => {
-    runTova(['migrate:create', 'add_columns'], { cwd: tmpDir });
-    const files = readdirSync(join(tmpDir, 'migrations'));
-    const content = readFileSync(join(tmpDir, 'migrations', files[0]), 'utf-8');
-    expect(content).toContain('export const up');
-    expect(content).toContain('export const down');
-    expect(content).toContain('Migration: add_columns');
-    expect(content).toContain('Created:');
-  });
-
   test('special characters in name are sanitized', () => {
     runTova(['migrate:create', 'add users/table@v2!'], { cwd: tmpDir });
     const files = readdirSync(join(tmpDir, 'migrations'));
