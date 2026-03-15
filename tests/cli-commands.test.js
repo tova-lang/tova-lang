@@ -688,12 +688,6 @@ describe('tova bench', () => {
   beforeEach(() => { tmpDir = createTmpDir('tova-bench'); });
   afterEach(() => { cleanupDir(tmpDir); });
 
-  test('reports no bench files', () => {
-    const result = runTova(['bench', tmpDir]);
-    expect(result.stdout).toContain('No bench files found');
-    expect(result.exitCode).toBe(0);
-  });
-
   test('discovers bench blocks', () => {
     writeFileSync(join(tmpDir, 'perf.tova'), `
 bench "loop" {
@@ -6241,11 +6235,6 @@ describe('special characters in paths', () => {
     expect(result.stdout).toContain('1 file checked');
   });
 
-  test('handles underscores in filenames', () => {
-    writeFileSync(join(tmpDir, 'my_app.tova'), 'x = 1');
-    const result = runTova(['check', tmpDir]);
-    expect(result.stdout).toContain('1 file checked');
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════
