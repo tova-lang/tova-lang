@@ -1,26 +1,10 @@
 #!/usr/bin/env bun
 
 import { VERSION } from '../src/version.js';
-import { lookupCode, getExplanation } from '../src/diagnostics/error-codes.js';
 import '../src/runtime/string-proto.js';
 import '../src/runtime/array-proto.js';
 
 // ─── CLI Command Modules ────────────────────────────────────
-import { runFile } from '../src/cli/run.js';
-import { buildProject, cleanBuild } from '../src/cli/build.js';
-import { checkProject } from '../src/cli/check.js';
-import { devServer } from '../src/cli/dev.js';
-import { startRepl } from '../src/cli/repl.js';
-import { newProject } from '../src/cli/new.js';
-import { initProject, installDeps, addDep, removeDep, updateDeps, cacheCommand } from '../src/cli/package.js';
-import { formatFile } from '../src/cli/format.js';
-import { runTests, runBench, generateDocs } from '../src/cli/test.js';
-import { migrateCreate, migrateUp, migrateDown, migrateReset, migrateFresh, migrateStatus } from '../src/cli/migrate.js';
-import { deployCommand } from '../src/cli/deploy.js';
-import { upgradeCommand } from '../src/cli/upgrade.js';
-import { infoCommand } from '../src/cli/info.js';
-import { doctorCommand } from '../src/cli/doctor.js';
-import { completionsCommand } from '../src/cli/completions.js';
 
 // ─── Help Text ──────────────────────────────────────────────
 
@@ -104,6 +88,7 @@ async function main() {
   const isStrictSecurity = args.includes('--strict-security');
   switch (command) {
     case 'run': {
+      const { runFile } = await import('../src/cli/run.js');
       const runArgs = args.filter(a => a !== '--strict' && a !== '--strict-security');
       const filePath = runArgs[1];
       const restArgs = runArgs.slice(2);
@@ -112,79 +97,126 @@ async function main() {
       await runFile(filePath, { strict: isStrict, strictSecurity: isStrictSecurity, scriptArgs });
       break;
     }
-    case 'build':
+    case 'build': {
+      const { buildProject } = await import('../src/cli/build.js');
       await buildProject(args.slice(1));
       break;
-    case 'check':
+    }
+    case 'check': {
+      const { checkProject } = await import('../src/cli/check.js');
       await checkProject(args.slice(1));
       break;
-    case 'clean':
+    }
+    case 'clean': {
+      const { cleanBuild } = await import('../src/cli/build.js');
       cleanBuild(args.slice(1));
       break;
-    case 'dev':
+    }
+    case 'dev': {
+      const { devServer } = await import('../src/cli/dev.js');
       await devServer(args.slice(1));
       break;
-    case 'repl':
+    }
+    case 'repl': {
+      const { startRepl } = await import('../src/cli/repl.js');
       await startRepl();
       break;
+    }
     case 'lsp':
       await startLsp();
       break;
-    case 'new':
+    case 'new': {
+      const { newProject } = await import('../src/cli/new.js');
       await newProject(args.slice(1));
       break;
-    case 'init':
+    }
+    case 'init': {
+      const { initProject } = await import('../src/cli/package.js');
       initProject();
       break;
-    case 'install':
+    }
+    case 'install': {
+      const { installDeps } = await import('../src/cli/package.js');
       await installDeps();
       break;
-    case 'add':
+    }
+    case 'add': {
+      const { addDep } = await import('../src/cli/package.js');
       await addDep(args.slice(1));
       break;
-    case 'remove':
+    }
+    case 'remove': {
+      const { removeDep } = await import('../src/cli/package.js');
       await removeDep(args[1]);
       break;
-    case 'update':
+    }
+    case 'update': {
+      const { updateDeps } = await import('../src/cli/package.js');
       await updateDeps(args);
       break;
-    case 'cache':
+    }
+    case 'cache': {
+      const { cacheCommand } = await import('../src/cli/package.js');
       await cacheCommand(args);
       break;
-    case 'fmt':
+    }
+    case 'fmt': {
+      const { formatFile } = await import('../src/cli/format.js');
       formatFile(args.slice(1));
       break;
-    case 'test':
+    }
+    case 'test': {
+      const { runTests } = await import('../src/cli/test.js');
       await runTests(args.slice(1));
       break;
-    case 'bench':
+    }
+    case 'bench': {
+      const { runBench } = await import('../src/cli/test.js');
       await runBench(args.slice(1));
       break;
-    case 'doc':
+    }
+    case 'doc': {
+      const { generateDocs } = await import('../src/cli/test.js');
       await generateDocs(args.slice(1));
       break;
-    case 'migrate:create':
+    }
+    case 'migrate:create': {
+      const { migrateCreate } = await import('../src/cli/migrate.js');
       migrateCreate(args[1]);
       break;
-    case 'migrate:up':
+    }
+    case 'migrate:up': {
+      const { migrateUp } = await import('../src/cli/migrate.js');
       await migrateUp(args.slice(1));
       break;
-    case 'migrate:down':
+    }
+    case 'migrate:down': {
+      const { migrateDown } = await import('../src/cli/migrate.js');
       await migrateDown(args.slice(1));
       break;
-    case 'migrate:reset':
+    }
+    case 'migrate:reset': {
+      const { migrateReset } = await import('../src/cli/migrate.js');
       await migrateReset(args.slice(1));
       break;
-    case 'migrate:fresh':
+    }
+    case 'migrate:fresh': {
+      const { migrateFresh } = await import('../src/cli/migrate.js');
       await migrateFresh(args.slice(1));
       break;
-    case 'migrate:status':
+    }
+    case 'migrate:status': {
+      const { migrateStatus } = await import('../src/cli/migrate.js');
       await migrateStatus(args.slice(1));
       break;
-    case 'deploy':
+    }
+    case 'deploy': {
+      const { deployCommand } = await import('../src/cli/deploy.js');
       await deployCommand(args.slice(1));
       break;
+    }
     case 'explain': {
+      const { lookupCode, getExplanation } = await import('../src/diagnostics/error-codes.js');
       const code = args[1];
       if (!code) {
         console.error('Usage: tova explain <error-code>  (e.g., tova explain E202)');
@@ -204,20 +236,29 @@ async function main() {
       }
       break;
     }
-    case 'upgrade':
+    case 'upgrade': {
+      const { upgradeCommand } = await import('../src/cli/upgrade.js');
       await upgradeCommand();
       break;
-    case 'info':
+    }
+    case 'info': {
+      const { infoCommand } = await import('../src/cli/info.js');
       await infoCommand();
       break;
-    case 'doctor':
+    }
+    case 'doctor': {
+      const { doctorCommand } = await import('../src/cli/doctor.js');
       await doctorCommand();
       break;
-    case 'completions':
+    }
+    case 'completions': {
+      const { completionsCommand } = await import('../src/cli/completions.js');
       completionsCommand(args[1]);
       break;
+    }
     default:
       if (command.endsWith('.tova')) {
+        const { runFile } = await import('../src/cli/run.js');
         const directArgs = args.filter(a => a !== '--strict' && a !== '--strict-security').slice(1);
         const ddIdx = directArgs.indexOf('--');
         const scriptArgs = ddIdx !== -1 ? directArgs.slice(ddIdx + 1) : directArgs;
