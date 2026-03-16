@@ -41,6 +41,32 @@ describe('tova run', () => {
     expect(result.stdout).toContain('hello from tova');
   });
 
+  test('runs a .tova file that imports a local JS module', () => {
+    const helperPath = path.join(tmpDir, 'helper.js');
+    const filePath = path.join(tmpDir, 'main.tova');
+    writeFileSync(helperPath, 'export const greeting = "hello from js";\n');
+    writeFileSync(filePath, 'import { greeting } from "./helper.js"\nprint(greeting)');
+
+    const result = runTova(['run', filePath]);
+    const output = (result.stdout || '') + (result.stderr || '');
+    expect(output).toContain('hello from js');
+    expect(result.status).toBe(0);
+  });
+
+  test('runs a .tova file whose imported .tova dependency imports local JS', () => {
+    const helperPath = path.join(tmpDir, 'helper.js');
+    const libPath = path.join(tmpDir, 'lib.tova');
+    const filePath = path.join(tmpDir, 'main.tova');
+    writeFileSync(helperPath, 'export const suffix = "from nested js";\n');
+    writeFileSync(libPath, 'import { suffix } from "./helper.js"\npub fn nested_greeting() -> String {\n  "hello " + suffix\n}');
+    writeFileSync(filePath, 'import { nested_greeting } from "./lib.tova"\nprint(nested_greeting())');
+
+    const result = runTova(['run', filePath]);
+    const output = (result.stdout || '') + (result.stderr || '');
+    expect(output).toContain('hello from nested js');
+    expect(result.status).toBe(0);
+  });
+
   test('auto-discovers main.tova when no file specified', () => {
     writeFileSync(path.join(tmpDir, 'main.tova'), 'print("from main")');
     // Create a tova.toml so resolveConfig finds it and uses entry dir

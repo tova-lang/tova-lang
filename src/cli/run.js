@@ -1,10 +1,53 @@
 import { resolve, dirname, join } from 'path';
 import { readFileSync, existsSync } from 'fs';
 import { createRequire as _createRequire } from 'module';
+import { pathToFileURL } from 'url';
 import { compileTova } from './compile.js';
 import { getRunStdlib } from './utils.js';
 import { resolveConfig } from '../config/resolve.js';
 import { richError } from '../diagnostics/formatter.js';
+
+ function findLocalTovaImports(source, fromFile) {
+  const importDetectRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"]/gm;
+  let importMatch;
+  const tovaImportPaths = [];
+  while ((importMatch = importDetectRegex.exec(source)) !== null) {
+    const importSource = importMatch[1];
+    if (!importSource.startsWith('.') && !importSource.startsWith('/')) continue;
+    let depPath = resolve(dirname(fromFile), importSource);
+    if (!depPath.endsWith('.tova') && existsSync(depPath + '.tova')) {
+      depPath = depPath + '.tova';
+    }
+    if (depPath.endsWith('.tova') && existsSync(depPath)) {
+      tovaImportPaths.push({ source: importSource, resolved: depPath });
+    }
+  }
+  return tovaImportPaths;
+ }
+
+ function stripInlinedImports(code, importSources) {
+  let stripped = code;
+  for (const importSource of importSources) {
+    const escaped = importSource.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    stripped = stripped.replace(new RegExp('^import\\s+(?:\\{[^}]*\\}|[\\w$]+|\\*\\s+as\\s+[\\w$]+)\\s+from\\s+[\'\"]' + escaped + '[\'\"];?\\s*$', 'gm'), '');
+  }
+  return stripped;
+ }
+
+ function rewriteImportsForRuntime(code, baseFileUrl) {
+  return code.replace(/^import\s+(\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"];?\s*$/gm, (match, clause, source) => {
+    const importExpr = source.startsWith('.') || source.startsWith('/')
+      ? `await import(new URL(${JSON.stringify(source)}, ${JSON.stringify(baseFileUrl)}).href)`
+      : `await import(${JSON.stringify(source)})`;
+    if (clause.startsWith('{')) {
+      return `const ${clause.replace(/\bas\b/g, ':')} = ${importExpr};`;
+    }
+    if (clause.startsWith('*')) {
+      return `const ${clause.replace(/^\*\s+as\s+/, '').trim()} = ${importExpr};`;
+    }
+    return `const { default: ${clause.trim()} } = ${importExpr};`;
+  });
+ }
 
 export async function runFile(filePath, options = {}) {
   if (!filePath) {
@@ -34,26 +77,13 @@ export async function runFile(filePath, options = {}) {
   }
 
   const source = readFileSync(resolved, 'utf-8');
+  const fileUrl = pathToFileURL(resolved).href;
 
   try {
-    // Detect local .tova imports (with or without .tova extension)
-    const importDetectRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"]/gm;
-    let importMatch;
-    const tovaImportPaths = [];
-    while ((importMatch = importDetectRegex.exec(source)) !== null) {
-      const importSource = importMatch[1];
-      if (!importSource.startsWith('.') && !importSource.startsWith('/')) continue;
-      let depPath = resolve(dirname(resolved), importSource);
-      if (!depPath.endsWith('.tova') && existsSync(depPath + '.tova')) {
-        depPath = depPath + '.tova';
-      }
-      if (depPath.endsWith('.tova') && existsSync(depPath)) {
-        tovaImportPaths.push({ source: importSource, resolved: depPath });
-      }
-    }
+    const tovaImportPaths = findLocalTovaImports(source, resolved);
     const hasTovaImports = tovaImportPaths.length > 0;
 
-    const output = compileTova(source, filePath, { strict: options.strict, strictSecurity: options.strictSecurity });
+    const output = compileTova(source, resolved, { strict: options.strict, strictSecurity: options.strictSecurity });
 
     // Execute the generated JavaScript (with stdlib)
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
@@ -81,26 +111,18 @@ export async function runFile(filePath, options = {}) {
         compiled.add(filePath);
 
         const depSource = readFileSync(filePath, 'utf-8');
+        const depImportPaths = findLocalTovaImports(depSource, filePath);
 
-        // Scan for transitive .tova imports
-        const transitiveRegex = /import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"]/g;
-        let transitiveMatch;
-        while ((transitiveMatch = transitiveRegex.exec(depSource)) !== null) {
-          const importSource = transitiveMatch[1];
-          if (!importSource.startsWith('.') && !importSource.startsWith('/')) continue;
-          let transitivePath = resolve(dirname(filePath), importSource);
-          if (!transitivePath.endsWith('.tova') && existsSync(transitivePath + '.tova')) {
-            transitivePath = transitivePath + '.tova';
-          }
-          if (transitivePath.endsWith('.tova') && existsSync(transitivePath)) {
-            resolveTovaImportsRecursive(transitivePath);
-          }
+        for (const depImport of depImportPaths) {
+          resolveTovaImportsRecursive(depImport.resolved);
         }
 
         // Compile this dependency
         const dep = compileTova(depSource, filePath, { strict: options.strict });
         let depShared = dep.shared || '';
         depShared = depShared.replace(/^export /gm, '');
+        depShared = stripInlinedImports(depShared, depImportPaths.map(imp => imp.source));
+        depShared = rewriteImportsForRuntime(depShared, pathToFileURL(filePath).href);
         depCode += depShared + '\n';
       };
 
@@ -112,14 +134,8 @@ export async function runFile(filePath, options = {}) {
     let code = stdlib + '\n' + depCode + (output.shared || '') + '\n' + (output.server || output.browser || '');
     // Strip 'export ' keywords — not valid inside AsyncFunction (used in tova build only)
     code = code.replace(/^export /gm, '');
-    // Strip import lines for local modules (already inlined above)
-    code = code.replace(/^import\s+(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+['"][^'"]*\.(?:tova|(?:shared\.)?js)['"];?\s*$/gm, '');
-    if (hasTovaImports) {
-      for (const imp of tovaImportPaths) {
-        const escaped = imp.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        code = code.replace(new RegExp('^import\\s+(?:\\{[^}]*\\}|[\\w$]+|\\*\\s+as\\s+[\\w$]+)\\s+from\\s+[\'"]' + escaped + '[\'"];?\\s*$', 'gm'), '');
-      }
-    }
+    code = stripInlinedImports(code, tovaImportPaths.map(imp => imp.source));
+    code = rewriteImportsForRuntime(code, fileUrl);
     // Auto-call main() if the compiled code defines a main function
     const scriptArgs = options.scriptArgs || [];
     if (/\bfunction\s+main\s*\(/.test(code)) {
