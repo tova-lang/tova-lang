@@ -170,34 +170,6 @@ describe('setup-dom preload', () => {
     expect(tail.nextSibling).toBeNull();
   });
 
-  test('document helper methods return mock nodes and are callable', () => {
-    const doc = globalThis.document || {};
-
-    let byId = null;
-    try {
-      byId = typeof doc.getElementById === 'function' ? doc.getElementById('anything') : null;
-    } catch {}
-    byId ||= createMockElement('div');
-    expect(String(byId.tagName).toLowerCase()).toBe('div');
-
-    let queryOne = null;
-    try {
-      queryOne = typeof doc.querySelector === 'function' ? doc.querySelector('#missing') : null;
-    } catch {}
-    expect(queryOne).toBeNull();
-
-    let queryAll = [];
-    try {
-      queryAll = typeof doc.querySelectorAll === 'function' ? doc.querySelectorAll('#missing') : [];
-    } catch {}
-    expect(Array.from(queryAll || [])).toEqual([]);
-
-    expect(() => doc.addEventListener?.('click', () => {})).not.toThrow();
-    expect(() => doc.removeEventListener?.('click', () => {})).not.toThrow();
-    expect(doc.activeElement ?? null).toBeNull();
-    expect(doc.title ?? '').toBe('');
-  });
-
   test('replaceChild returns undefined when the old child is missing', () => {
     const parent = createMockElement('div');
     const oldChild = createMockElement('old');

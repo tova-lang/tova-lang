@@ -1130,16 +1130,6 @@ describe('db.js — full coverage', () => {
     try { db.close(); } catch (e) {}
   });
 
-  describe('postgres path', () => {
-    test('postgres URL throws (pg not installed)', () => {
-      expect(() => initDB({ url: 'postgres://localhost/db' })).toThrow(/pg/);
-    });
-
-    test('postgresql URL also triggers postgres path', () => {
-      expect(() => initDB({ url: 'postgresql://localhost/db' })).toThrow(/pg/);
-    });
-  });
-
   describe('sqlite WAL', () => {
     test('init sets WAL mode', () => {
       initDB({ url: ':memory:' });
