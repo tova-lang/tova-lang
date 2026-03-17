@@ -165,3 +165,57 @@ describe('Export keyword — Parser (export list)', () => {
     expect(ast.body[0].type).toBe('ReExportDeclaration');
   });
 });
+
+// ─── Codegen Tests ──────────────────────────────────────────
+
+describe('Export keyword — Codegen', () => {
+  test('export fn compiles to export function', () => {
+    const out = compile('export fn add(a, b) { a + b }');
+    expect(out).toContain('export function add');
+  });
+
+  test('export type compiles to export', () => {
+    const out = compile('export type Color { Red, Green, Blue }');
+    expect(out).toContain('export');
+  });
+
+  test('export default fn compiles correctly', () => {
+    const out = compile('export default fn main() { "hello" }');
+    expect(out).toContain('export default function main');
+  });
+
+  test('export default expression compiles correctly', () => {
+    const out = compile('x = 42\nexport default x');
+    expect(out).toContain('export default x;');
+  });
+
+  test('export default async fn compiles correctly', () => {
+    const out = compile('export default async fn handler() { await 1 }');
+    expect(out).toContain('export default async function handler');
+  });
+
+  test('export list compiles to JS export list', () => {
+    const out = compile('fn add(a, b) { a + b }\nexport { add }');
+    expect(out).toContain('export { add };');
+  });
+
+  test('export list with alias', () => {
+    const out = compile('fn add(a, b) { a + b }\nexport { add as addition }');
+    expect(out).toContain('export { add as addition };');
+  });
+
+  test('export list with multiple items', () => {
+    const out = compile('fn a() { 1 }\nfn b() { 2 }\nexport { a, b }');
+    expect(out).toContain('export { a, b };');
+  });
+
+  test('export re-export still works', () => {
+    const out = compile('export { foo } from "utils"');
+    expect(out).toContain('export { foo } from "utils";');
+  });
+
+  test('export wildcard re-export still works', () => {
+    const out = compile('export * from "utils"');
+    expect(out).toContain('export * from "utils";');
+  });
+});

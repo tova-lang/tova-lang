@@ -287,6 +287,8 @@ export class BaseCodegen {
       case 'ImportDefault': result = this.genImportDefault(node); break;
       case 'ImportWildcard': result = this.genImportWildcard(node); break;
       case 'ReExportDeclaration': result = this.genReExport(node); break;
+      case 'ExportDefault': result = this.genExportDefault(node); break;
+      case 'ExportList': result = this.genExportList(node); break;
       case 'IfStatement': result = this.genIfStatement(node); break;
       case 'ForStatement': result = this.genForStatement(node); break;
       case 'WhileStatement': result = this.genWhileStatement(node); break;
@@ -705,6 +707,31 @@ export class BaseCodegen {
       s.imported === s.exported ? s.imported : `${s.imported} as ${s.exported}`
     ).join(', ');
     return `${this.i()}export { ${specs} } from ${JSON.stringify(node.source)};`;
+  }
+
+  genExportDefault(node) {
+    if (node.value && node.value.type === 'FunctionDeclaration') {
+      // Generate the function without isPublic (ExportDefault handles export)
+      const savedPublic = node.value.isPublic;
+      node.value.isPublic = false;
+      const fnCode = this.genFunctionDeclaration(node.value);
+      node.value.isPublic = savedPublic;
+      // Insert 'export default ' before the function declaration
+      // Must handle: function, async function, async function*
+      return fnCode.replace(/^(\s*)(async\s+)?(?=function)/, '$1export default $2');
+    }
+    // Expression: export default <expr>;
+    // Unwrap ExpressionStatement if present
+    const valueNode = node.value.type === 'ExpressionStatement' ? node.value.expression : node.value;
+    const expr = this.genExpression(valueNode);
+    return `${this.i()}export default ${expr};`;
+  }
+
+  genExportList(node) {
+    const specs = node.specifiers.map(s =>
+      s.local === s.exported ? s.local : `${s.local} as ${s.exported}`
+    ).join(', ');
+    return `${this.i()}export { ${specs} };`;
   }
 
   genIfStatement(node) {
