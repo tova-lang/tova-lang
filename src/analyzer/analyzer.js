@@ -1692,6 +1692,44 @@ export class Analyzer {
     }
   }
 
+  visitExportDefault(node) {
+    // Module-level restriction: not valid inside server/browser/edge/shared blocks
+    const ctx = this.currentScope.getContext();
+    if (ctx === 'server' || ctx === 'client' || ctx === 'browser' || ctx === 'shared') {
+      this.warn("'export default' is only valid at module level", node.loc, null, { code: 'W_EXPORT_NOT_MODULE_LEVEL' });
+    }
+
+    // Track duplicate default exports
+    if (this._hasDefaultExport) {
+      this.warn('Module already has a default export', node.loc, null, { code: 'W_DUPLICATE_DEFAULT_EXPORT' });
+    }
+    this._hasDefaultExport = true;
+
+    // Visit the inner value
+    if (node.value) {
+      this.visitNode(node.value);
+    }
+  }
+
+  visitExportList(node) {
+    // Module-level restriction: not valid inside server/browser/edge/shared blocks
+    const ctx = this.currentScope.getContext();
+    if (ctx === 'server' || ctx === 'client' || ctx === 'browser' || ctx === 'shared') {
+      this.warn("'export { }' is only valid at module level", node.loc, null, { code: 'W_EXPORT_NOT_MODULE_LEVEL' });
+    }
+
+    for (const spec of node.specifiers) {
+      // Check that the referenced name exists in scope
+      const sym = this.currentScope.lookup(spec.local);
+      if (!sym) {
+        this.warn(`'${spec.local}' is not defined`, spec.loc, null, { code: 'W201' });
+      } else {
+        // Mark as public so it doesn't trigger unused warnings
+        sym.isPublic = true;
+      }
+    }
+  }
+
   // ─── Statement visitors ───────────────────────────────────
 
   visitBlock(node) {
