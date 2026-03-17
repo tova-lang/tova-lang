@@ -296,3 +296,47 @@ describe('Export keyword — collectExports', () => {
     expect(publicExports.has('addition')).toBe(true);
   });
 });
+
+// ─── Integration Tests ──────────────────────────────────────
+
+describe('Export keyword — Integration', () => {
+  test('mixed pub and export in same file compiles', () => {
+    const out = compile(`
+      pub fn add(a, b) { a + b }
+      export fn sub(a, b) { a - b }
+      pub type Color { Red, Blue }
+      export type Shape { Circle(r), Square(s) }
+    `);
+    expect(out).toContain('export function add');
+    expect(out).toContain('export function sub');
+  });
+
+  test('export list after declarations', () => {
+    const out = compile(`
+      fn private_add(a, b) { a + b }
+      fn private_sub(a, b) { a - b }
+      export { private_add as add, private_sub as sub }
+    `);
+    expect(out).toContain('export { private_add as add, private_sub as sub }');
+    expect(out).not.toContain('export function private_add');
+  });
+
+  test('export default with export list', () => {
+    const out = compile(`
+      fn helper() { 1 }
+      export default fn main() { helper() }
+      export { helper }
+    `);
+    expect(out).toContain('export default function main');
+    expect(out).toContain('export { helper }');
+  });
+
+  test('pub { a, b } post-declaration works', () => {
+    const out = compile(`
+      fn foo() { 1 }
+      fn bar() { 2 }
+      pub { foo, bar }
+    `);
+    expect(out).toContain('export { foo, bar }');
+  });
+});
