@@ -94,4 +94,30 @@ describe('sqlite connector', () => {
     expect(db._isTovaSqlite).toBe(true);
     db.close();
   });
+
+  test('writeTable accepts plain arrays and normalizes booleans and nullish values', () => {
+    const db = tova_sqlite(':memory:');
+    db.writeTable([
+      { id: 1, active: true, score: 9.5, note: undefined, maybe: null },
+      { id: 2, active: false, score: 7, note: 'ok', maybe: 'value' },
+    ], 'normalized');
+
+    const result = db.query('SELECT * FROM normalized ORDER BY id');
+    expect(result.rows).toBe(2);
+    expect(result.at(0).id).toBe(1);
+    expect(result.at(0).active).toBe(1);
+    expect(result.at(0).note).toBeNull();
+    expect(result.at(0).maybe).toBeNull();
+    expect(result.at(1).active).toBe(0);
+    expect(result.at(1).note).toBe('ok');
+    db.close();
+  });
+
+  test('writeTable with empty input is a no-op', () => {
+    const db = tova_sqlite(':memory:');
+    db.writeTable([], 'nothing_here');
+    const result = db.query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'nothing_here'`);
+    expect(result.rows).toBe(0);
+    db.close();
+  });
 });

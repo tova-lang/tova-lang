@@ -158,6 +158,13 @@ function createMockDocFragment() {
   };
 }
 
+export const __setupDomTestHooks = {
+  createMockElement,
+  createMockTextNode,
+  createMockComment,
+  createMockDocFragment,
+};
+
 if (typeof globalThis.document === 'undefined') {
   globalThis.document = {
     title: '',

@@ -111,4 +111,52 @@ describe('Excel read/write', () => {
     expect(result.length).toBe(1);
     expect(result.at(0).val).toBe(42);
   });
+
+  test('sheet index out of range throws', async () => {
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('OnlySheet').addRow(['value']);
+    await wb.xlsx.writeFile(TMP_FILE);
+
+    await expect(readExcel(TMP_FILE, { sheet: 2 })).rejects.toThrow('Sheet index 2 out of range');
+  });
+
+  test('empty header row returns an empty table with no columns', async () => {
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Blank');
+    await wb.xlsx.writeFile(TMP_FILE);
+
+    const result = await readExcel(TMP_FILE);
+    expect(result.length).toBe(0);
+    expect(result.columns).toEqual([]);
+  });
+
+  test('reads formula cell result values', async () => {
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Formula');
+    ws.addRow(['computed']);
+    ws.addRow([{ formula: '1+1', result: 2 }]);
+    await wb.xlsx.writeFile(TMP_FILE);
+
+    const result = await readExcel(TMP_FILE);
+    expect(result.at(0).computed).toBe(2);
+  });
+
+  test('reads rich text and hyperlink cells', async () => {
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Rich');
+    ws.addRow(['rich', 'link']);
+    ws.addRow([
+      { richText: [{ text: 'Hello' }, { text: ' World' }] },
+      { text: 'Docs', hyperlink: 'https://example.com/docs' },
+    ]);
+    await wb.xlsx.writeFile(TMP_FILE);
+
+    const result = await readExcel(TMP_FILE);
+    expect(result.at(0).rich).toBe('Hello World');
+    expect(result.at(0).link).toBe('Docs');
+  });
 });
