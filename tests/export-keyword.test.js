@@ -24,7 +24,8 @@ function analyze(src) {
   const tokens = lex(src);
   const ast = new Parser(tokens, '<test>').parse();
   const analyzer = new Analyzer(ast, '<test>');
-  return analyzer.analyze();
+  const result = analyzer.analyze();
+  return [...result.warnings, ...result.errors];
 }
 
 // ─── Lexer Tests ─────────────────────────────────────────────
@@ -217,5 +218,57 @@ describe('Export keyword — Codegen', () => {
   test('export wildcard re-export still works', () => {
     const out = compile('export * from "utils"');
     expect(out).toContain('export * from "utils";');
+  });
+});
+
+// ─── Analyzer Tests ─────────────────────────────────────────
+
+describe('Export keyword — Analyzer', () => {
+  test('export fn analyzed without errors', () => {
+    const warnings = analyze('export fn add(a, b) { a + b }');
+    const errors = warnings.filter(w => w.severity === 'error');
+    expect(errors).toHaveLength(0);
+  });
+
+  test('export default analyzed without errors', () => {
+    const warnings = analyze('export default fn main() { "hello" }');
+    const errors = warnings.filter(w => w.severity === 'error');
+    expect(errors).toHaveLength(0);
+  });
+
+  test('export list marks symbols as public (no unused warnings)', () => {
+    const warnings = analyze('fn add(a, b) { a + b }\nexport { add }');
+    const unusedAdd = warnings.filter(w => w.message && w.message.includes('add') && w.message.includes('unused'));
+    expect(unusedAdd).toHaveLength(0);
+  });
+
+  test('export list warns on undefined names', () => {
+    const warnings = analyze('export { nonexistent }');
+    const undef = warnings.filter(w => w.message && w.message.toLowerCase().includes('nonexistent'));
+    expect(undef.length).toBeGreaterThan(0);
+  });
+
+  test('duplicate export default warns', () => {
+    const warnings = analyze('export default fn a() { 1 }\nexport default fn b() { 2 }');
+    const dupDefault = warnings.filter(w => w.code === 'W_DUPLICATE_DEFAULT_EXPORT');
+    expect(dupDefault).toHaveLength(1);
+  });
+
+  test('mixed pub and export in same file', () => {
+    const warnings = analyze('pub fn add(a, b) { a + b }\nexport fn sub(a, b) { a - b }');
+    const errors = warnings.filter(w => w.severity === 'error');
+    expect(errors).toHaveLength(0);
+  });
+
+  test('export default inside server block warns', () => {
+    const warnings = analyze('server { export default fn handler() { 1 } }');
+    const blockErr = warnings.filter(w => w.code === 'W_EXPORT_NOT_MODULE_LEVEL');
+    expect(blockErr.length).toBeGreaterThan(0);
+  });
+
+  test('export list inside browser block warns', () => {
+    const warnings = analyze('browser { fn foo() { 1 }\nexport { foo } }');
+    const blockErr = warnings.filter(w => w.code === 'W_EXPORT_NOT_MODULE_LEVEL');
+    expect(blockErr.length).toBeGreaterThan(0);
   });
 });

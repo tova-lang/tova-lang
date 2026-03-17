@@ -133,6 +133,7 @@ export class Analyzer {
     this._allScopes = []; // Track all scopes for unused variable checking
     this._functionReturnTypeStack = []; // Stack of expected return types for type checking
     this._asyncDepth = 0; // Track nesting inside async functions for await validation
+    this._hasDefaultExport = false; // Track duplicate default exports
 
     // Propagate strict mode to the type system
     Type.strictMode = this.strict;
@@ -779,6 +780,8 @@ export class Analyzer {
       case 'ImportDefault': return this.visitImportDefault(node);
       case 'ImportWildcard': return this.visitImportWildcard(node);
       case 'ReExportDeclaration': return; // re-exports don't define local symbols
+      case 'ExportDefault': return this.visitExportDefault(node);
+      case 'ExportList': return this.visitExportList(node);
       case 'IfStatement': return this.visitIfStatement(node);
       case 'ForStatement': return this.visitForStatement(node);
       case 'WhileStatement': return this.visitWhileStatement(node);
