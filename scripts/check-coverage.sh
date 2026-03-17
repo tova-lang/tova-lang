@@ -2,7 +2,16 @@
 set -e
 
 # Run tests with coverage and capture output
+set +e
 OUTPUT=$(bun test --coverage 2>&1)
+TEST_EXIT=$?
+set -e
+
+if [ "$TEST_EXIT" -ne 0 ]; then
+  echo "$OUTPUT"
+  echo "FAIL: bun test --coverage exited with status $TEST_EXIT"
+  exit "$TEST_EXIT"
+fi
 
 # Print summary
 echo "$OUTPUT" | grep "All files" || true
