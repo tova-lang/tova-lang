@@ -19,6 +19,22 @@ import {
   findFiles,
 } from '../src/cli/utils.js';
 
+async function waitForHttpReady(url, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      await response.arrayBuffer();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+  throw lastError ?? new Error(`Timed out waiting for ${url}`);
+}
+
 // ─── _hasBun ────────────────────────────────────────────────
 
 describe('_hasBun', () => {
@@ -44,27 +60,23 @@ describe('_compatServe', () => {
   });
 
   test('creates a server and responds to requests (Bun path)', async () => {
-    const port = 49321 + Math.floor(Math.random() * 1000);
     server = _compatServe({
-      port,
+      port: 0,
       fetch(req) {
         return new Response('hello from tova', { status: 200 });
       },
     });
-
-    // Bun.serve returns synchronously, give it a tick to be ready
-    await new Promise(r => setTimeout(r, 50));
-
-    const res = await fetch(`http://localhost:${port}/`);
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    await waitForHttpReady(`${baseUrl}/`);
+    const res = await fetch(`${baseUrl}/`);
     const text = await res.text();
     expect(res.status).toBe(200);
     expect(text).toBe('hello from tova');
   });
 
   test('server handles custom status codes', async () => {
-    const port = 49321 + Math.floor(Math.random() * 1000);
     server = _compatServe({
-      port,
+      port: 0,
       fetch(req) {
         const url = new URL(req.url);
         if (url.pathname === '/not-found') {
@@ -73,18 +85,16 @@ describe('_compatServe', () => {
         return new Response('ok', { status: 200 });
       },
     });
-
-    await new Promise(r => setTimeout(r, 50));
-
-    const res = await fetch(`http://localhost:${port}/not-found`);
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    await waitForHttpReady(`${baseUrl}/`);
+    const res = await fetch(`${baseUrl}/not-found`);
     expect(res.status).toBe(404);
     expect(await res.text()).toBe('nope');
   });
 
   test('server handles custom headers', async () => {
-    const port = 49321 + Math.floor(Math.random() * 1000);
     server = _compatServe({
-      port,
+      port: 0,
       fetch(req) {
         return new Response('json body', {
           status: 200,
@@ -92,27 +102,24 @@ describe('_compatServe', () => {
         });
       },
     });
-
-    await new Promise(r => setTimeout(r, 50));
-
-    const res = await fetch(`http://localhost:${port}/`);
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    await waitForHttpReady(`${baseUrl}/`);
+    const res = await fetch(`${baseUrl}/`);
     expect(res.headers.get('content-type')).toBe('application/json');
     expect(res.headers.get('x-custom')).toBe('test-val');
   });
 
   test('server receives request method and URL', async () => {
-    const port = 49321 + Math.floor(Math.random() * 1000);
     server = _compatServe({
-      port,
+      port: 0,
       fetch(req) {
         const url = new URL(req.url);
         return new Response(JSON.stringify({ method: req.method, path: url.pathname }), { status: 200 });
       },
     });
-
-    await new Promise(r => setTimeout(r, 50));
-
-    const res = await fetch(`http://localhost:${port}/api/test`, { method: 'POST' });
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    await waitForHttpReady(`${baseUrl}/`);
+    const res = await fetch(`${baseUrl}/api/test`, { method: 'POST' });
     const data = await res.json();
     expect(data.method).toBe('POST');
     expect(data.path).toBe('/api/test');
