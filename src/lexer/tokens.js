@@ -56,6 +56,7 @@ export const TokenType = {
 
   // Visibility
   PUB: 'PUB',
+  DEFAULT: 'DEFAULT',
 
   // Impl blocks / traits
   IMPL: 'IMPL',
@@ -224,6 +225,7 @@ export const Keywords = {
   'loop': TokenType.LOOP,
   'when': TokenType.WHEN,
   'extern': TokenType.EXTERN,
+  'default': TokenType.DEFAULT,
   'is': TokenType.IS,
   'with': TokenType.WITH,
   'server': TokenType.SERVER,

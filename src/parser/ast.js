@@ -235,6 +235,33 @@ export class ReExportSpecifier {
   }
 }
 
+// export default <value>
+export class ExportDefault {
+  constructor(value, loc) {
+    this.type = 'ExportDefault';
+    this.value = value;  // FunctionDeclaration or expression node
+    this.loc = loc;
+  }
+}
+
+// export { a, b as c } (post-declaration, no source/from)
+export class ExportList {
+  constructor(specifiers, loc) {
+    this.type = 'ExportList';
+    this.specifiers = specifiers; // [{local, exported}]
+    this.loc = loc;
+  }
+}
+
+export class ExportListSpecifier {
+  constructor(local, exported, loc) {
+    this.type = 'ExportListSpecifier';
+    this.local = local;      // name in current scope
+    this.exported = exported; // exported name (same as local if no alias)
+    this.loc = loc;
+  }
+}
+
 // ============================================================
 // Statements
 // ============================================================
