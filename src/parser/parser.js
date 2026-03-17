@@ -109,7 +109,7 @@ export class Parser {
           tok.type === TokenType.BROWSER || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
-          tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
+          tok.type === TokenType.PUB || tok.type === TokenType.EXPORT || tok.type === TokenType.DEFER ||
           tok.type === TokenType.EXTERN ||
           tok.type === TokenType.VAR || tok.type === TokenType.ASYNC) {
         return;
@@ -160,7 +160,7 @@ export class Parser {
           tok.type === TokenType.BROWSER || tok.type === TokenType.SHARED ||
           tok.type === TokenType.GUARD || tok.type === TokenType.INTERFACE ||
           tok.type === TokenType.IMPL || tok.type === TokenType.TRAIT ||
-          tok.type === TokenType.PUB || tok.type === TokenType.DEFER ||
+          tok.type === TokenType.PUB || tok.type === TokenType.EXPORT || tok.type === TokenType.DEFER ||
           tok.type === TokenType.EXTERN || tok.type === TokenType.VAR || tok.type === TokenType.MUT ||
           tok.type === TokenType.STATE || tok.type === TokenType.ROUTE ||
           tok.type === TokenType.IDENTIFIER) {
@@ -549,6 +549,7 @@ export class Parser {
   parseStatement() {
     // pub modifier: pub fn, pub type, pub x = ...
     if (this.check(TokenType.PUB)) return this.parsePubDeclaration();
+    if (this.check(TokenType.EXPORT)) return this.parsePubDeclaration();
     if (this.check(TokenType.ASYNC) && this.peek(1).type === TokenType.FOR) {
       this.advance(); // consume async
       return this.parseForStatement(null, true);
@@ -595,16 +596,34 @@ export class Parser {
 
   parsePubDeclaration() {
     const l = this.loc();
-    this.advance(); // consume 'pub'
-    if (this.check(TokenType.PUB)) {
-      this.error("Duplicate 'pub' modifier");
+    const keyword = this.current().type; // PUB or EXPORT
+    this.advance(); // consume 'pub' or 'export'
+    if (this.check(TokenType.PUB) || this.check(TokenType.EXPORT)) {
+      this.error("Duplicate visibility modifier");
     }
-    // Re-export: pub { a, b } from "module" or pub * from "module"
+    // export default: only valid with 'export', not 'pub'
+    if (this.check(TokenType.DEFAULT)) {
+      if (keyword === TokenType.PUB) {
+        this.error("Use 'export default', not 'pub default'");
+      }
+      this.advance(); // consume 'default'
+      // export default type is invalid (types generate multiple statements)
+      if (this.check(TokenType.TYPE)) {
+        this.error("Cannot use 'export default' with type declarations. Use 'export type' instead");
+      }
+      const stmt = this.parseStatement();
+      return new AST.ExportDefault(stmt, l);
+    }
+    // Re-export: pub/export { a, b } from "module" or pub/export * from "module"
     if (this.check(TokenType.STAR) && this.peek(1).type === TokenType.FROM) {
       return this.parseReExport(l);
     }
     if (this.check(TokenType.LBRACE) && this._looksLikeReExport()) {
       return this.parseReExport(l);
+    }
+    // Post-declaration export list: pub/export { a, b } (no 'from')
+    if (this.check(TokenType.LBRACE) && this._looksLikeExportList()) {
+      return this.parseExportList(l);
     }
     // Handle pub component at top level (parseComponent is installed by browser-parser plugin)
     if (this.check(TokenType.COMPONENT) && typeof this.parseComponent === 'function') {
@@ -644,10 +663,55 @@ export class Parser {
     }
   }
 
+  // Check if pub/export { ... } is a post-declaration export list (no 'from' after })
+  _looksLikeExportList() {
+    let i = 1; // start after {
+    while (true) {
+      const tok = this.peek(i);
+      if (!tok || tok.type === TokenType.EOF) return false;
+      if (tok.type === TokenType.RBRACE) {
+        // After }, must NOT see FROM (that would be a re-export)
+        const after = this.peek(i + 1);
+        return !after || after.type !== TokenType.FROM;
+      }
+      if (tok.type !== TokenType.IDENTIFIER) return false;
+      i++;
+      const next = this.peek(i);
+      if (next && next.type === TokenType.AS) {
+        i++; // skip as
+        i++; // skip alias identifier
+      }
+      const afterId = this.peek(i);
+      if (!afterId) return false;
+      if (afterId.type === TokenType.COMMA) { i++; continue; }
+      if (afterId.type === TokenType.RBRACE) continue;
+      return false;
+    }
+  }
+
+  parseExportList(l) {
+    this.expect(TokenType.LBRACE);
+    const specifiers = [];
+    while (!this.check(TokenType.RBRACE)) {
+      const specL = this.loc();
+      const local = this.expect(TokenType.IDENTIFIER, "Expected export name").value;
+      let exported = local;
+      if (this.match(TokenType.AS)) {
+        exported = this.expect(TokenType.IDENTIFIER, "Expected alias name after 'as'").value;
+      }
+      specifiers.push(new AST.ExportListSpecifier(local, exported, specL));
+      if (!this.check(TokenType.RBRACE)) {
+        this.expect(TokenType.COMMA, "Expected ',' or '}' in export list");
+      }
+    }
+    this.expect(TokenType.RBRACE);
+    return new AST.ExportList(specifiers, l);
+  }
+
   parseReExport(l) {
     if (this.match(TokenType.STAR)) {
-      // pub * from "module"
-      this.expect(TokenType.FROM, "Expected 'from' after 'pub *'");
+      // pub/export * from "module"
+      this.expect(TokenType.FROM, "Expected 'from' after '*'");
       const source = this.expect(TokenType.STRING, "Expected module path string").value;
       return new AST.ReExportDeclaration(null, source, l);
     }
@@ -989,7 +1053,7 @@ export class Parser {
         params.push(param);
       } else {
         let name;
-        if (this._isContextualKeyword()) {
+        if (this._isContextualKeyword() || this.check(TokenType.DEFAULT)) {
           name = this.advance().value;
         } else {
           name = this.expect(TokenType.IDENTIFIER, "Expected parameter name").value;
