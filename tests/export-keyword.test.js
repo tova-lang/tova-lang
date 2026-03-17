@@ -3,6 +3,7 @@ import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { CodeGenerator } from '../src/codegen/codegen.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+import { collectExports } from '../src/cli/compile.js';
 
 function lex(src) {
   return new Lexer(src, '<test>').tokenize();
@@ -270,5 +271,28 @@ describe('Export keyword — Analyzer', () => {
     const warnings = analyze('browser { fn foo() { 1 }\nexport { foo } }');
     const blockErr = warnings.filter(w => w.code === 'W_EXPORT_NOT_MODULE_LEVEL');
     expect(blockErr.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── collectExports Tests ───────────────────────────────────
+
+describe('Export keyword — collectExports', () => {
+  test('ExportDefault adds "default" to publicExports', () => {
+    const ast = parse('export default fn main() { 1 }');
+    const { publicExports } = collectExports(ast, '<test-collect>');
+    expect(publicExports.has('default')).toBe(true);
+  });
+
+  test('ExportList adds exported names to publicExports', () => {
+    const ast = parse('fn add(a, b) { a + b }\nfn sub(a, b) { a - b }\nexport { add, sub }');
+    const { publicExports } = collectExports(ast, '<test-collect>');
+    expect(publicExports.has('add')).toBe(true);
+    expect(publicExports.has('sub')).toBe(true);
+  });
+
+  test('ExportList with alias uses exported name', () => {
+    const ast = parse('fn add(a, b) { a + b }\nexport { add as addition }');
+    const { publicExports } = collectExports(ast, '<test-collect>');
+    expect(publicExports.has('addition')).toBe(true);
   });
 });

@@ -396,6 +396,18 @@ export function collectExports(ast, filename) {
       // Wildcard re-exports: pub * from "module" — can't enumerate statically,
       // but mark as having re-exports so import validation can allow through
     }
+    if (node.type === 'ExportDefault') {
+      publicExports.add('default');
+      allNames.add('default');
+      // Also collect the inner value's name if it's a named declaration
+      if (node.value) collectFromNode(node.value);
+    }
+    if (node.type === 'ExportList') {
+      for (const spec of node.specifiers) {
+        publicExports.add(spec.exported);
+        allNames.add(spec.exported);
+      }
+    }
   }
 
   for (const node of ast.body) {
