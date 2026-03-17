@@ -74,6 +74,7 @@ export const BUILTIN_FUNCTIONS = {
   var _pretty = function(v) {
     if (v === null || v === undefined) return v;
     if (typeof v !== 'object') return v;
+    if (v && typeof v._format === 'function') return v._format();
     if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
       var headers = Object.keys(v[0]);
       var rows = v.map(function(r) { return headers.map(function(h) { return String(r[h] != null ? r[h] : ''); }); });
@@ -1897,6 +1898,19 @@ export const STDLIB_DEPS = {
   lazy: ['LazyTable', 'Table'],
   collect: ['LazyTable'],
   LazyTable: ['Table', 'table_where', 'table_group_by'],
+  // Table wrapper functions reference LazyTable + their table_* implementation
+  where: ['LazyTable', 'table_where', 'Table'],
+  select: ['LazyTable', 'table_select', 'Table'],
+  derive: ['LazyTable', 'table_derive', 'Table'],
+  sort_by: ['LazyTable', 'table_sort_by', 'Table'],
+  limit: ['LazyTable', 'table_limit', 'Table'],
+  drop_duplicates: ['LazyTable', 'table_drop_duplicates', 'Table'],
+  rename: ['LazyTable', 'table_rename', 'Table'],
+  agg: ['table_agg', 'Table'],
+  // Table functions that reference Table constructor
+  drop_nil: ['Table'],
+  fill_nil: ['Table'],
+  cast: ['Table'],
   // Seq uses Some/None
   Seq: ['Some', 'None'],
   // Channel uses Some/None

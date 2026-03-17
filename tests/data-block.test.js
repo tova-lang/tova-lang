@@ -98,11 +98,11 @@ describe('Data block parsing', () => {
       source orders = read("orders.csv")
 
       pipeline clean = customers
-        |> drop_nil(.email)
-        |> fill_nil(.spend, 0.0)
+        |> dropNil(.email)
+        |> fillNil(.spend, 0.0)
 
       pipeline summary = clean
-        |> group_by(.country)
+        |> groupBy(.country)
         |> agg(count: count(), total: sum(.spend))
 
       validate Customer {
@@ -229,7 +229,7 @@ describe('Data block parsing — additional', () => {
     const ast = parse(`data {
       source raw = read("data.csv")
       pipeline clean = raw |> where(.valid)
-      pipeline summary = clean |> group_by(.cat)
+      pipeline summary = clean |> groupBy(.cat)
     }`);
     const pipelines = ast.body[0].body.filter(s => s.type === 'PipelineDeclaration');
     expect(pipelines.length).toBe(2);

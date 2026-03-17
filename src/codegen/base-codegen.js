@@ -3,6 +3,9 @@ import { RESULT_OPTION, PROPAGATE, BUILTIN_NAMES, STDLIB_DEPS } from '../stdlib/
 import { PIPE_TARGET } from '../parser/ast.js';
 import { compileWasmFunction, compileWasmModule, generateWasmGlue, generateMultiWasmGlue, generateWasmBytesExport } from './wasm-codegen.js';
 
+// Async stdlib functions that should be auto-awaited at the top level (script context)
+const _ASYNC_STDLIB_FUNCS = new Set(['read', 'write', 'readParquet', 'readExcel']);
+
 export class BaseCodegen {
   constructor() {
     this.indent = 0;
@@ -34,6 +37,8 @@ export class BaseCodegen {
     this._typedArrayLocals = new Map(); // varName -> 'Float64Array' | 'Int32Array' | 'Uint8Array'
     // Track shadowed parameter names to prevent incorrect substitution in nested lambdas
     this._substitutionShadowed = new Set(); // names shadowed by lambda/function params
+    // Track function nesting depth for auto-await of async stdlib functions
+    this._functionDepth = 0; // 0 = top level (scripts run in AsyncFunction wrapper)
   }
 
   static TYPED_ARRAY_MAP = {
@@ -573,6 +578,7 @@ export class BaseCodegen {
     }
 
     this.pushScope();
+    this._functionDepth++;
     for (const p of node.params) {
       if (p.destructure) {
         this._declareDestructureVars(p.destructure);
@@ -581,6 +587,7 @@ export class BaseCodegen {
       }
     }
     const body = this.genBlockBody(node.body);
+    this._functionDepth--;
     this.popScope();
 
     // Restore shadowing state
@@ -1669,6 +1676,10 @@ export class BaseCodegen {
     }
 
     const args = node.arguments.map(a => this.genExpression(a)).join(', ');
+    // Auto-await known async stdlib functions at top level (scripts run in AsyncFunction wrapper)
+    if (this._functionDepth === 0 && node.callee.type === 'Identifier' && _ASYNC_STDLIB_FUNCS.has(node.callee.name)) {
+      return `(await ${callee}(${args}))`;
+    }
     return `${callee}(${args})`;
   }
 
@@ -2507,8 +2518,10 @@ export class BaseCodegen {
 
     if (node.body.type === 'BlockStatement') {
       this.pushScope();
+      this._functionDepth++;
       for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       const body = this.genBlockBody(node.body);
+      this._functionDepth--;
       this.popScope();
       // Restore shadowing state
       for (const name of shadowedNames) {
@@ -2532,10 +2545,12 @@ export class BaseCodegen {
     // Statement bodies (compound assignment, assignment in lambda)
     if (node.body.type === 'CompoundAssignment' || node.body.type === 'Assignment' || node.body.type === 'VarDeclaration') {
       this.pushScope();
+      this._functionDepth++;
       for (const p of node.params) { if (p.destructure) this._declareDestructureVars(p.destructure); else this.declareVar(p.name); }
       this.indent++;
       const stmt = this.generateStatement(node.body);
       this.indent--;
+      this._functionDepth--;
       this.popScope();
       // Restore shadowing state
       for (const name of shadowedNames) {
@@ -2545,12 +2560,14 @@ export class BaseCodegen {
     }
 
     // Expression body
+    this._functionDepth++;
     let bodyCode;
     if (hasPropagate) {
       bodyCode = `${asyncPrefix}(${params}) => { try { return ${this.genExpression(node.body)}; } catch (__e) { if (__e && __e.__tova_propagate) return __e.value; throw __e; } }`;
     } else {
       bodyCode = `${asyncPrefix}(${params}) => ${this.genExpression(node.body)}`;
     }
+    this._functionDepth--;
     // Restore shadowing state
     for (const name of shadowedNames) {
       this._substitutionShadowed.delete(name);

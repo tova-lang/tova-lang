@@ -47,12 +47,15 @@ data {
 
 // Compiles roughly to:
 // let __data_customers_cache = null;
-// function __data_customers() {
-//   if (!__data_customers_cache) {
-//     __data_customers_cache = read("customers.csv");
+// async function __data_customers_load() {
+//   if (__data_customers_cache === null) {
+//     __data_customers_cache = await read("customers.csv");
 //   }
 //   return __data_customers_cache;
 // }
+// Object.defineProperty(globalThis, "customers", {
+//   get() { ... }  // triggers load on first access
+// });
 ```
 
 ## Pipelines
@@ -110,7 +113,7 @@ Each rule is a predicate on a column. The validate block compiles to a validator
 // Compiled validator can be called as:
 result = __validate_Customer(row)
 // result.valid → true or false
-// result.errors → ["Validation rule 1 failed", ...]
+// result.errors → ["Validation failed for Customer: expected `...`", ...]
 ```
 
 ## Refresh Policies
@@ -131,7 +134,7 @@ data {
 }
 ```
 
-Supported time units: `seconds`, `minutes`, `hours` (and their singular forms `second`, `minute`, `hour`).
+Supported time units: `seconds`, `minutes`, `hours`, `days` (and their singular forms `second`, `minute`, `hour`, `day`).
 
 Interval refresh compiles to a `setInterval` that clears the source cache, so the next access triggers a fresh load.
 
