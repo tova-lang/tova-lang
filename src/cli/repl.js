@@ -416,10 +416,14 @@ async function startRepl() {
           }
         } catch (e) {
           // If return-wrapping fails, fall back to plain execution
-          const fallbackCode = replCode + (allSave ? '\n' + allSave : '');
-          // REPL context: fallback execution of compiled Tova code (intentional dynamic eval)
-          const fn = new Function('__ctx', `${destructure}${fallbackCode}`);
-          fn(context);
+          try {
+            const fallbackCode = replCode + (allSave ? '\n' + allSave : '');
+            // REPL context: fallback execution of compiled Tova code (intentional dynamic eval)
+            const fn = new Function('__ctx', `${destructure}${fallbackCode}`);
+            fn(context);
+          } catch (e2) {
+            console.error(`  Error: ${e2.message}`);
+          }
         }
       }
     } catch (err) {
