@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "tova": "./bin/tova.js"
+    "tova": "bin/tova.js"
   },
   "files": [
     "bin/",
@@ -38,7 +38,12 @@
     "url": "https://github.com/tova-lang/tova-lang/issues"
   },
   "author": "Enoch Kujem Abassey",
-  "keywords": ["language", "transpiler", "fullstack", "javascript"],
+  "keywords": [
+    "language",
+    "transpiler",
+    "fullstack",
+    "javascript"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.0",
