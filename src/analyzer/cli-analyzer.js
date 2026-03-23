@@ -50,11 +50,18 @@ export function installCliAnalyzer(AnalyzerClass) {
 
       // Visit command body with params in scope
       this.pushScope('function');
+      const prevAsyncDepth = this._asyncDepth;
+      if (cmd.isAsync) {
+        this._asyncDepth++;
+      } else {
+        this._asyncDepth = 0;
+      }
       for (const param of cmd.params) {
         this.currentScope.define(param.name,
           new Symbol(param.name, 'parameter', null, false, param.loc));
       }
       this.visitNode(cmd.body);
+      this._asyncDepth = prevAsyncDepth;
       this.popScope();
     }
   };

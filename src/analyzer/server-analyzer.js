@@ -110,8 +110,8 @@ export function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitRouteDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'route' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'route' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     this.visitExpression(node.handler);
 
@@ -145,8 +145,8 @@ export function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitMiddlewareDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'middleware' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'middleware' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     try {
       this.currentScope.define(node.name,
@@ -173,15 +173,15 @@ export function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitHealthCheckDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'health' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'health' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
   };
 
   AnalyzerClass.prototype.visitCorsDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'cors' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'cors' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -190,8 +190,8 @@ export function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitErrorHandlerDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'on_error' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'on_error' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');

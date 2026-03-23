@@ -512,7 +512,7 @@ describe('T4-4: Error codes in analyzer output', () => {
     const ast = new AST.Program([routeNode]);
     const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
     const result = analyzer.analyze();
-    const err = result.errors.find(e => e.message.includes('server block'));
+    const err = result.errors.find(e => e.message.includes('server') && e.message.includes('block'));
     expect(err).toBeDefined();
     expect(err.code).toBe('E303');
   });
@@ -770,7 +770,7 @@ describe('T4-5: Diagnostic hints are actionable', () => {
     const ast = new AST.Program([routeNode]);
     const analyzer = new Analyzer(ast, '<test>', { tolerant: true });
     const result = analyzer.analyze();
-    const err = result.errors.find(e => e.message.includes('server block'));
+    const err = result.errors.find(e => e.message.includes('server') && e.message.includes('block'));
     expect(err).toBeDefined();
     expect(err.hint).toContain('server');
   });

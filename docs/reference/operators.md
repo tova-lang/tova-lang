@@ -131,6 +131,31 @@ if option is not None {
 
 Supported type checks: `String`, `Int`, `Float`, `Bool`, `Nil`, `Array`, `Function`, `Number`, and any custom ADT variant name.
 
+## Bitwise Operators
+
+| Operator | Name | Example |
+|----------|------|---------|
+| `&` | Bitwise AND | `flags & mask` |
+| `\|` | Bitwise OR | `flags \| FLAG_READ` |
+| `^` | Bitwise XOR | `a ^ b` |
+| `~` | Bitwise NOT | `~mask` |
+| `<<` | Left shift | `1 << 4` |
+| `>>` | Right shift | `n >> 2` |
+| `>>>` | Unsigned right shift | `n >>> 1` |
+
+```tova
+// Bitwise operations
+flags = 0b1010
+mask = 0b1100
+
+flags & mask     // 0b1000 (AND)
+flags | mask     // 0b1110 (OR)
+flags ^ mask     // 0b0110 (XOR)
+~flags           // bitwise NOT
+1 << 4           // 16 (left shift)
+32 >> 2          // 8 (right shift)
+```
+
 ## Assignment Operators
 
 | Operator | Meaning | Equivalent |
@@ -140,6 +165,11 @@ Supported type checks: `String`, `Int`, `Float`, `Bool`, `Nil`, `Array`, `Functi
 | `-=` | Subtract and assign | `x = x - 10` |
 | `*=` | Multiply and assign | `x = x * 10` |
 | `/=` | Divide and assign | `x = x / 10` |
+| `&=` | Bitwise AND and assign | `x = x & mask` |
+| `\|=` | Bitwise OR and assign | `x = x \| flag` |
+| `^=` | Bitwise XOR and assign | `x = x ^ bits` |
+| `<<=` | Left shift and assign | `x = x << n` |
+| `>>=` | Right shift and assign | `x = x >> n` |
 
 ```tova
 var counter = 0
@@ -324,19 +354,23 @@ Operators are listed from **highest** precedence (binds tightest) to **lowest** 
 
 | Level | Operators | Associativity | Description |
 |-------|-----------|---------------|-------------|
-| 14 | `.` `?.` `[]` `()` `?` | Left | Member access, optional chain, subscript, call, error propagation |
-| 13 | `-` (unary) `...` (spread) `await` `yield` | Right | Unary negation, spread, await, yield |
-| 12 | `**` | Right | Exponentiation |
-| 11 | `*` `/` `%` | Left | Multiplication, division, modulo |
-| 10 | `+` `-` | Left | Addition, subtraction |
-| 9 | `..` `..=` | None | Range (exclusive, inclusive) |
-| 8 | `in` `not in` `is` `is not` | None | Membership test, type checking |
-| 7 | `<` `<=` `>` `>=` `==` `!=` | Left | Comparison (chainable) |
-| 6 | `not` `!` | Right | Logical NOT |
-| 5 | `and` `&&` | Left | Logical AND |
-| 4 | `or` `\|\|` | Left | Logical OR |
-| 3 | `??` | Left | Null coalescing |
-| 2 | `\|>` | Left | Pipe |
+| 17 | `.` `?.` `[]` `()` `?` | Left | Member access, optional chain, subscript, call, error propagation |
+| 16 | `-` (unary) `...` (spread) `await` `yield` | Right | Unary negation, spread, await, yield |
+| 15 | `**` | Right | Exponentiation |
+| 14 | `*` `/` `%` | Left | Multiplication, division, modulo |
+| 13 | `+` `-` | Left | Addition, subtraction |
+| 12 | `<<` `>>` `>>>` | Left | Bitwise shift |
+| 11 | `..` `..=` | None | Range (exclusive, inclusive) |
+| 10 | `in` `not in` `is` `is not` | None | Membership test, type checking |
+| 9 | `<` `<=` `>` `>=` `==` `!=` | Left | Comparison (chainable) |
+| 8 | `&` | Left | Bitwise AND |
+| 7 | `^` | Left | Bitwise XOR |
+| 6 | `\|` | Left | Bitwise OR |
+| 5 | `not` `!` `~` | Right | Logical NOT, bitwise NOT |
+| 4 | `and` `&&` | Left | Logical AND |
+| 3 | `or` `\|\|` | Left | Logical OR |
+| 2 | `??` | Left | Null coalescing |
+| 1 | `\|>` | Left | Pipe |
 
 ### Precedence Examples
 

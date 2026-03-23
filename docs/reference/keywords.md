@@ -342,7 +342,7 @@ effect {
 
 ### `elif`
 
-A chained conditional branch. Tova uses `elif`, **not** `else if`.
+A chained conditional branch. `elif` is the idiomatic Tova style. `else if` is also accepted by the parser.
 
 ```tova
 if score >= 90 {
@@ -993,4 +993,4 @@ The following are **not** keywords in Tova, even though they might be expected f
 | `throw` | Not a keyword. Tova uses `Result`/`Option` for error handling. |
 | `class` | Not a keyword. Use `type` for data types and `impl` for methods. |
 | `this` | Not a keyword. Use `self` in `impl` blocks (passed explicitly). |
-| `else if` | Not valid syntax. Use `elif` instead. |
+| `else if` | Accepted, but prefer `elif` for idiomatic Tova style. |

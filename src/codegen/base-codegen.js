@@ -39,6 +39,8 @@ export class BaseCodegen {
     this._substitutionShadowed = new Set(); // names shadowed by lambda/function params
     // Track function nesting depth for auto-await of async stdlib functions
     this._functionDepth = 0; // 0 = top level (scripts run in AsyncFunction wrapper)
+    // For-else break tracking: stack of __broke variable names
+    this._forElseBrokeStack = [];
   }
 
   static TYPED_ARRAY_MAP = {
@@ -298,7 +300,15 @@ export class BaseCodegen {
       case 'ExpressionStatement': result = `${this.i()}${this.genExpression(node.expression)};`; break;
       case 'BlockStatement': result = this.genBlock(node); break;
       case 'CompoundAssignment': result = this.genCompoundAssignment(node); break;
-      case 'BreakStatement': result = node.label ? `${this.i()}break ${node.label};` : `${this.i()}break;`; break;
+      case 'BreakStatement': {
+        const brokeVar = this._forElseBrokeStack.length > 0 && !node.label ? this._forElseBrokeStack[this._forElseBrokeStack.length - 1] : null;
+        if (brokeVar) {
+          result = `${this.i()}${brokeVar} = true; break;`;
+        } else {
+          result = node.label ? `${this.i()}break ${node.label};` : `${this.i()}break;`;
+        }
+        break;
+      }
       case 'ContinueStatement': result = node.label ? `${this.i()}continue ${node.label};` : `${this.i()}continue;`; break;
       case 'GuardStatement': result = this.genGuardStatement(node); break;
       case 'InterfaceDeclaration': result = this.genInterfaceDeclaration(node); break;
@@ -517,13 +527,17 @@ export class BaseCodegen {
   genLetDestructure(node) {
     if (node.pattern.type === 'ObjectPattern') {
       for (const p of node.pattern.properties) this.declareVar(p.value);
+      if (node.pattern.rest) this.declareVar(node.pattern.rest);
       const props = node.pattern.properties.map(p => {
         let str = p.key;
         if (p.value !== p.key) str += `: ${p.value}`;
         if (p.defaultValue) str += ` = ${this.genExpression(p.defaultValue)}`;
         return str;
-      }).join(', ');
-      return `${this.i()}const { ${props} } = ${this.genExpression(node.value)};`;
+      });
+      if (node.pattern.rest) {
+        props.push(`...${node.pattern.rest}`);
+      }
+      return `${this.i()}const { ${props.join(', ')} } = ${this.genExpression(node.value)};`;
     }
     if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
       for (const e of node.pattern.elements) {
@@ -898,14 +912,14 @@ export class BaseCodegen {
     const iterExpr = this.genExpression(node.iterable);
 
     if (node.elseBody) {
-      // for-else: run else if iterable was empty
+      // for-else: run else if loop completes without hitting break
       const tempVar = `__iter_${this._uid()}`;
-      const enteredVar = `__entered_${this._uid()}`;
+      const brokeVar = `__broke_${this._uid()}`;
       const p = [];
       p.push(`${this.i()}{\n`);
       this.indent++;
       p.push(`${this.i()}const ${tempVar} = ${iterExpr};\n`);
-      p.push(`${this.i()}let ${enteredVar} = false;\n`);
+      p.push(`${this.i()}let ${brokeVar} = false;\n`);
       this.pushScope();
       for (const v of vars) this.declareVar(v);
       if (vars.length === 2) {
@@ -916,16 +930,18 @@ export class BaseCodegen {
         p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${tempVar}) {\n`);
       }
       this.indent++;
-      p.push(`${this.i()}${enteredVar} = true;\n`);
       if (node.guard) {
         p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
       }
+      // Push broke var so break statements inside the body set it
+      this._forElseBrokeStack.push(brokeVar);
       p.push(this.genBlockStatements(node.body));
+      this._forElseBrokeStack.pop();
       this.indent--;
       p.push(`\n${this.i()}}\n`);
       this.popScope();
       this.pushScope();
-      p.push(`${this.i()}if (!${enteredVar}) {\n`);
+      p.push(`${this.i()}if (!${brokeVar}) {\n`);
       this.indent++;
       p.push(this.genBlockStatements(node.elseBody));
       this.indent--;
@@ -3356,8 +3372,9 @@ export class BaseCodegen {
       const step = this.genExpression(node.step);
       const s = node.start ? this.genExpression(node.start) : 'null';
       const e = node.end ? this.genExpression(node.end) : 'null';
-      // Handles both positive and negative step directions
-      return `((a, s, e, st) => { const r = []; if (st > 0) { for (let i = s !== null ? s : 0; i < (e !== null ? e : a.length); i += st) r.push(a[i]); } else { for (let i = s !== null ? s : a.length - 1; i > (e !== null ? e : -1); i += st) r.push(a[i]); } return r; })(${obj}, ${s}, ${e}, ${step})`;
+      // Handles both positive and negative step directions; guards against step === 0
+      // Normalizes negative indices relative to array length
+      return `((a, s, e, st) => { if (st === 0) return []; const len = a.length; if (s !== null && s < 0) s = Math.max(0, len + s); if (e !== null && e < 0) e = Math.max(0, len + e); const r = []; if (st > 0) { for (let i = s !== null ? s : 0; i < (e !== null ? e : len); i += st) r.push(a[i]); } else { for (let i = s !== null ? s : len - 1; i > (e !== null ? e : -1); i += st) r.push(a[i]); } return r; })(${obj}, ${s}, ${e}, ${step})`;
     }
 
     if (!start && !end) return `${obj}.slice()`;

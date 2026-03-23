@@ -350,12 +350,14 @@ The `$` prefix denotes framework-managed reactive state. These are regular Tova 
 ```tova
 browser {
   component Header {
-    if $isAuthenticated {
-      <p>"Welcome, {$currentUser.email}"</p>
-      <button onclick={fn() logout()}>"Log out"</button>
-    } else {
-      <a href="/login">"Sign in"</a>
-    }
+    <div>
+      if $isAuthenticated {
+        <p>"Welcome, {$currentUser.email}"</p>
+        <button onclick={fn() logout()}>"Log out"</button>
+      } else {
+        <a href="/login">"Sign in"</a>
+      }
+    </div>
   }
 }
 ```
@@ -556,19 +558,21 @@ server {
 
 browser {
   component App {
-    if $authLoading {
-      <div class="spinner" />
-    } elif $isAuthenticated {
-      <div>
-        <h1>"Welcome, {$currentUser.email}"</h1>
-        <button onclick={fn() logout()}>"Log out"</button>
-      </div>
-    } else {
-      <div>
-        <h1>"Please sign in"</h1>
-        <LoginForm redirect="/dashboard" />
-      </div>
-    }
+    <div>
+      if $authLoading {
+        <div class="spinner" />
+      } elif $isAuthenticated {
+        <div>
+          <h1>"Welcome, {$currentUser.email}"</h1>
+          <button onclick={fn() logout()}>"Log out"</button>
+        </div>
+      } else {
+        <div>
+          <h1>"Please sign in"</h1>
+          <LoginForm redirect="/dashboard" />
+        </div>
+      }
+    </div>
   }
 }
 ```

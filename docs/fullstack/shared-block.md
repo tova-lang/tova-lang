@@ -83,11 +83,11 @@ browser {
   fn handle_signup() {
     guard validate_email(email) else {
       error_message = "Please enter a valid email"
-      return ()
+      return
     }
     guard validate_password(password) else {
       error_message = "Password must be at least 8 characters"
-      return ()
+      return
     }
 
     result = server.signup(email, password)

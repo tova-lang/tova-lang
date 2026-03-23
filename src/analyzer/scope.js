@@ -60,7 +60,7 @@ export class Scope {
   }
 
   getContext() {
-    if (this.context === 'server' || this.context === 'browser' || this.context === 'client' || this.context === 'shared') {
+    if (this.context === 'server' || this.context === 'browser' || this.context === 'client' || this.context === 'shared' || this.context === 'edge') {
       return this.context;
     }
     if (this.parent) {

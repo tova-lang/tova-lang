@@ -1,6 +1,8 @@
 // Edge-specific analyzer methods for the Tova language
 // Extracted from analyzer.js for lazy loading — only loaded when edge { } blocks are encountered.
 
+import { Symbol } from './scope.js';
+
 export function installEdgeAnalyzer(AnalyzerClass) {
   if (AnalyzerClass.prototype._edgeAnalyzerInstalled) return;
   AnalyzerClass.prototype._edgeAnalyzerInstalled = true;
@@ -32,6 +34,19 @@ export function installEdgeAnalyzer(AnalyzerClass) {
     }
 
     this.pushScope('edge');
+
+    // Pre-define all binding names (kv, sql, storage, queue, env, secret) in scope
+    // so route handlers can reference them without "not defined" warnings
+    for (const stmt of node.body) {
+      if (stmt.type === 'EdgeKVDeclaration' || stmt.type === 'EdgeSQLDeclaration' ||
+          stmt.type === 'EdgeStorageDeclaration' || stmt.type === 'EdgeQueueDeclaration' ||
+          stmt.type === 'EdgeEnvDeclaration' || stmt.type === 'EdgeSecretDeclaration') {
+        try {
+          this.currentScope.define(stmt.name,
+            new Symbol(stmt.name, 'binding', null, false, stmt.loc));
+        } catch (e) { /* ignore redefinition — duplicate check below handles it */ }
+      }
+    }
 
     let kvCount = 0;
     const queueNames = new Set();
@@ -166,7 +181,11 @@ export function installEdgeAnalyzer(AnalyzerClass) {
       // Visit child nodes — edge-specific types are noop in the registry,
       // so explicitly visit bodies that contain statements
       if (stmt.type === 'EdgeScheduleDeclaration' && stmt.body) {
+        // Schedule bodies are implicitly async (Cloudflare scheduled handler, Deno.cron callback)
+        const prevAsyncDepth = this._asyncDepth;
+        this._asyncDepth++;
         for (const s of stmt.body.body || []) this.visitNode(s);
+        this._asyncDepth = prevAsyncDepth;
       } else if (stmt.type === 'FunctionDeclaration' || stmt.type === 'RouteDeclaration') {
         this.visitNode(stmt);
       }

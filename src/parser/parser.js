@@ -1625,7 +1625,7 @@ export class Parser {
         if (expr._isDestructurePattern) {
           // Already parsed as a destructuring pattern with defaults
           pattern = new AST.ObjectPattern(
-            expr.properties.map(p => {
+            expr.properties.filter(p => !p.spread).map(p => {
               const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
               const val = p.shorthand ? key
                 : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
@@ -1633,9 +1633,14 @@ export class Parser {
             }),
             expr.loc
           );
+          // Handle rest/spread element: { name, ...other }
+          const spreadProp = expr.properties.find(p => p.spread);
+          if (spreadProp && spreadProp.argument && spreadProp.argument.type === 'Identifier') {
+            pattern.rest = spreadProp.argument.name;
+          }
         } else {
           pattern = new AST.ObjectPattern(
-            expr.properties.map(p => {
+            expr.properties.filter(p => !p.spread).map(p => {
               const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
               let val, defaultValue = p.defaultValue || null;
               if (p.shorthand) {
@@ -1663,6 +1668,11 @@ export class Parser {
             }),
             expr.loc
           );
+          // Handle rest/spread element: { name, ...other }
+          const spreadProp = expr.properties.find(p => p.spread);
+          if (spreadProp && spreadProp.argument && spreadProp.argument.type === 'Identifier') {
+            pattern.rest = spreadProp.argument.name;
+          }
         }
         const value = this.parseExpression();
         return new AST.LetDestructure(pattern, value, l);

@@ -175,11 +175,11 @@ describe('Edge — Try/catch', () => {
 });
 
 describe('Edge — For-else construct', () => {
-  test('for-else generates entered flag and conditional', () => {
-    const code = compileShared('for x in items { process(x) } else { default_action() }');
-    expect(code).toMatch(/__entered_\d+ = false/);
-    expect(code).toMatch(/__entered_\d+ = true/);
-    expect(code).toMatch(/if \(!__entered_\d+\)/);
+  test('for-else generates broke flag and conditional', () => {
+    const code = compileShared('for x in items { if x == target { break } } else { default_action() }');
+    expect(code).toMatch(/__broke_\d+ = false/);
+    expect(code).toMatch(/__broke_\d+ = true; break;/);
+    expect(code).toMatch(/if \(!__broke_\d+\)/);
     expect(code).toContain('default_action()');
   });
 });

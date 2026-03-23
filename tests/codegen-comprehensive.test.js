@@ -123,20 +123,20 @@ describe('Base — List comprehension filter-only optimization', () => {
   });
 });
 
-describe('Base — For-else codegen with __entered flag', () => {
-  test('for-else generates unique __entered tracking', () => {
-    const code = genShared('for x in items { print(x) } else { print("empty") }');
-    expect(code).toMatch(/let __entered_\d+ = false;/);
-    expect(code).toMatch(/__entered_\d+ = true;/);
-    expect(code).toMatch(/if \(!__entered_\d+\)/);
+describe('Base — For-else codegen with __broke flag', () => {
+  test('for-else generates unique __broke tracking', () => {
+    const code = genShared('for x in items { if x == target { break } } else { print("empty") }');
+    expect(code).toMatch(/let __broke_\d+ = false;/);
+    expect(code).toMatch(/__broke_\d+ = true; break;/);
+    expect(code).toMatch(/if \(!__broke_\d+\)/);
     expect(code).toContain('print("empty")');
   });
 
   test('for-else with two variables uses destructuring', () => {
     const code = genShared('for k, v in pairs { print(k) } else { print("empty") }');
-    expect(code).toMatch(/let __entered_\d+ = false;/);
+    expect(code).toMatch(/let __broke_\d+ = false;/);
     expect(code).toContain('[k, v]');
-    expect(code).toMatch(/if \(!__entered_\d+\)/);
+    expect(code).toMatch(/if \(!__broke_\d+\)/);
   });
 });
 
@@ -149,7 +149,7 @@ describe('Base — Slice variants', () => {
 
   test('negative step slice [::-1] generates reverse step', () => {
     const code = genShared('x = list[::-1]');
-    expect(code).toContain('a.length - 1');
+    expect(code).toContain('len - 1');
     expect(code).toContain('-1');
   });
 

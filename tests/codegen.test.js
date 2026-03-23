@@ -302,7 +302,7 @@ describe('Codegen — Bug Fixes', () => {
   test('slice with negative step reverses', () => {
     const code = compileShared('x = list[::-1]');
     expect(code).toContain('st > 0');
-    expect(code).toContain('a.length - 1');
+    expect(code).toContain('len - 1');
     expect(code).toContain('-1');
   });
 

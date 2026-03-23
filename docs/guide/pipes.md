@@ -256,7 +256,7 @@ dense = data |> filter(fn(x) x > 0) |> map(fn(x) x * 2) |> sum()
 ```tova
 query = builder
   |> .select("name", "email")
-  |> .from("users")
+  |> .table("users")
   |> .where("active = true")
   |> .orderBy("name")
   |> .limit(10)

@@ -60,8 +60,8 @@ describe('Codegen Final — For-else with 2 loop variables (line 306)', () => {
   test('for k, v in pairs with else generates destructured for-else', () => {
     const code = compileShared('for k, v in pairs { print(k) } else { print("empty") }');
     expect(code).toContain('const [k, v] of');
-    expect(code).toMatch(/__entered_\d+/);
-    expect(code).toMatch(/if \(!__entered_\d+\)/);
+    expect(code).toMatch(/__broke_\d+/);
+    expect(code).toMatch(/if \(!__broke_\d+\)/);
   });
 });
 

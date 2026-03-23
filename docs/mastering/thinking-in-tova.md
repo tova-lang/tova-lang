@@ -213,13 +213,13 @@ New developers sometimes write `var` everywhere out of habit from other language
 
 ## Type Annotations: Optional but Useful
 
-Tova infers types, so you rarely need to write them. But when you want to be explicit — for documentation, for clarity, or for the type checker — use the `: Type` syntax:
+Tova infers types, so you rarely need to write them. Variables infer their types from assigned values:
 
 ```tova
-name: String = "Alice"
-age: Int = 30
-rate: Float = 0.085
-items: [String] = ["apple", "banana", "cherry"]
+name = "Alice"                         // inferred as String
+age = 30                               // inferred as Int
+rate = 0.085                           // inferred as Float
+items = ["apple", "banana", "cherry"]  // inferred as [String]
 ```
 
 Type annotations shine in function signatures where they communicate intent:
@@ -230,7 +230,7 @@ fn calculate_tax(price: Float, rate: Float) -> Float {
 }
 ```
 
-You don't have to use them everywhere. Many Tova developers annotate function parameters and return types but leave local variables inferred.
+You don't have to annotate everything. Most Tova developers annotate function parameters and return types but let local variables be inferred.
 
 ## Comments
 

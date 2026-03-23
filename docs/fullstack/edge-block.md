@@ -182,7 +182,7 @@ edge {
   kv CACHE
   kv SESSIONS
 
-  route GET "/api/cached" => fn(req, params, env) {
+  route GET "/api/cached" => async fn(req, params, env) {
     value = await CACHE.get("key")
     { cached: value }
   }
@@ -220,7 +220,7 @@ edge {
 edge {
   storage ASSETS
 
-  route GET "/files/:key" => fn(req, params) {
+  route GET "/files/:key" => async fn(req, params) {
     obj = await ASSETS.get(params.key)
     obj
   }
@@ -238,7 +238,7 @@ edge {
 edge {
   queue TASKS
 
-  route POST "/api/enqueue" => fn(req) {
+  route POST "/api/enqueue" => async fn(req) {
     body = req.json()
     await TASKS.send(body)
     { queued: true }
@@ -609,13 +609,13 @@ edge {
     res
   }
 
-  route GET "/api/users" => fn(req) {
+  route GET "/api/users" => async fn(req) {
     cached = await CACHE.get("users")
     if cached != nil {
       JSON.parse(cached)
     } else {
       users = DB.prepare("SELECT * FROM users").all()
-      await CACHE.put("users", JSON.stringify(users), { expirationTtl: int(CACHE_TTL) })
+      await CACHE.put("users", JSON.stringify(users), { expirationTtl: parseInt(CACHE_TTL) })
       { users }
     }
   }
@@ -629,7 +629,7 @@ edge {
     }
   }
 
-  route POST "/api/users" => fn(req) {
+  route POST "/api/users" => async fn(req) {
     body = await req.json()
     DB.prepare("INSERT INTO users (name, email) VALUES (?, ?)").bind(body.name, body.email).run()
     await CACHE.delete("users")

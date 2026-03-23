@@ -488,7 +488,7 @@ fn divide(a: Int, b: Int) -> (Int, Int) {
   (a / b, a % b)
 }
 
-let (quotient, remainder) = divide(17, 5)
+(quotient, remainder) = divide(17, 5)
 print("17 / 5 = {quotient} remainder {remainder}")
 ```
 
@@ -500,7 +500,7 @@ fn min_max(items) -> (Int, Int) {
   (min(items), max(items))
 }
 
-let (lo, hi) = min_max([3, 1, 4, 1, 5, 9])
+(lo, hi) = min_max([3, 1, 4, 1, 5, 9])
 print("Range: {lo} to {hi}")
 ```
 
@@ -510,7 +510,7 @@ You can also use tuples inline for temporary grouping:
 // Zip two lists into pairs
 pairs = zip(names, ages)
 for pair in pairs {
-  let (name, age) = pair
+  (name, age) = pair
   print("{name} is {age} years old")
 }
 ```

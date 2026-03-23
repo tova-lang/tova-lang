@@ -89,12 +89,12 @@ print(process("  hi  "))  // HI
 Tova has optional type annotations. Add them when they help readability or when you want the compiler to catch errors.
 
 ```tova
-// Type annotations on variables
-x: Int = 42
-name: String = "Alice"
-scores: [Int] = [90, 85, 92]
+// Variables — types are inferred from assigned values
+x = 42                     // inferred as Int
+name = "Alice"             // inferred as String
+scores = [90, 85, 92]     // inferred as [Int]
 
-// Type annotations on functions
+// Type annotations on function parameters and return types
 fn divide(a: Float, b: Float) -> Result<Float, String> {
   if b == 0 {
     Err("Division by zero")
@@ -118,7 +118,7 @@ print(alice.email)    // alice@example.com
 **Try it:** Define a `type Book { title: String, author: String, pages: Int }` and create an instance.
 
 ::: tip Key Takeaways
-- Variables: `name: Type = value`
+- Variables infer their types: `x = 42` (inferred as Int)
 - Function params: `fn f(x: Int) -> String { ... }`
 - Custom types: `type Name { field: Type }`
 - Types are optional — Tova infers what it can

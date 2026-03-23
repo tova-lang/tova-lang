@@ -143,10 +143,14 @@ processed = [x * 2 for x in range(10) if x > 0]
 upper_long = [name.upper() for name in names if len(name) > 3]
 ```
 
-### Nested Comprehensions
+### Nested Iteration
+
+Use nested `for` loops with `flat_map` or build the result manually:
 
 ```tova
-pairs = [[x, y] for x in range(3) for y in range(3)]
+pairs = range(3) |> flat_map(fn(x) [
+  [x, y] for y in range(3)
+])
 // [[0,0], [0,1], [0,2], [1,0], [1,1], [1,2], [2,0], [2,1], [2,2]]
 ```
 

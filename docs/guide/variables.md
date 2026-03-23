@@ -162,23 +162,26 @@ print(other_scores)  // [87, 92]
 
 ## Type Annotations
 
-You can optionally annotate variables with types. Tova uses the `: Type` syntax after the variable name:
+Type annotations in Tova are used on **function parameters and return types**, not on variable declarations. Tova infers variable types from their assigned values:
 
 ```tova
-x: Int = 42
-name: String = "Alice"
-is_active: Bool = true
-scores: [Int] = [90, 85, 92]
+// Variables — types are inferred automatically
+x = 42              // inferred as Int
+name = "Alice"      // inferred as String
+is_active = true    // inferred as Bool
+scores = [90, 85, 92]  // inferred as [Int]
 ```
 
-Type annotations serve as documentation and enable better tooling support. Tova's type checker will warn you if the assigned value does not match the declared type.
+Use type annotations on function signatures for documentation and type checking:
 
 ```tova
-var count: Int = 0
-count += 1     // OK — still an Int
+fn add(a: Int, b: Int) -> Int {
+  a + b
+}
 
-pi: Float = 3.14159
-ratio: Float = 22.0 / 7.0
+fn greet(name: String) -> String {
+  "Hello, {name}!"
+}
 ```
 
 ## Practical Tips
@@ -200,12 +203,12 @@ var left = "hello"
 var right = "world"
 left, right = right, left
 
-// Return multiple values from a function
+// Return multiple values from a function using a tuple
 fn min_max(items) {
   min_val = items |> min()
   max_val = items |> max()
-  min_val, max_val
+  (min_val, max_val)
 }
 
-lo, hi = min_max([3, 1, 4, 1, 5, 9])
+[lo, hi] = min_max([3, 1, 4, 1, 5, 9])
 ```

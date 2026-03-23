@@ -297,15 +297,15 @@ describe('Parser — Edge cases', () => {
 describe('Codegen — for-else', () => {
   test('for-else generates guarded loop', () => {
     const code = compileShared('for x in items { print(x) } else { print("empty") }');
-    expect(code).toMatch(/__entered_\d+/);
-    expect(code).toMatch(/if \(!__entered_\d+\)/);
+    expect(code).toMatch(/__broke_\d+/);
+    expect(code).toMatch(/if \(!__broke_\d+\)/);
   });
 });
 
 describe('Codegen — for with two vars and else', () => {
   test('for-else with two variables', () => {
     const code = compileShared('for k, v in pairs { print(k) } else { print("empty") }');
-    expect(code).toContain('__entered');
+    expect(code).toContain('__broke');
     expect(code).toContain('[k, v]');
   });
 });

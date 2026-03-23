@@ -45,7 +45,7 @@ describe('Server declaration visitors', () => {
     const node = new AST.HealthCheckDeclaration('/health', loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/health.*server block/i);
+    expect(() => analyzer.analyze()).toThrow(/health.*server.*block/i);
   });
 
   test('CORS declaration inside server block', () => {
@@ -67,7 +67,7 @@ describe('Server declaration visitors', () => {
     }, loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/cors.*server block/i);
+    expect(() => analyzer.analyze()).toThrow(/cors.*server.*block/i);
   });
 
   test('auth declaration inside server block', () => {
@@ -449,7 +449,7 @@ describe('Server declaration visitors', () => {
     ], new AST.BlockStatement([], loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/middleware.*server block/i);
+    expect(() => analyzer.analyze()).toThrow(/middleware.*server.*block/i);
   });
 
   test('error handler declaration inside server block', () => {
@@ -470,7 +470,7 @@ describe('Server declaration visitors', () => {
     ], new AST.BlockStatement([], loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/on_error.*server block/i);
+    expect(() => analyzer.analyze()).toThrow(/on_error.*server.*block/i);
   });
 
   test('lifecycle hooks inside server block', () => {
@@ -1657,7 +1657,7 @@ describe('Server/browser context enforcement', () => {
     const node = new AST.RouteDeclaration('GET', '/api', new AST.Identifier('h', loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/route.*server block/i);
+    expect(() => analyzer.analyze()).toThrow(/route.*server.*block/i);
   });
 
   test('middleware only allowed in server context', () => {
@@ -1674,7 +1674,7 @@ describe('Server/browser context enforcement', () => {
     const node = new AST.MiddlewareDeclaration('mw', [], new AST.BlockStatement([], loc), loc);
     const ast = new AST.Program([node]);
     const analyzer = new Analyzer(ast, '<test>');
-    expect(() => analyzer.analyze()).toThrow(/middleware.*server block/i);
+    expect(() => analyzer.analyze()).toThrow(/middleware.*server.*block/i);
   });
 
   test('nested browser inside function inside server context: browser-only nodes still require browser', () => {

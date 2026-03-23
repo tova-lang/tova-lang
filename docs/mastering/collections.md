@@ -354,7 +354,7 @@ rgb = (255, 128, 0)
 Access elements by position using destructuring:
 
 ```tova
-let (x, y) = point
+(x, y) = point
 print("x={x}, y={y}")
 
 // Or in function returns
@@ -362,7 +362,7 @@ fn divmod(a, b) {
   (a / b, a % b)
 }
 
-let (quotient, remainder) = divmod(17, 5)
+(quotient, remainder) = divmod(17, 5)
 print("{quotient} remainder {remainder}")   // "3 remainder 2"
 ```
 
@@ -378,7 +378,7 @@ pairs = zip(names, ages)
 // [("Alice", 30), ("Bob", 25), ("Charlie", 35)]
 
 for pair in pairs {
-  let (name, age) = pair
+  (name, age) = pair
   print("{name} is {age}")
 }
 ```

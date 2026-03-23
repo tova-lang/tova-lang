@@ -367,7 +367,7 @@ fn get_point() -> (Int, Int) {
 }
 
 fn swap(pair: (String, Int)) -> (Int, String) {
-  let (s, n) = pair
+  (s, n) = pair
   (n, s)
 }
 ```
@@ -385,14 +385,14 @@ y = point.1    // 20
 
 ### Destructuring
 
-Destructure tuples with `let`:
+Destructure tuples directly:
 
 ```tova
-let (x, y) = point
+(x, y) = point
 print(x)    // 10
 print(y)    // 20
 
-let (name, age) = ("Alice", 30)
+(name, age) = ("Alice", 30)
 ```
 
 ## Runtime Type Checking

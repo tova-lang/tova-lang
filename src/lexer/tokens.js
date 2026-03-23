@@ -183,7 +183,8 @@ export const TokenType = {
 };
 
 // Keywords map for quick lookup during lexing
-export const Keywords = {
+// Use Object.create(null) to avoid prototype pollution (e.g., 'toString', 'valueOf')
+export const Keywords = Object.assign(Object.create(null), {
   'var': TokenType.VAR,
   'let': TokenType.LET,
   'fn': TokenType.FN,
@@ -242,7 +243,7 @@ export const Keywords = {
   'field': TokenType.FIELD,
   'group': TokenType.GROUP,
   'steps': TokenType.STEPS,
-};
+});
 
 // Token class
 export class Token {

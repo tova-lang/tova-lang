@@ -62,7 +62,7 @@ browser {
   state quantity = 2
 
   computed total = price * quantity
-  computed display = "Total: ${total}"
+  computed display = "Total: {total}"
 }
 ```
 
@@ -296,7 +296,7 @@ Components can include scoped styles:
 ```tova
 browser {
   component StyledButton(label) {
-    css {
+    style {
       .btn {
         background: blue;
         color: white;
@@ -476,7 +476,7 @@ browser {
   }
 
   fn handle_add() {
-    guard new_text.length() > 0 else { return () }
+    guard new_text.length() > 0 else { return }
     todo = server.add_todo(new_text)
     todos = [...todos, todo]
     new_text = ""

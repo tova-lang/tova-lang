@@ -198,7 +198,7 @@ fn describe_list(items) {
     [] => "empty"
     [x] => "single item: {x}"
     [x, y] => "pair: {x} and {y}"
-    [x, y, ...rest] => "starts with {x}, {y} and {len(rest)} more"
+    _ => "list with {len(items)} items"
   }
 }
 ```
@@ -207,7 +207,8 @@ fn describe_list(items) {
 fn head(list) {
   match list {
     [] => None
-    [first, ..._] => Some(first)
+    [first] => Some(first)
+    _ => Some(list[0])
   }
 }
 ```
@@ -250,9 +251,9 @@ fn classify(n) {
 
 ```tova
 fn process_user(user) {
-  match user {
-    { role: "admin" } => grant_full_access()
-    { age: a } if a >= 18 => grant_standard_access()
+  match user.role {
+    "admin" => grant_full_access()
+    "member" if user.age >= 18 => grant_standard_access()
     _ => deny_access()
   }
 }
@@ -277,9 +278,9 @@ fn parse_route(url) {
 ```tova
 fn parse_protocol(url) {
   match url {
-    "https://" ++ domain => { protocol: "https", domain: domain }
-    "http://" ++ domain => { protocol: "http", domain: domain }
-    _ => { protocol: "unknown", domain: url }
+    "https://" ++ domain => ({ protocol: "https", domain: domain })
+    "http://" ++ domain => ({ protocol: "http", domain: domain })
+    _ => ({ protocol: "unknown", domain: url })
   }
 }
 ```

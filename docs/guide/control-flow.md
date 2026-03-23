@@ -39,7 +39,7 @@ if score >= 90 {
 ```
 
 ::: warning
-Tova uses `elif`, **never** `else if`. Writing `else if` will produce a syntax error.
+Tova prefers `elif` over `else if`. Both are accepted, but `elif` is the idiomatic style.
 :::
 
 ### If as Expression
@@ -123,7 +123,7 @@ for i in range(0, 10, 2) {
 
 ### For-Else
 
-The `else` clause on a `for` loop runs if the loop completes without hitting a `break`:
+The `else` clause on a `for` loop runs when the loop completes without hitting a `break`. If a `break` is reached, the `else` block is skipped:
 
 ```tova
 for item in items {
@@ -438,7 +438,7 @@ For pure Tova code, prefer `Result` and `Option` types over try/catch. The try/c
 
 ## Practical Tips
 
-**Use `elif` consistently.** If you are coming from JavaScript or Python, you might reach for `else if`. Train your fingers to type `elif` instead -- Tova will not accept `else if`.
+**Use `elif` consistently.** Both `elif` and `else if` work in Tova, but `elif` is the idiomatic style. If you are coming from JavaScript or Python, `elif` keeps your code looking clean and Tova-native.
 
 **Prefer guard clauses over nested ifs.** When a function has multiple preconditions, a chain of `guard` statements produces flatter, more readable code than deeply nested conditionals.
 

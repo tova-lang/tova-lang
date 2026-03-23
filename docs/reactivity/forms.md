@@ -15,7 +15,7 @@ browser {
   fn handleSubmit() {
     if name == "" {
       error = "Name is required"
-      return ()
+      return
     }
     result = server.createUser(name, email)
     match result {
