@@ -3,7 +3,7 @@ set -e
 
 # Run tests with coverage and capture output
 set +e
-OUTPUT=$(bun test --coverage 2>&1)
+OUTPUT=$(bun test --coverage --force-exit 2>&1)
 TEST_EXIT=$?
 set -e
 

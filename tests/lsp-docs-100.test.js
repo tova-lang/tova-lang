@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test';
 
 // Prevent auto-start of the LSP server on import
 globalThis.__TOVA_LSP_NO_AUTOSTART = true;
@@ -8,6 +8,12 @@ import { DocGenerator } from '../src/docs/generator.js';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
+
+// Ensure process exits cleanly after tests even if stdin listeners leak
+afterAll(() => {
+  process.stdin.removeAllListeners('data');
+  process.stdin.removeAllListeners('end');
+});
 
 // ─── Helpers ─────────────────────────────────────────────────
 
