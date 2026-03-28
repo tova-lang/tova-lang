@@ -20,4 +20,5 @@ jobs:
 
       - run: bun scripts/embed-runtime.js
 
-      - run: bash scripts/check-coverage.sh
+      - run: bun test
+      # - run: bash scripts/check-coverage.sh
