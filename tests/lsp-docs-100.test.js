@@ -3,16 +3,21 @@ import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:tes
 // Prevent auto-start of the LSP server on import
 globalThis.__TOVA_LSP_NO_AUTOSTART = true;
 
+// Prevent process.stdin from keeping the process alive during tests
+if (typeof process.stdin.unref === 'function') process.stdin.unref();
+
 import { TovaLanguageServer, startServer } from '../src/lsp/server.js';
 import { DocGenerator } from '../src/docs/generator.js';
 import { Lexer } from '../src/lexer/lexer.js';
 import { Parser } from '../src/parser/parser.js';
 import { Analyzer } from '../src/analyzer/analyzer.js';
 
-// Ensure process exits cleanly after tests even if stdin listeners leak
+// Clean up any stdin listeners after all tests complete
 afterAll(() => {
   process.stdin.removeAllListeners('data');
   process.stdin.removeAllListeners('end');
+  process.stdin.pause();
+  if (typeof process.stdin.unref === 'function') process.stdin.unref();
 });
 
 // ─── Helpers ─────────────────────────────────────────────────
