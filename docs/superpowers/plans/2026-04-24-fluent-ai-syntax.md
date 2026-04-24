@@ -67,6 +67,23 @@ test('client is directly callable and defaults to ask', async () => {
   expect(captured.args[1]).toEqual({ temperature: 0.1 });
 });
 
+test('callable client works end-to-end through compiled pipe', async () => {
+  // This guards the pipe-fluency promise in spec §4: `article |> claude`
+  // compiles to `claude(article)`, which (after this task's runtime change)
+  // equals `claude.ask(article)`. We verify the runtime shape only; the
+  // codegen side for `|> claude` is covered by the existing pipe emitter —
+  // no language change is needed for pipes once the client is callable.
+  const mod = await import('../src/runtime/ai.js');
+  const client = mod.createAI({ provider: 'anthropic', model: 'test', api_key: 'test' });
+  let captured = null;
+  client._provider = async (_c, method, args) => { captured = { method, args }; return 'r'; };
+  // Simulate the lowered pipe: `client(article)`
+  const result = await client('article');
+  expect(result).toBe('r');
+  expect(captured.method).toBe('ask');
+  expect(captured.args[0]).toBe('article');
+});
+
 test('createDefaultAI reads from TOVA_AI_* env vars', async () => {
   const prev = {
     p: process.env.TOVA_AI_PROVIDER,
@@ -158,48 +175,61 @@ git commit -m "runtime: make AI client callable; add createDefaultAI helper"
 - Modify: `src/diagnostics/error-codes.js`
 - Test: `tests/error-codes.test.js` (check if it exists; otherwise add a small check to `tests/ai.test.js`)
 
-Register the seven new codes with descriptions so `tova explain E700` etc. work (per T4-4 infra). No analyzer wiring yet — that's a later task.
+Register the seven new codes. The existing file exports two named objects — `ErrorCode` and `WarningCode` — each keyed by code, with entries of shape `{ code, title, category }`. No `description` field; no default export. Categories in use include `syntax`, `type`, `scope`, `context`, `import`, `match`, `trait`, `unused`, etc. Use `context` for E700/E701 (matches E302/E303), `syntax`/`type` as appropriate for the others. Do **not** claim anything about `tova explain` — that CLI path is not part of this task and its wiring is out of scope.
 
-- [ ] **Step 1: Inspect existing code table.**
-
-Run: `grep -n '^\s*E[0-9]\{3\}:' src/diagnostics/error-codes.js | tail -20` to see the existing code style.
+- [ ] **Step 1: Inspect existing code table.** Read `src/diagnostics/error-codes.js` lines 1–120 to confirm the `{ code, title, category }` shape and see where `context` / `trait` ranges end.
 
 - [ ] **Step 2: Write the failing test.** Add to the end of `tests/ai.test.js`:
 
 ```js
 describe('AI diagnostic codes', () => {
-  test('E700–E705 and W304 are registered', async () => {
-    const mod = await import('../src/diagnostics/error-codes.js');
-    const codes = mod.ERROR_CODES || mod.default || mod.codes || mod;
-    for (const code of ['E700', 'E701', 'E702', 'E703', 'E704', 'E705', 'W304']) {
-      expect(codes[code]).toBeDefined();
-      expect(typeof codes[code].description || codes[code].summary || codes[code]).not.toBe('undefined');
+  test('E700–E705 are registered in ErrorCode', async () => {
+    const { ErrorCode } = await import('../src/diagnostics/error-codes.js');
+    for (const code of ['E700', 'E701', 'E702', 'E703', 'E704', 'E705']) {
+      expect(ErrorCode[code]).toBeDefined();
+      expect(ErrorCode[code].code).toBe(code);
+      expect(typeof ErrorCode[code].title).toBe('string');
+      expect(ErrorCode[code].title.length).toBeGreaterThan(0);
+      expect(typeof ErrorCode[code].category).toBe('string');
     }
+  });
+
+  test('W304 is registered in WarningCode', async () => {
+    const { WarningCode } = await import('../src/diagnostics/error-codes.js');
+    expect(WarningCode.W304).toBeDefined();
+    expect(WarningCode.W304.code).toBe('W304');
+    expect(typeof WarningCode.W304.title).toBe('string');
   });
 });
 ```
 
-(If the test fails because the export shape is different, adjust — keep the assertion that all seven codes exist.)
-
 - [ ] **Step 3: Run test to verify it fails.**
 
-Run: `bun test tests/ai.test.js -t "AI diagnostic codes"`
+Run: `bun test tests/ai.test.js -t "diagnostic codes"`
 Expected: FAIL — codes not registered.
 
-- [ ] **Step 4: Add the codes.** Follow the existing file's style. Minimal summaries:
+- [ ] **Step 4: Add the codes.** Append entries to `ErrorCode` and `WarningCode` using the existing shape `{ code, title, category }`:
 
-- `E700`: "AI calls are server-only. Expose via a server route or use a shared server function."
-- `E701`: "`ai { }` configuration is server-only. Move it to `server { }` or module top-level."
-- `E702`: "`prompt fn` return type cannot be dispatched automatically. Use a plain function that calls `ai.ask`/`.extract`/`.classify` explicitly."
-- `E703`: "Prompt-literal tag is not an AI provider binding."
-- `E704`: "`prompt fn` body must be a single string expression."
-- `E705`: "Hardcoded `api_key` — use `env(\"...\")` (strict mode)."
-- `W304`: "Hardcoded `api_key` — use `env(\"...\")`."
+```js
+// In ErrorCode (append after the E6xx trait section):
+// === AI Errors (E700–E799) ===
+E700: { code: 'E700', title: 'AI calls are server-only',                  category: 'context' },
+E701: { code: 'E701', title: 'AI configuration is server-only',           category: 'context' },
+E702: { code: 'E702', title: 'prompt fn return type not dispatchable',    category: 'type' },
+E703: { code: 'E703', title: 'Prompt-literal tag is not an AI provider',  category: 'scope' },
+E704: { code: 'E704', title: 'prompt fn body must be a single string',    category: 'syntax' },
+E705: { code: 'E705', title: 'Hardcoded api_key — use env()',             category: 'security' },
+
+// In WarningCode (append in the W3xx range — inspect the file to confirm the next free slot):
+W304: { code: 'W304', title: 'Hardcoded api_key — use env()',             category: 'security' },
+```
+
+If `security` isn't already a category in the file, pick an existing one (`style` or `logic`) that best fits; consistency with the rest of the registry matters more than inventing a new category.
 
 - [ ] **Step 5: Run tests and verify pass.**
 
 Run: `bun test tests/ai.test.js`
-Expected: new test passes; all others still pass.
+Expected: new tests pass; all others still pass.
 
 - [ ] **Step 6: Commit.**
 
@@ -375,16 +405,24 @@ Existing analyzer tests already prove `ai`/named providers are registered inside
 - [ ] **Step 1: Write the failing test.**
 
 ```js
-test('module-level ai is registered in scope', () => {
+test('module-level ai is registered in scope (no E200)', () => {
   const result = analyze(`ai { provider: "anthropic", model: "x", api_key: "k" }\nresult = ai.ask("hi")`);
-  const errs = (result.errors || []).filter(e => e.message.includes("'ai'") && e.message.includes('undefined'));
+  const errs = (result.errors || []).filter(e => String(e.code || '') === 'E200');
   expect(errs.length).toBe(0);
 });
 
-test('module-level named ai is registered in scope', () => {
+test('module-level named ai is registered in scope (no E200)', () => {
   const result = analyze(`ai "claude" { provider: "anthropic", model: "x", api_key: "k" }\nresult = claude.ask("hi")`);
-  const errs = (result.errors || []).filter(e => e.message.includes("'claude'"));
+  const errs = (result.errors || []).filter(e => String(e.code || '') === 'E200');
   expect(errs.length).toBe(0);
+});
+
+test('ai bindings are module-local (not auto-exported)', () => {
+  // Compiling a module that declares `ai {}` should NOT emit `export` for it.
+  const out = compile(`ai { provider: "anthropic", model: "x", api_key: "k" }`);
+  const code = typeof out === 'string' ? out : (out.module || out.server || out.shared || '');
+  expect(code).toMatch(/const\s+ai\s*=\s*__createAI/);
+  expect(code).not.toMatch(/export\s+(const\s+ai|\{[^}]*\bai\b[^}]*\})/);
 });
 ```
 
@@ -437,6 +475,17 @@ test('using ai.ask WITH a block does NOT emit __createDefaultAI', () => {
   const out = typeof result === 'string' ? result : (result.module || result.server || result.shared || '');
   expect(out).not.toContain('__createDefaultAI');
 });
+
+test('__createDefaultAI is emitted exactly once even with multiple triggers', () => {
+  // Extension: the flag-then-emit rule from later tasks must not double-emit
+  // when both a free `ai` reference and an `ai"..."` prompt literal exist.
+  // Until Task 8 lands, this case tests only the free-var trigger — still
+  // useful to lock the "exactly one prefix" invariant.
+  const result = compile(`x = ai.ask("a")\ny = ai.ask("b")`);
+  const out = typeof result === 'string' ? result : (result.module || result.server || result.shared || '');
+  const matches = out.match(/__createDefaultAI/g) || [];
+  expect(matches.length).toBe(1);
+});
 ```
 
 - [ ] **Step 2: Run to verify it fails.**
@@ -487,13 +536,26 @@ TAGGED_STRING: 'TAGGED_STRING',
 
 ```js
 describe('tagged strings', () => {
-  test('claude"hello" emits a single TAGGED_STRING token', () => {
+  test('claude"hello" emits a single TAGGED_STRING token wrapping STRING', () => {
     const tokens = new Lexer('claude"hello"', 't').tokenize();
     const sig = tokens.filter(t => t.type !== 'NEWLINE' && t.type !== 'EOF');
     expect(sig.length).toBe(1);
     expect(sig[0].type).toBe('TAGGED_STRING');
     expect(sig[0].value.tag).toBe('claude');
-    // The string payload should have been processed for interpolation exactly like a plain "..."
+    expect(sig[0].value.inner.type).toBe('STRING');
+    expect(sig[0].value.inner.value).toBe('hello');
+  });
+
+  test('claude"hello {name}" emits TAGGED_STRING wrapping STRING_TEMPLATE', () => {
+    const tokens = new Lexer('claude"hello {name}"', 't').tokenize();
+    const sig = tokens.filter(t => t.type !== 'NEWLINE' && t.type !== 'EOF');
+    expect(sig.length).toBe(1);
+    expect(sig[0].type).toBe('TAGGED_STRING');
+    expect(sig[0].value.tag).toBe('claude');
+    expect(sig[0].value.inner.type).toBe('STRING_TEMPLATE');
+    const parts = sig[0].value.inner.value;
+    expect(Array.isArray(parts)).toBe(true);
+    expect(parts.some(p => p.type === 'expr')).toBe(true);
   });
 
   test('f"hello" is NOT a TAGGED_STRING (f stays reserved)', () => {
@@ -528,34 +590,30 @@ Expected: FAIL.
 
 - [ ] **Step 4: Implementation.**
 
-In `src/lexer/lexer.js`, inside `scanIdentifier()` (around line 867), after computing `value` and **before** the `r"..."` and `f"..."` specializations, **keep** those specializations first. After both of them, add:
+**Established fact (verified during plan authoring):** `scanString()` emits **exactly one token** per string — `STRING` for plain strings and `STRING_TEMPLATE` for interpolated ones (both plain double-quoted and triple-quoted inputs collapse to a single token; the template's interpolations are carried inside the token's `value` as an array of `text`/`expr` parts). This simplifies the tag path — there is no splice-marker case.
+
+In `src/lexer/lexer.js`, inside `scanIdentifier()` (around line 867), **after** the existing `r"..."` (line 888) and `f"..."` (line 905) specializations, add:
 
 ```js
 // Tagged prompt literal: <ident>"..." / <ident>"""..."""
-// Identifier must be immediately adjacent to the quote (no whitespace consumed here
-// because scanIdentifier runs inside tokenize() which does NOT skip whitespace mid-token).
+// Requires adjacency: scanIdentifier stops at the first non-identifier char, so
+// the next char being `"` means no whitespace was consumed between them.
 if (value !== 'f' && value !== 'r' && this.pos < this.length && this.peek() === '"') {
-  // Remember where the identifier started — we'll rewrite the last IDENTIFIER token or just emit a TAGGED_STRING directly.
-  // Strategy: do NOT push an IDENTIFIER. Instead, scan the string via scanString() into a scratch array, then replace its last-emitted token with a TAGGED_STRING that carries the tag.
   const beforeLen = this.tokens.length;
-  this.scanString(); // reuses existing interpolation + triple-quote logic; pushes STRING tokens
-  // scanString pushes either one STRING or (for interpolated) multiple INTERP tokens.
-  // We wrap whatever it pushed into a TAGGED_STRING by tagging the first pushed token.
-  // Simpler: tag only the single-STRING case here; for interpolated strings we need to preserve the token stream,
-  // so we push a preceding TAG_PREFIX marker token.
-  const emittedCount = this.tokens.length - beforeLen;
-  if (emittedCount === 1 && this.tokens[beforeLen].type === TokenType.STRING) {
-    const strTok = this.tokens[beforeLen];
-    this.tokens[beforeLen] = new Token(TokenType.TAGGED_STRING, { tag: value, value: strTok.value }, startLine, startCol);
-  } else {
-    // Interpolated string: emit a TAG_PREFIX marker token ahead of the string tokens.
-    this.tokens.splice(beforeLen, 0, new Token(TokenType.TAGGED_STRING, { tag: value, value: null }, startLine, startCol));
-  }
+  this.scanString(); // pushes exactly one STRING or STRING_TEMPLATE token
+  const emitted = this.tokens[beforeLen];
+  // Wrap the emitted token as a TAGGED_STRING while preserving its payload.
+  this.tokens[beforeLen] = new Token(
+    TokenType.TAGGED_STRING,
+    { tag: value, inner: emitted },  // `inner` carries either STRING or STRING_TEMPLATE shape
+    startLine,
+    startCol,
+  );
   return;
 }
 ```
 
-**Implementation note:** inspect the current shape of the interpolation path in `scanString()` (line 471) before finalizing — the above strategy assumes interpolation produces multiple tokens; if it produces a single `STRING` with embedded expression pieces, simplify to always tag the single token.
+The `{ tag, inner }` shape keeps the original scanned token available so the parser can reuse the existing String/StringTemplate parse path on the inner payload. Do not invent a new payload format — the parser task uses `inner` directly.
 
 - [ ] **Step 5: Run lexer tests and verify pass.**
 
@@ -602,12 +660,12 @@ describe('prompt literals', () => {
     expect(err).toBeDefined();
   });
 
-  test('interpolation in prompt literals works', () => {
+  test('interpolation in prompt literals compiles to a template literal', () => {
     const out = compile(`ai { provider: "anthropic", model: "x", api_key: "k" }\nname = "world"\nresult = ai"hello {name}"`);
     const code = typeof out === 'string' ? out : (out.module || out.server || out.shared || '');
-    // Output should include an interpolated template feeding ai.ask
-    expect(code).toContain('ai.ask');
-    expect(code).toContain('name'); // interpolated identifier appears in emission
+    // The lowered call should be `ai.ask(\`hello ${name}\`)` (modulo whitespace and awaits).
+    // Assert the key shape tokens appear in order: ai.ask( ... `hello ${ ... name ... }` ... )
+    expect(code).toMatch(/ai\.ask\(\s*`hello \$\{[^`]*name[^`]*\}`/);
   });
 });
 ```
@@ -639,24 +697,20 @@ In `src/parser/parser.js`, inside `parsePrimary()` (or wherever literal tokens a
 ```js
 if (this.check(TokenType.TAGGED_STRING)) {
   const tok = this.advance();
-  const { tag, value } = tok.value;
-  // Build a string-expression AST for the payload. If the lexer tagged a single
-  // STRING token, `value` is the raw payload. If the lexer split it (interpolation
-  // case), the TAG_PREFIX marker was pushed, and the next tokens form the string —
-  // in that branch, synthesize a StringLiteral from the current state.
-  let template;
-  if (value !== null) {
-    template = new AST.StringLiteral(value, tok.loc);
-  } else {
-    // Interpolated: parse the next expression as a string. Simplest: re-use parseExpression()
-    // because the interpolation tokens are already in the stream immediately after TAG_PREFIX.
-    template = this.parseExpression();
-  }
-  return new AST.PromptLiteral(tag, template, tok.loc);
+  const { tag, inner } = tok.value;
+  // `inner` is the token that scanString() would have emitted on its own:
+  //   { type: 'STRING', value: <string> } or
+  //   { type: 'STRING_TEMPLATE', value: <parts[]> }
+  // Reuse the existing primary-expression builders for each shape. Do NOT
+  // re-invoke parseExpression — the inner payload is not in the token stream.
+  const template = inner.type === 'STRING_TEMPLATE'
+    ? this._buildStringTemplateAst(inner, tok)     // existing helper used by STRING_TEMPLATE parsing
+    : new AST.StringLiteral(inner.value, tok);
+  return new AST.PromptLiteral(tag, template, tok);
 }
 ```
 
-(Adjust to match the lexer's actual emission — see Task 7 Step 4's implementation note.)
+Find the existing branch that handles `STRING_TEMPLATE` in `parsePrimary` and extract it into a `_buildStringTemplateAst(token, loc)` helper if it isn't already factored. Use that helper from both the normal string path and the prompt-literal path.
 
 - [ ] **Step 5: Analyzer.**
 
@@ -734,6 +788,13 @@ describe('prompt fn declarations', () => {
     const err = (result.errors || []).find(e => String(e.code || '').includes('E704') || e.message.toLowerCase().includes('single string'));
     expect(err).toBeDefined();
   });
+
+  test('regression: `with ... as` context-manager statement still parses', () => {
+    // T3-7 context manager syntax must not be disturbed by the prompt fn `with <provider>` suffix.
+    const ast = parse(`with open("file.txt") as f { data = f.read() }`);
+    // Just assert it parses without error — exact AST shape is owned by T3-7.
+    expect(ast.body.length).toBeGreaterThan(0);
+  });
 });
 ```
 
@@ -760,6 +821,8 @@ export class PromptFnDeclaration {
 
 - [ ] **Step 4: Parser.**
 
+**Verified token facts** (from `src/lexer/tokens.js`): `FN: 'FN'`, `WITH: 'WITH'`, `THIN_ARROW: 'THIN_ARROW'` (i.e. `->`), `ARROW: 'ARROW'` (i.e. `=>`). **Use `THIN_ARROW` for the return-type arrow — `ARROW` is the lambda `=>`.** Existing function declarations at `parser.js:775, 800, 848, 909` all use `this.match(TokenType.THIN_ARROW)` and then `parseTypeAnnotation()` — mirror that exactly.
+
 In the statement dispatch, **before** the regular identifier path:
 
 ```js
@@ -782,11 +845,11 @@ parsePromptFnDeclaration() {
   this.expect(TokenType.LPAREN);
   const params = this.parseParameterList();
   this.expect(TokenType.RPAREN);
-  this.expect(TokenType.ARROW, "prompt fn requires a return type"); // '->'
-  const returnType = this.parseType();
+  this.expect(TokenType.THIN_ARROW, "prompt fn requires a return type (use '-> Type')");
+  const returnType = this.parseTypeAnnotation();
   let provider = null;
   if (this.check(TokenType.WITH)) {
-    this.advance();
+    this.advance(); // consume 'with'
     provider = this.expect(TokenType.IDENTIFIER, "Expected provider identifier after 'with'").value;
   }
   this.expect(TokenType.LBRACE);
@@ -1046,7 +1109,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implementation.**
 
-In the `AiConfigDeclaration` visitor, check whether `config.api_key?.type === 'StringLiteral'`. If so and not strict, push `W304`; if strict, push `E705`. Re-use whatever strict-flag plumbing is already in the analyzer (existing `UnknownType` strict-mode logic has a precedent — see T1-6).
+**Verified:** `src/analyzer/analyzer.js:129` sets `this.strict = options.strict || false;` — so `new Analyzer(ast, file, { strict: true })` is the correct invocation. The test above matches this exactly. In the `AiConfigDeclaration` visitor, check whether `config.api_key?.type === 'StringLiteral'`. If so and `!this.strict`, push `W304`; if `this.strict`, push `E705`.
 
 - [ ] **Step 4: Run full suite.**
 
@@ -1066,19 +1129,36 @@ git commit -m "analyzer: warn (W304) / error under --strict (E705) on hardcoded 
 
 **Files:**
 - Modify: `src/lsp/server.js`
-- Test: `tests/lsp.test.js` if one exists; otherwise smoke-test manually
+- Test: `tests/lsp.test.js` (the file exists — add tests to it)
 
-- [ ] **Step 1: Inlay hints.**
+- [ ] **Step 1: Write the failing tests.**
+
+Before any implementation, add tests to `tests/lsp.test.js` that:
+1. Assert the inlay-hint provider returns a hint with label `": ask"` / `": extract"` / `": classify"` at the declaration site of each corresponding `prompt fn`.
+2. Assert the inlay-hint provider returns a hint with label `": ask"` at a prompt-literal position.
+3. Assert that a document containing `client { ai { provider: "anthropic", model: "x", api_key: "k" } }` produces a code action with the title pattern `/Move .*ai.* block/` for the E701 diagnostic.
+
+Match the existing test style in `tests/lsp.test.js` — read the first 40–80 lines of that file to copy the harness pattern.
+
+- [ ] **Step 2: Run tests to verify fail.**
+
+Run: `bun test tests/lsp.test.js -t "prompt"`
+Expected: FAIL.
+
+- [ ] **Step 3: Inlay hints.**
 
 Extend the existing inlay-hint visitor (T10-7) so that for each `PromptLiteral` and `PromptFnDeclaration`, it emits a hint showing the dispatched method, e.g. `: ask` or `: extract` or `: classify`.
 
-- [ ] **Step 2: Quick-fix for E701.**
+- [ ] **Step 4: Quick-fix for E701.**
 
 Add a code-action handler that, given an `E701` diagnostic, offers "Move `ai` block to module top-level" — the text edit removes the block from its `client { ... }` position and prepends it before the enclosing file's first block.
 
-- [ ] **Step 3: If a test file exists, add tests; otherwise document the manual verification steps in the commit body.**
+- [ ] **Step 5: Run tests to verify pass.**
 
-- [ ] **Step 4: Commit.**
+Run: `bun test tests/lsp.test.js`
+Expected: new tests pass; no regressions.
+
+- [ ] **Step 6: Commit.**
 
 ```bash
 git add src/lsp/server.js tests/lsp.test.js
@@ -1096,11 +1176,13 @@ git commit -m "lsp: inlay hints for prompt literals / prompt fn; E701 quick-fix"
 
 Replace the current "add an `ai {}` block inside a `server` block" framing with: "AI works anywhere server-reachable — scripts, modules, `server`, and `shared` blocks. Configure with an `ai { }` block or let the compiler pick up `TOVA_AI_*` env vars."
 
-- [ ] **Step 2: Add a "What's new" section** at the top with side-by-side before/after snippets for:
-- Module-level `ai { }`
-- Prompt literal `ai"..."` / `claude"..."`
-- `prompt fn` declarations (one case per dispatch method)
-- Callable providers in pipes
+- [ ] **Step 2: Add a "What's new" section** at the top with side-by-side before/after snippets. Each of the four entries below must contain one concrete "before" block and one concrete "after" block (not bullet summaries):
+  1. Module-level `ai { }`
+  2. Prompt literal `ai"..."` / `claude"..."`
+  3. `prompt fn` declarations — one case per dispatch method (ask/extract/classify)
+  4. Callable providers in pipes (`|> claude`)
+
+**Acceptance check:** after the edit, `grep -c '^### Before' docs/guide/ai.md` should print at least `4`, and `grep -c '^### After' docs/guide/ai.md` should print at least `4`. Run these greps as part of the task; if the counts are lower, the section is incomplete.
 
 - [ ] **Step 3: Keep the existing content** further down for reference. Update only opening framing and add the new section.
 
@@ -1125,7 +1207,7 @@ Expected: all tests pass.
 Run: `bun scripts/embed-runtime.js` (to ensure the runtime embed still succeeds with the modified `ai.js`)
 Expected: exits 0.
 
-- [ ] **Step 3: Smoke-test with a real script.** Create `tmp/smoke.tova`:
+- [ ] **Step 3: Smoke-test with a real script.** Create `tmp/smoke.tova` (make the directory first with `mkdir -p tmp`):
 
 ```tova
 prompt fn summarize(text: String) -> String {
