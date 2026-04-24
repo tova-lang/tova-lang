@@ -20,11 +20,12 @@ This spec makes `ai` an ambient, first-class value anywhere server-reachable, ad
 ## Non-goals (explicitly out of scope)
 
 - Parallel pipe operator or `await_all` helper.
-- System-prompt syntax inside `prompt fn`.
+- System-prompt syntax inside `prompt fn`. **Note:** if added later, the "body is exactly one string expression" rule (`E704`) will need to relax to admit a second string or a `system:` label; the design is willing to revisit `E704` rather than committing to a specific future shape now.
 - Streaming prompt literals returning async iterators.
 - Client-side auto-proxy of AI calls through generated routes.
 - Cost/token tracking primitives.
 - Caching or memoization of prompt calls.
+- **Transitive reachability analysis for `E700`.** Today the check is purely lexical (see §1.2). Promoting it to a call-graph analysis is a clean follow-up; it strengthens a diagnostic rather than changing language semantics, so it lands non-breaking.
 
 Each is a clean future extension that this design leaves room for.
 
@@ -43,7 +44,7 @@ Each is a clean future extension that this design leaves room for.
 
 #### 1.2 Where AI calls are legal
 
-AI calls — `ai.ask(...)`, prompt literals, prompt fns, callable providers — are legal anywhere server-reachable. A call inside `client { ... }` (or a browser-targeted output file) is a compile error:
+AI calls — `ai.ask(...)`, prompt literals, prompt fns, callable providers — are legal anywhere server-reachable. A call **lexically inside** `client { ... }` (or a browser-targeted output file) is a compile error:
 
 ```
 E700: AI calls are server-only. Expose via a server route or use a shared server function.
@@ -51,16 +52,33 @@ E700: AI calls are server-only. Expose via a server route or use a shared server
 
 The analyzer already tracks block context; this is one additional check at the call site.
 
+**Limitation — lexical only.** `E700` is raised at lexically nested call sites. A `shared` function that calls `ai.ask(...)` and is imported/called from `client { ... }` will **not** trigger `E700` at compile time; it will fail at runtime when the client attempts to call into server-only code (the existing RPC/server-reachability machinery already handles that error surface). Transitive reachability analysis is a non-goal of this spec (see "Non-goals" below) and can be added later without breaking changes.
+
 #### 1.3 Default `ai` resolution (no block present)
 
-When a file uses an AI construct without any `ai { }` block in scope, the compiler emits an implicit default client that reads configuration from env at first call:
+**Trigger (precise):** during scope resolution the analyzer tracks whether any reference to the identifier `ai` was resolved against an `ai { }` binding. At codegen, if (a) any unresolved free reference to `ai` exists in the compilation unit, **or** (b) any `PromptLiteral` in the compilation unit uses `ai` as its tag, **or** (c) any `PromptFnDeclaration` in the compilation unit has no `with <provider>` clause and no enclosing `ai { }` block, then the compiler prepends an implicit default client at the top of the emitted module:
 
-- `TOVA_AI_PROVIDER` (default: `"custom"`)
+```js
+const ai = __createAI({
+  provider: process.env.TOVA_AI_PROVIDER,
+  model: process.env.TOVA_AI_MODEL,
+  api_key: process.env.TOVA_AI_API_KEY,
+  base_url: process.env.TOVA_AI_BASE_URL,
+});
+```
+
+Env vars used:
+
+- `TOVA_AI_PROVIDER` (default: `"custom"` in the runtime when the env var is unset)
 - `TOVA_AI_MODEL`
 - `TOVA_AI_API_KEY`
 - `TOVA_AI_BASE_URL`
 
-An explicit `ai { }` in the same or an enclosing scope shadows the env defaults. Named providers (`ai "claude" { ... }`) never read env unless the block itself says `api_key: env("...")`.
+**Does not trigger the default:** a `prompt fn … with claude` whose body never references the identifier `ai`, and whose call sites never use `ai` as a prompt-literal tag, emits no env-backed client. Only the named `claude` binding is emitted.
+
+**Shadowing:** an explicit `ai { }` in the same or an enclosing scope shadows the env defaults (no env-backed client is emitted). Named providers (`ai "claude" { ... }`) never read env unless the block itself says `api_key: env("...")`.
+
+**Module-locality:** `ai` and named provider bindings are **module-local**. They are emitted as plain `const` declarations and are not auto-exported. To share a configured client across modules, declare it in a `shared { }` block and import it explicitly, or export it by name with `pub`.
 
 A script with no env vars and no block produces a clean runtime error at first call:
 
@@ -82,10 +100,11 @@ long_form  = claude"""
 ```
 
 Rules:
-- Desugars to `<tag>.ask(f"...")`; interpolation follows existing f-string rules.
+- Desugars to `<tag>.ask("...")`. Plain double-quoted Tova strings already support `{expr}` interpolation (T3-8), so no `f` prefix is needed or permitted on prompt literals; `f"..."` and `r"..."` remain reserved prefixes and are **not** legal as prompt-literal tags. The body interpolates using the existing string rules — both single- and triple-quoted forms.
 - The tag must resolve to an `ai`-typed binding (default `ai`, a named provider, or a `shared` alias). Any other binding is error `E703`.
-- Triple-quoted variant supported, auto-dedented like other triple-quoted strings (T3-1).
-- Lexer emits a single `TAGGED_STRING` token for `<ident>"..."` and `<ident>"""..."""`. The tag identifier is resolved by the analyzer, not the lexer; unresolved tags fall through to the existing parse-error path so unrelated juxtapositions aren't silently absorbed.
+- Triple-quoted variant `<ident>"""..."""` is auto-dedented identically to existing triple-quoted strings (T3-1). All rules in this section apply equally to single- and triple-quoted variants.
+- **Lexer rule (precise):** when an `IDENTIFIER` token is immediately followed (no whitespace, no newline) by `"` or `"""`, and the identifier is neither the reserved prefix `f` nor `r`, the lexer emits a single `TAGGED_STRING` token carrying both the identifier and the string contents. Any whitespace between the identifier and the opening quote disables this rule and the two tokens lex separately. This means `foo"hi"` in existing code — e.g. inside a list literal — would now lex as `TAGGED_STRING`; the analyzer then rejects it with `E703` if `foo` is not AI-typed, which is a strictly better error than the previous silent juxtaposition. Grep across the repo confirms no existing valid Tova program relies on adjacent `<ident>"..."` tokens.
+- **Interpolation inside pipelines:** in `derive`/`where`/`filter` closures, `{.field}` inside a prompt-literal interpolation resolves to the implicit-`it` field, identical to how it resolves in any other string used in the same position.
 
 ### 3. Prompt functions (`prompt fn`)
 
@@ -108,14 +127,22 @@ prompt fn deep_analysis(x: String) -> Report with smart {
 ```
 
 Rules:
-- Body must be exactly one string expression — single- or triple-quoted. Anything else is error `E704`.
-- Return type drives method dispatch:
+- Body must be exactly one string expression — single- or triple-quoted. Anything else is error `E704`. The body string uses standard Tova interpolation (`{expr}`); the `f` prefix is neither required nor forbidden.
+- **`prompt` is a contextual keyword.** It is recognized as the `prompt fn` declaration introducer only when the very next token is `fn`. Everywhere else (variables, function names, DOM global `prompt("…")` in client code) `prompt` remains an ordinary identifier. This preserves the existing browser-global `prompt` registered in `src/analyzer/analyzer.js`.
+- Return type drives method dispatch. The complete dispatch table:
   - `String` / `Int` / `Float` / `Bool` / `[<primitive>]` → `ask`
-  - Record / struct type → `extract(prompt, ReturnType)`
+  - Record / struct (plain named type declared with fields) → `extract(prompt, ReturnType)`
   - Fieldless enum / ADT variant type → `classify(prompt, ReturnType)`
-  - Anything else (unions, generics, `Option`, tuples) → error `E702`, with the suggested fix "use a plain function that calls `ai.ask`/`.extract`/`.classify` explicitly."
-- Optional `with <provider>` clause picks a non-default provider. Without it, the enclosing `ai` binding is used.
-- Compiled as `async` automatically. Call sites follow the usual await/async rules; the analyzer's existing "Add `async` to function" quick-fix applies unchanged.
+  - **Rejected with `E702`** (the spec does not pick a method for these; user must write a plain function):
+    - `Any`, `Unknown`, `Nil`
+    - Unresolved type variable `T` from `prompt fn<T>`
+    - `Option<_>`, `Result<_, _>`, any other parameterized type
+    - `Map<_,_>`, `Set<_>`, tuples
+    - `[Record]` (array of records) and `[Enum]` (array of fieldless enums)
+    - Union types (`String | Int`, etc.)
+  - The rejection list is exhaustive; no silent fallback to `ask`.
+- Optional `with <provider>` clause picks a non-default provider. **Grammar:** the `with <identifier>` clause is recognized **only** between the return-type annotation `-> Type` and the opening `{` of the body. `as` is not permitted in this form. Outside this position, `with` continues to behave as the existing context-manager statement keyword (T3-7) — there is no parser conflict because the `prompt fn` parse path consumes the suffix before the body block begins, and the existing `with` statement requires `as <name>` which the suffix never carries.
+- Compiled as `async` automatically. Call sites follow the usual await/async rules; the analyzer's existing "Add `async` to function" quick-fix (T4-5) applies. Implementation note: verify the quick-fix keys off detected-async return, not an allowlist; extend if necessary so `prompt fn` callees are recognized.
 
 ### 4. Callable providers
 
@@ -123,9 +150,13 @@ Every binding created by `ai { }` or `ai "name" { }` is callable. The default `a
 
 ```tova
 claude(text)              // == claude.ask(text)
+claude(text, tools: [...])         // == claude.ask(text, tools: [...])
+claude(text, temperature: 0.2)     // == claude.ask(text, temperature: 0.2)
 summary = article |> claude
 classifications = issues |> map(fast)
 ```
+
+**Arity:** `claude(...args)` forwards all arguments — positional and named-option — unchanged to `claude.ask(...args)`. There is no argument reshaping. The runtime already accepts `ask(prompt, opts?)`; the callable form is a direct alias.
 
 Methods remain: `.ask`, `.chat`, `.embed`, `.extract`, `.classify`. The callable form is sugar for `.ask` only — other methods must be accessed through their member name, since their signatures differ.
 
@@ -158,7 +189,8 @@ Async model:
 | `E702` | `prompt fn` return type cannot be dispatched | "Use a plain function that calls `ai.ask`/`.extract`/`.classify` explicitly" |
 | `E703` | Prompt-literal tag is not an `ai`-typed binding | "`foo` is not an AI provider. Did you mean `ai\"...\"`?" |
 | `E704` | `prompt fn` body is not a single string expression | "Prompt function body must be a string template" |
-| `E705` | `api_key` is a hardcoded string literal (warning) | "Hardcoded API keys are a leak risk. Use `env(\"...\")`" — escalates to error under `--strict` |
+| `W304` | `api_key` is a hardcoded string literal (default severity: warning) | "Hardcoded API keys are a leak risk. Use `env(\"...\")`" |
+| `E705` | Same condition as `W304`, but under `--strict` mode (escalation) | Same fix as `W304` |
 
 One runtime error accompanies the env-default path (Section 1.3).
 
@@ -208,7 +240,7 @@ enriched = reviews
 Touching the smallest surface that delivers the design:
 
 - **Lexer** `src/lexer/lexer.js` — emit `TAGGED_STRING` tokens for `<ident>"..."` and `<ident>"""..."""`.
-- **Tokens** `src/lexer/tokens.js` — add `PROMPT` keyword; add `TAGGED_STRING` token type. Reuse the existing `WITH` keyword contextually for the `with <provider>` clause.
+- **Tokens** `src/lexer/tokens.js` — add `TAGGED_STRING` token type. `prompt` is a **contextual** keyword (only recognized when immediately followed by `fn`) and therefore does **not** require a new reserved token — it remains an `IDENTIFIER` at the token level, and the parser disambiguates. The existing `WITH` keyword is reused contextually for the `with <provider>` clause (position-restricted, see §3).
 - **Parser** `src/parser/parser.js` — parse `prompt fn` declarations (one-string-expression body); parse `with <identifier>`; parse `TAGGED_STRING` expressions.
 - **Module parser** `src/parser/parser.js` — lift `parseAiConfig` so `ai { }` is legal at module top-level and inside `shared { }`. Keep the server-parser dispatch in `parseServerStatement` unchanged for its existing entry.
 - **AST** `src/parser/ast.js` — add `PromptFnDeclaration`, `PromptLiteral`. No new flag on `AiConfigDeclaration`; all AI bindings are callable by convention at runtime.
