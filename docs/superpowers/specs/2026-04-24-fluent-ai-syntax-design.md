@@ -249,7 +249,7 @@ Touching the smallest surface that delivers the design:
   - Resolve prompt-literal tags to AI bindings (`E703`).
   - Dispatch `prompt fn` by return type (`E702`).
   - Enforce client/browser-block rejection (`E700`, `E701`).
-  - Warn on hardcoded `api_key` in `--strict` (`E705`).
+  - Emit `W304` on a hardcoded `api_key` string literal (default severity: warning); escalate to `E705` under `--strict`.
 - **Codegen** `src/codegen/base-codegen.js`, `src/codegen/server-codegen.js`, `src/codegen/codegen.js` —
   - Emit module-level `const ai = __createAI({...})` when an `ai { }` appears at top level.
   - Emit an implicit env-backed client when the file uses `ai` without a block.
