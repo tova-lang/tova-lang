@@ -249,7 +249,7 @@ shared {
   }
 }
 
-// Bad: don't put business logic in shared
+// Avoid: don't put business logic in shared
 shared {
   fn create_user(name, email) {  // This belongs in server {}
     UserModel.create({ name, email })
@@ -315,7 +315,9 @@ browser {
     users = server.get_users()
   }
 }
+```
 
+```tova
 // Avoid: manual fetch calls bypass the RPC bridge
 browser {
   fn load_data() {

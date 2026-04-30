@@ -466,8 +466,8 @@ SSE is used for alerts because it's one-way (server to client) and auto-reconnec
 
 ```tova
 schedule "generate_metrics" cron("* * * * * *") {
-  cpu = Metric { name: "cpu_usage", value: Math.random() * 100.0, ... }
-  // ...
+  cpu = Metric { name: "cpu_usage", value: Math.random() * 100.0, unit: "percent", timestamp: now() }
+  /* ... */
   ws.broadcast(JSON.stringify({ "type": "metrics", data: new_metrics }))
 }
 ```

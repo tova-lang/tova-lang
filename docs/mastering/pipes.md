@@ -166,7 +166,7 @@ The pipe `|>` takes the value on the left and passes it as the first argument to
 
 ```tova
 // These are equivalent:
-result = toString(sum(filter(numbers, fn(x) x > 0)))
+var result = toString(sum(filter(numbers, fn(x) x > 0)))
 
 result = numbers
   |> filter(fn(x) x > 0)
@@ -184,7 +184,7 @@ Compare these two approaches to the same problem:
 
 ```tova
 // Nested calls (read inside-out)
-result = join(map(filter(split(upper(trim(input)), " "), fn(w) len(w) > 3), fn(w) lower(w)), ", ")
+var result = join(map(filter(split(upper(trim(input)), " "), fn(w) len(w) > 3), fn(w) lower(w)), ", ")
 
 // Piped (read top-to-bottom)
 result = input

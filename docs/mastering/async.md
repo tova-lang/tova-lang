@@ -325,7 +325,11 @@ async fn countdown(n) {
 Tova's stdlib includes a `retry` function for retrying async operations that **throw exceptions** on failure:
 
 ```tova
-result = await retry(fn() fetch_data(url), { times: 3, delay: 100 })
+async fn main() {
+  result = await retry(fn() fetch_data(url), { times: 3, delay: 100 })
+}
+
+main()
 ```
 
 The first argument is a zero-argument function that performs the operation. The second is an options object:
@@ -448,7 +452,11 @@ async fn process_in_batches(items, batch_size, processor) {
 }
 
 // Process 100 items, 10 at a time
-await process_in_batches(items, 10, fn(item) transform(item))
+async fn main() {
+  await process_in_batches(items, 10, fn(item) transform(item))
+}
+
+main()
 ```
 
 ## Channels -- Async Communication
@@ -531,8 +539,12 @@ Use channels when tasks need to pass data in sequence (streaming, pipelines, wor
 For CPU-intensive work across many items, `parallel_map` distributes tasks across a persistent worker pool:
 
 ```tova
-results = await parallelMap(urls, fn(url) fetch(url), 4)
-// Processes up to 4 URLs concurrently using persistent worker threads
+async fn main() {
+  results = await parallelMap(urls, fn(url) fetch(url), 4)
+  // Processes up to 4 URLs concurrently using persistent worker threads
+}
+
+main()
 ```
 
 The third argument is the number of worker threads (defaults to CPU core count if omitted):
@@ -545,13 +557,17 @@ parallelMap(array, transform_fn, 4)     // uses 4 worker threads
 Workers are **persistent** -- they are created once and reused across calls, avoiding the overhead of spinning up new threads for each batch. This gives significant speedups for workloads with many small tasks.
 
 ```tova
-// Process 1000 images using 8 worker threads
-processed = await parallelMap(
-  images,
-  fn(img) resize_image(img, 800, 600),
-  8
-)
-print("Processed {len(processed)} images")
+async fn main() {
+  // Process 1000 images using 8 worker threads
+  processed = await parallelMap(
+    images,
+    fn(img) resize_image(img, 800, 600),
+    8
+  )
+  print("Processed {len(processed)} images")
+}
+
+main()
 ```
 
 ### When to Use parallel_map vs. Promise.all
@@ -602,7 +618,7 @@ concurrent {
 
 // cancel_on_error: abort all if any fails
 concurrent cancel_on_error {
-  data = spawn fetch_critical_data()
+  var data = spawn fetch_critical_data()
   config = spawn load_config()
 }
 // If either throws, the other is cancelled

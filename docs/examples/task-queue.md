@@ -364,14 +364,18 @@ posts = fetch_posts(user.id)? // Then fetch posts (needs user.id)
 Parallel — independent operations run concurrently:
 
 ```tova
-results = await Promise.all([
-  fetch("/users") |> then(fn(r) r.json()),
-  fetch("/stats") |> then(fn(r) r.json()),
-  fetch("/alerts") |> then(fn(r) r.json())
-])
-users = results[0]
-stats = results[1]
-alerts = results[2]
+async fn main() {
+  results = await Promise.all([
+    fetch("/users") |> then(fn(r) r.json()),
+    fetch("/stats") |> then(fn(r) r.json()),
+    fetch("/alerts") |> then(fn(r) r.json())
+  ])
+  users = results[0]
+  stats = results[1]
+  alerts = results[2]
+}
+
+main()
 ```
 
 Use `?` propagation for sequential chains. Use `Promise.all` for independent fetches.
@@ -381,7 +385,7 @@ Use `?` propagation for sequential chains. Use `Promise.all` for independent fet
 Wrap `fetch` in `Result` for type-safe error handling:
 
 ```tova
-fn safe_fetch(url: String) -> Result<any, String> {
+async fn safe_fetch(url: String) -> Result<any, String> {
   var result = Err("Network error: unknown")
   try {
     response = await fetch(url)
@@ -415,7 +419,7 @@ The retry function accepts any `() -> Result<T, String>` operation and a config 
 ### Defer for Cleanup
 
 ```tova
-fn process_with_lock(resource_id: String) -> Result<String, String> {
+async fn process_with_lock(resource_id: String) -> Result<String, String> {
   lock = await acquire_lock(resource_id)
   defer { release_lock(lock) }
 

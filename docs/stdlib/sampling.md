@@ -23,7 +23,7 @@ Returns a random subset of rows from a table.
 
 ```tova
 // Sample 100 random rows
-subset = users |> sample(100)
+var subset = users |> sample(100)
 
 // Sample 10% of rows
 subset = users |> sample(0.1)
@@ -62,7 +62,7 @@ Groups the table by a key column, then samples `n` rows (or fraction) from each 
 
 ```tova
 // 50 rows from each region
-balanced = users |> stratified_sample(.region, 50)
+var balanced = users |> stratified_sample(.region, 50)
 
 // 10% from each category
 balanced = products |> stratified_sample(.category, 0.1)

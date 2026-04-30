@@ -560,7 +560,13 @@ export class Parser {
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
     if (this.check(TokenType.MUT)) this.error("'mut' is not supported in Tova. Use 'var' for mutable variables");
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
-    if (this.check(TokenType.LET)) this.error("'let' is not needed in Tova. Destructure directly: {a, b} = obj, [a, b] = list, or (a, b) = pair");
+    if (this.check(TokenType.LET)) {
+      const next = this.peek(1);
+      if (next && (next.type === TokenType.LBRACE || next.type === TokenType.LBRACKET || next.type === TokenType.LPAREN)) {
+        this.error("'let' is not needed in Tova. Destructure directly: '{a, b} = obj', '[a, b] = list', or '(a, b) = pair'");
+      }
+      this.error("'let' is not needed in Tova. Use 'name = value' for binding or 'var name = value' for mutable");
+    }
     if (this.check(TokenType.IF)) return this.parseIfStatement();
     if (this.check(TokenType.FOR)) return this.parseForStatement();
     if (this.check(TokenType.WHILE)) return this.parseWhileStatement();
@@ -1301,31 +1307,6 @@ export class Parser {
     }
 
     return new AST.VarDeclaration(targets, values, l);
-  }
-
-  parseLetDestructure() {
-    const l = this.loc();
-    this.expect(TokenType.LET);
-
-    let pattern;
-    if (this.check(TokenType.LBRACE)) {
-      pattern = this.parseObjectPattern();
-    } else if (this.check(TokenType.LBRACKET)) {
-      pattern = this.parseArrayPattern();
-    } else if (this.check(TokenType.LPAREN)) {
-      // Tuple destructuring: let (a, b) = expr
-      pattern = this.parseTuplePattern();
-    } else if (this.check(TokenType.IDENTIFIER)) {
-      const name = this.current().value;
-      this.error(`Use '${name} = value' for binding or 'var ${name} = value' for mutable. 'let' is only for destructuring: let {a, b} = obj`);
-    } else {
-      this.error("Expected '{', '[', or '(' after 'let' for destructuring");
-    }
-
-    this.expect(TokenType.ASSIGN, "Expected '=' in destructuring");
-    const value = this.parseExpression();
-
-    return new AST.LetDestructure(pattern, value, l);
   }
 
   parseObjectPattern() {

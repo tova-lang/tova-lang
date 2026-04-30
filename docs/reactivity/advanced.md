@@ -234,7 +234,7 @@ effect {
 
 The `Head` component lets components declaratively manage document head tags (`<title>`, `<meta>`, `<link>`, etc.). When a component unmounts, its head contributions are automatically cleaned up.
 
-```tova
+```tova-jsx
 component BlogPost(post) {
   <Head>
     <title>{post.title} - My Blog</title>
@@ -261,7 +261,7 @@ component BlogPost(post) {
 
 Each component can have its own `Head`. The last one to render wins for `<title>`, while `<meta>` and `<link>` tags accumulate:
 
-```tova
+```tova-jsx
 component App {
   <Head>
     <title>My App</title>
@@ -291,7 +291,7 @@ During SSR, use the `head` parameter in `renderPage()` for static head content. 
 
 ### Basic Usage
 
-```tova
+```tova-jsx
 browser {
   [users, { loading, error, refetch }] = createResource(fn() {
     server.get_users()
@@ -416,7 +416,7 @@ Calling with no options works the same as before -- `createErrorBoundary()` is f
 
 `ErrorBoundary` is a built-in component that wraps children in an error boundary. It accepts a `fallback` prop -- either a vnode or a function that receives `{ error, reset }`:
 
-```tova
+```tova-jsx
 component App {
   <ErrorBoundary fallback={fn(props) {
     <div class="error">
@@ -444,7 +444,7 @@ When an error occurs in a reactive effect within the `ErrorBoundary`'s children,
 
 The `retry` prop lets you automatically re-attempt rendering when a transient error occurs (e.g., a race condition during initialization):
 
-```tova
+```tova-jsx
 component App {
   <ErrorBoundary retry={3} fallback={fn(props) {
     <p>Failed after 3 retries: {props.error}</p>
@@ -460,7 +460,7 @@ The component will re-render up to 3 times before showing the fallback.
 
 Error boundaries can be nested. The innermost boundary catches the error first. If a fallback itself throws, the error propagates to the parent boundary:
 
-```tova
+```tova-jsx
 component App {
   <ErrorBoundary fallback={fn(props) <p>Outer caught: {props.error}</p>}>
     <ErrorBoundary fallback={fn(props) <p>Inner caught: {props.error}</p>}>
@@ -493,7 +493,7 @@ The `component` prop can be a signal getter that returns a component function. W
 
 Additional props are passed through to the rendered component:
 
-```tova
+```tova-jsx
 <Dynamic component={current_tab} user={user} on_close={handle_close} />
 ```
 
@@ -501,7 +501,7 @@ Additional props are passed through to the rendered component:
 
 `Portal` renders its children into a different DOM node, outside the normal component tree. This is useful for modals, tooltips, and overlays that need to escape their parent's CSS stacking context:
 
-```tova
+```tova-jsx
 component Modal(title, on_close) {
   <Portal target="#modal-root">
     <div class="modal-overlay" on:click={fn() on_close()}>
@@ -532,7 +532,7 @@ Make sure the target element exists in your HTML:
 
 `Suspense` provides a boundary that shows a fallback while any child `lazy()` component is loading. Instead of each lazy component managing its own loading state, Suspense provides a unified loading experience:
 
-```tova
+```tova-jsx
 HeavyChart = lazy(fn() import("./components/HeavyChart.js"))
 DataTable = lazy(fn() import("./components/DataTable.js"))
 
@@ -557,7 +557,7 @@ component Dashboard {
 
 Suspense boundaries can be nested. Each lazy component registers with its nearest ancestor Suspense:
 
-```tova
+```tova-jsx
 component App {
   <Suspense fallback={<p>Loading app...</p>}>
     <Header />
@@ -572,7 +572,7 @@ component App {
 
 The `fallback` prop can be a vnode, a string, or a function:
 
-```tova
+```tova-jsx
 // Static fallback
 <Suspense fallback={<Spinner />}>...</Suspense>
 

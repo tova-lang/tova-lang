@@ -293,7 +293,7 @@ Under the hood, `state count = 0` creates a **signal** -- a reactive value with 
 Tova's setter transform makes state updates feel natural:
 
 ```tova
-state count = 0
+var count = 0
 
 // All of these work:
 count = 10          // Direct assignment
@@ -395,7 +395,7 @@ browser {
 
 The handler receives the DOM event object as its argument. For simple updates like incrementing a counter, you can skip the event parameter:
 
-```tova
+```tova-jsx
 <button on:click={fn() count += 1}>"+"</button>
 ```
 
@@ -403,7 +403,7 @@ The handler receives the DOM event object as its argument. For simple updates li
 
 Tova supports event modifiers using dot syntax after the event name:
 
-```tova
+```tova-jsx
 // Prevent default browser behavior
 <form on:submit.prevent={fn() handleSubmit()}>
   <input />
@@ -427,7 +427,7 @@ Tova supports event modifiers using dot syntax after the event name:
 
 You can chain modifiers:
 
-```tova
+```tova-jsx
 <form on:submit.stop.prevent={fn() handleSubmit()}>
   "..."
 </form>
@@ -437,7 +437,7 @@ You can chain modifiers:
 
 For keyboard events, add key modifiers:
 
-```tova
+```tova-jsx
 <input on:keydown.enter={fn() submitSearch()} />
 <input on:keydown.enter.prevent={fn() submitForm()} />
 ```
@@ -470,7 +470,7 @@ Conditionals are **reactive** -- when `status` changes, the rendered element swa
 
 For simple cases, use `if` as an expression:
 
-```tova
+```tova-jsx
 <div>
   <p>{if isLoggedIn { "Welcome back!" } else { "Please log in." }}</p>
   <button show={isAdmin}>"Admin Panel"</button>
@@ -505,7 +505,7 @@ browser {
 
 When items can be added, removed, or reordered, add a `key` to help the runtime efficiently update the DOM:
 
-```tova
+```tova-jsx
 <ul>
   for user in users key={user.id} {
     <li>"{user.name}"</li>
@@ -523,7 +523,7 @@ If your list items have stable unique identifiers (IDs, slugs, etc.), always pro
 
 Tova's `match` expression works beautifully inside JSX for rendering different states:
 
-```tova
+```tova-jsx
 browser {
   type LoadState {
     Idle
@@ -696,7 +696,7 @@ component Avatar(name, size, online) {
 
 Content placed between a component's opening and closing tags is passed as `children`:
 
-```tova
+```tova-jsx
 component Button(variant) {
   <button class="btn btn-{variant}">
     {children}
@@ -711,7 +711,7 @@ component Button(variant) {
 
 Self-closing components have no children:
 
-```tova
+```tova-jsx
 <Icon name="star" />
 ```
 
@@ -719,7 +719,7 @@ Self-closing components have no children:
 
 When you have an object whose properties match a component's props, you can **spread** it with `...` to pass all properties at once:
 
-```tova
+```tova-jsx
 props = { name: "Alice", age: 30, role: "admin" }
 
 // Spread all properties as attributes
@@ -733,7 +733,7 @@ Explicit attributes take precedence over spread values. If the object has a `nam
 
 This pattern is especially useful for **forwarding props** -- passing all received props down to a child component without listing them one by one:
 
-```tova
+```tova-jsx
 component Wrapper(props) {
   <div class="wrapper">
     <Inner ...props />
@@ -873,7 +873,7 @@ The compiler scopes styles by adding a unique `data-tova-HASH` attribute to the 
 
 Scoped CSS handles pseudo-classes and pseudo-elements correctly:
 
-```tova
+```tova-jsx
 style {
   .btn { background: blue; color: white; }
   .btn:hover { background: darkblue; }
@@ -890,7 +890,7 @@ All of these get scoped to the component automatically.
 
 The `class:name` directive toggles a CSS class based on a condition:
 
-```tova
+```tova-jsx
 <div class:active={isActive}>"Tab"</div>
 ```
 
@@ -900,7 +900,7 @@ When `isActive` is truthy, the element gets the `active` class. When it is falsy
 
 `class:name` merges with any static `class` attribute:
 
-```tova
+```tova-jsx
 <button class="btn" class:primary={isPrimary} class:disabled={isDisabled}>
   "Click me"
 </button>
@@ -912,7 +912,7 @@ This button always has the `btn` class. The `primary` and `disabled` classes tog
 
 For fully dynamic class strings, use an expression:
 
-```tova
+```tova-jsx
 <div class={if isDark { "bg-gray-900 text-white" } else { "bg-white text-gray-900" }}>
   "Content"
 </div>
@@ -920,7 +920,7 @@ For fully dynamic class strings, use an expression:
 
 Or with string interpolation:
 
-```tova
+```tova-jsx
 state size = "lg"
 <div class="text-{size} font-bold">"Sized text"</div>
 ```
@@ -1168,7 +1168,7 @@ component Panel(visible) {
 
 Multiple animations can be applied to one element:
 
-```tova
+```tova-jsx
 <div animate:fadeIn animate:slideUp>"Both animations"</div>
 ```
 

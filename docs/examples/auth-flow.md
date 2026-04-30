@@ -448,7 +448,7 @@ The client uses a `view` state variable to switch between login, registration, a
 
 ### Error Display Pattern
 
-```tova
+```tova-jsx
 if error_msg != "" {
   <p class="error">{error_msg}</p>
 }

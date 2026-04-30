@@ -299,7 +299,9 @@ For larger projects, relative paths get awkward (`"../../shared/types"`). Use `@
 ```tova
 // Instead of:
 import { User } from "../../models/user"
+```
 
+```tova
 // Use:
 import { User } from "@/models/user"
 ```

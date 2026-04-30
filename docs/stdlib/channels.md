@@ -19,7 +19,7 @@ Creates a new channel. The optional `capacity` parameter sets the buffer size:
 
 ```tova
 // Unbuffered channel
-ch = Channel.new()
+var ch = Channel.new()
 
 // Buffered channel with capacity 10
 ch = Channel.new(10)
@@ -42,9 +42,13 @@ await ch.send(value) -> Nil
 Sends a value into the channel. For unbuffered channels, this suspends until a receiver is ready. For buffered channels, this suspends only when the buffer is full.
 
 ```tova
-ch = Channel.new(5)
-await ch.send("hello")
-await ch.send(42)
+async fn main() {
+  ch = Channel.new(5)
+  await ch.send("hello")
+  await ch.send(42)
+}
+
+main()
 ```
 
 ### receive
@@ -56,11 +60,15 @@ await ch.receive() -> Option<T>
 Receives a value from the channel. Returns `Some(value)` if a value is available, or `None` if the channel is closed and empty.
 
 ```tova
-msg = await ch.receive()
-match msg {
-  Some(value) => print("Got: {value}")
-  None => print("Channel closed")
+async fn main() {
+  msg = await ch.receive()
+  match msg {
+    Some(value) => print("Got: {value}")
+    None => print("Channel closed")
+  }
 }
+
+main()
 ```
 
 ---
@@ -79,14 +87,18 @@ Closes the channel. After closing:
 - Once the buffer is drained, `receive()` returns `None`
 
 ```tova
-ch = Channel.new(10)
-await ch.send(1)
-await ch.send(2)
-ch.close()
+async fn main() {
+  ch = Channel.new(10)
+  await ch.send(1)
+  await ch.send(2)
+  ch.close()
 
-await ch.receive()    // Some(1)
-await ch.receive()    // Some(2)
-await ch.receive()    // None
+  await ch.receive()    // Some(1)
+  await ch.receive()    // Some(2)
+  await ch.receive()    // None
+}
+
+main()
 ```
 
 ### Error Behavior
@@ -145,11 +157,15 @@ async fn consumer(ch) {
   }
 }
 
-ch = Channel.new(10)
-await parallel([
-  producer(ch, data),
-  consumer(ch)
-])
+async fn main() {
+  ch = Channel.new(10)
+  await parallel([
+    producer(ch, data),
+    consumer(ch)
+  ])
+}
+
+main()
 ```
 
 ### Fan-Out
@@ -164,18 +180,22 @@ async fn worker(id, ch) {
   }
 }
 
-ch = Channel.new(100)
+async fn main() {
+  ch = Channel.new(100)
 
-// Start 3 workers
-workers = range(3) |> map(fn(id) worker(id, ch))
+  // Start 3 workers
+  workers = range(3) |> map(fn(id) worker(id, ch))
 
-// Send work
-for task in tasks {
-  await ch.send(task)
+  // Send work
+  for task in tasks {
+    await ch.send(task)
+  }
+  ch.close()
+
+  await parallel(workers)
 }
-ch.close()
 
-await parallel(workers)
+main()
 ```
 
 ### Pipeline
@@ -197,10 +217,6 @@ async fn stage2(input, output) {
   output.close()
 }
 
-ch1 = Channel.new(10)
-ch2 = Channel.new(10)
-ch3 = Channel.new(10)
-
 // Feed input
 async fn feed(ch) {
   for item in data {
@@ -209,10 +225,18 @@ async fn feed(ch) {
   ch.close()
 }
 
-await parallel([
-  feed(ch1),
-  stage1(ch1, ch2),
-  stage2(ch2, ch3),
-  consumer(ch3)
-])
+async fn main() {
+  ch1 = Channel.new(10)
+  ch2 = Channel.new(10)
+  ch3 = Channel.new(10)
+
+  await parallel([
+    feed(ch1),
+    stage1(ch1, ch2),
+    stage2(ch2, ch3),
+    consumer(ch3)
+  ])
+}
+
+main()
 ```

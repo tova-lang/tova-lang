@@ -398,7 +398,7 @@ fn start_server(config_path) {
     .context("Database connection failed")?
   Ok(Server(config, db))
 }
-// Error: "Server startup failed: Failed to load config from ./config.toml: file not found"
+// Final Err message: "Server startup failed: Failed to load config from ./config.toml: file not found"
 ```
 
 ### `.and(next)` — Chain on Success
@@ -650,12 +650,16 @@ config = tryFn(fn() JSON.parse(raw))
 `try_async` is the async counterpart. It wraps an async operation that might reject:
 
 ```tova
-result = await tryAsync(fn() fetch_data(url))
-// Ok(data) or Err(error_message)
+async fn main() {
+  result = await tryAsync(fn() fetch_data(url))
+  // Ok(data) or Err(error_message)
 
-response = await tryAsync(fn() http_get("https://api.example.com/users"))
-  .map(fn(r) r.body)
-  .unwrapOr("[]")
+  response = await tryAsync(fn() http_get("https://api.example.com/users"))
+    .map(fn(r) r.body)
+    .unwrapOr("[]")
+}
+
+main()
 ```
 
 Together, `try_fn` and `try_async` let you bridge the gap between JavaScript's throw-based world and Tova's Result-based error handling without boilerplate.

@@ -221,11 +221,13 @@ server {
 Tova supports all standard HTTP methods:
 
 ```tova
-route GET "/items" => list_items
-route POST "/items" => create_item
-route PUT "/items/:id" => update_item
-route PATCH "/items/:id" => patch_item
-route DELETE "/items/:id" => delete_item
+server {
+  route GET "/items" => list_items
+  route POST "/items" => create_item
+  route PUT "/items/:id" => update_item
+  route PATCH "/items/:id" => patch_item
+  route DELETE "/items/:id" => delete_item
+}
 ```
 
 ### Route Parameters
@@ -611,7 +613,7 @@ shared {
 server {
   route POST "/api/users" body: CreateUser => fn(req) {
     // req.body is guaranteed to match CreateUser's shape
-    // Invalid requests get a 400 with detailed error messages
+    // Malformed requests get a 400 with detailed error messages
     respond(201, { ok: true })
   }
 

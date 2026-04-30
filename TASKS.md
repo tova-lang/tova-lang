@@ -13,30 +13,31 @@
 Resolve all syntax dualities. Tova should feel like one language, not six.
 
 
-- [ ] **T0-2**: Remove `mut` keyword — `var` is the only mutable binding keyword
-  - Remove `MUT` token from lexer or make it a hard error with suggestion
-  - Error message: "Use `var` for mutable variables"
+- [x] **T0-2**: Remove `mut` keyword — `var` is the only mutable binding keyword
+  - `mut` is a hard parse error: "'mut' is not supported in Tova. Use 'var' for mutable variables"
   - Files: `src/lexer/tokens.js`, `src/parser/parser.js`
 
-- [ ] **T0-3**: Make `let` exclusively for destructuring — add clear error when misused
-  - `let x = 5` should error: "Use `x = 5` for binding or `var x = 5` for mutable. `let` is only for destructuring: `let {a, b} = obj`"
-  - Files: `src/parser/parser.js`, `src/analyzer/analyzer.js`
+- [x] **T0-3**: Reject `let` — destructuring is written directly without a keyword
+  - Chosen resolution: `let` is not part of Tova at all. Destructure with `{a, b} = obj`, `[a, b] = list`, `(a, b) = pair`.
+  - `let x = 5` and `let {a, b} = obj` both produce tailored parse errors pointing users to the correct form.
+  - Orphan `parseLetDestructure` removed.
+  - Files: `src/parser/parser.js`
 
 
 
-- [ ] **T0-6**: Standardize `fn` keyword for all function forms
+- [x] **T0-6**: Standardize `fn` keyword for all function forms
   - `fn name() {}` for declarations
   - `fn(x) x + 1` for anonymous functions
-  - `x => x + 1` for arrow lambdas (keep — Python has `lambda`, this is better)
-  - Document that `fn` and `=>` are the two forms, nothing else
-  - Files: `docs/`
+  - `x => x + 1` for arrow lambdas
+  - Documented as the two canonical forms in `docs/guide/functions.md` and `docs/reference/keywords.md`.
+  - Files: `docs/guide/functions.md`, `docs/reference/keywords.md`
 
-- [ ] **T0-7**: Establish naming convention: `snake_case` for everything except types
-  - Functions, variables, parameters: `snake_case`
-  - Types, components, stores: `PascalCase`
-  - Constants: `UPPER_SNAKE_CASE`
-  - Enforce in analyzer as warnings
-  - Files: `src/analyzer/analyzer.js`
+- [x] **T0-7**: Establish naming convention: `snake_case` for everything except types
+  - Functions, variables, parameters: `snake_case` (W100)
+  - Types (declarations & aliases), components, stores: `PascalCase` (W100)
+  - Constants: `UPPER_SNAKE_CASE` accepted for variables
+  - Enforced in analyzer as warnings with concrete rename fixes.
+  - Files: `src/analyzer/analyzer.js`, `src/analyzer/browser-analyzer.js`
 
 ---
 
@@ -281,29 +282,32 @@ Move from string concatenation to robust codegen.
 
 Enable libraries and larger projects.
 
-- [ ] **T6-1**: Allow plain `.tova` module files without blocks
-  - A file with no `server`/`client`/`shared` blocks is a regular module
-  - Compiles to a standard ES module
-  - Can be imported by other `.tova` files
-  - Enables: libraries, shared utilities, code organization
-  - Files: `src/codegen/codegen.js`, `bin/tova.js`
+- [x] **T6-1**: Allow plain `.tova` module files without blocks
+  - A file with no `server`/`client`/`shared` blocks compiles as a plain ES module.
+  - Module mode emits `<name>.js` (not `.shared.js`/`.server.js`/`.browser.js`).
+  - Analyzer now hoists top-level `FunctionDeclaration` and `TypeDeclaration`/`TypeAlias`
+    via `_hoistTopLevel` in `visitProgram`, matching JS hoisting of emitted code and
+    eliminating spurious "not defined" warnings in merged/library builds.
+  - Files: `src/codegen/codegen.js`, `src/cli/build.js`, `src/analyzer/analyzer.js`
 
-- [ ] **T6-2**: Implement cross-file imports for `.tova` files
-  - `import { helper } from "./utils.tova"`
-  - Resolver strips `.tova` extension, maps to compiled `.js`
-  - Circular import detection already exists — extend it
-  - Files: `src/codegen/codegen.js`, `bin/tova.js`
+- [x] **T6-2**: Implement cross-file imports for `.tova` files
+  - `import { helper } from "./utils.tova"` compiles to `import { helper } from "./utils.js"`.
+  - Same-directory imports are merged into a single output (no runtime import needed).
+  - Cross-directory imports preserve per-file output and produce real JS `import` statements.
+  - Circular import detection guards `compileWithImports`.
+  - Files: `src/cli/compile.js`, `src/cli/build.js`
 
-- [ ] **T6-3**: Add `pub` export semantics for modules
-  - `pub fn helper()` — exported from module
-  - `fn internal()` — private to module
-  - `pub type User { ... }` — exported type
-  - Files: `src/parser/parser.js`, `src/codegen/base-codegen.js`
+- [x] **T6-3**: Add `pub` export semantics for modules
+  - `pub fn`, `pub type`, `pub var`, `pub x = ...` all emit `export` in generated JS.
+  - Importing a non-`pub` symbol reports: `'foo' is private in module 'X'. Add 'pub' to export it.`
+  - Importing a non-existent symbol reports: `Module 'X' does not export 'foo'`.
+  - Files: `src/parser/parser.js`, `src/codegen/base-codegen.js`, `src/cli/compile.js`
 
-- [ ] **T6-4**: Implement import support in REPL
-  - `import { helper } from "./utils.tova"` works in REPL
-  - Compile imported file on-demand
-  - Files: `bin/tova.js`
+- [x] **T6-4**: Implement import support in REPL
+  - `import { helper } from "./utils.tova"` compiles the target on demand, strips
+    its `export` keywords, and binds the requested names into the REPL context.
+  - npm/JS modules (`import express from "express"`) also supported via dynamic import.
+  - Files: `src/cli/repl.js`
 
 - [ ] **T6-5**: Add `tova init` as alias for `tova new`
   - `tova init` in existing directory (like `npm init`)

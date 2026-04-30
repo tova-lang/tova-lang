@@ -40,7 +40,7 @@ edge {
     code = ""
     for i in range(6) {
       idx = Math.floor(Math.random() * len(chars))
-      code = code ++ chars[idx]
+      code = code + chars[idx]
     }
     code
   }

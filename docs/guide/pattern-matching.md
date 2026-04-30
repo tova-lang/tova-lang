@@ -348,18 +348,18 @@ Exhaustive checking helps you handle every case and prevents runtime surprises w
 ```tova
 // Instead of:
 if status == "active" {
-  // ...
+  /* ... */
 } elif status == "pending" {
-  // ...
+  /* ... */
 } elif status == "inactive" {
-  // ...
+  /* ... */
 }
 
 // Prefer:
 match status {
-  "active" => // ...
-  "pending" => // ...
-  "inactive" => // ...
+  "active" => /* ... */
+  "pending" => /* ... */
+  "inactive" => /* ... */
 }
 ```
 

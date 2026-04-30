@@ -189,7 +189,7 @@ The compiler detects simple servers at compile time and emits optimized code:
 // When the server has no middleware, sessions, WebSockets, or error handlers:
 server {
   fn get_users() -> [User] { users }
-  fn add_user(name: String) -> User { ... }
+  fn add_user(name: String) -> User { /* ... */ }
 }
 
 // Compiler emits:
@@ -352,9 +352,13 @@ Use `@fast` for array-heavy numeric code: signal processing, statistics, linear 
 `parallel_map` distributes array processing across all CPU cores using a persistent worker pool:
 
 ```tova
-results = await parallelMap(large_array, fn(item) {
-  expensive_computation(item)
-})
+async fn main() {
+  results = await parallelMap(large_array, fn(item) {
+    expensive_computation(item)
+  })
+}
+
+main()
 ```
 
 ### How it works
@@ -366,8 +370,12 @@ results = await parallelMap(large_array, fn(item) {
 5. Results are gathered and returned in order
 
 ```tova
-// Specify number of workers explicitly
-results = await parallelMap(data, process_item, 8)
+async fn main() {
+  // Specify number of workers explicitly
+  results = await parallelMap(data, process_item, 8)
+}
+
+main()
 ```
 
 ### Performance
@@ -422,8 +430,12 @@ These features compose naturally:
   typedDot(data, data) |> Math.sqrt()
 }
 
-// Process many batches in parallel across all CPU cores
-norms = await parallelMap(all_batches, process_batch)
+async fn main() {
+  // Process many batches in parallel across all CPU cores
+  norms = await parallelMap(all_batches, process_batch)
+}
+
+main()
 ```
 
 For the most demanding workloads, layer them:
@@ -445,8 +457,12 @@ For the most demanding workloads, layer them:
   typedMap(data, fn(x) kernel(x, 1.0))
 }
 
-// Distribute across cores
-results = await parallelMap(batches, fn(batch) process(batch))
+async fn main() {
+  // Distribute across cores
+  results = await parallelMap(batches, fn(batch) process(batch))
+}
+
+main()
 ```
 
 ## Running the Benchmarks

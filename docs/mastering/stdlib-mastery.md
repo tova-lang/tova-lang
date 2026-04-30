@@ -893,8 +893,8 @@ print(strikethrough("Removed"))
 Combine styles by nesting:
 
 ```tova
-print(bold(green("PASS")) ++ " test_login")
-print(bold(red("FAIL")) ++ " test_signup")
+print(bold(green("PASS")) + " test_login")
+print(bold(red("FAIL")) + " test_signup")
 ```
 
 ### Tables
@@ -931,18 +931,22 @@ panel("Application Status", "All systems operational\nUptime: 99.9%")
 ### Progress and Spinners
 
 ```tova
-// Progress bar — wraps an iterable with a visual progress bar
-items = range(0, 100)
-for item in progress(items, { label: "Processing" }) {
-  // ... process each item ...
+async fn main() {
+  // Progress bar — wraps an iterable with a visual progress bar
+  items = range(0, 100)
+  for item in progress(items, { label: "Processing" }) {
+    // ... process each item ...
+  }
+
+  // Spinner — shows animated spinner while an async operation runs
+  result = await spin("Loading data...", async fn() {
+    // ... do async work ...
+    await fetch_data(url)
+  })
+  // Spinner auto-completes when the callback finishes
 }
 
-// Spinner — shows animated spinner while an async operation runs
-result = await spin("Loading data...", fn() {
-  // ... do async work ...
-  await fetch_data(url)
-})
-// Spinner auto-completes when the callback finishes
+main()
 ```
 
 ### Interactive Input

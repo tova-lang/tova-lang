@@ -261,7 +261,7 @@ In a typical TypeScript full-stack app, you might define `User` in three places:
 
 The full-stack pattern puts everything in a single `.tova` file:
 
-```tova
+```tova-jsx
 shared {
   type Todo {
     id: Int
@@ -692,7 +692,7 @@ The compiler generates navigation helpers:
 - `onboarding.prev()` -- go back to the previous step
 - `onboarding.progress` -- a float from 0.0 to 1.0
 
-```tova
+```tova-jsx
 fn render() {
   <div>
     <div class="progress-bar" style="width: {onboarding.progress * 100}%"></div>

@@ -89,13 +89,17 @@ handler = async fn(request) {
 ```
 
 ```tova
-items = ["url1", "url2", "url3"]
-results = await Promise.all(
-  items.map(async fn(url) {
-    response = await fetch(url)
-    await response.json()
-  })
-)
+async fn main() {
+  items = ["url1", "url2", "url3"]
+  results = await Promise.all(
+    items.map(async fn(url) {
+      response = await fetch(url)
+      await response.json()
+    })
+  )
+}
+
+main()
 ```
 
 ## Error Handling in Async Code
@@ -201,7 +205,7 @@ async fn delete_todo(id) {
 
 In Tova's full-stack architecture, async is commonly used in browser blocks with `effect`:
 
-```tova
+```tova-jsx
 browser {
   state users = []
   state loading = true
@@ -232,13 +236,23 @@ browser {
 **Prefer parallel when possible.** If two async operations do not depend on each other, run them with `Promise.all()` instead of awaiting them sequentially. This can dramatically improve performance:
 
 ```tova
-// Slow: sequential (total time = time_a + time_b)
-a = await fetch_a()
-b = await fetch_b()
+async fn main() {
+  // Slow: sequential (total time = time_a + time_b)
+  a = await fetch_a()
+  b = await fetch_b()
+}
 
-// Fast: parallel (total time = max(time_a, time_b))
-results = await Promise.all([fetch_a(), fetch_b()])
-[a, b] = results
+main()
+```
+
+```tova
+async fn main() {
+  // Fast: parallel (total time = max(time_a, time_b))
+  results = await Promise.all([fetch_a(), fetch_b()])
+  [a, b] = results
+}
+
+main()
 ```
 
 **Always handle errors.** Every `await` can fail. Wrap fetch calls in `try`/`catch` or return `Result` types to handle failures gracefully.

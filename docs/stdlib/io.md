@@ -327,11 +327,15 @@ spawn(cmd, args?, opts?) -> Promise<Result<{stdout: String, stderr: String, exit
 Spawns an async child process. Returns a `Promise` that resolves to `Ok({stdout, stderr, exitCode})` on success, `Err(message)` on failure. Supports `opts.cwd`, `opts.env`, and `opts.shell`.
 
 ```tova
-result = await spawn("python3", ["server.py"])
-match result {
-  Ok(r) => print("Exited with code {r.exitCode}")
-  Err(msg) => print("Failed to spawn: {msg}")
+async fn main() {
+  result = await spawn("python3", ["server.py"])
+  match result {
+    Ok(r) => print("Exited with code {r.exitCode}")
+    Err(msg) => print("Failed to spawn: {msg}")
+  }
 }
+
+main()
 ```
 
 ---
@@ -540,7 +544,7 @@ Compression options: `"snappy"` (default), `"gzip"`, `"none"`.
 ### Excel
 
 ```tova
-data = read("report.xlsx")
+var data = read("report.xlsx")
 data = read("report.xlsx", sheet: "Q4 Sales")     // by name
 data = read("report.xlsx", sheet: 1)               // by index (1-based)
 write(table, "output.xlsx")
@@ -550,7 +554,7 @@ write(table, "output.xlsx", sheet: "Summary")
 ### SQLite
 
 ```tova
-db = sqlite("app.db")
+var db = sqlite("app.db")
 db = sqlite(":memory:")
 
 // Query returns a Table

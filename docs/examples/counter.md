@@ -98,7 +98,7 @@ The `message` computed value re-evaluates whenever `count` changes, automaticall
 
 ### JSX Components
 
-```tova
+```tova-jsx
 component App {
   <div class="app">
     <h1>"Counter"</h1>
@@ -117,7 +117,7 @@ Components use JSX syntax. Key points:
 
 ### Event Handlers
 
-```tova
+```tova-jsx
 <button onclick={fn() count = count - 1}>"-"</button>
 <button onclick={fn() count = 0}>"Reset"</button>
 <button onclick={fn() count = count + 1}>"+"</button>

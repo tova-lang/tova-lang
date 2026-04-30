@@ -424,7 +424,7 @@ fn process(input) {
   if result.isErr() {
     return result
   }
-  value = result.unwrap()
+  var value = result.unwrap()
 
   // With propagation -- equivalent to above
   value = parse(input)?

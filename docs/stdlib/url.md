@@ -43,9 +43,9 @@ url.pathname     // "/path"
 url.search       // "?q=1"
 url.hash         // "#top"
 
-// Invalid URL
+// Malformed URL returns Err
 parseUrl("not a url")
-// Err("Invalid URL: not a url")
+// returns Err with message: malformed URL: not a url
 ```
 
 ### build_url
@@ -117,7 +117,7 @@ buildQuery({ name: "hello world", page: "1" })
 // Parse and modify a URL
 url = "https://api.example.com/search?q=tova&page=1"
 parts = parseUrl(url).unwrap()
-query = parseQuery(parts.search)
+var query = parseQuery(parts.search)
 query = merge(query, { page: "2" })
 new_url = buildUrl(merge(parts, { search: buildQuery(query) }))
 

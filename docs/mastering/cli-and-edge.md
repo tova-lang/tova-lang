@@ -533,8 +533,8 @@ cli {
 Colors nest and compose naturally:
 
 ```tova
-print(bold(red("CRITICAL")) ++ ": " ++ "Server is down")
-print(green("PASS") ++ " " ++ dim("test_user_creation (12ms)"))
+print(bold(red("CRITICAL")) + ": " + "Server is down")
+print(green("PASS") + " " + dim("test_user_creation (12ms)"))
 ```
 
 Available color functions: `red()`, `green()`, `yellow()`, `blue()`, `cyan()`, `magenta()`, `gray()`. Text style functions: `bold()`, `dim()`, `underline()`, `strikethrough()`.
@@ -545,7 +545,7 @@ For structured output, Tova provides formatting helpers:
 
 ```tova
 cli {
-  fn report() {
+  async fn report() {
     // Table output
     data = [
       ["Name", "Status", "CPU"],

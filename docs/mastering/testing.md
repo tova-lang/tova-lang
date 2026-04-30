@@ -348,7 +348,7 @@ test "addition works correctly" {
 }
 
 test "strings can be joined" {
-  result = "Hello" ++ " " ++ "World"
+  result = "Hello" + " " + "World"
   assertEq(result, "Hello World")
 }
 
@@ -716,14 +716,20 @@ async fn fetch_user(id) {
 }
 
 test "fetch_user returns user for valid id" {
-  result = await fetch_user(1)
-  assert(result.isOk())
-  assertEq(result.unwrap().name, "User 1")
+  async fn check() {
+    result = await fetch_user(1)
+    assert(result.isOk())
+    assertEq(result.unwrap().name, "User 1")
+  }
+  check()
 }
 
 test "fetch_user returns Err for invalid id" {
-  result = await fetch_user(-1)
-  assert(result.isErr())
+  async fn check() {
+    result = await fetch_user(-1)
+    assert(result.isErr())
+  }
+  check()
 }
 ```
 
@@ -731,26 +737,32 @@ test "fetch_user returns Err for invalid id" {
 
 ```tova
 test "parallel fetches all succeed" {
-  results = await Promise.all([
-    fetch_user(1),
-    fetch_user(2),
-    fetch_user(3)
-  ])
-  assertEq(len(results), 3)
-  for result in results {
-    assert(result.isOk())
+  async fn check() {
+    results = await Promise.all([
+      fetch_user(1),
+      fetch_user(2),
+      fetch_user(3)
+    ])
+    assertEq(len(results), 3)
+    for result in results {
+      assert(result.isOk())
+    }
   }
+  check()
 }
 
 test "parallel fetch with one failure" {
-  results = await Promise.all([
-    fetch_user(1),
-    fetch_user(-1),
-    fetch_user(3)
-  ])
-  assert(results[0].isOk())
-  assert(results[1].isErr())
-  assert(results[2].isOk())
+  async fn check() {
+    results = await Promise.all([
+      fetch_user(1),
+      fetch_user(-1),
+      fetch_user(3)
+    ])
+    assert(results[0].isOk())
+    assert(results[1].isErr())
+    assert(results[2].isOk())
+  }
+  check()
 }
 ```
 
@@ -915,7 +927,7 @@ When a pipe chain produces unexpected results, break it apart:
 
 ```tova
 // Instead of debugging this all at once:
-result = data
+var result = data
   |> filter(fn(x) x.score > 80)
   |> map(fn(x) x.name)
   |> sorted()

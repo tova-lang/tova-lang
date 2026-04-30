@@ -273,7 +273,7 @@ first = "Hello"
 second = "World"
 
 // Interpolation (preferred)
-greeting = "{first}, {second}!"
+var greeting = "{first}, {second}!"
 
 // Plus operator (works since strings support +)
 greeting = first + ", " + second + "!"

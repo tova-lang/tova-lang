@@ -95,7 +95,7 @@ For full `form` block documentation, see [Form Block](/fullstack/form-block).
 
 The `bind:form` directive connects a `<form>` HTML element to a form controller. It wires the element's `onSubmit` event to the controller's `submit()` method:
 
-```tova
+```tova-jsx
 <form bind:form={myForm}>
   // form children
 </form>
@@ -103,7 +103,7 @@ The `bind:form` directive connects a `<form>` HTML element to a form controller.
 
 This is equivalent to:
 
-```tova
+```tova-jsx
 <form on:submit={fn(e) myForm.submit(e)}>
   // form children
 </form>
@@ -115,7 +115,7 @@ The form controller's `submit()` method calls `e.preventDefault()`, validates al
 
 `FormField` is not a runtime component -- the compiler transforms it at compile time. It wraps its children in a `<div class="form-field">` and auto-wires any child `<input>`, `<select>`, or `<textarea>` to the field's signals:
 
-```tova
+```tova-jsx
 <FormField field={form.email}>
   <label>"Email"</label>
   <input type="email" />
@@ -152,7 +152,7 @@ Other children (labels, spans, divs) pass through unchanged.
 
 When nested inside `<FormField>`, it inherits the parent field automatically:
 
-```tova
+```tova-jsx
 <FormField field={form.email}>
   <input type="email" />
   <ErrorMessage />
@@ -165,7 +165,7 @@ Shows `field.error` when `field.touched && field.error` is truthy.
 
 Attach to any field explicitly:
 
-```tova
+```tova-jsx
 <ErrorMessage field={form.email} />
 ```
 
@@ -175,7 +175,7 @@ Shows `field.error` when `field.touched && field.error` is truthy.
 
 Display the form's submit error:
 
-```tova
+```tova-jsx
 <ErrorMessage form={myForm} />
 ```
 
@@ -203,7 +203,7 @@ css {
 
 For forms that don't use the `form` block, standard two-way binding works with signals:
 
-```tova
+```tova-jsx
 browser {
   state searchQuery = ""
 
@@ -214,14 +214,14 @@ browser {
 
 ### Checkbox Binding
 
-```tova
+```tova-jsx
 state agreed = false
 <input type="checkbox" bind:checked={agreed} />
 ```
 
 ### Radio Group Binding
 
-```tova
+```tova-jsx
 state color = "red"
 <input type="radio" name="color" value="red" bind:group={color} />
 <input type="radio" name="color" value="blue" bind:group={color} />
@@ -230,7 +230,7 @@ state color = "red"
 
 ### Select Binding
 
-```tova
+```tova-jsx
 state country = ""
 <select bind:value={country}>
   <option value="">"Select..."</option>
@@ -268,7 +268,7 @@ form login {
 
 Disable the submit button while the form is invalid or submitting:
 
-```tova
+```tova-jsx
 <button
   type="submit"
   disabled={!form.isValid || form.submitting}
@@ -308,7 +308,7 @@ form login {
 
 ### Reset Form
 
-```tova
+```tova-jsx
 <button on:click={fn() myForm.reset()}>
   "Clear Form"
 </button>

@@ -528,7 +528,11 @@ sleep(ms) -> Promise
 Returns a Promise that resolves after `ms` milliseconds.
 
 ```tova
-await sleep(1000)     // wait 1 second
+async fn main() {
+  await sleep(1000)     // wait 1 second
+}
+
+main()
 ```
 
 ---

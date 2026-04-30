@@ -45,11 +45,15 @@ tryAsync(fn) -> Promise[Result]
 Wraps an async function call in a try/catch and returns a Promise of `Ok(value)` or `Err(message)`.
 
 ```tova
-result = await tryAsync(fn() fetch("/api/data"))
-match result {
-  Ok(response) => process(response)
-  Err(msg) => print("Request failed: {msg}")
+async fn main() {
+  result = await tryAsync(fn() fetch("/api/data"))
+  match result {
+    Ok(response) => process(response)
+    Err(msg) => print("Request failed: {msg}")
+  }
 }
+
+main()
 ```
 
 ---
@@ -65,12 +69,16 @@ parallel(list) -> Promise[List]
 Runs multiple promises concurrently and waits for all to complete. A wrapper around `Promise.all`.
 
 ```tova
-results = await parallel([
-  fetch("/api/users"),
-  fetch("/api/posts"),
-  fetch("/api/comments")
-])
-// [users_response, posts_response, comments_response]
+async fn main() {
+  results = await parallel([
+    fetch("/api/users"),
+    fetch("/api/posts"),
+    fetch("/api/comments")
+  ])
+  // [users_response, posts_response, comments_response]
+}
+
+main()
 ```
 
 ### race
@@ -82,18 +90,26 @@ race(promises) -> Promise
 Returns a promise that resolves or rejects as soon as the first promise in the list settles. The result is the value (or error) from the first promise to complete.
 
 ```tova
-// Use the fastest API response
-result = await race([
-  fetch("https://api1.example.com/data"),
-  fetch("https://api2.example.com/data")
-])
+async fn main() {
+  // Use the fastest API response
+  result = await race([
+    fetch("https://api1.example.com/data"),
+    fetch("https://api2.example.com/data")
+  ])
+}
+
+main()
 ```
 
 ```tova
-// Implement a timeout using the timeout() function
-result = await tryAsync(fn() {
-  timeout(fetch("/api/slow"), 5000)
-})
+async fn main() {
+  // Implement a timeout using the timeout() function
+  result = await tryAsync(fn() {
+    timeout(fetch("/api/slow"), 5000)
+  })
+}
+
+main()
 ```
 
 ### timeout
@@ -105,15 +121,19 @@ timeout(promise, ms) -> Promise
 Adds a timeout to a promise. If the promise does not resolve within `ms` milliseconds, it rejects with a timeout error.
 
 ```tova
-// Fail if API takes longer than 5 seconds
-result = await tryAsync(fn() {
-  timeout(fetch("/api/slow-endpoint"), 5000)
-})
+async fn main() {
+  // Fail if API takes longer than 5 seconds
+  result = await tryAsync(fn() {
+    timeout(fetch("/api/slow-endpoint"), 5000)
+  })
 
-match result {
-  Ok(data) => process(data)
-  Err(msg) => print("Timed out or failed: {msg}")
+  match result {
+    Ok(data) => process(data)
+    Err(msg) => print("Timed out or failed: {msg}")
+  }
 }
+
+main()
 ```
 
 ### retry
@@ -130,15 +150,19 @@ Options:
 - `backoff` -- multiplier for exponential backoff (default: 1)
 
 ```tova
-// Retry up to 3 times with default settings
-data = await retry(fn() fetch("/api/unreliable"))
+async fn main() {
+  // Retry up to 3 times with default settings
+  var data = await retry(fn() fetch("/api/unreliable"))
 
-// Retry 5 times with exponential backoff
-data = await retry(
-  fn() fetch("/api/flaky"),
-  { times: 5, delay: 200, backoff: 2 }
-)
-// Delays: 200ms, 400ms, 800ms, 1600ms between retries
+  // Retry 5 times with exponential backoff
+  data = await retry(
+    fn() fetch("/api/flaky"),
+    { times: 5, delay: 200, backoff: 2 }
+  )
+  // Delays: 200ms, 400ms, 800ms, 1600ms between retries
+}
+
+main()
 ```
 
 ### sleep
@@ -150,15 +174,19 @@ sleep(ms) -> Promise
 Returns a promise that resolves after `ms` milliseconds. Useful for delays, polling intervals, and timeouts.
 
 ```tova
-// Wait 1 second
-await sleep(1000)
+async fn main() {
+  // Wait 1 second
+  await sleep(1000)
 
-// Polling with delay
-loop {
-  status = await check_status()
-  if status == "ready" { break }
-  await sleep(500)
+  // Polling with delay
+  loop {
+    status = await check_status()
+    if status == "ready" { break }
+    await sleep(500)
+  }
 }
+
+main()
 ```
 
 ### parallel_map
@@ -176,13 +204,17 @@ Distributes an array across worker threads and applies `fn` to each element in p
 The worker pool is persistent — workers are created once and reused across calls, avoiding thread creation overhead.
 
 ```tova
-// Map in parallel across all CPU cores
-results = await parallelMap(items, fn(item) {
-    expensive_transform(item)
-})
+async fn main() {
+  // Map in parallel across all CPU cores
+  var results = await parallelMap(items, fn(item) {
+      expensive_transform(item)
+  })
 
-// Limit to 2 workers
-results = await parallelMap(items, fn(x) x * 2, 2)
+  // Limit to 2 workers
+  results = await parallelMap(items, fn(x) x * 2, 2)
+}
+
+main()
 ```
 
 For small arrays (< 4 elements) or a single worker, `parallel_map` falls back to synchronous `map` to avoid overhead.
@@ -198,15 +230,19 @@ For date/time functions (`now`, `now_iso`, `date_parse`, `date_format`, `date_ad
 ## Pipeline Examples
 
 ```tova
-// Fetch with retry and timeout, returning Result
-await tryAsync(fn() {
-  retry(fn() timeout(fetch("/api/data"), 3000), { times: 3 })
-})
+async fn main() {
+  // Fetch with retry and timeout, returning Result
+  await tryAsync(fn() {
+    retry(fn() timeout(fetch("/api/data"), 3000), { times: 3 })
+  })
 
-// Parallel fetch with error handling
-urls = ["/api/a", "/api/b", "/api/c"]
-results = await parallel(
-  map(urls, fn(url) tryAsync(fn() fetch(url)))
-)
-// List of Ok/Err results
+  // Parallel fetch with error handling
+  urls = ["/api/a", "/api/b", "/api/c"]
+  results = await parallel(
+    map(urls, fn(url) tryAsync(fn() fetch(url)))
+  )
+  // List of Ok/Err results
+}
+
+main()
 ```

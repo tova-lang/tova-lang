@@ -299,7 +299,7 @@ The `|>` operator passes the left-hand value as the first argument to the right-
 
 ```tova
 // Without pipes — nested, hard to read
-result = sorted(filter(map(numbers, fn(x) x * 2), fn(x) x > 0))
+var result = sorted(filter(map(numbers, fn(x) x * 2), fn(x) x > 0))
 
 // With pipes — reads top to bottom
 result = numbers
@@ -483,7 +483,7 @@ browser {
 
 ### JSX in Tova
 
-```tova
+```tova-jsx
 component TodoItem(todo, on_toggle) {
   <li class={if todo.done { "done" } else { "" }}>
     <input
@@ -561,7 +561,7 @@ component Counter {
 
 ### Conditional and List Rendering
 
-```tova
+```tova-jsx
 component UserList(users, loading) {
   if loading {
     <p>Loading...</p>

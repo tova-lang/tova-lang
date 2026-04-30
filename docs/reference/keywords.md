@@ -186,7 +186,11 @@ async fn fetch_data(url) {
 Suspends execution until an asynchronous value resolves.
 
 ```tova
-data = await fetch_data("/api/users")
+async fn main() {
+  data = await fetch_data("/api/users")
+}
+
+main()
 ```
 
 ### `bench`
@@ -241,7 +245,7 @@ browser {
 
 Declares a reactive UI component that renders JSX.
 
-```tova
+```tova-jsx
 component Greeting(name) {
   <h1>"Hello, {name}!"</h1>
 }
@@ -419,15 +423,18 @@ try {
 
 ### `fn`
 
-Declares a named function or an anonymous lambda.
+Declares a named function or an anonymous lambda. Together with the arrow form (`x => expr`), `fn` is one of the **two canonical function forms** in Tova — there is no `function`, `lambda`, or `def` keyword.
 
 ```tova
 fn add(a, b) {
   a + b
 }
 
-double = fn(x) x * 2
+double = fn(x) x * 2          // anonymous fn
+doubled = nums.map(x => x * 2)  // arrow form — prefer for short inline callbacks
 ```
+
+See [Functions › The Two Canonical Forms](../guide/functions.md#the-two-canonical-forms) for when to pick which.
 
 ### `for`
 
@@ -577,9 +584,11 @@ interface Printable {
 Reserved keyword that produces a compile-time **hard error**. Tova does not use `let` — destructure directly without any keyword:
 
 ```tova
-// This will NOT compile:
-// let { name, email } = user   // Error: 'let' is not valid in Tova. For destructuring, use { name, email } = user directly
-// let [first, ...rest] = items // Error: 'let' is not valid in Tova. For destructuring, use [first, ...rest] = items directly
+// These will NOT compile (uncommenting the next lines raises hard diagnostics):
+// let { name, email } = user
+// let [first, ...rest] = items
+// Diagnostic: 'let' is not valid in Tova. For destructuring, use { name, email } = user directly
+// Diagnostic: 'let' is not valid in Tova. For destructuring, use [first, ...rest] = items directly
 
 // Destructure directly (no keyword needed):
 { name, email } = user
@@ -637,8 +646,9 @@ match result {
 Reserved keyword that produces a compile-time error. Tova uses `var` for mutable variables instead.
 
 ```tova
-// This will NOT compile:
-// mut x = 10  // Error: 'mut' is not supported in Tova. Use 'var' for mutable variables
+// This will NOT compile (uncommenting the next line raises a hard diagnostic):
+// mut x = 10
+// Diagnostic: 'mut' is not supported in Tova. Use 'var' for mutable variables
 
 // Use 'var' instead:
 var x = 10

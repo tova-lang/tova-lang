@@ -68,7 +68,7 @@ name = "Alice"
 age = 30
 
 // Instead of:
-user = { name: name, age: age }
+var user = { name: name, age: age }
 
 // You can write:
 user = { name, age }
@@ -279,7 +279,7 @@ if "host" in config {
 
 ```tova
 // Comprehension style:
-active_names = [user.name for user in users if user.active]
+var active_names = [user.name for user in users if user.active]
 
 // Method chain style:
 active_names = users.filter(fn(u) u.active).map(fn(u) u.name)

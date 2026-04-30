@@ -16,7 +16,7 @@ Sends an HTTP GET request. The response body is automatically parsed as JSON whe
 
 ```tova
 // Simple GET
-result = http.get("https://api.example.com/users")
+var result = http.get("https://api.example.com/users")
 response = result.unwrap()
 response.status   // 200
 response.ok       // true
@@ -267,7 +267,7 @@ Tova parses response bodies automatically based on the `Content-Type` header:
 
 ```tova
 // JSON endpoint
-resp = http.get("https://api.example.com/users/1").unwrap()
+var resp = http.get("https://api.example.com/users/1").unwrap()
 resp.body.name   // "Alice" -- already parsed
 
 // Plain text endpoint
@@ -339,18 +339,22 @@ match result {
 ### Streaming a Response
 
 ```tova
-result = http.get_stream("https://api.example.com/events")
-match result {
-  Ok(resp) => {
-    reader = resp.body.getReader()
-    loop {
-      chunk = await reader.read()
-      if chunk.done { break }
-      print("Chunk: {chunk.value}")
+async fn main() {
+  result = http.get_stream("https://api.example.com/events")
+  match result {
+    Ok(resp) => {
+      reader = resp.body.getReader()
+      loop {
+        chunk = await reader.read()
+        if chunk.done { break }
+        print("Chunk: {chunk.value}")
+      }
     }
+    Err(msg) => print("Stream error: {msg}")
   }
-  Err(msg) => print("Stream error: {msg}")
 }
+
+main()
 ```
 
 ### Error Handling with Result and match

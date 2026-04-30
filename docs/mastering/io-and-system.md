@@ -319,7 +319,7 @@ writeText("output/scores.csv", join(lines, "\n"))
 
 ```tova
 existing = readText("log.txt").unwrap()
-writeText("log.txt", existing ++ "\nNew entry at {nowIso()}")
+writeText("log.txt", existing + "\nNew entry at {nowIso()}")
 ```
 
 <TryInPlayground :code="fileIOCode" label="File I/O" />
@@ -847,7 +847,7 @@ print("DB Host: {db_host}")
 setEnv("APP_MODE", "production")
 
 // Read with a default
-port = env("PORT")
+var port = env("PORT")
 if port == null {
   port = "3000"
 }
@@ -930,18 +930,22 @@ Never pass unsanitized user input to `sh()` or `exec()`. Because `sh` uses the s
 `exec` and `sh` are synchronous -- they block until the command finishes. For long-running processes, use `spawn()` which runs the command asynchronously and returns a `Promise`:
 
 ```tova
-// Spawn a long-running process
-process_result = await spawn("node", ["server.js"])
-match process_result {
-  Ok(result) => print("Server exited with code {result.exitCode}")
-  Err(msg) => print("Failed to spawn: {msg}")
+async fn main() {
+  // Spawn a long-running process
+  process_result = await spawn("node", ["server.js"])
+  match process_result {
+    Ok(result) => print("Server exited with code {result.exitCode}")
+    Err(msg) => print("Failed to spawn: {msg}")
+  }
+
+  // Spawn with options
+  build_result = await spawn("cargo", ["build", "--release"], {
+    cwd: "./rust-project",
+    env: { RUST_LOG: "debug" }
+  })
 }
 
-// Spawn with options
-build_result = await spawn("cargo", ["build", "--release"], {
-  cwd: "./rust-project",
-  env: { RUST_LOG: "debug" }
-})
+main()
 ```
 
 `spawn` returns a `Promise` that resolves when the child process exits. Like `exec`, it collects `stdout` and `stderr` and returns them in the result. This is useful for running build tools, starting test suites, or any command that might take a while.

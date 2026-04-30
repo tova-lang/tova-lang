@@ -494,7 +494,7 @@ When types have many fields or fields of the same type, named arguments make con
 
 ```tova
 // Positional — which string is which?
-payment = CreditCard("4111111111111111", "12/26", "123")
+var payment = CreditCard("4111111111111111", "12/26", "123")
 
 // Named — intent is clear, order doesn't matter
 payment = CreditCard(expiry: "12/26", number: "4111111111111111", cvv: "123")

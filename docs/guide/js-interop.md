@@ -42,21 +42,25 @@ npm packages are imported using their package name, just like in JavaScript.
 Tova recognizes all standard JavaScript globals. You can use them directly:
 
 ```tova
-// Browser APIs
-result = JSON.parse(data)
-timestamp = Date.now()
-id = setTimeout(fn() print("delayed"), 1000)
+async fn main() {
+  // Browser APIs
+  result = JSON.parse(data)
+  timestamp = Date.now()
+  id = setTimeout(fn() print("delayed"), 1000)
 
-// Console
-console.log("debug info")
-console.error("something went wrong")
+  // Console
+  console.log("debug info")
+  console.error("something went wrong")
 
-// Math
-value = Math.PI * radius * radius
+  // Math
+  value = Math.PI * radius * radius
 
-// Fetch API
-response = await fetch("https://api.example.com/data")
-data = await response.json()
+  // Fetch API
+  response = await fetch("https://api.example.com/data")
+  data = await response.json()
+}
+
+main()
 ```
 
 ## Type Constructors

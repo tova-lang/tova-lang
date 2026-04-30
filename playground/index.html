@@ -771,7 +771,8 @@ const TokenType = {
 };
 
 // Keywords map for quick lookup during lexing
-const Keywords = {
+// Use Object.create(null) to avoid prototype pollution (e.g., 'toString', 'valueOf')
+const Keywords = Object.assign(Object.create(null), {
   'var': TokenType.VAR,
   'let': TokenType.LET,
   'fn': TokenType.FN,
@@ -830,7 +831,7 @@ const Keywords = {
   'field': TokenType.FIELD,
   'group': TokenType.GROUP,
   'steps': TokenType.STEPS,
-};
+});
 
 // Token class
 class Token {
@@ -7625,7 +7626,13 @@ class Parser {
     if (this.check(TokenType.TYPE)) return this.parseTypeDeclaration();
     if (this.check(TokenType.MUT)) this.error("'mut' is not supported in Tova. Use 'var' for mutable variables");
     if (this.check(TokenType.VAR)) return this.parseVarDeclaration();
-    if (this.check(TokenType.LET)) this.error("'let' is not needed in Tova. Destructure directly: {a, b} = obj, [a, b] = list, or (a, b) = pair");
+    if (this.check(TokenType.LET)) {
+      const next = this.peek(1);
+      if (next && (next.type === TokenType.LBRACE || next.type === TokenType.LBRACKET || next.type === TokenType.LPAREN)) {
+        this.error("'let' is not needed in Tova. Destructure directly: '{a, b} = obj', '[a, b] = list', or '(a, b) = pair'");
+      }
+      this.error("'let' is not needed in Tova. Use 'name = value' for binding or 'var name = value' for mutable");
+    }
     if (this.check(TokenType.IF)) return this.parseIfStatement();
     if (this.check(TokenType.FOR)) return this.parseForStatement();
     if (this.check(TokenType.WHILE)) return this.parseWhileStatement();
@@ -8368,31 +8375,6 @@ class Parser {
     return new AST.VarDeclaration(targets, values, l);
   }
 
-  parseLetDestructure() {
-    const l = this.loc();
-    this.expect(TokenType.LET);
-
-    let pattern;
-    if (this.check(TokenType.LBRACE)) {
-      pattern = this.parseObjectPattern();
-    } else if (this.check(TokenType.LBRACKET)) {
-      pattern = this.parseArrayPattern();
-    } else if (this.check(TokenType.LPAREN)) {
-      // Tuple destructuring: let (a, b) = expr
-      pattern = this.parseTuplePattern();
-    } else if (this.check(TokenType.IDENTIFIER)) {
-      const name = this.current().value;
-      this.error(`Use '${name} = value' for binding or 'var ${name} = value' for mutable. 'let' is only for destructuring: let {a, b} = obj`);
-    } else {
-      this.error("Expected '{', '[', or '(' after 'let' for destructuring");
-    }
-
-    this.expect(TokenType.ASSIGN, "Expected '=' in destructuring");
-    const value = this.parseExpression();
-
-    return new AST.LetDestructure(pattern, value, l);
-  }
-
   parseObjectPattern() {
     const l = this.loc();
     this.expect(TokenType.LBRACE);
@@ -8690,7 +8672,7 @@ class Parser {
         if (expr._isDestructurePattern) {
           // Already parsed as a destructuring pattern with defaults
           pattern = new AST.ObjectPattern(
-            expr.properties.map(p => {
+            expr.properties.filter(p => !p.spread).map(p => {
               const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
               const val = p.shorthand ? key
                 : (p.value && p.value.type === 'Identifier' ? p.value.name : key);
@@ -8698,9 +8680,14 @@ class Parser {
             }),
             expr.loc
           );
+          // Handle rest/spread element: { name, ...other }
+          const spreadProp = expr.properties.find(p => p.spread);
+          if (spreadProp && spreadProp.argument && spreadProp.argument.type === 'Identifier') {
+            pattern.rest = spreadProp.argument.name;
+          }
         } else {
           pattern = new AST.ObjectPattern(
-            expr.properties.map(p => {
+            expr.properties.filter(p => !p.spread).map(p => {
               const key = typeof p.key === 'string' ? p.key : p.key.name || p.key;
               let val, defaultValue = p.defaultValue || null;
               if (p.shorthand) {
@@ -8728,6 +8715,11 @@ class Parser {
             }),
             expr.loc
           );
+          // Handle rest/spread element: { name, ...other }
+          const spreadProp = expr.properties.find(p => p.spread);
+          if (spreadProp && spreadProp.argument && spreadProp.argument.type === 'Identifier') {
+            pattern.rest = spreadProp.argument.name;
+          }
         }
         const value = this.parseExpression();
         return new AST.LetDestructure(pattern, value, l);
@@ -9989,7 +9981,7 @@ class Scope {
   }
 
   getContext() {
-    if (this.context === 'server' || this.context === 'browser' || this.context === 'client' || this.context === 'shared') {
+    if (this.context === 'server' || this.context === 'browser' || this.context === 'client' || this.context === 'shared' || this.context === 'edge') {
       return this.context;
     }
     if (this.parent) {
@@ -10956,8 +10948,8 @@ function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitRouteDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'route' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'route' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     this.visitExpression(node.handler);
 
@@ -10991,8 +10983,8 @@ function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitMiddlewareDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'middleware' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'middleware' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     try {
       this.currentScope.define(node.name,
@@ -11019,15 +11011,15 @@ function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitHealthCheckDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'health' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'health' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
   };
 
   AnalyzerClass.prototype.visitCorsDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'cors' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'cors' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     for (const value of Object.values(node.config)) {
       this.visitExpression(value);
@@ -11036,8 +11028,8 @@ function installServerAnalyzer(AnalyzerClass) {
 
   AnalyzerClass.prototype.visitErrorHandlerDeclaration = function(node) {
     const ctx = this.currentScope.getContext();
-    if (ctx !== 'server') {
-      this.error(`'on_error' can only be used inside a server block`, node.loc, "move this inside a server { } block", { code: 'E303' });
+    if (ctx !== 'server' && ctx !== 'edge') {
+      this.error(`'on_error' can only be used inside a server or edge block`, node.loc, "move this inside a server { } or edge { } block", { code: 'E303' });
     }
     const prevScope = this.currentScope;
     this.currentScope = this.currentScope.child('function');
@@ -11694,11 +11686,18 @@ function installCliAnalyzer(AnalyzerClass) {
 
       // Visit command body with params in scope
       this.pushScope('function');
+      const prevAsyncDepth = this._asyncDepth;
+      if (cmd.isAsync) {
+        this._asyncDepth++;
+      } else {
+        this._asyncDepth = 0;
+      }
       for (const param of cmd.params) {
         this.currentScope.define(param.name,
           new Symbol(param.name, 'parameter', null, false, param.loc));
       }
       this.visitNode(cmd.body);
+      this._asyncDepth = prevAsyncDepth;
       this.popScope();
     }
   };
@@ -11769,6 +11768,19 @@ function installEdgeAnalyzer(AnalyzerClass) {
     }
 
     this.pushScope('edge');
+
+    // Pre-define all binding names (kv, sql, storage, queue, env, secret) in scope
+    // so route handlers can reference them without "not defined" warnings
+    for (const stmt of node.body) {
+      if (stmt.type === 'EdgeKVDeclaration' || stmt.type === 'EdgeSQLDeclaration' ||
+          stmt.type === 'EdgeStorageDeclaration' || stmt.type === 'EdgeQueueDeclaration' ||
+          stmt.type === 'EdgeEnvDeclaration' || stmt.type === 'EdgeSecretDeclaration') {
+        try {
+          this.currentScope.define(stmt.name,
+            new Symbol(stmt.name, 'binding', null, false, stmt.loc));
+        } catch (e) { /* ignore redefinition — duplicate check below handles it */ }
+      }
+    }
 
     let kvCount = 0;
     const queueNames = new Set();
@@ -11903,7 +11915,11 @@ function installEdgeAnalyzer(AnalyzerClass) {
       // Visit child nodes — edge-specific types are noop in the registry,
       // so explicitly visit bodies that contain statements
       if (stmt.type === 'EdgeScheduleDeclaration' && stmt.body) {
+        // Schedule bodies are implicitly async (Cloudflare scheduled handler, Deno.cron callback)
+        const prevAsyncDepth = this._asyncDepth;
+        this._asyncDepth++;
         for (const s of stmt.body.body || []) this.visitNode(s);
+        this._asyncDepth = prevAsyncDepth;
       } else if (stmt.type === 'FunctionDeclaration' || stmt.type === 'RouteDeclaration') {
         this.visitNode(stmt);
       }
@@ -12781,6 +12797,7 @@ class Analyzer {
     this._allScopes = []; // Track all scopes for unused variable checking
     this._functionReturnTypeStack = []; // Stack of expected return types for type checking
     this._asyncDepth = 0; // Track nesting inside async functions for await validation
+    this._hasDefaultExport = false; // Track duplicate default exports
 
     // Propagate strict mode to the type system
     Type.strictMode = this.strict;
@@ -13398,11 +13415,47 @@ class Analyzer {
   // ─── Visitors ─────────────────────────────────────────────
 
   visitProgram(node) {
+    // Hoist top-level function and type declarations so forward references
+    // within the same module (or merged directory group) resolve correctly —
+    // matches JavaScript hoisting semantics of the emitted code.
+    this._hoistTopLevel(node.body);
+
     for (const stmt of node.body) {
       if (this.tolerant) {
         try { this.visitNode(stmt); } catch (e) { /* skip nodes that crash in tolerant mode */ }
       } else {
         this.visitNode(stmt);
+      }
+    }
+  }
+
+  _hoistTopLevel(body) {
+    for (const stmt of body) {
+      const target = stmt && stmt.type === 'ExportDefault' ? stmt.declaration : stmt;
+      if (!target) continue;
+      if (target.type === 'FunctionDeclaration') {
+        if (this.currentScope.lookupLocal && this.currentScope.lookupLocal(target.name)) continue;
+        try {
+          const sym = new Symbol(target.name, 'function', target.returnType, false, target.loc);
+          sym._params = target.params.map(p => p.name);
+          sym._totalParamCount = target.params.length;
+          sym._requiredParamCount = target.params.filter(p => !p.defaultValue).length;
+          sym._paramTypes = target.params.map(p => p.typeAnnotation || null);
+          sym._typeParams = target.typeParams || [];
+          sym.isPublic = target.isPublic || false;
+          sym.isWasm = !!(target.decorators && target.decorators.some(d => d.name === 'wasm'));
+          sym._forward = true;
+          this.currentScope.define(target.name, sym);
+        } catch { /* duplicate — visitor will report */ }
+      } else if (target.type === 'TypeDeclaration' || target.type === 'TypeAlias') {
+        if (this.currentScope.lookupLocal && this.currentScope.lookupLocal(target.name)) continue;
+        try {
+          const sym = new Symbol(target.name, 'type', null, false, target.loc);
+          sym._typeParams = target.typeParams || [];
+          sym._forward = true;
+          sym.isPublic = target.isPublic || false;
+          this.currentScope.define(target.name, sym);
+        } catch { /* duplicate — visitor will report */ }
       }
     }
   }
@@ -13427,6 +13480,8 @@ class Analyzer {
       case 'ImportDefault': return this.visitImportDefault(node);
       case 'ImportWildcard': return this.visitImportWildcard(node);
       case 'ReExportDeclaration': return; // re-exports don't define local symbols
+      case 'ExportDefault': return this.visitExportDefault(node);
+      case 'ExportList': return this.visitExportList(node);
       case 'IfStatement': return this.visitIfStatement(node);
       case 'ForStatement': return this.visitForStatement(node);
       case 'WhileStatement': return this.visitWhileStatement(node);
@@ -14334,6 +14389,44 @@ class Analyzer {
         new Symbol(node.local, 'module', null, false, node.loc));
     } catch (e) {
       this.error(e.message);
+    }
+  }
+
+  visitExportDefault(node) {
+    // Module-level restriction: not valid inside server/browser/edge/shared blocks
+    const ctx = this.currentScope.getContext();
+    if (ctx === 'server' || ctx === 'client' || ctx === 'browser' || ctx === 'shared') {
+      this.warn("'export default' is only valid at module level", node.loc, null, { code: 'W_EXPORT_NOT_MODULE_LEVEL' });
+    }
+
+    // Track duplicate default exports
+    if (this._hasDefaultExport) {
+      this.warn('Module already has a default export', node.loc, null, { code: 'W_DUPLICATE_DEFAULT_EXPORT' });
+    }
+    this._hasDefaultExport = true;
+
+    // Visit the inner value
+    if (node.value) {
+      this.visitNode(node.value);
+    }
+  }
+
+  visitExportList(node) {
+    // Module-level restriction: not valid inside server/browser/edge/shared blocks
+    const ctx = this.currentScope.getContext();
+    if (ctx === 'server' || ctx === 'client' || ctx === 'browser' || ctx === 'shared') {
+      this.warn("'export { }' is only valid at module level", node.loc, null, { code: 'W_EXPORT_NOT_MODULE_LEVEL' });
+    }
+
+    for (const spec of node.specifiers) {
+      // Check that the referenced name exists in scope
+      const sym = this.currentScope.lookup(spec.local);
+      if (!sym) {
+        this.warn(`'${spec.local}' is not defined`, spec.loc, null, { code: 'W201' });
+      } else {
+        // Mark as public so it doesn't trigger unused warnings
+        sym.isPublic = true;
+      }
     }
   }
 
@@ -15759,6 +15852,7 @@ class Analyzer {
   }
 
   visitTypeAlias(node) {
+    this._checkNamingConvention(node.name, 'type', node.loc);
     try {
       const typeSym = new Symbol(node.name, 'type', null, false, node.loc);
       // Store type alias info for resolution
@@ -18987,6 +19081,8 @@ class BaseCodegen {
     this._substitutionShadowed = new Set(); // names shadowed by lambda/function params
     // Track function nesting depth for auto-await of async stdlib functions
     this._functionDepth = 0; // 0 = top level (scripts run in AsyncFunction wrapper)
+    // For-else break tracking: stack of __broke variable names
+    this._forElseBrokeStack = [];
   }
 
   static TYPED_ARRAY_MAP = {
@@ -19246,7 +19342,15 @@ class BaseCodegen {
       case 'ExpressionStatement': result = `${this.i()}${this.genExpression(node.expression)};`; break;
       case 'BlockStatement': result = this.genBlock(node); break;
       case 'CompoundAssignment': result = this.genCompoundAssignment(node); break;
-      case 'BreakStatement': result = node.label ? `${this.i()}break ${node.label};` : `${this.i()}break;`; break;
+      case 'BreakStatement': {
+        const brokeVar = this._forElseBrokeStack.length > 0 && !node.label ? this._forElseBrokeStack[this._forElseBrokeStack.length - 1] : null;
+        if (brokeVar) {
+          result = `${this.i()}${brokeVar} = true; break;`;
+        } else {
+          result = node.label ? `${this.i()}break ${node.label};` : `${this.i()}break;`;
+        }
+        break;
+      }
       case 'ContinueStatement': result = node.label ? `${this.i()}continue ${node.label};` : `${this.i()}continue;`; break;
       case 'GuardStatement': result = this.genGuardStatement(node); break;
       case 'InterfaceDeclaration': result = this.genInterfaceDeclaration(node); break;
@@ -19465,13 +19569,17 @@ class BaseCodegen {
   genLetDestructure(node) {
     if (node.pattern.type === 'ObjectPattern') {
       for (const p of node.pattern.properties) this.declareVar(p.value);
+      if (node.pattern.rest) this.declareVar(node.pattern.rest);
       const props = node.pattern.properties.map(p => {
         let str = p.key;
         if (p.value !== p.key) str += `: ${p.value}`;
         if (p.defaultValue) str += ` = ${this.genExpression(p.defaultValue)}`;
         return str;
-      }).join(', ');
-      return `${this.i()}const { ${props} } = ${this.genExpression(node.value)};`;
+      });
+      if (node.pattern.rest) {
+        props.push(`...${node.pattern.rest}`);
+      }
+      return `${this.i()}const { ${props.join(', ')} } = ${this.genExpression(node.value)};`;
     }
     if (node.pattern.type === 'ArrayPattern' || node.pattern.type === 'TuplePattern') {
       for (const e of node.pattern.elements) {
@@ -19846,14 +19954,14 @@ class BaseCodegen {
     const iterExpr = this.genExpression(node.iterable);
 
     if (node.elseBody) {
-      // for-else: run else if iterable was empty
+      // for-else: run else if loop completes without hitting break
       const tempVar = `__iter_${this._uid()}`;
-      const enteredVar = `__entered_${this._uid()}`;
+      const brokeVar = `__broke_${this._uid()}`;
       const p = [];
       p.push(`${this.i()}{\n`);
       this.indent++;
       p.push(`${this.i()}const ${tempVar} = ${iterExpr};\n`);
-      p.push(`${this.i()}let ${enteredVar} = false;\n`);
+      p.push(`${this.i()}let ${brokeVar} = false;\n`);
       this.pushScope();
       for (const v of vars) this.declareVar(v);
       if (vars.length === 2) {
@@ -19864,16 +19972,18 @@ class BaseCodegen {
         p.push(`${this.i()}${labelPrefix}for${awaitKeyword} (const ${vars[0]} of ${tempVar}) {\n`);
       }
       this.indent++;
-      p.push(`${this.i()}${enteredVar} = true;\n`);
       if (node.guard) {
         p.push(`${this.i()}if (!(${this.genExpression(node.guard)})) continue;\n`);
       }
+      // Push broke var so break statements inside the body set it
+      this._forElseBrokeStack.push(brokeVar);
       p.push(this.genBlockStatements(node.body));
+      this._forElseBrokeStack.pop();
       this.indent--;
       p.push(`\n${this.i()}}\n`);
       this.popScope();
       this.pushScope();
-      p.push(`${this.i()}if (!${enteredVar}) {\n`);
+      p.push(`${this.i()}if (!${brokeVar}) {\n`);
       this.indent++;
       p.push(this.genBlockStatements(node.elseBody));
       this.indent--;
@@ -22304,8 +22414,9 @@ class BaseCodegen {
       const step = this.genExpression(node.step);
       const s = node.start ? this.genExpression(node.start) : 'null';
       const e = node.end ? this.genExpression(node.end) : 'null';
-      // Handles both positive and negative step directions
-      return `((a, s, e, st) => { const r = []; if (st > 0) { for (let i = s !== null ? s : 0; i < (e !== null ? e : a.length); i += st) r.push(a[i]); } else { for (let i = s !== null ? s : a.length - 1; i > (e !== null ? e : -1); i += st) r.push(a[i]); } return r; })(${obj}, ${s}, ${e}, ${step})`;
+      // Handles both positive and negative step directions; guards against step === 0
+      // Normalizes negative indices relative to array length
+      return `((a, s, e, st) => { if (st === 0) return []; const len = a.length; if (s !== null && s < 0) s = Math.max(0, len + s); if (e !== null && e < 0) e = Math.max(0, len + e); const r = []; if (st > 0) { for (let i = s !== null ? s : 0; i < (e !== null ? e : len); i += st) r.push(a[i]); } else { for (let i = s !== null ? s : len - 1; i > (e !== null ? e : -1); i += st) r.push(a[i]); } return r; })(${obj}, ${s}, ${e}, ${step})`;
     }
 
     if (!start && !end) return `${obj}.slice()`;
@@ -32843,34 +32954,23 @@ class ThemeCodegen {
 // Blocks with the same name are merged; different names produce separate output files.
 
 
+
+
+
+
+
+
+
+
+
 function getServerCodegen() { return ServerCodegen; }
-
-let _BrowserCodegen = null;
 function getBrowserCodegen() { return BrowserCodegen; }
-
-let _SecurityCodegen = null;
 function getSecurityCodegen() { return SecurityCodegen; }
-
-let _CliCodegen = null;
 function getCliCodegen() { return CliCodegen; }
-
-let _EdgeCodegen = null;
 function getEdgeCodegen() { return EdgeCodegen; }
-
-let _DeployCodegen = null;
-function getDeployCodegen() {
-  if (!_DeployCodegen) _DeployCodegen = _require('./deploy-codegen.js').DeployCodegen;
-  return _DeployCodegen;
-}
-
-let _ThemeCodegen = null;
+function getDeployCodegen() { return DeployCodegen; }
 function getThemeCodegen() { return ThemeCodegen; }
-
-let _AuthCodegen = null;
-function getAuthCodegen() {
-  if (!_AuthCodegen) _AuthCodegen = _require('./auth-codegen.js').AuthCodegen;
-  return _AuthCodegen;
-}
+function getAuthCodegen() { return AuthCodegen; }
 class CodeGenerator {
   constructor(ast, filename = '<stdin>', options = {}) {
     this.ast = ast;

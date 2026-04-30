@@ -174,7 +174,7 @@ ch = Channel.new(10)    // buffered channel, capacity 10
 
 concurrent {
     // Producer
-    spawn fn() {
+    spawn async fn() {
         for i in range(5) {
             await ch.send(i)
         }
@@ -182,7 +182,7 @@ concurrent {
     }
 
     // Consumer
-    spawn fn() {
+    spawn async fn() {
         async for msg in ch {
             print("Got: {msg}")
         }
@@ -276,7 +276,7 @@ Combine `select` with a loop to continuously multiplex:
 
 ```tova
 async fn event_loop(commands, events, quit) {
-    running = true
+    var running = true
     while running {
         select {
             cmd from commands => handle_command(cmd)
@@ -312,7 +312,7 @@ concurrent {
     spawn worker(4, ch)
 
     // Feed work
-    spawn fn() {
+    spawn async fn() {
         for item in work_items {
             await ch.send(item)
         }
@@ -342,7 +342,7 @@ concurrent {
     spawn stage("transform", parsed, final, fn(x) transform(x))
 
     // Feed raw data
-    spawn fn() {
+    spawn async fn() {
         for item in data {
             await raw.send(item)
         }
@@ -350,7 +350,7 @@ concurrent {
     }
 
     // Collect results
-    spawn fn() {
+    spawn async fn() {
         async for result in final {
             save(result)
         }
@@ -365,7 +365,7 @@ Use `concurrent first` to race a slow operation against a fallback:
 ```tova
 concurrent first {
     result = spawn fetch_from_api()
-    spawn fn() {
+    spawn async fn() {
         await sleep(2000)
         get_cached_value()
     }
@@ -401,11 +401,15 @@ await parallel([promise1, promise2, ...]) -> List<Result>
 A convenience wrapper around `Promise.all` that runs an array of promises concurrently and returns their results. Use this for quick one-liners when you don't need the structured scoping of a `concurrent` block.
 
 ```tova
-results = await parallel([
-    fetch("/api/users"),
-    fetch("/api/posts"),
-    fetch("/api/stats")
-])
+async fn main() {
+  results = await parallel([
+      fetch("/api/users"),
+      fetch("/api/posts"),
+      fetch("/api/stats")
+  ])
+}
+
+main()
 ```
 
 ### parallel_map
@@ -417,8 +421,12 @@ await parallelMap(array, fn) -> List<Result>
 Applies a function to each element of an array, running all invocations concurrently. Useful for CPU-bound work on large arrays. For `@wasm` functions, tasks are distributed across worker threads via the Tokio runtime.
 
 ```tova
-// Square each number in parallel
-squares = await parallelMap(range(1000), fn(n) n * n)
+async fn main() {
+  // Square each number in parallel
+  squares = await parallelMap(range(1000), fn(n) n * n)
+}
+
+main()
 ```
 
 ## Compiler Diagnostics

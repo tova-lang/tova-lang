@@ -237,7 +237,7 @@ shared {
   }
 }
 
-// Bad: side effects don't belong in shared
+// Avoid: side effects don't belong in shared
 shared {
   fn log_event(event: String) {
     print(event)  // Side effect -- put in server or client

@@ -751,11 +751,47 @@ export class Analyzer {
   // ─── Visitors ─────────────────────────────────────────────
 
   visitProgram(node) {
+    // Hoist top-level function and type declarations so forward references
+    // within the same module (or merged directory group) resolve correctly —
+    // matches JavaScript hoisting semantics of the emitted code.
+    this._hoistTopLevel(node.body);
+
     for (const stmt of node.body) {
       if (this.tolerant) {
         try { this.visitNode(stmt); } catch (e) { /* skip nodes that crash in tolerant mode */ }
       } else {
         this.visitNode(stmt);
+      }
+    }
+  }
+
+  _hoistTopLevel(body) {
+    for (const stmt of body) {
+      const target = stmt && stmt.type === 'ExportDefault' ? stmt.declaration : stmt;
+      if (!target) continue;
+      if (target.type === 'FunctionDeclaration') {
+        if (this.currentScope.lookupLocal && this.currentScope.lookupLocal(target.name)) continue;
+        try {
+          const sym = new Symbol(target.name, 'function', target.returnType, false, target.loc);
+          sym._params = target.params.map(p => p.name);
+          sym._totalParamCount = target.params.length;
+          sym._requiredParamCount = target.params.filter(p => !p.defaultValue).length;
+          sym._paramTypes = target.params.map(p => p.typeAnnotation || null);
+          sym._typeParams = target.typeParams || [];
+          sym.isPublic = target.isPublic || false;
+          sym.isWasm = !!(target.decorators && target.decorators.some(d => d.name === 'wasm'));
+          sym._forward = true;
+          this.currentScope.define(target.name, sym);
+        } catch { /* duplicate — visitor will report */ }
+      } else if (target.type === 'TypeDeclaration' || target.type === 'TypeAlias') {
+        if (this.currentScope.lookupLocal && this.currentScope.lookupLocal(target.name)) continue;
+        try {
+          const sym = new Symbol(target.name, 'type', null, false, target.loc);
+          sym._typeParams = target.typeParams || [];
+          sym._forward = true;
+          sym.isPublic = target.isPublic || false;
+          this.currentScope.define(target.name, sym);
+        } catch { /* duplicate — visitor will report */ }
       }
     }
   }
@@ -3152,6 +3188,7 @@ export class Analyzer {
   }
 
   visitTypeAlias(node) {
+    this._checkNamingConvention(node.name, 'type', node.loc);
     try {
       const typeSym = new Symbol(node.name, 'type', null, false, node.loc);
       // Store type alias info for resolution

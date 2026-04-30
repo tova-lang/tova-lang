@@ -6,7 +6,7 @@ Tova provides several JSX directives for common UI patterns. Directives are spec
 
 Attach DOM event listeners:
 
-```tova
+```tova-jsx
 <button on:click={fn() count += 1}>Click</button>
 <input on:input={fn(e) name = e.target.value} />
 ```
@@ -24,7 +24,7 @@ Create two-way data bindings between form elements and signals:
 | `bind:group` | `<input type="radio/checkbox">` | String/Array |
 | `bind:this` | Any element | Ref object |
 
-```tova
+```tova-jsx
 state name = ""
 state agreed = false
 
@@ -61,7 +61,7 @@ See [Form Block](/fullstack/form-block) and [Forms & Validation](/reactivity/for
 
 Toggle CSS classes based on expressions:
 
-```tova
+```tova-jsx
 <div class:active={is_active} class:hidden={not visible}>
   Content
 </div>
@@ -75,7 +75,7 @@ See [Conditional Classes](/reactivity/jsx#conditional-classes) and the [Styling 
 
 Toggle element visibility without removing from DOM:
 
-```tova
+```tova-jsx
 <div show={is_visible}>
   This content is hidden with display:none when is_visible is false
 </div>
@@ -89,7 +89,7 @@ Unlike `if` blocks which add/remove elements from the DOM, `show` keeps the elem
 
 Run imperative code when an element is created. Actions are functions that receive the DOM element and an optional parameter:
 
-```tova
+```tova-jsx
 fn tooltip(el, text) {
   tip = document.createElement("div")
   tip.textContent = text
@@ -123,7 +123,7 @@ An action function is called with `(element, parameter)` when the element is cre
 
 When the parameter reads a signal, the action's `update` method is called whenever the signal changes:
 
-```tova
+```tova-jsx
 state tip_text = "Initial tooltip"
 
 <button use:tooltip={tip_text}>?</button>
@@ -133,7 +133,7 @@ state tip_text = "Initial tooltip"
 
 Multiple `use:` directives can be applied to the same element:
 
-```tova
+```tova-jsx
 <div use:draggable use:resizable={min_size}>
   Draggable and resizable
 </div>
@@ -144,7 +144,7 @@ Multiple `use:` directives can be applied to the same element:
 Apply CSS transitions when elements enter or leave the DOM:
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 <div transition:fade>Fades in and out</div>
 <div transition:slide={{duration: 300}}>Slides</div>
 ```
@@ -156,7 +156,7 @@ See [Transitions](/reactivity/transitions) for full documentation including dire
 
 Apply different transitions for entering and leaving:
 
-```tova
+```tova-jsx
 <div in:fade out:slide>
   Fades in, slides out
 </div>

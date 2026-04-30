@@ -302,7 +302,7 @@ The array accessor:
 | `array.remove(item)` | Function | Remove an item |
 | `array.move(from, to)` | Function | Reorder items |
 
-```tova
+```tova-jsx
 // Add a new line item
 invoice.lineItems.add()
 
@@ -357,7 +357,7 @@ The wizard provides:
 | `form.next()` | Function | Validate current step and advance |
 | `form.prev()` | Function | Go back one step |
 
-```tova
+```tova-jsx
 <div class="wizard">
   <div class="progress" style={"width: " ++ str(checkout.progress * 100) ++ "%"} />
 
@@ -404,7 +404,7 @@ The form controller object exposes:
 
 The `bind:form` directive wires a `<form>` element's submit event to the form controller:
 
-```tova
+```tova-jsx
 <form bind:form={signup}>
   // children...
 </form>
@@ -416,7 +416,7 @@ This compiles to `onSubmit: (e) => signup.submit(e)`, which calls `e.preventDefa
 
 `FormField` is a compiler-time transform (not a runtime component). It auto-wires a child input element to a field's signals:
 
-```tova
+```tova-jsx
 <FormField field={signup.email}>
   <label>"Email"</label>
   <input type="email" />
@@ -436,7 +436,7 @@ The compiler:
 
 `ErrorMessage` is also a compiler-time transform. It renders a conditional `<span class="form-error">` based on the field or form state:
 
-```tova
+```tova-jsx
 // Inside FormField -- shows field error when touched
 <FormField field={signup.email}>
   <input type="email" />
@@ -640,7 +640,7 @@ browser {
           total: total
         })
         match result {
-          Ok(order) => navigate("/order/" ++ str(order.id))
+          Ok(order) => navigate("/order/" + str(order.id))
           Err(e) => checkout.setError(e.message)
         }
       }
@@ -648,7 +648,7 @@ browser {
 
     <form bind:form={checkout}>
       <div class="progress-bar">
-        <div style={"width:" ++ str(checkout.progress * 100) ++ "%"} />
+        <div style={"width:" + str(checkout.progress * 100) + "%"} />
       </div>
 
       if checkout.currentStep == 0 {

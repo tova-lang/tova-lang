@@ -1016,7 +1016,7 @@ Client-side reactive primitives compile to the Tova runtime:
 
 JSX elements compile to DOM creation calls:
 
-```tova
+```tova-jsx
 <div class="container">
   <p>{message}</p>
 </div>

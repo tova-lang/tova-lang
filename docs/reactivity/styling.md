@@ -12,7 +12,7 @@ Beyond basic styling, Tova includes a full design system layer. When you define 
 
 Tova includes Tailwind CSS out of the box via CDN -- no installation or configuration required. Every utility class works immediately in development (`tova dev`) and production builds (`tova build --production`).
 
-```tova
+```tova-jsx
 component Card(title, description) {
   <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-all">
     <h3 class="text-lg font-semibold text-gray-900 mb-2">title goes here</h3>
@@ -25,7 +25,7 @@ Use curly braces for dynamic values in attributes and children, like component p
 
 Responsive, hover, focus, and all other Tailwind variants work as expected:
 
-```tova
+```tova-jsx
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
   <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors">
     Save
@@ -41,7 +41,7 @@ Tailwind is the recommended approach for most styling in Tova. It avoids naming 
 
 Components can include `style` blocks that are automatically scoped to that component. Styles never leak into other components, even if they share the same class names.
 
-```tova
+```tova-jsx
 component Button(label) {
   <button class="btn">Click me</button>
 
@@ -77,7 +77,7 @@ The compiler generates a unique hash from the component name and CSS content, th
 
 Scoping correctly handles all pseudo-classes and pseudo-elements. The scope attribute is inserted before the pseudo-selector:
 
-```tova
+```tova-jsx
 style {
   .input:focus { border-color: #4f46e5; }
   .input:hover { border-color: #a5b4fc; }
@@ -105,7 +105,7 @@ Scoped styles support all standard CSS at-rules:
 
 **`@media`** -- selectors inside are scoped:
 
-```tova
+```tova-jsx
 style {
   .sidebar { width: 300px; }
 
@@ -117,7 +117,7 @@ style {
 
 **`@keyframes`** -- selectors inside (`from`, `to`, `0%`, `100%`) are **not** scoped, since they are animation step names, not element selectors:
 
-```tova
+```tova-jsx
 style {
   .spinner {
     animation: spin 1s linear infinite;
@@ -132,7 +132,7 @@ style {
 
 **`@font-face`** -- not scoped, since font declarations are global by nature:
 
-```tova
+```tova-jsx
 style {
   @font-face {
     font-family: "CustomFont";
@@ -145,7 +145,7 @@ style {
 
 **`@layer`** and **`@supports`** -- selectors inside are scoped:
 
-```tova
+```tova-jsx
 style {
   @layer components {
     .card { border-radius: 12px; padding: 16px; }
@@ -161,7 +161,7 @@ style {
 
 To write styles that are not scoped, wrap selectors in `:global()`:
 
-```tova
+```tova-jsx
 component Modal {
   <div class="overlay">
     <div class="content">...</div>
@@ -179,7 +179,7 @@ component Modal {
 
 `:global()` also works inline within a compound selector, so you can scope part of the selector and leave part global:
 
-```tova
+```tova-jsx
 style {
   // .widget is scoped, .third-party-class is not
   .widget :global(.third-party-class) { color: red; }
@@ -190,7 +190,7 @@ style {
 
 Use `class:` directives to toggle classes based on expressions:
 
-```tova
+```tova-jsx
 <div class:active={is_active} class:error={has_error}>
   Content
 </div>
@@ -198,7 +198,7 @@ Use `class:` directives to toggle classes based on expressions:
 
 The class is added when the expression is truthy and removed when falsy. Multiple `class:` directives merge with any static `class` attribute:
 
-```tova
+```tova-jsx
 <button class="btn" class:primary={is_primary} class:loading={is_loading}>
   Submit
 </button>
@@ -210,7 +210,7 @@ When any referenced signal changes, the class list updates reactively.
 
 For more complex class logic, pass an expression to `class`:
 
-```tova
+```tova-jsx
 <div class={if is_active { "bg-indigo-600 text-white" } else { "bg-gray-100 text-gray-600" }}>
   Tab
 </div>
@@ -233,7 +233,7 @@ fn badge_classes(status) {
 
 Then use it in a component:
 
-```tova
+```tova-jsx
 component Badge(status) {
   <div class={badge_classes(status)}>
     Active
@@ -245,7 +245,7 @@ component Badge(status) {
 
 Embed expressions directly in class strings with curly braces:
 
-```tova
+```tova-jsx
 state highlighted = true
 
 <div class="p-4 rounded-lg">
@@ -261,7 +261,7 @@ When `highlighted` is true, use a dynamic `class` expression with `if` to condit
 
 Pass a CSS string to the `style` attribute:
 
-```tova
+```tova-jsx
 <div style="color: red; font-size: 14px;">
   Red text
 </div>
@@ -272,7 +272,7 @@ Pass a CSS string to the `style` attribute:
 Pass a JavaScript-style object for programmatic styles:
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 <div style={{ color: text_color, fontSize: "14px", opacity: if visible { 1 } else { 0 } }}>
   Dynamic styling
 </div>
@@ -285,7 +285,7 @@ Style object properties use camelCase (matching the DOM `style` API): `fontSize`
 
 The `show` directive toggles visibility by setting `display: none`:
 
-```tova
+```tova-jsx
 <div show={is_visible}>
   This stays in the DOM but is hidden when is_visible is false
 </div>
@@ -300,7 +300,7 @@ Unlike `if` blocks which add and remove elements from the DOM, `show` preserves 
 
 In practice, most Tova apps combine Tailwind for layout and utility styling with scoped CSS for complex component-specific animations or third-party overrides:
 
-```tova
+```tova-jsx
 component AnimatedCard() {
   <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 card">
     <h3 class="text-lg font-semibold text-gray-900">Card title</h3>
@@ -570,7 +570,7 @@ The `+` operator binds tighter than `then`, so `a + b then c` means "run a and b
 
 Apply an animation to any element with the `animate:name` directive:
 
-```tova
+```tova-jsx
 // Always animate
 <div animate:fadeIn>"Content"</div>
 
@@ -637,7 +637,7 @@ Reference counting ensures that when multiple instances of a component are mount
 
 The compiler automatically injects a `@media (prefers-reduced-motion: reduce)` block when your component's CSS contains `transition` or `animation` properties. This ensures accessibility compliance without any extra effort.
 
-```tova
+```tova-jsx
 component Card() {
   style {
     .card {
@@ -670,7 +670,7 @@ The duration is set to `0.01ms` rather than `0ms` to prevent browsers from skipp
 
 Use `style(motion: full)` for animations that are essential to understanding the UI, such as progress indicators or loading bars:
 
-```tova
+```tova-jsx
 component ProgressBar() {
   style(motion: full) {
     .bar {

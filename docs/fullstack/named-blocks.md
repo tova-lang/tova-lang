@@ -17,8 +17,8 @@ server "api" {
 
 server "events" {
   // WebSocket / SSE server for real-time
-  ws { ... }
-  sse "/stream" fn(send, close) { ... }
+  ws { /* ... */ }
+  sse "/stream" fn(send, close) { /* ... */ }
 }
 
 server "worker" {

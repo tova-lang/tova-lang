@@ -21,7 +21,7 @@ The `auth {}` block solves this:
 
 ## Syntax Overview
 
-```tova
+```tova-jsx
 auth {
   secret: env("AUTH_SECRET")
   token_expires: 900
@@ -49,7 +49,7 @@ auth {
 
   provider magic_link {
     send: fn(email, link) {
-      send_email(email, "Login to MyApp", "Click here: " ++ link)
+      send_email(email, "Login to MyApp", "Click here: " + link)
     }
     expires: 600
   }
@@ -182,7 +182,7 @@ Passwordless authentication via email link:
 auth {
   provider magic_link {
     send: fn(email, link) {
-      send_email(email, "Login to MyApp", "Click here: " ++ link)
+      send_email(email, "Login to MyApp", "Click here: " + link)
     }
     expires: 600
   }
@@ -395,7 +395,7 @@ OAuth buttons are automatically added to `<LoginForm />` based on the configured
 
 Wrap content that requires authentication:
 
-```tova
+```tova-jsx
 browser {
   component Dashboard {
     <AuthGuard require="Admin" fallback={<p>"Access denied"</p>}>

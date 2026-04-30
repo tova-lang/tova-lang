@@ -169,8 +169,7 @@ server {
   }
 
   // SSE endpoint for live updates
-  sse "/api/chat/stream" fn(req, send) {
-    // Poll for new messages every 2 seconds
+  async fn poll_messages(send) {
     var last_id = 0
     while true {
       messages = MessageModel.all()
@@ -184,6 +183,11 @@ server {
       }
       await Bun.sleep(2000)
     }
+  }
+
+  sse "/api/chat/stream" fn(req, send) {
+    // Poll for new messages every 2 seconds
+    poll_messages(send)
   }
 
   route GET "/api/messages" => get_messages
@@ -514,7 +518,7 @@ server {
 
 ### Client: Login and Registration Forms
 
-```tova
+```tova-jsx
 browser {
   state current_user: User = nil
   state token: String = nil
@@ -743,7 +747,7 @@ server {
   }
 
   // Background job (runs once, off the request path)
-  background fn send_welcome_email(user_id: Int) {
+  background async fn send_welcome_email(user_id: Int) {
     user = UserModel.find(user_id)
     await email.send({
       to: user.email,

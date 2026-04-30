@@ -291,7 +291,9 @@ Functions can be generic implicitly (through type inference) or explicitly (with
 fn identity(x) {
   x
 }
+```
 
+```tova
 // Explicit — type parameters declared with angle brackets
 fn identity<T>(x: T) -> T {
   x
@@ -323,8 +325,8 @@ type Callback<T> = (T) -> Nil
 Use angle brackets to specify type arguments in annotations:
 
 ```tova
-fn parse(s: String) -> Result<Int, String> { ... }
-fn find(id: Int) -> Option<User> { ... }
+fn parse(s: String) -> Result<Int, String> { /* ... */ }
+fn find(id: Int) -> Option<User> { /* ... */ }
 items: [Option<Int>] = [Some(1), None, Some(3)]
 ```
 
@@ -685,7 +687,7 @@ The compiler recognizes `typeOf()` checks and narrows accordingly. `typeOf()` is
 fn serialize(value) {
   if typeOf(value) == "String" {
     // value is narrowed to String
-    "\"" ++ value ++ "\""
+    "\"" + value + "\""
   } elif typeOf(value) == "Int" {
     // value is narrowed to Int
     str(value)

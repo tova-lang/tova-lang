@@ -210,7 +210,7 @@ type MyResult<T> = Result<T, String>
 type Callback<T> = (T) -> Nil
 
 fn get_user(id: Int) -> MyResult<User> {
-  // error type is always String
+  // err type is always String
   Ok(User(id, "Alice", "alice@example.com"))
 }
 ```

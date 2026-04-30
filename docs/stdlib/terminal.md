@@ -183,9 +183,13 @@ async spin(label, fn) -> T
 Shows a braille spinner animation while an async function executes. Displays a checkmark on success or a cross on error.
 
 ```tova
-result = await spin("Deploying", async fn() {
-  await deploy_to_production()
-})
+async fn main() {
+  result = await spin("Deploying", async fn() {
+    await deploy_to_production()
+  })
+}
+
+main()
 ```
 
 Output while running:
@@ -256,12 +260,16 @@ async choose(prompt, options) -> String
 Displays a numbered list and prompts the user to pick one. Returns the selected option value.
 
 ```tova
-lang = await choose("Pick a language:", ["Tova", "Python", "Rust"])
-// Pick a language:
-//   1. Tova
-//   2. Python
-//   3. Rust
-// Select [1-3]: _
+async fn main() {
+  lang = await choose("Pick a language:", ["Tova", "Python", "Rust"])
+  // Pick a language:
+  //   1. Tova
+  //   2. Python
+  //   3. Rust
+  // Select [1-3]: _
+}
+
+main()
 ```
 
 ### choose_many
@@ -273,13 +281,17 @@ async chooseMany(prompt, options) -> [String]
 Like `choose`, but accepts comma-separated selections for multi-select.
 
 ```tova
-features = await chooseMany("Enable features:", ["auth", "logging", "metrics"])
-// Enable features:
-//   1. auth
-//   2. logging
-//   3. metrics
-// Select (comma-separated): 1,3
-// => ["auth", "metrics"]
+async fn main() {
+  features = await chooseMany("Enable features:", ["auth", "logging", "metrics"])
+  // Enable features:
+  //   1. auth
+  //   2. logging
+  //   3. metrics
+  // Select (comma-separated): 1,3
+  // => ["auth", "metrics"]
+}
+
+main()
 ```
 
 ### secret
@@ -291,8 +303,12 @@ async secret(prompt) -> String
 Prompts for hidden input. Characters are masked with `*` in TTY mode.
 
 ```tova
-password = await secret("Password:")
-// Password: ****
+async fn main() {
+  password = await secret("Password:")
+  // Password: ****
+}
+
+main()
 ```
 
 ---

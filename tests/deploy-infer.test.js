@@ -276,3 +276,61 @@ describe('Infrastructure Inference', () => {
     expect(manifest.hasWebSocket).toBe(true);
   });
 });
+
+describe('Multi-environment isolation', () => {
+  // Helper: build a deploy block with config + env entries + db engines
+  function multiEnvAst() {
+    const stagingEnv = {
+      type: 'DeployEnvBlock',
+      entries: [{ key: 'LOG_LEVEL', value: { type: 'StringLiteral', value: 'debug' } }],
+    };
+    const prodEnv = {
+      type: 'DeployEnvBlock',
+      entries: [
+        { key: 'LOG_LEVEL', value: { type: 'StringLiteral', value: 'warn' } },
+        { key: 'SENTRY_DSN', value: { type: 'StringLiteral', value: 'https://sentry/1' } },
+      ],
+    };
+    const pgStaging = { type: 'DeployDbBlock', engine: 'postgres', config: { name: { type: 'StringLiteral', value: 'staging_db' } } };
+    const pgProd = { type: 'DeployDbBlock', engine: 'postgres', config: { name: { type: 'StringLiteral', value: 'prod_db' } } };
+    const redis = { type: 'DeployDbBlock', engine: 'redis', config: {} };
+    return program([
+      deployBlock('staging', [stagingEnv, pgStaging]),
+      deployBlock('prod', [prodEnv, pgProd, redis]),
+    ]);
+  }
+
+  test('envName filter isolates env vars to the named environment', () => {
+    const ast = multiEnvAst();
+    const staging = inferInfrastructure(ast, 'staging');
+    expect(staging.env).toEqual({ LOG_LEVEL: 'debug' });
+    expect(staging.env.SENTRY_DSN).toBeUndefined();
+
+    const prod = inferInfrastructure(ast, 'prod');
+    expect(prod.env.LOG_LEVEL).toBe('warn');
+    expect(prod.env.SENTRY_DSN).toBe('https://sentry/1');
+  });
+
+  test('envName filter isolates databases to the named environment', () => {
+    const ast = multiEnvAst();
+    const staging = inferInfrastructure(ast, 'staging');
+    expect(staging.databases).toHaveLength(1);
+    expect(staging.databases[0].engine).toBe('postgres');
+    expect(staging.databases[0].config.name).toBe('staging_db');
+
+    const prod = inferInfrastructure(ast, 'prod');
+    expect(prod.databases).toHaveLength(2);
+    const engines = prod.databases.map(d => d.engine).sort();
+    expect(engines).toEqual(['postgres', 'redis']);
+    const pg = prod.databases.find(d => d.engine === 'postgres');
+    expect(pg.config.name).toBe('prod_db');
+  });
+
+  test('omitting envName preserves legacy merge-all behavior', () => {
+    const ast = multiEnvAst();
+    const merged = inferInfrastructure(ast);
+    expect(Object.keys(merged.env).sort()).toEqual(['LOG_LEVEL', 'SENTRY_DSN']);
+    // Both postgres entries plus redis end up in the manifest
+    expect(merged.databases.length).toBeGreaterThanOrEqual(2);
+  });
+});

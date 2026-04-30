@@ -680,7 +680,7 @@ parse_number = pipeFn(
 format_currency = pipeFn(
   fn(n) round(n * 100) / 100,
   fn(n) toString(n),
-  fn(s) "$" ++ s
+  fn(s) "$" + s
 )
 
 process_price = pipeFn(parse_number, format_currency)

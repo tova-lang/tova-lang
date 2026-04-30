@@ -6,7 +6,7 @@ Tova uses JSX-like syntax for defining user interfaces. JSX in Tova is compiled 
 
 HTML elements use familiar angle-bracket syntax:
 
-```tova
+```tova-jsx
 <div class="container" id="main">
   <h1>Title</h1>
   <p>Paragraph text</p>
@@ -15,7 +15,7 @@ HTML elements use familiar angle-bracket syntax:
 
 Self-closing elements use a trailing slash:
 
-```tova
+```tova-jsx
 <img src="/logo.png" alt="Logo" />
 <br />
 <input type="text" />
@@ -26,7 +26,7 @@ Self-closing elements use a trailing slash:
 
 Most HTML attributes use their standard names. The `class` attribute is supported directly:
 
-```tova
+```tova-jsx
 <div class="header">
   <span class="icon">*</span>
 </div>
@@ -42,7 +42,7 @@ JSX supports two styles of text content.
 
 Just write text directly inside elements, like in HTML:
 
-```tova
+```tova-jsx
 <p>Hello, World!</p>
 <h1>Welcome to Tova</h1>
 <li>Buy groceries</li>
@@ -54,14 +54,14 @@ Unquoted text is split into separate text and expression children when mixed wit
 
 Wrap text in double quotes for explicit string literals:
 
-```tova
+```tova-jsx
 <p>"Hello, World!"</p>
 <h1>"Welcome to Tova"</h1>
 ```
 
 Quoted strings support template interpolation with `{ }`:
 
-```tova
+```tova-jsx
 <p>"Hello, {name}!"</p>
 <p>"Count: {count}"</p>
 ```
@@ -78,7 +78,7 @@ The keywords `if`, `for`, `elif`, and `else` are reserved for JSX control flow. 
 
 Use `{ }` braces to embed dynamic values:
 
-```tova
+```tova-jsx
 <div class={active_class}>
   <span>{user.name}</span>
   <p>{format_date(created_at)}</p>
@@ -92,7 +92,7 @@ When an expression reads a reactive signal, the compiler wraps it in a reactive 
 
 Prefix event names with `on:` to attach event handlers:
 
-```tova
+```tova-jsx
 <button on:click={fn() count += 1}>Click me</button>
 <input on:input={fn(e) name = e.target.value} />
 <form on:submit={fn(e) {
@@ -169,7 +169,7 @@ Append modifiers to event names with `.` to automatically apply common event han
 | `.delete` | Delete |
 | `.backspace` | Backspace |
 
-```tova
+```tova-jsx
 <input on:keydown.enter={fn() submit_search()} />
 <div on:keydown.escape={fn() close_dialog()} />
 ```
@@ -180,7 +180,7 @@ Use `bind:` directives for two-way data binding between form elements and signal
 
 ### Text Input
 
-```tova
+```tova-jsx
 state name = ""
 <input bind:value={name} />
 ```
@@ -189,7 +189,7 @@ This sets the input's value to `name` and updates `name` on every `input` event.
 
 ### Checkbox
 
-```tova
+```tova-jsx
 state agreed = false
 <input type="checkbox" bind:checked={agreed} />
 ```
@@ -198,7 +198,7 @@ This binds the checkbox's checked state to the `agreed` signal.
 
 ### Select Dropdown
 
-```tova
+```tova-jsx
 state selected = "a"
 <select bind:value={selected}>
   <option value="a">Option A</option>
@@ -211,7 +211,7 @@ For `<select>` elements, `bind:value` listens to the `change` event (rather than
 
 ### Radio Group
 
-```tova
+```tova-jsx
 state choice = "red"
 <input type="radio" bind:group={choice} value="red" /> Red
 <input type="radio" bind:group={choice} value="green" /> Green
@@ -222,7 +222,7 @@ state choice = "red"
 
 ### Checkbox Group
 
-```tova
+```tova-jsx
 state selected_colors = []
 <input type="checkbox" bind:group={selected_colors} value="red" /> Red
 <input type="checkbox" bind:group={selected_colors} value="green" /> Green
@@ -235,7 +235,7 @@ For checkboxes, `bind:group` manages an array signal. Checking a box adds its va
 
 Use `class:` directives to conditionally toggle CSS classes:
 
-```tova
+```tova-jsx
 <div class:active={is_active} class:error={has_error} class:hidden={not is_visible}>
   Content
 </div>
@@ -243,7 +243,7 @@ Use `class:` directives to conditionally toggle CSS classes:
 
 The class is added when the expression is truthy and removed when falsy. Multiple `class:` directives can be combined, and they merge with any static `class` attribute:
 
-```tova
+```tova-jsx
 <button class="btn" class:primary={is_primary} class:disabled={is_disabled}>
   {label}
 </button>
@@ -266,7 +266,7 @@ Spread attributes are merged with explicitly declared attributes. Explicit attri
 
 Use `if`, `elif`, and `else` directly inside JSX for conditional rendering:
 
-```tova
+```tova-jsx
 <div>
   if is_logged_in {
     <p>Welcome, {user.name}!</p>
@@ -282,7 +282,7 @@ The condition is reactive -- when the signals it reads change, the rendered cont
 
 ### Simple If/Else
 
-```tova
+```tova-jsx
 <div>
   if show_details {
     <Details item={item} />
@@ -300,7 +300,7 @@ When `show_details` is falsy, nothing is rendered in that slot. The compiler wra
 
 Use `for...in` inside JSX to render lists:
 
-```tova
+```tova-jsx
 <ul>
   for item in items {
     <li>{item.name}</li>
@@ -314,7 +314,7 @@ The list re-renders when the iterable signal changes.
 
 For efficient list reconciliation, provide a `key` expression:
 
-```tova
+```tova-jsx
 <ul>
   for item in items key={item.id} {
     <li>{item.name} - {item.status}</li>
@@ -333,7 +333,7 @@ The `key` expression is evaluated for each item and should produce a unique, sta
 
 If the loop body contains multiple elements, they are wrapped in a fragment:
 
-```tova
+```tova-jsx
 <div>
   for section in sections key={section.id} {
     <h2>{section.title}</h2>
@@ -346,7 +346,7 @@ If the loop body contains multiple elements, they are wrapped in a fragment:
 
 Loops can be nested:
 
-```tova
+```tova-jsx
 <table>
   for row in rows key={row.id} {
     <tr>
@@ -362,7 +362,7 @@ Loops can be nested:
 
 Components can include `style { }` blocks that are automatically scoped to that component:
 
-```tova
+```tova-jsx
 component Button(label) {
   <button class="btn">{label}</button>
 
@@ -427,7 +427,7 @@ component Canvas {
 
 When a component returns multiple root elements, they are wrapped in a fragment:
 
-```tova
+```tova-jsx
 component TableRow(name, email) {
   <td>{name}</td>
   <td>{email}</td>
@@ -440,7 +440,7 @@ Fragments render their children directly without a wrapping element, using comme
 
 JSX elements compile to `tova_el` calls:
 
-```tova
+```tova-jsx
 <div class="hello" id="main">
   <p>Hello</p>
 </div>
@@ -456,7 +456,7 @@ tova_el("div", { className: "hello", id: "main" }, [
 
 Components compile to function calls:
 
-```tova
+```tova-jsx
 <Greeting name={name} />
 ```
 
@@ -468,7 +468,7 @@ Greeting({ get name() { return name(); } })
 
 Reactive expressions compile to closures:
 
-```tova
+```tova-jsx
 <p>{count}</p>
 ```
 

@@ -75,7 +75,7 @@ edge "api" {
   }
 
   // Upload an image
-  route POST "/api/images" => fn(req) {
+  route POST "/api/images" => async fn(req) {
     id = crypto.randomUUID()
     content_type = req.headers.get("Content-Type") || "image/png"
     body = await req.arrayBuffer()
@@ -108,7 +108,7 @@ edge "api" {
   }
 
   // Get image metadata
-  route GET "/api/images/:id" => fn(req, params) {
+  route GET "/api/images/:id" => async fn(req, params) {
     cached = await METADATA.get("img:{params.id}")
     if cached != nil {
       JSON.parse(cached)
@@ -125,7 +125,7 @@ edge "api" {
   }
 
   // Serve an image file (original or processed)
-  route GET "/images/*path" => fn(req, params) {
+  route GET "/images/*path" => async fn(req, params) {
     obj = await IMAGES.get(params.path)
     if obj == nil {
       Response.new("Not found", { status: 404 })
@@ -136,7 +136,7 @@ edge "api" {
   }
 
   // Delete an image
-  route DELETE "/api/images/:id" => fn(req, params) {
+  route DELETE "/api/images/:id" => async fn(req, params) {
     row = await DB.prepare(
       "SELECT * FROM images WHERE id = ?"
     ).bind(params.id).first()
@@ -154,7 +154,7 @@ edge "api" {
   }
 
   // Pipeline statistics
-  route GET "/api/stats" => fn(req) {
+  route GET "/api/stats" => async fn(req) {
     total = await DB.prepare("SELECT COUNT(*) as c FROM images").first()
     processed = await DB.prepare("SELECT COUNT(*) as c FROM images WHERE status = 'processed'").first()
     pending = await DB.prepare("SELECT COUNT(*) as c FROM images WHERE status = 'pending'").first()

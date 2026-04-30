@@ -54,7 +54,7 @@ Pass options as a second argument to control parsing behavior:
 
 ```tova
 // Custom delimiter
-data = read("data.txt", delimiter: "|")
+var data = read("data.txt", delimiter: "|")
 
 // Headerless CSV (columns named col_0, col_1, ...)
 data = read("raw.csv", header: false)
@@ -155,7 +155,7 @@ table |> write("output.csv")
 
 ```tova
 // Pipe-delimited
-data = read("data.txt", delimiter: "|")
+var data = read("data.txt", delimiter: "|")
 
 // Semicolon-delimited (common in European CSV)
 data = read("data.csv", delimiter: ";")

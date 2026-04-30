@@ -75,9 +75,13 @@ function collectEnvCalls(node) {
  * Infer infrastructure requirements from the full program AST.
  *
  * @param {Object} ast - Program AST with ast.body array of top-level blocks
+ * @param {string} [envName] - Optional environment name. When provided, only
+ *   the matching deploy block contributes env, databases, and config fields,
+ *   so multi-environment programs do not leak env vars or databases across
+ *   environments. When omitted, all deploy blocks are merged (legacy behavior).
  * @returns {Object} Complete infrastructure manifest
  */
-export function inferInfrastructure(ast) {
+export function inferInfrastructure(ast, envName) {
   const manifest = JSON.parse(JSON.stringify(MANIFEST_DEFAULTS));
   const blockTypes = new Set();
   const deployBlocks = [];
@@ -171,9 +175,15 @@ export function inferInfrastructure(ast) {
     }
   }
 
+  // Filter to the named environment if provided, so multi-env programs do
+  // not leak env vars or databases across environments.
+  const blocksToMerge = envName
+    ? deployBlocks.filter(b => b.name === envName)
+    : deployBlocks;
+
   // Merge explicit deploy config via DeployCodegen
-  if (deployBlocks.length > 0) {
-    const deployConfig = DeployCodegen.mergeDeployBlocks(deployBlocks);
+  if (blocksToMerge.length > 0) {
+    const deployConfig = DeployCodegen.mergeDeployBlocks(blocksToMerge);
     // Apply deploy config fields to manifest
     if (deployConfig.name) manifest.name = deployConfig.name;
     if (deployConfig.server) manifest.server = deployConfig.server;

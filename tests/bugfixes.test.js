@@ -911,7 +911,11 @@ describe('T0-2: mut keyword produces parse error', () => {
 describe('T0-3: let error message', () => {
   test('let x = 5 error says let is not needed', () => {
     expect(() => parse('let x = 5')).toThrow("'let' is not needed in Tova");
-    expect(() => parse('let x = 5')).toThrow("Destructure directly");
+    expect(() => parse('let x = 5')).toThrow("var name = value");
+  });
+
+  test('let {a, b} = obj points to direct destructuring form', () => {
+    expect(() => parse('let {a, b} = obj')).toThrow("Destructure directly");
   });
 
   test('destructuring still works without let', () => {

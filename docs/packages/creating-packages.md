@@ -203,7 +203,7 @@ With this declaration:
 
 ```tova
 import { serve } from "github.com/alice/tova-http"     // OK
-import { _internal } from "github.com/alice/tova-http"  // Error: not exported
+import { _internal } from "github.com/alice/tova-http"  // would fail at resolve: not exported
 ```
 
 If `exports` is omitted, all top-level `pub` declarations are importable. Specifying `exports` is recommended for packages with a large internal surface area -- it prevents consumers from depending on implementation details.

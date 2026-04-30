@@ -38,8 +38,11 @@ Set a timeout (in milliseconds) for individual tests using the `timeout` option:
 
 ```tova
 test "slow operation completes" timeout=5000 {
-  result = await long_running_task()
-  assert(result.isOk())
+  async fn main() {
+    result = await long_running_task()
+    assert(result.isOk())
+  }
+  main()
 }
 ```
 

@@ -267,29 +267,37 @@ Not supported: strings, arrays, objects, closures, pattern matching.
 When you have a list of independent tasks, `parallelMap()` distributes them across a pool of persistent worker threads:
 
 ```tova
-// Process items in parallel using persistent worker threads
-results = await parallelMap(urls, async fn(url) {
-  response = await fetch(url)
-  response.json()
-}, { workers: 4 })
+async fn main() {
+  // Process items in parallel using persistent worker threads
+  results = await parallelMap(urls, async fn(url) {
+    response = await fetch(url)
+    response.json()
+  }, { workers: 4 })
 
-// Workers are persistent and reused across calls
-// 3.5x speedup on CPU-bound parallel work
+  // Workers are persistent and reused across calls
+  // 3.5x speedup on CPU-bound parallel work
+}
+
+main()
 ```
 
 The key design choice: workers are **persistent**. They're created once and reused across multiple `parallelMap()` calls, avoiding the overhead of spawning new threads each time. This matters when you call `parallelMap()` repeatedly in a loop or in a server handling many requests.
 
 ```tova
-// CPU-bound work benefits the most
-scores = await parallelMap(documents, fn(doc) {
-  analyze_sentiment(doc)
-}, { workers: 8 })
+async fn main() {
+  // CPU-bound work benefits the most
+  scores = await parallelMap(documents, fn(doc) {
+    analyze_sentiment(doc)
+  }, { workers: 8 })
 
-// I/O-bound work also benefits from concurrency
-pages = await parallelMap(urls, async fn(url) {
-  response = await fetch(url)
-  response.text()
-})
+  // I/O-bound work also benefits from concurrency
+  pages = await parallelMap(urls, async fn(url) {
+    response = await fetch(url)
+    response.text()
+  })
+}
+
+main()
 ```
 
 When the `workers` option is omitted, Tova defaults to the number of available CPU cores.
@@ -393,13 +401,17 @@ The optimization kicks in automatically when sorting arrays of numbers. You don'
 ### Batch Operations
 
 ```tova
-// Slow: one at a time
-for item in items {
-  await save_to_db(item)
+async fn main() {
+  // Slow: one at a time
+  for item in items {
+    await save_to_db(item)
+  }
+
+  // Fast: batch insert
+  await save_many_to_db(items)
 }
 
-// Fast: batch insert
-await save_many_to_db(items)
+main()
 ```
 
 ## Benchmarking Your Code

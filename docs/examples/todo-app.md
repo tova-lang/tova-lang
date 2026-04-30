@@ -238,7 +238,7 @@ fn handle_add() {
 
 ### Component Composition
 
-```tova
+```tova-jsx
 component TodoItem(todo) {
   <li class={match todo.completed { true => "done" _ => "" }}>
     <span onclick={fn() handle_toggle(todo.id)}>{todo.title}</span>
@@ -257,7 +257,7 @@ Components can accept parameters and be composed together. The `App` component m
 
 ### Inline Match in JSX
 
-```tova
+```tova-jsx
 <li class={match todo.completed { true => "done" _ => "" }}>
 ```
 

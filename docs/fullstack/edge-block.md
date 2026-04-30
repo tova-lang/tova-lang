@@ -129,17 +129,19 @@ edge {
 Route handlers receive `(request, params)` where `params` is an object of captured path parameters. Return a plain object to send JSON, or return a `Response` for full control:
 
 ```tova
-route GET "/api/data" => fn(req) {
-  // Return plain object -> auto-serialized as JSON with 200 status
-  { data: [1, 2, 3] }
-}
+edge {
+  route GET "/api/data" => fn(req) {
+    // Return plain object -> auto-serialized as JSON with 200 status
+    { data: [1, 2, 3] }
+  }
 
-route GET "/api/custom" => fn(req) {
-  // Return Response for full control over status, headers, body
-  Response.new(JSON.stringify({ ok: true }), {
-    status: 201,
-    headers: { "X-Custom": "value" }
-  })
+  route GET "/api/custom" => fn(req) {
+    // Return Response for full control over status, headers, body
+    Response.new(JSON.stringify({ ok: true }), {
+      status: 201,
+      headers: { "X-Custom": "value" }
+    })
+  }
 }
 ```
 

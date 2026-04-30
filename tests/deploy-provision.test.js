@@ -39,7 +39,10 @@ describe('generateProvisionScript', () => {
 
   test('includes Bun installation with idempotent check', () => {
     const script = generateProvisionScript(baseManifest());
-    expect(script).toContain('if ! command -v bun &>/dev/null; then');
+    // Bun installs to the tova user's home (/home/tova/.bun/bin), which isn't
+    // on sudo's PATH — checking the binary path directly is more reliable
+    // than `command -v bun`.
+    expect(script).toContain('if [ ! -x /home/tova/.bun/bin/bun ]; then');
     expect(script).toContain('curl -fsSL https://bun.sh/install | bash');
   });
 
@@ -76,17 +79,19 @@ describe('generateProvisionScript', () => {
     expect(script).not.toContain('redis-server');
   });
 
-  test('script is idempotent — uses command -v checks', () => {
+  test('script is idempotent — guards each install with a check', () => {
     const script = generateProvisionScript(baseManifest({
       databases: [
         { engine: 'postgres', config: { name: 'db' } },
         { engine: 'redis', config: {} },
       ],
     }));
-    // Count all idempotent checks
-    const checks = script.match(/if ! command -v .+ &>\/dev\/null; then/g);
+    // Two flavors of guard: `command -v` for binaries on PATH (caddy, psql,
+    // redis-server) and `[ ! -x ... ]` for binaries in user-home prefixes
+    // not on sudo's PATH (bun → /home/tova/.bun/bin).
+    const checks = script.match(/if (?:! command -v \S+ &>\/dev\/null|\[ ! -x [^\]]+\]); then/g);
     expect(checks).not.toBeNull();
-    // Should have checks for bun, caddy, psql, and redis-server
+    // bun + caddy + psql + redis-server
     expect(checks.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -113,14 +118,16 @@ describe('generateProvisionScript', () => {
 
   test('writes systemd service unit', () => {
     const script = generateProvisionScript(baseManifest());
-    expect(script).toContain('cat > /etc/systemd/system/myapp@.service');
+    // `tee` (with `$SUDO`) handles writes when the script runs as a non-root
+    // user with sudo, where `cat >` would fail on permission.
+    expect(script).toContain("tee /etc/systemd/system/myapp@.service >/dev/null <<'SYSTEMD_EOF'");
     expect(script).toContain('systemctl daemon-reload');
     expect(script).toContain('systemctl enable myapp@3000');
   });
 
   test('writes Caddy config when domain is set', () => {
     const script = generateProvisionScript(baseManifest());
-    expect(script).toContain("cat > /etc/caddy/Caddyfile");
+    expect(script).toContain("tee /etc/caddy/Caddyfile >/dev/null <<'CADDY_EOF'");
     expect(script).toContain('myapp.com {');
     expect(script).toContain('systemctl reload caddy');
   });

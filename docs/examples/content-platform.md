@@ -137,7 +137,7 @@ server {
   // --- Article Endpoints ---
 
   fn get_articles(category: Option<String>, sentiment: Option<String>) -> [EnrichedArticle] {
-    result = enriched
+    var result = enriched
 
     result = match category {
       Some(cat) => result |> where(.category |> toString() == cat)
@@ -223,7 +223,7 @@ browser {
   state loading = true
 
   fn filter_articles() {
-    result = articles
+    var result = articles
 
     result = match search |> len() > 0 {
       true => result |> filter(fn(a) {

@@ -52,10 +52,12 @@ server {
 Use `:param` syntax to capture dynamic segments from the URL. Parameters are extracted and passed as arguments to the handler:
 
 ```tova
-route GET "/users/:id" => get_user
+server {
+  route GET "/users/:id" => get_user
 
-fn get_user(id: String) {
-  UserModel.find(id)
+  fn get_user(id: String) {
+    UserModel.find(id)
+  }
 }
 ```
 
@@ -71,10 +73,12 @@ fn get_user(id: Int) {
 Multiple path parameters work as you would expect:
 
 ```tova
-route GET "/users/:user_id/posts/:post_id" => get_user_post
+server {
+  route GET "/users/:user_id/posts/:post_id" => get_user_post
 
-fn get_user_post(user_id: Int, post_id: Int) {
-  PostModel.where({ user_id: user_id, id: post_id })
+  fn get_user_post(user_id: Int, post_id: Int) {
+    PostModel.where({ user_id: user_id, id: post_id })
+  }
 }
 ```
 
@@ -118,8 +122,10 @@ In this example, the nested routes resolve to `/api/v1/admin/stats` and `/api/v1
 Routes support wildcard parameters for capturing the remainder of a path:
 
 ```tova
-route GET "/files/*path" => serve_file     // *param captures the rest of the URL
-route GET "/proxy/*" => proxy_request      // trailing * is a catch-all
+server {
+  route GET "/files/*path" => serve_file     // *param captures the rest of the URL
+  route GET "/proxy/*" => proxy_request      // trailing * is a catch-all
+}
 ```
 
 The wildcard value is passed to the handler as a parameter:
@@ -210,13 +216,15 @@ Common cookie options:
 Use `stream` to send chunked responses progressively:
 
 ```tova
-route GET "/api/feed" => fn(req) {
-  stream(fn(send, close) {
-    send("chunk 1\n")
-    send("chunk 2\n")
-    send("chunk 3\n")
-    close()
-  })
+server {
+  route GET "/api/feed" => fn(req) {
+    stream(fn(send, close) {
+      send("chunk 1\n")
+      send("chunk 2\n")
+      send("chunk 3\n")
+      close()
+    })
+  }
 }
 ```
 
@@ -227,14 +235,16 @@ The `send` callback writes data to the response stream immediately. Call `close`
 Stream data over time for real-time feeds or progress updates:
 
 ```tova
-route GET "/api/progress" => fn(req) {
-  stream(fn(send, close) {
-    for i in range(1, 11) {
-      send("{i * 10}%\n")
-      await sleep(500)
-    }
-    close()
-  })
+server {
+  route GET "/api/progress" => fn(req) {
+    stream(fn(send, close) {
+      for i in range(1, 11) {
+        send("{i * 10}%\n")
+        await sleep(500)
+      }
+      close()
+    })
+  }
 }
 ```
 
@@ -243,10 +253,12 @@ route GET "/api/progress" => fn(req) {
 If a route handler uses `yield`, the response is automatically streamed as Server-Sent Events:
 
 ```tova
-route GET "/api/events" => fn(req) {
-  yield { event: "start", data: "Processing..." }
-  result = expensive_computation()
-  yield { event: "complete", data: to_json(result) }
+server {
+  route GET "/api/events" => fn(req) {
+    yield { event: "start", data: "Processing..." }
+    result = expensive_computation()
+    yield { event: "complete", data: to_json(result) }
+  }
 }
 ```
 

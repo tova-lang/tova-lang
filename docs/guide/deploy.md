@@ -25,7 +25,23 @@ tova deploy prod --plan
 tova deploy prod
 ```
 
-The first command shows what will be provisioned (Bun, Caddy, UFW, systemd services). The second executes it over SSH.
+The first command parses your project and prints the infrastructure summary (services, databases, env vars, required secrets) without contacting the server. The second runs the full deploy: it builds your project, provisions the host on first run (Bun, Caddy, UFW, systemd, optional Postgres/Redis), uploads a new release, flips the `current` symlink, and restarts services.
+
+## Prerequisites
+
+The deploy command shells out to `ssh`, `scp`, and `rsync`, so the local machine running `tova deploy` needs:
+
+- `ssh`, `scp`, and `rsync` on `PATH`
+- An SSH key that authenticates to the user in `server: "user@host"` — `tova deploy` invokes `ssh` with `BatchMode=yes`, which disables password prompts. Test it once with `ssh user@host` before deploying
+
+The remote host should be a Debian/Ubuntu Linux server with `apt-get` and `systemd` available. The first deploy installs everything else (Bun, Caddy, UFW, optional Postgres/Redis) idempotently — re-runs skip components that are already present.
+
+**The SSH user can be either `root` or a non-root user with passwordless `sudo`.** Before doing anything, the CLI runs a one-line probe to detect which model the host uses and routes commands appropriately:
+
+- **Root SSH user** (e.g., `root@host` on a freshly-imaged droplet): commands run directly, no `sudo` prefix.
+- **Non-root with sudo** (e.g., `ubuntu@ec2`, `deploy@host`): every privileged step is prefixed with `sudo`, and `rsync` runs with `--rsync-path=sudo rsync` so it can write under `/opt/tova/apps`. This requires the user to have **passwordless** `sudo` (no TTY prompt) — the standard cloud-image setup. If the user is non-root and `sudo` isn't installed, the CLI exits with a clear error before running any commands.
+
+Bun is always installed under the `tova` system user (created by the provisioner), so the systemd unit's hardcoded `/home/tova/.bun/bin/bun` path resolves correctly regardless of which SSH user kicked off the deploy.
 
 ## Deploy Block Syntax
 
@@ -208,17 +224,31 @@ All deploy operations use the `tova deploy` command:
 
 | Command | Description |
 |---------|-------------|
-| `tova deploy prod` | Deploy to the named environment |
-| `tova deploy prod --plan` | Preview infrastructure without deploying |
-| `tova deploy prod --rollback` | Revert to the previous release |
-| `tova deploy prod --status` | Check systemd service status |
-| `tova deploy prod --logs` | Tail service logs |
-| `tova deploy prod --logs --since "1 hour ago"` | Logs since a specific time |
-| `tova deploy prod --logs --instance 1` | Logs for a specific instance |
-| `tova deploy prod --ssh` | Open an SSH session to the server |
-| `tova deploy prod --setup-git` | Configure push-to-deploy |
-| `tova deploy prod --remove` | Stop and remove the deployment |
-| `tova deploy --list --server root@example.com` | List deployments on a server |
+| `tova deploy prod` | Build, provision, upload a release, and restart services |
+| `tova deploy prod --plan` | Print the inferred infrastructure plan (no SSH) |
+| `tova deploy prod --rollback` | Symlink `current` to the previous release and restart |
+| `tova deploy prod --status` | Run `systemctl status` for the app's units over SSH |
+| `tova deploy prod --logs` | Run `journalctl --since "1 hour ago"` for the app's units |
+| `tova deploy prod --logs --since "30 minutes ago"` | Override the journalctl `--since` window |
+| `tova deploy prod --logs --instance 0` | Logs for a single instance — `0` is port 3000, `1` is 3001, etc. |
+| `tova deploy prod --ssh` | Open an interactive SSH session to the server |
+| `tova deploy prod --setup-git` | Create a bare repo and `post-receive` hook for push-to-deploy |
+| `tova deploy prod --remove` | Stop units and delete `/opt/tova/apps/<env>` (interactive `yes` confirmation) |
+| `tova deploy --list --server root@example.com` | List `/opt/tova/apps` entries on the given host |
+
+A few CLI behaviours worth knowing:
+
+**Dry-run.** Set `TOVA_DEPLOY_DRY_RUN=1` to print every `ssh`, `scp`, and `rsync` command instead of executing them. The build step still runs locally, so this is also a quick way to see exactly what would land on the server:
+
+```bash
+TOVA_DEPLOY_DRY_RUN=1 tova deploy prod
+```
+
+**`--remove` requires confirmation.** It deletes the release directory, removes the systemd unit, and stops services — there is no automatic backup. The CLI prompts for `yes` and refuses to run on a non-TTY (CI, piped scripts). Use `TOVA_DEPLOY_DRY_RUN=1` if you want to preview the destructive commands first.
+
+**`--list` needs a target.** When invoked without an environment name, it has no deploy block to read `server` from, so `--server user@host` is required. With an environment name, it uses that block's `server`.
+
+**Errors surface verbatim.** `ssh`/`scp`/`rsync` exit codes propagate to `tova deploy`, so a hostname resolution failure, a permission error, or a non-zero `systemctl` exit shows up directly in the output and the CLI exits non-zero.
 
 ```bash
 # Preview what will be provisioned
@@ -236,6 +266,22 @@ tova deploy prod --logs --since "30 minutes ago"
 # Roll back if something is wrong
 tova deploy prod --rollback
 ```
+
+## How `tova deploy` Works
+
+A bare `tova deploy <env>` runs the following sequence. Every step is idempotent — re-running a deploy on the same host either skips or replaces existing state.
+
+1. **Probe** the SSH user on the remote (`id -u`, `command -v sudo`) to decide whether commands need a `sudo ` prefix. Cached for the rest of the deploy.
+2. **Parse** every `.tova` file under `project.entry` (or the project root) and merge them into a single AST.
+3. **Infer** the infrastructure manifest for the named environment — services, databases, env vars, required secrets, WebSocket/SSE flags.
+4. **Build** the project (`tova build --production --quiet`) into `.tova-out/`.
+5. **Generate** a provisioning bash script for the manifest (it does its own root/sudo detection in shell) and `scp` it to `/tmp/tova-provision.sh` on the server.
+6. **Provision** the host: `ssh user@host bash /tmp/tova-provision.sh` creates the `tova` system user, installs Bun *as that user* into `/home/tova/.bun/`, and idempotently installs Caddy, UFW, the `<env>@.service` systemd template, and any declared databases.
+7. **Upload** the build with `rsync -az --delete` (using `--rsync-path=sudo rsync` for non-root SSH users) into `/opt/tova/apps/<env>/releases/<UTC-timestamp>/`.
+8. **Re-chown** the release tree to `tova:tova`. rsync writes files as the SSH user, but the systemd unit runs as `User=tova` and needs write access to its working directory (e.g. for SQLite databases under `shared/data/`).
+9. **Activate** the release: re-point `current` to the new directory, `systemctl restart '<env>@*.service'`, and prune releases older than `keep_releases`.
+
+`--rollback` skips steps 4–8 and runs only an inverse of step 9: select the previous release, swap the symlink, restart. The other action flags (`--status`, `--logs`, `--ssh`, `--setup-git`, `--remove`, `--list`) bypass the build/upload pipeline entirely and run a single SSH command (still after the privilege probe).
 
 ## Server Layout
 
@@ -392,20 +438,23 @@ With `keep_releases: 5`, the five most recent releases are kept. Older releases 
 
 ## Logging
 
-Application logs flow through systemd's journal. Use the `--logs` flag to view them:
+Application logs flow through systemd's journal. `--logs` runs `journalctl --no-pager --since <window>` over SSH and streams the output back to your terminal:
 
 ```bash
-# Tail recent logs
+# Default: last hour, all instances
 tova deploy prod --logs
 
-# Logs since a specific time
-tova deploy prod --logs --since "1 hour ago"
+# Custom time window — anything journalctl accepts
+tova deploy prod --logs --since "30 minutes ago"
+tova deploy prod --logs --since "2026-04-25 09:00:00"
 
-# Logs for a specific instance
-tova deploy prod --logs --instance 1
+# A single instance — 0 is port 3000, 1 is 3001, etc.
+tova deploy prod --logs --instance 0
 ```
 
-Caddy access logs are written to `/var/log/caddy/<appname>.log`.
+For a continuous tail, open an SSH session and run `journalctl -fu '<env>@*.service'` directly — the `--logs` flag is intentionally a one-shot read so it works in scripts.
+
+Caddy access logs are written to `/var/log/caddy/<appname>.log` on the server.
 
 ## Security
 
@@ -419,20 +468,20 @@ Tova's provisioning applies several security measures by default:
 
 ## Git Push-to-Deploy
 
-The `--setup-git` flag configures a bare Git repository on the server with a `post-receive` hook that automatically deploys on push:
+The `--setup-git` flag creates `/opt/tova/apps/<env>/repo.git` as a bare repository on the server and installs a `post-receive` hook that rebuilds and restarts the deployment on every push:
 
 ```bash
 tova deploy prod --setup-git
 ```
 
-Once configured, deploy by pushing to the remote:
+The CLI prints the exact `git remote add` command to copy back to your machine — it uses the env name as the remote and the server from your deploy block, e.g.:
 
 ```bash
-git remote add prod root@198.51.100.1:/opt/tova/apps/myapp/repo.git
+git remote add prod deploy@prod.example.com:/opt/tova/apps/prod/repo.git
 git push prod main
 ```
 
-The `post-receive` hook checks out the pushed branch, runs `bun install`, builds the project, and restarts the systemd services.
+The `post-receive` hook checks the working tree out into `/opt/tova/apps/<env>/source`, runs `bun install` and `tova build --production` if the project has a `package.json` or `tova.toml`, and then `systemctl restart`s the units. This path is for simple projects — for full release isolation (timestamped directories, rollback, prune), use `tova deploy <env>` instead.
 
 ## Complete Examples
 
@@ -513,7 +562,7 @@ server {
       json(users)
     }
 
-    route POST "/users" => fn() {
+    route POST "/users" => async fn() {
       body = await request.json()
       run("INSERT INTO users (email, role) VALUES ($1, $2)", body.email, body.role)
       json({ ok: true })
@@ -622,6 +671,8 @@ tova deploy prod
 
 **Always preview with `--plan` first.** The plan shows every service, database, and configuration that will be applied to the server. Review it before deploying.
 
+**Use `TOVA_DEPLOY_DRY_RUN=1` to inspect commands.** When you want to see the exact SSH/scp/rsync sequence — including the rendered provisioning script — run any deploy action with that env var set.
+
 **Start with defaults and scale up.** A single instance with 512mb is enough for most applications. Add instances when traffic demands it.
 
 **Keep secrets out of source code.** Use `.env.production` on the server for database URLs, API keys, and JWT secrets. The deploy block's `env` sub-block is for non-sensitive configuration like `LOG_LEVEL`.
@@ -631,3 +682,19 @@ tova deploy prod
 **Separate staging from production.** Use different servers, domains, and branches for each environment. Deploy to staging first, verify, then deploy to production.
 
 **Use git push-to-deploy for continuous deployment.** After `--setup-git`, every `git push prod main` triggers a full build and restart — no CI pipeline needed for simple projects.
+
+## Troubleshooting
+
+**`Permission denied (publickey)`** — `tova deploy` runs `ssh` with `BatchMode=yes`, which disables password and keyboard-interactive auth. Add your SSH key to the server's `~/.ssh/authorized_keys` (or use an `ssh-agent`) and verify with `ssh -o BatchMode=yes user@host` before deploying.
+
+**`Could not resolve hostname`** — DNS or `/etc/hosts` doesn't know about the host in your `server:` field. Test with `ssh user@host` directly. The CLI exits with code 255 (the SSH exit code) and prints the underlying error verbatim.
+
+**`Error: no .tova files found`** — the deploy CLI looks under `project.entry` from `tova.toml`, falling back to the project root when that directory does not exist. Either set `entry` correctly in `tova.toml` or place a `.tova` file at the project root.
+
+**`Error: no deploy block named "prod"`** — the project parses cleanly but has no matching deploy block. The error message lists the environments it did find — check the spelling in your `deploy "<name>" { ... }` declaration.
+
+**`apt-get` failures during provisioning** — the provision script assumes Debian/Ubuntu. On other distributions you'll need to install Bun, Caddy, and Postgres/Redis manually before running `tova deploy`. Future releases may add detection for other package managers.
+
+**`sudo: a password is required`** — the SSH user has `sudo` but not passwordless `sudo`. `tova deploy` runs `ssh` with `BatchMode=yes` and `rsync --rsync-path=sudo rsync`, both of which fail when sudo would prompt for a password. Either deploy as `root`, or grant `NOPASSWD` on the deploy user via `/etc/sudoers.d/` (e.g. `deploy ALL=(ALL) NOPASSWD: ALL`).
+
+**Server requires either root SSH access or sudo installed** — the privilege probe ran successfully but found neither. This usually means a stripped-down container image. Install `sudo` (`apt-get install sudo`) and grant the deploy user passwordless privileges, or SSH in as `root` instead.

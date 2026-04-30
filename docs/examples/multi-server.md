@@ -269,9 +269,9 @@ The `db` block configures the database connection. The `model` keyword defines a
 ### Middleware Stack
 
 ```tova
-middleware fn cors(req, res) { ... }
-middleware fn auth(req, res) { ... }
-middleware fn rate_limit(req, res) { ... }
+middleware fn cors(req, res) { /* ... */ }
+middleware fn auth(req, res) { /* ... */ }
+middleware fn rate_limit(req, res) { /* ... */ }
 ```
 
 Middleware functions run before route handlers. They can:

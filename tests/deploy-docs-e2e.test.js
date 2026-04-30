@@ -534,15 +534,37 @@ describe('Docs: CLI Reference', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('Docs: Provisioning', () => {
-  test('generates idempotent Bun install', () => {
+  test('generates idempotent Bun install for the tova user', () => {
     const script = generateProvisionScript({
       name: 'myapp',
       requires: { bun: true, caddy: false, ufw: false },
       databases: [],
       instances: 1,
     });
-    expect(script).toContain('command -v bun');
+    // Idempotent: only installs when /home/tova/.bun/bin/bun is missing
+    expect(script).toContain('/home/tova/.bun/bin/bun');
     expect(script).toContain('curl -fsSL https://bun.sh/install');
+    // Bun must be installed under the tova user so its $HOME matches the
+    // ExecStart path in the systemd unit
+    expect(script).toContain("-u tova bash -c 'curl -fsSL https://bun.sh/install | bash'");
+  });
+
+  test('detects sudo and creates the tova user before installing Bun', () => {
+    const script = generateProvisionScript({
+      name: 'myapp',
+      requires: { bun: true, caddy: false, ufw: false },
+      databases: [],
+      instances: 1,
+    });
+    // Privilege detection at the top
+    expect(script).toContain('if [ "$(id -u)" -eq 0 ]; then');
+    expect(script).toContain('SUDO=""');
+    expect(script).toContain('SUDO="sudo"');
+    // tova user is created BEFORE the Bun install
+    const userIdx = script.indexOf('useradd --system --create-home --shell /bin/bash tova');
+    const bunIdx = script.indexOf('curl -fsSL https://bun.sh/install');
+    expect(userIdx).toBeGreaterThan(-1);
+    expect(bunIdx).toBeGreaterThan(userIdx);
   });
 
   test('generates Caddy install and config', () => {

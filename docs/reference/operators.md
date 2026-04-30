@@ -183,7 +183,7 @@ The pipe operator `|>` passes the result of the left expression as the first arg
 
 ```tova
 // Without pipes
-result = format(filter(map(data, transform), predicate))
+var result = format(filter(map(data, transform), predicate))
 
 // With pipes -- reads left to right
 result = data
@@ -319,7 +319,11 @@ fn process(input: String) -> Result<Data, String> {
 The `await` prefix operator suspends execution until an async expression resolves:
 
 ```tova
-result = await fetch_data(url)
+async fn main() {
+  result = await fetch_data(url)
+}
+
+main()
 ```
 
 The `yield` prefix operator produces a value from a generator function. Any function containing `yield` is automatically treated as a generator — no special syntax is needed. Use `yield from` to delegate to another generator:

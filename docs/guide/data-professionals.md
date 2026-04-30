@@ -57,7 +57,7 @@ events = read("events.jsonl")
 
 // Parquet and Excel
 analytics = read("warehouse.parquet")
-report = read("quarterly.xlsx")
+var report = read("quarterly.xlsx")
 report = read("quarterly.xlsx", sheet: "Sales")
 
 // Remote URLs
@@ -814,15 +814,19 @@ Use `@wasm` for CPU-bound numeric kernels: recursive algorithms, simulations, ma
 Distribute array processing across all CPU cores using a persistent worker pool:
 
 ```tova
-// Process chunks in parallel (4 workers)
-chunks = chunk(large_dataset, 1000)
-results = await parallelMap(chunks, fn(batch) {
-  batch
-    |> map(fn(r) expensive_transform(r))
-    |> filter(fn(r) r.score > threshold)
-}, 4)
+async fn main() {
+  // Process chunks in parallel (4 workers)
+  chunks = chunk(large_dataset, 1000)
+  results = await parallelMap(chunks, fn(batch) {
+    batch
+      |> map(fn(r) expensive_transform(r))
+      |> filter(fn(r) r.score > threshold)
+  }, 4)
 
-final = flatten(results)
+  final = flatten(results)
+}
+
+main()
 ```
 
 | Implementation | Time (64 items x 10M work) | Speedup |
@@ -855,8 +859,12 @@ fn process(data: [Float]) -> [Float] {
   typedMap(data, fn(x) kernel(x, 1.0))
 }
 
-// Distribute across CPU cores
-results = await parallelMap(batches, fn(batch) process(batch))
+async fn main() {
+  // Distribute across CPU cores
+  results = await parallelMap(batches, fn(batch) process(batch))
+}
+
+main()
 ```
 
 ### Benchmark Results
@@ -924,7 +932,7 @@ server {
 
 **Step 4: Add a dashboard**
 
-```tova
+```tova-jsx
 browser {
   fn Dashboard() {
     data = signal([])

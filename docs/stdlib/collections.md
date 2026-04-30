@@ -1058,12 +1058,16 @@ await parallelMap(arr, f, num_workers) -> [T]
 Distributes array processing across multiple CPU cores using a persistent worker pool. Workers are created once and reused across calls.
 
 ```tova
-results = await parallelMap(large_dataset, fn(item) {
-  expensive_computation(item)
-})
+async fn main() {
+  var results = await parallelMap(large_dataset, fn(item) {
+    expensive_computation(item)
+  })
 
-// Specify number of workers
-results = await parallelMap(data, process_item, 8)
+  // Specify number of workers
+  results = await parallelMap(data, process_item, 8)
+}
+
+main()
 ```
 
 - Automatically detects available CPU cores

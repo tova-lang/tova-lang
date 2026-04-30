@@ -395,9 +395,13 @@ Processing [████████░░░░░░░░] 50% 5/10
 ### Spinners
 
 ```tova
-result = await spin("Deploying", async fn() {
-  await deploy_to_server()
-})
+async fn main() {
+  result = await spin("Deploying", async fn() {
+    await deploy_to_server()
+  })
+}
+
+main()
 ```
 
 Shows a braille spinner animation while the async function runs, then a checkmark or cross on completion.

@@ -134,9 +134,11 @@ export function printPlan(infra) {
  * @param {string} projectDir - Absolute path to the project directory
  * @returns {Object} result with plan, infra, and status
  */
-export async function deploy(ast, buildResult, deployArgs, projectDir) {
-  // Infer full infrastructure manifest from AST
-  const infra = inferInfrastructure(ast);
+export async function deploy(ast, buildResult, deployArgs, projectDir, runner = null) {
+  // Infer full infrastructure manifest from AST. When an env name is given,
+  // filter to that deploy block so env vars and databases do not leak across
+  // environments in multi-environment programs.
+  const infra = inferInfrastructure(ast, deployArgs.envName);
 
   // Override environment name from CLI args
   if (deployArgs.envName) {
@@ -153,65 +155,65 @@ export async function deploy(ast, buildResult, deployArgs, projectDir) {
     if (envConfig.branch) infra.branch = envConfig.branch;
   }
 
-  // Plan mode — just show what would be deployed
+  // Plan mode — just show what would be deployed (no SSH execution)
   if (deployArgs.plan) {
     printPlan(infra);
     return { action: 'plan', infra };
   }
 
-  // Rollback mode — stub
+  // Rollback
   if (deployArgs.rollback) {
     console.log(`  Rolling back ${deployArgs.envName}...`);
-    // TODO: SSH into server, symlink previous release
+    if (runner) await runner.rollback(infra);
     return { action: 'rollback', infra };
   }
 
-  // Logs mode — stub
+  // Logs
   if (deployArgs.logs) {
     const since = deployArgs.since || '1 hour ago';
     const instance = deployArgs.instance !== null ? ` (instance ${deployArgs.instance})` : '';
     console.log(`  Fetching logs for ${deployArgs.envName}${instance} since ${since}...`);
-    // TODO: SSH into server, journalctl/tail logs
+    if (runner) await runner.logs(infra, { since, instance: deployArgs.instance });
     return { action: 'logs', infra };
   }
 
-  // Status mode — stub
+  // Status
   if (deployArgs.status) {
     console.log(`  Checking status of ${deployArgs.envName}...`);
-    // TODO: SSH into server, check systemd service status
+    if (runner) await runner.status(infra);
     return { action: 'status', infra };
   }
 
-  // SSH mode — stub
+  // Interactive SSH
   if (deployArgs.ssh) {
     console.log(`  Opening SSH session to ${deployArgs.envName}...`);
-    // TODO: spawn interactive SSH session
+    if (runner) await runner.ssh(infra);
     return { action: 'ssh', infra };
   }
 
-  // Setup git push-to-deploy — stub
+  // Git push-to-deploy
   if (deployArgs.setupGit) {
     console.log(`  Setting up git push-to-deploy for ${deployArgs.envName}...`);
-    // TODO: SSH into server, configure bare repo + post-receive hook
+    if (runner) await runner.setupGit(infra);
     return { action: 'setup-git', infra };
   }
 
-  // Remove deployment — stub
+  // Remove
   if (deployArgs.remove) {
     console.log(`  Removing deployment ${deployArgs.envName}...`);
-    // TODO: SSH into server, stop services, remove files
+    if (runner) await runner.remove(infra, { confirm: deployArgs.confirm });
     return { action: 'remove', infra };
   }
 
-  // List deployments — stub
+  // List
   if (deployArgs.list) {
     console.log('  Listing deployments...');
-    // TODO: SSH into server, list ~/apps/
+    if (runner) await runner.list(infra, { server: deployArgs.server });
     return { action: 'list', infra };
   }
 
-  // Default: full deploy — stub
+  // Default — full deploy
   console.log(`  Deploying to ${deployArgs.envName}...`);
-  // TODO: rsync build, run provision script, restart services
+  if (runner) await runner.deploy(infra, { projectDir, buildProject: deployArgs.buildProject });
   return { action: 'deploy', infra };
 }

@@ -468,11 +468,16 @@ export default defineConfig({
   },
 
   markdown: {
+    // Register `tova` and a few aliases used in docs:
+    //   - `tova-jsx`: blocks the doc validator wraps in a browser+component
+    //     before checking; same TextMate grammar as `tova` for highlighting.
+    //   - `tova-skip` / `tova-snippet`: opt-out fence variants. Same grammar.
     languages: tovaGrammar ? [
       {
         ...tovaGrammar,
         name: 'tova',
         scopeName: tovaGrammar.scopeName || 'source.tova',
+        aliases: ['tova-jsx', 'tova-skip', 'tova-snippet'],
       },
     ] : [],
     codeTransformers: [

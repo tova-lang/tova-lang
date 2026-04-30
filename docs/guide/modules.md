@@ -2,6 +2,32 @@
 
 Tova uses a module system based on `import` and `pub`, similar to JavaScript ES modules. You can import from other `.tova` files, from npm packages, or from built-in modules.
 
+## Module vs App Files
+
+A `.tova` file is a **module** when it contains only top-level declarations — no `server {}`, `browser {}`, or `shared {}` blocks. Modules compile to a single `<name>.js` file suitable for importing.
+
+```tova
+// lib/math.tova — a module
+pub fn double(x) { x * 2 }
+pub fn triple(x) { x * 3 }
+fn internal_helper(x) { x + 1 }   // not exported
+```
+
+A file with `server`/`browser`/`shared` blocks is an **app file** and compiles into separate `.server.js` / `.browser.js` / `.shared.js` outputs. Use modules for libraries and utilities; use app files for full-stack entry points.
+
+Importing across directories works as expected:
+
+```tova
+// app/main.tova
+import { double, triple } from "../lib/math.tova"
+
+pub fn compute(x) {
+  double(x) + triple(x)
+}
+```
+
+Within the same directory, Tova merges `.tova` files into a single output; import statements between same-directory files are silently elided because all symbols are already in scope.
+
 ## Named Imports
 
 Import specific items from a module using curly braces:
@@ -250,14 +276,14 @@ import { validate_email } from "./utils/validators.tova"
 browser "admin" { state users = [] }
 
 // admin-ui.tova
-browser "admin" { component AdminPanel { ... } }
+browser "admin" { component AdminPanel { /* ... */ } }
 // → Both merge into one admin client output
 ```
 
 ```tova
 // These are SEPARATE outputs — not merged:
-browser "admin" { ... }   // → app.client.admin.js
-browser "public" { ... }  // → app.client.public.js
+browser "admin" { /* ... */ }   // → app.client.admin.js
+browser "public" { /* ... */ }  // → app.client.public.js
 ```
 
 ## Cross-File Imports
@@ -469,6 +495,9 @@ From `dashboard.tova`, both of these are equivalent:
 
 ```tova
 import { validate_email } from "../../utils/validators"    // relative
+```
+
+```tova
 import { validate_email } from "@/utils/validators"         // project root
 ```
 

@@ -200,7 +200,9 @@ async fn fetch_data(url) {
 pub fn square(x) { x * x }
 pub fn cube(x) { x * x * x }
 pub TAU = 6.28318
+```
 
+```tova
 // app.tova
 import { square, cube, TAU } from "./lib/math"
 ```
@@ -273,9 +275,13 @@ Includes a typed stdlib: `typed_sum` (Kahan compensated), `typed_dot`, `typed_ad
 Distribute CPU-intensive work across all cores with a persistent worker pool:
 
 ```tova
-results = await parallelMap(large_array, fn(item) {
-  expensive_computation(item)
-})
+async fn main() {
+  results = await parallelMap(large_array, fn(item) {
+    expensive_computation(item)
+  })
+}
+
+main()
 ```
 
 Workers are created once and reused across calls. 3.5x speedup on 8 cores for CPU-bound work.

@@ -293,7 +293,7 @@ type Matrix<T> = [[T]]
 
 ```tova
 fn get_user(id: Int) -> MyResult<User> {
-  // Error type is always String
+  // Err type is always String
   if id > 0 {
     Ok(User(id, "Alice", "alice@example.com"))
   } else {
@@ -520,7 +520,7 @@ This compiles to `new Date()`, `new Map()`, etc. in JavaScript.
 
 ```tova
 // Instead of:
-fn create_order(customer_name: String, amount: Float, currency: String) { ... }
+fn create_order(customer_name: String, amount: Float, currency: String) { /* ... */ }
 
 // Prefer:
 type Money {
@@ -533,7 +533,7 @@ type Customer {
   email: String
 }
 
-fn create_order(customer: Customer, total: Money) { ... }
+fn create_order(customer: Customer, total: Money) { /* ... */ }
 
 order = create_order(
   customer: Customer(name: "Alice", email: "alice@example.com"),

@@ -773,7 +773,7 @@ When another file imports this module, only `create_user` and `User` are availab
 import { create_user, User } from "./users"
 
 alice = create_user("Alice")    // Works — pub function
-// validate_name("x")           // Error — not pub
+// validate_name("x")           // would fail — not pub
 ```
 
 ### What to Make `pub`

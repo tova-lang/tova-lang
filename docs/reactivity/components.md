@@ -22,7 +22,7 @@ The JSX at the end of the component body is the return value. You do not need an
 
 Components accept props as parameters:
 
-```tova
+```tova-jsx
 component Greeting(name) {
   <div>
     <h1>Hello, {name}!</h1>
@@ -32,7 +32,7 @@ component Greeting(name) {
 
 Multiple props are separated by commas:
 
-```tova
+```tova-jsx
 component UserCard(name, email, avatar_url) {
   <div class="card">
     <img src={avatar_url} alt={name} />
@@ -62,7 +62,7 @@ component Button(label, variant = "primary", disabled = false) {
 
 Components are used as JSX elements with an uppercase first letter:
 
-```tova
+```tova-jsx
 component App {
   <div>
     <Greeting name="Alice" />
@@ -74,7 +74,7 @@ component App {
 
 Self-closing syntax (`<Component />`) is used when there are no children. Components with children use the full open/close form:
 
-```tova
+```tova-jsx
 component Layout(title) {
   <div class="layout">
     <header><h1>{title}</h1></header>
@@ -113,7 +113,7 @@ component ChildDisplay(name) {
 
 Under the hood, the compiler generates prop accessors as getter functions on the props object. When the parent writes:
 
-```tova
+```tova-jsx
 <ChildDisplay name={name} />
 ```
 
@@ -285,7 +285,7 @@ component UserTable(users, on_select) {
 
 Components commonly accept callback props for communication with parents:
 
-```tova
+```tova-jsx
 component Modal(title, on_close) {
   <div class="modal-overlay" on:click={fn() on_close()}>
     <div class="modal" on:click={fn(e) e.stopPropagation()}>
@@ -320,7 +320,7 @@ Components can pass data back to their parent through scoped slots using the `<s
 
 The simplest slot renders the parent's children:
 
-```tova
+```tova-jsx
 component Card(title) {
   <div class="card">
     <h2>{title}</h2>
@@ -340,7 +340,7 @@ component Card(title) {
 
 Use `name` to define multiple named slots:
 
-```tova
+```tova-jsx
 component Layout {
   <div class="layout">
     <header><slot name="header" /></header>
@@ -361,7 +361,7 @@ component Layout {
 
 Pass data from the child back to the parent by adding props to `<slot>`:
 
-```tova
+```tova-jsx
 component DataList(items) {
   <ul>
     for item in items key={item.id} {
@@ -416,7 +416,7 @@ This looks for an element with `id="app"` in the HTML, falling back to `document
 
 When you write:
 
-```tova
+```tova-jsx
 component Greeting(name) {
   <h1>Hello, {name}!</h1>
 }

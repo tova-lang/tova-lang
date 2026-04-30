@@ -298,14 +298,14 @@ Tova supports both Python-style and JS-style:
 
 ```tova
 // Preferred in Tova:
-if x > 0 and y > 0 { ... }
-if not found { ... }
-if a or b { ... }
+if x > 0 and y > 0 { /* ... */ }
+if not found { /* ... */ }
+if a or b { /* ... */ }
 
 // Also valid:
-if x > 0 && y > 0 { ... }
-if !found { ... }
-if a || b { ... }
+if x > 0 && y > 0 { /* ... */ }
+if !found { /* ... */ }
+if a || b { /* ... */ }
 ```
 
 ## Pattern Matching

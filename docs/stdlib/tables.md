@@ -527,7 +527,7 @@ t |> sample(n, seed?) -> Table
 Returns a random subset of rows. If `n < 1`, treats it as a fraction. Optional `seed` for reproducibility.
 
 ```tova
-subset = t |> sample(100)              // 100 random rows
+var subset = t |> sample(100)              // 100 random rows
 subset = t |> sample(0.1)             // 10% of rows
 subset = t |> sample(1000, seed: 42)  // reproducible
 ```
@@ -541,7 +541,7 @@ t |> stratified_sample(key, n, seed?) -> Table
 Samples `n` rows (or fraction) from each group defined by `key`.
 
 ```tova
-balanced = t |> stratified_sample(.category, 50)
+var balanced = t |> stratified_sample(.category, 50)
 balanced = t |> stratified_sample(.region, 0.1, seed: 42)
 ```
 

@@ -326,8 +326,10 @@ The `key` function determines how requests are grouped (by IP, by user, by API k
 Middleware is applied with `with` on route declarations:
 
 ```tova
-route GET "/api/users" => list_users with auth
-route POST "/api/users" => create_user with auth, require_role("admin")
+server {
+  route GET "/api/users" => list_users with auth
+  route POST "/api/users" => create_user with auth, require_role("admin")
+}
 ```
 
 Multiple middleware run in order: `request_id → logger → auth → require_role → handler`. Global middleware (declared without routes) runs on every request. Per-route middleware is added with `with`.
@@ -337,7 +339,7 @@ Multiple middleware run in order: `request_id → logger → auth → require_ro
 ```tova
 middleware fn require_role(role: String) {
   fn(req, res) {
-    guard req.user.role == role else { ... }
+    guard req.user.role == role else { /* ... */ }
   }
 }
 ```
@@ -359,7 +361,9 @@ The `on_error` handler catches all unhandled errors and returns consistent `ApiE
 ### Health Check
 
 ```tova
-route GET "/health" => health  // No middleware — always accessible
+server {
+  route GET "/health" => health  // No middleware — always accessible
+}
 ```
 
 The health endpoint returns uptime, version, and timestamp. No auth middleware so load balancers and orchestrators can probe it.

@@ -514,7 +514,7 @@ fn get_filtered_tasks() {
 
 ### Conditional Component Rendering
 
-```tova
+```tova-jsx
 component App {
   if show_form {
     <TaskForm />
@@ -558,7 +558,7 @@ The form handles both creating and editing tasks. When `editing_id > 0`, it call
 
 Tova's dev server includes TailwindCSS out of the box. Use utility classes directly in your component templates:
 
-```tova
+```tova-jsx
 <button
   class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 shadow-sm"
 >

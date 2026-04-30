@@ -54,7 +54,7 @@ edge {
   // Consistent hash for deterministic flag evaluation
   fn hash_user(user_id, flag_name) -> Int {
     input = "{user_id}:{flag_name}"
-    hash_val = 0
+    var hash_val = 0
     for i in range(len(input)) {
       ch = input.charCodeAt(i)
       hash_val = ((hash_val * 31) + ch) % 1000000007
@@ -100,7 +100,7 @@ edge {
   }
 
   // Admin: update a flag
-  route PUT "/api/admin/flags/:flag" => fn(req, params) {
+  route PUT "/api/admin/flags/:flag" => async fn(req, params) {
     body = await req.json()
     flag = FLAGS[params.flag]
     if flag == nil {

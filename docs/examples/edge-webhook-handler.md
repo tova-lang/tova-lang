@@ -63,7 +63,7 @@ edge {
 
   // ── Signature Verification ────────────────────────────────────
 
-  fn verify_github_signature(payload, signature) -> Bool {
+  async fn verify_github_signature(payload, signature) -> Bool {
     if signature == nil { false }
     else {
       encoder = TextEncoder.new()
@@ -80,7 +80,7 @@ edge {
     }
   }
 
-  fn verify_stripe_signature(payload, signature) -> Bool {
+  async fn verify_stripe_signature(payload, signature) -> Bool {
     if signature == nil { false }
     else {
       parts = signature.split(",")
@@ -133,7 +133,7 @@ edge {
   // ── Routes ────────────────────────────────────────────────────
 
   // GitHub webhook endpoint (signature verified, no JWT)
-  route POST "/webhooks/github" => fn(req) {
+  route POST "/webhooks/github" => async fn(req) {
     body = await req.text()
     signature = req.headers.get("X-Hub-Signature-256")
     event_type = req.headers.get("X-GitHub-Event") || "unknown"
@@ -149,7 +149,7 @@ edge {
   }
 
   // Stripe webhook endpoint (signature verified, no JWT)
-  route POST "/webhooks/stripe" => fn(req) {
+  route POST "/webhooks/stripe" => async fn(req) {
     body = await req.text()
     signature = req.headers.get("Stripe-Signature")
     payload = JSON.parse(body)

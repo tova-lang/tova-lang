@@ -44,6 +44,19 @@ print("fib(10) = {fibonacci(10)}")`
 
 Functions are the primary building blocks in Tova. They are declared with the `fn` keyword and feature implicit returns, optional type annotations, and flexible parameter styles.
 
+## The Two Canonical Forms
+
+Tova has **exactly two ways to write a function** — everything else is a variation on these:
+
+| Form | Use for | Example |
+| --- | --- | --- |
+| `fn name(params) { body }` | Named declarations and anonymous `fn(x) x + 1` | `fn add(a, b) { a + b }` |
+| `params => expr` | Short arrow lambdas, typically passed inline | `nums.map(x => x * 2)` |
+
+Both forms are first-class and interchangeable as values. Pick `fn` when the function has a name, spans multiple lines, or benefits from an explicit body; pick `=>` for single-expression callbacks in pipelines.
+
+There is no `function` keyword, no `lambda`, no `def`, and no separate syntax for methods — just `fn` and `=>`.
+
 ## Basic Functions
 
 Declare a function with `fn`, a name, parameters in parentheses, and a body in curly braces:
@@ -434,7 +447,9 @@ fn send_email(user) {
   name = user.name
   // ...
 }
+```
 
+```tova
 // Prefer:
 fn send_email({ email, name }) {
   // email and name are available directly

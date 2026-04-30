@@ -566,8 +566,8 @@ store CartStore {
   state items: [CartItem] = []
   computed count = items |> map(fn(item) item.quantity) |> sum()
   computed total = items |> map(fn(item) item.product.price * item.quantity) |> sum()
-  fn add(product: Product) { ... }
-  fn remove(product_id: Int) { ... }
+  fn add(product: Product) { /* ... */ }
+  fn remove(product_id: Int) { /* ... */ }
   fn clear() { items = [] }
 }
 ```
@@ -578,7 +578,7 @@ Access store values with dot notation: `CartStore.items`, `CartStore.total`, `Ca
 
 `CartStore` manages shopping cart state. `UIStore` manages navigation and UI state. Each store is independent but can be used together in components:
 
-```tova
+```tova-jsx
 <button onclick={fn() {
   UIStore.toggle_cart()
   UIStore.navigate("checkout")
@@ -624,7 +624,7 @@ The computed value chains two filter pipes. It re-evaluates whenever `products`,
 
 ### Client-Side Routing with If/Elif
 
-```tova
+```tova-jsx
 if UIStore.view == "products" {
   <ProductGrid />
 } elif UIStore.view == "checkout" {
@@ -647,7 +647,7 @@ Simple string-based routing using `if`/`elif` on a store value. `UIStore.navigat
   Pending => "Pending"
   Shipped(tracking) => "Shipped ({tracking})"
   Cancelled(reason) => "Cancelled: {reason}"
-  ...
+  /* ... */
 }}
 ```
 

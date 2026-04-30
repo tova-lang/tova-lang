@@ -1523,15 +1523,26 @@ describe('file discovery', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('tova deploy', () => {
+  let tmpDir;
+  const dryRun = { TOVA_DEPLOY_DRY_RUN: '1' };
+  beforeEach(() => {
+    tmpDir = createTmpDir('tova-deploy');
+    writeFileSync(join(tmpDir, 'app.tova'), `
+server { route GET "/healthz" => fn() { "ok" } }
+deploy "prod" { server: "root@example.com" domain: "example.com" }
+`);
+  });
+  afterEach(() => { cleanupDir(tmpDir); });
+
   test('errors when no environment specified', () => {
-    const result = runTova(['deploy']);
+    const result = runTova(['deploy'], { cwd: tmpDir });
     expect(result.stderr).toContain('requires an environment name');
     expect(result.exitCode).toBe(1);
   });
 
   test('accepts environment name', () => {
-    const result = runTova(['deploy', 'prod']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Deploying to prod');
   });
 });
 
@@ -2785,64 +2796,77 @@ export const down = \`DROP TABLE third_tbl\`;
 // ═══════════════════════════════════════════════════════════════
 
 describe('tova deploy (extended)', () => {
+  let tmpDir;
+  // Use dry-run so the runner does not actually invoke ssh/scp/rsync against
+  // the example.com hosts in the fixture.
+  const dryRun = { TOVA_DEPLOY_DRY_RUN: '1' };
+  beforeEach(() => {
+    tmpDir = createTmpDir('tova-deploy-ext');
+    writeFileSync(join(tmpDir, 'app.tova'), `
+server { route GET "/healthz" => fn() { "ok" } }
+deploy "prod" { server: "root@example.com" domain: "example.com" }
+deploy "staging" { server: "root@staging.example.com" domain: "staging.example.com" }
+`);
+  });
+  afterEach(() => { cleanupDir(tmpDir); });
+
   test('--plan flag is accepted', () => {
-    const result = runTova(['deploy', 'staging', '--plan']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'staging', '--plan'], { cwd: tmpDir });
+    expect(result.stdout).toContain('Deploy Plan');
     expect(result.exitCode).toBe(0);
   });
 
   test('--rollback flag is accepted', () => {
-    const result = runTova(['deploy', 'prod', '--rollback']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod', '--rollback'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Rolling back prod');
     expect(result.exitCode).toBe(0);
   });
 
   test('--status flag is accepted', () => {
-    const result = runTova(['deploy', 'prod', '--status']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod', '--status'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Checking status of prod');
     expect(result.exitCode).toBe(0);
   });
 
   test('--logs flag is accepted', () => {
-    const result = runTova(['deploy', 'prod', '--logs']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod', '--logs'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Fetching logs for prod');
     expect(result.exitCode).toBe(0);
   });
 
-  test('--list flag works without env name', () => {
-    const result = runTova(['deploy', '--list']);
-    // --list doesn't require env name so should not error
-    expect(result.stdout).toContain('Deploy');
+  test('--list with --server in dry-run', () => {
+    const result = runTova(['deploy', '--list', '--server', 'root@example.com'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Listing deployments');
     expect(result.exitCode).toBe(0);
   });
 
   test('--ssh flag is accepted', () => {
-    const result = runTova(['deploy', 'staging', '--ssh']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'staging', '--ssh'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Opening SSH session to staging');
     expect(result.exitCode).toBe(0);
   });
 
   test('--remove flag is accepted', () => {
-    const result = runTova(['deploy', 'staging', '--remove']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'staging', '--remove'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Removing deployment staging');
     expect(result.exitCode).toBe(0);
   });
 
   test('--server flag with value is accepted', () => {
-    const result = runTova(['deploy', 'prod', '--server', 'root@example.com']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod', '--server', 'root@example.com'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Deploying to prod');
     expect(result.exitCode).toBe(0);
   });
 
   test('--logs --since flag combination is accepted', () => {
-    const result = runTova(['deploy', 'prod', '--logs', '--since', '1 hour ago']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod', '--logs', '--since', '1 hour ago'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('since 1 hour ago');
     expect(result.exitCode).toBe(0);
   });
 
   test('--instance flag with number is accepted', () => {
-    const result = runTova(['deploy', 'prod', '--logs', '--instance', '2']);
-    expect(result.stdout).toContain('Deploy');
+    const result = runTova(['deploy', 'prod', '--logs', '--instance', '2'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('(instance 2)');
     expect(result.exitCode).toBe(0);
   });
 });
@@ -4648,15 +4672,26 @@ describe('doc command — extended coverage', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('deploy command — extended coverage', () => {
+  let tmpDir;
+  const dryRun = { TOVA_DEPLOY_DRY_RUN: '1' };
+  beforeEach(() => {
+    tmpDir = createTmpDir('tova-deploy-cov');
+    writeFileSync(join(tmpDir, 'app.tova'), `
+server { route GET "/healthz" => fn() { "ok" } }
+deploy "production" { server: "root@example.com" domain: "example.com" }
+`);
+  });
+  afterEach(() => { cleanupDir(tmpDir); });
+
   test('deploy without env name errors', () => {
-    const result = runTova(['deploy']);
+    const result = runTova(['deploy'], { cwd: tmpDir });
     expect(result.stderr).toContain('deploy requires an environment name');
     expect(result.exitCode).toBe(1);
   });
 
-  test('deploy with env name shows implementation message', () => {
-    const result = runTova(['deploy', 'production']);
-    expect(result.stdout).toContain('Deploy feature');
+  test('deploy with env name prints deploying message', () => {
+    const result = runTova(['deploy', 'production'], { cwd: tmpDir, env: dryRun });
+    expect(result.stdout).toContain('Deploying to production');
   });
 });
 
@@ -7583,19 +7618,31 @@ describe('REPL tab completion (inline test)', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('deploy command validation', () => {
+  let tmpDir;
+  const dryRun = { TOVA_DEPLOY_DRY_RUN: '1' };
+  beforeEach(() => {
+    tmpDir = createTmpDir('tova-deploy-val');
+    writeFileSync(join(tmpDir, 'app.tova'), `
+server { route GET "/healthz" => fn() { "ok" } }
+deploy "staging" { server: "root@staging.example.com" domain: "staging.example.com" }
+`);
+  });
+  afterEach(() => { cleanupDir(tmpDir); });
+
   test('deploy without environment name shows error', () => {
-    const result = runTova(['deploy']);
+    const result = runTova(['deploy'], { cwd: tmpDir });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('requires an environment name');
   });
 
-  test('deploy with --list flag does not error', () => {
-    const result = runTova(['deploy', '--list']);
+  test('deploy with --list flag does not error about missing env', () => {
+    // Without --server, --list errors with a different (helpful) message
+    const result = runTova(['deploy', '--list'], { cwd: tmpDir });
     expect(result.stderr).not.toContain('requires an environment name');
   });
 
   test('deploy with environment name proceeds', () => {
-    const result = runTova(['deploy', 'staging']);
+    const result = runTova(['deploy', 'staging'], { cwd: tmpDir, env: dryRun });
     expect(result.stderr).not.toContain('requires an environment name');
     const combined = result.stdout + result.stderr;
     expect(combined).toMatch(/deploy|Deploy/i);

@@ -379,8 +379,8 @@ tova dev monitor.tova
 ### Named Servers
 
 ```tova
-server "collector" { ... }
-server "api" { port 3001; ... }
+server "collector" { /* ... */ }
+server "api" { port 3001; /* ... */ }
 ```
 
 Two named servers in one file. The collector handles scheduled tasks and event processing. The API serves endpoints for dashboards and external queries. Each runs as an independent process.
@@ -390,7 +390,7 @@ Two named servers in one file. The collector handles scheduled tasks and event p
 ```tova
 schedule "health_check" cron("*/30 * * * * *") {
   // Runs every 30 seconds
-  services_to_monitor |> each(fn(service) { ... })
+  services_to_monitor |> each(fn(service) { /* ... */ })
 }
 
 schedule "cleanup" cron("0 * * * *") {
@@ -403,7 +403,7 @@ Cron expressions define the schedule. Tasks run in the background and can access
 ### Background Jobs
 
 ```tova
-background fn send_alert_notification(alert: Alert) {
+background async fn send_alert_notification(alert: Alert) {
   await fetch(webhook_url, { method: "POST", body: JSON.stringify(alert) })
 }
 

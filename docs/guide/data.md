@@ -258,7 +258,7 @@ Draw random subsets from a table:
 
 ```tova
 // Random sample of 100 rows
-subset = users |> sample(100)
+var subset = users |> sample(100)
 
 // 10% sample
 subset = users |> sample(0.1)
@@ -445,7 +445,7 @@ filled = users |> fillNil(.city, "Unknown")
 
 ```tova
 // Cast a column to a different type
-typed = data |> cast(.age, "Int")
+var typed = data |> cast(.age, "Int")
 typed = data |> cast(.price, "Float")
 typed = data |> cast(.active, "Bool")
 typed = data |> cast(.name, "String")

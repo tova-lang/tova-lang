@@ -15,7 +15,7 @@ Four built-in transitions are available:
 
 ### Basic Usage
 
-```tova
+```tova-jsx
 <div transition:fade>
   Fades in when added, fades out when removed
 </div>
@@ -29,7 +29,7 @@ Four built-in transitions are available:
 Pass an object to customize transition behavior:
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 <div transition:fade={{duration: 500, easing: "ease-in-out"}}>
   Slow fade
 </div>
@@ -70,7 +70,7 @@ Pass an object to customize transition behavior:
 Use `in:` and `out:` to apply different transitions for entering and leaving:
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 // Fade in, slide out
 <div in:fade out:slide>Content</div>
 
@@ -88,7 +88,7 @@ Use `in:` and `out:` to apply different transitions for entering and leaving:
 ### Combining with Configuration
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 <div in:fade={{duration: 300}} out:slide={{duration: 500, axis: "x"}}>
   Fades in over 300ms, slides out horizontally over 500ms
 </div>
@@ -100,7 +100,7 @@ Use `in:` and `out:` to apply different transitions for entering and leaving:
 For transitions beyond the built-in set, define a custom transition function:
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 fn typewriter(el, config, phase) {
   duration = config.duration or 500
 
@@ -138,7 +138,7 @@ It can:
 Custom transitions are referenced by variable name (not string):
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 // Built-in: referenced by string internally
 <div transition:fade>...</div>
 
@@ -171,7 +171,7 @@ When an element with a transition is removed:
 
 Transitions work naturally with `if` blocks:
 
-```tova
+```tova-jsx
 state show = false
 
 <button on:click={fn() show = not show}>Toggle</button>
@@ -203,7 +203,7 @@ Each item animates independently when added or removed from the list.
 
 ### Basic Usage
 
-```tova
+```tova-jsx
 component TodoList(items) {
   <TransitionGroup name="fade" tag="ul">
     for item in items key={item.id} {
@@ -226,7 +226,7 @@ When items are added to or removed from the list, each item animates with the sp
 ### Configuration
 
 <!-- {% raw %} -->
-```tova
+```tova-jsx
 <TransitionGroup name="slide" tag="ul" config={{duration: 300, axis: "x"}}>
   for item in items key={item.id} {
     <li>{item.text}</li>

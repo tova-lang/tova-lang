@@ -60,7 +60,7 @@ edge {
   }
 
   // Cache-aside helper
-  fn get_cached(key) {
+  async fn get_cached(key) {
     raw = await CACHE.get(key)
     if raw == nil {
       nil
@@ -75,13 +75,13 @@ edge {
     }
   }
 
-  fn set_cached(key, data, ttl) {
+  async fn set_cached(key, data, ttl) {
     entry = CacheEntry(data, Date.now(), ttl)
     await CACHE.put(key, JSON.stringify(entry))
   }
 
   // Current weather
-  fn fetch_weather(req, params) {
+  async fn fetch_weather(req, params) {
     cache_key = "weather:{params.city}"
     cached = await get_cached(cache_key)
     if cached != nil {
@@ -96,7 +96,7 @@ edge {
   }
 
   // Weather forecast
-  fn fetch_forecast(req, params) {
+  async fn fetch_forecast(req, params) {
     cache_key = "forecast:{params.city}:{params.days}"
     cached = await get_cached(cache_key)
     if cached != nil {
@@ -114,7 +114,7 @@ edge {
   route GET "/api/forecast/:city/:days" => fetch_forecast
 
   // Cache management (no auth required for health)
-  route DELETE "/api/cache/:key" => fn(req, params) {
+  route DELETE "/api/cache/:key" => async fn(req, params) {
     await CACHE.delete(params.key)
     { deleted: params.key }
   }

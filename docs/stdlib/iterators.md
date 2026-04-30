@@ -13,7 +13,7 @@ iter(iterable) -> Seq
 Wraps any iterable (array, string, range, generator) in a lazy `Seq`:
 
 ```tova
-seq = iter([1, 2, 3, 4, 5])
+var seq = iter([1, 2, 3, 4, 5])
 seq = iter("hello")
 seq = iter(range(1000000))
 ```
@@ -248,7 +248,7 @@ result = range(1000000)
 
 ```tova
 // Eager: creates 3 intermediate arrays
-result = range(1000000)
+var result = range(1000000)
   |> filter(fn(x) x % 2 == 0)
   |> map(fn(x) x * x)
   |> take(5)

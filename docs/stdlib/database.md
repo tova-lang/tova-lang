@@ -30,7 +30,7 @@ sqlite(path) -> Database
 Opens (or creates) a SQLite database at the given path. Use `":memory:"` for an in-memory database.
 
 ```tova
-db = sqlite("app.db")          // file-based
+var db = sqlite("app.db")          // file-based
 db = sqlite(":memory:")         // in-memory
 ```
 

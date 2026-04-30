@@ -139,7 +139,7 @@ buildUrl({ host: "api.com", pathname: "/v1" })
 
 ```tova
 // GET request
-result = http.get("https://api.example.com/users")
+var result = http.get("https://api.example.com/users")
 data = result.unwrap().body
 
 // POST with JSON body
@@ -164,9 +164,13 @@ timeAgo(d.unwrap())                    // "3 months ago"
 ### Async & Error Handling
 
 ```tova
-result = tryFn(fn() risky_operation())
-data = await parallel([fetch("/a"), fetch("/b")])
-data = await retry(fn() fetch("/api"), { times: 3 })
+async fn main() {
+  result = tryFn(fn() risky_operation())
+  var data = await parallel([fetch("/a"), fetch("/b")])
+  data = await retry(fn() fetch("/api"), { times: 3 })
+}
+
+main()
 ```
 
 ### Result & Option
@@ -184,10 +188,14 @@ None.unwrapOr("default")        // "default"
 ### Terminal & CLI
 
 ```tova
-print("{green("Success: ")}{bold("All tests passed")}")
-print(table(data, { headers: ["Name", "Score"] }))
-name = await ask("What is your name?")
-ok = await confirm("Deploy to production?")
+async fn main() {
+  print("{green("Success: ")}{bold("All tests passed")}")
+  print(table(data, { headers: ["Name", "Score"] }))
+  name = await ask("What is your name?")
+  ok = await confirm("Deploy to production?")
+}
+
+main()
 ```
 
 ### Assertions
@@ -221,7 +229,7 @@ As of v0.9.16, Tova's standard library uses **camelCase** naming for all multi-w
 
 ```tova
 // Old (deprecated — produces a warning):
-x = group_by(users, fn(u) u.city)
+var x = group_by(users, fn(u) u.city)
 
 // New (preferred):
 x = groupBy(users, fn(u) u.city)

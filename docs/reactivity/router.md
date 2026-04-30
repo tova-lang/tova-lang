@@ -83,7 +83,7 @@ createRouter({
 
 When the URL `/users/42` is matched against `/users/:id`, the params object contains `{ id: "42" }`. The component receives these params as its argument:
 
-```tova
+```tova-jsx
 component UserPage(id) {
   <h1>"User {id}"</h1>
 }
@@ -163,7 +163,7 @@ Metadata is accessible via `getMeta()` or `router.meta()` and is commonly used f
 
 Use the `<Router />` component to render the currently matched route:
 
-```tova
+```tova-jsx
 component App {
   <div class="app">
     <NavBar />
@@ -243,7 +243,7 @@ router.forward()  // equivalent to browser forward button
 
 The `Link` component provides client-side navigation without a full page reload:
 
-```tova
+```tova-jsx
 component NavBar {
   <nav>
     <Link href="/">"Home"</Link>
@@ -259,7 +259,7 @@ component NavBar {
 
 `Link` supports automatic class toggling based on the current route:
 
-```tova
+```tova-jsx
 <Link
   href="/users"
   class="nav-link"
@@ -281,7 +281,7 @@ For the root path `/`, `activeClass` uses exact matching to avoid being active o
 
 Active classes are computed reactively -- they update automatically when the route changes.
 
-```tova
+```tova-jsx
 // Common pattern: highlight current section
 component SiteNav {
   <nav class="flex gap-4">
@@ -356,7 +356,7 @@ The special child path `"/"` matches the parent path exactly, making it the defa
 
 Inside a layout component, use `<Outlet />` to render the matched child:
 
-```tova
+```tova-jsx
 component SettingsLayout {
   <div class="flex gap-8">
     <aside>
@@ -415,7 +415,7 @@ createRouter({
 
 Configure components to show during lazy loading:
 
-```tova
+```tova-jsx
 component LoadingSpinner {
   <div class="flex items-center justify-center py-16">
     <div class="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div>
@@ -498,7 +498,7 @@ component UserPage {
 
 Components with dynamic route params also receive params as function arguments:
 
-```tova
+```tova-jsx
 component UserPage(id) {
   // id is extracted from /users/:id and passed directly
   <h1>"User {id}"</h1>
@@ -678,7 +678,7 @@ Pass a function for full control:
 
 ```tova
 createRouter({
-  routes: { ... },
+  routes: {},
   scroll: fn(context) {
     if context.savedPosition != nil {
       context.savedPosition  // restore on back/forward

@@ -44,7 +44,7 @@ Result comes with a rich set of methods for working with success and error value
 
 ```tova
 // .map() -- transform the Ok value, pass through Err
-result = Ok(5)
+var result = Ok(5)
 doubled = result.map(fn(x) x * 2)   // Ok(10)
 
 err_result = Err("fail")

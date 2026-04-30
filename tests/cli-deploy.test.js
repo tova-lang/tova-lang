@@ -1,7 +1,9 @@
-import { describe, test, expect, setDefaultTimeout } from 'bun:test';
+import { describe, test, expect, setDefaultTimeout, beforeAll, afterAll } from 'bun:test';
 
 setDefaultTimeout(60000);
 import { spawnSync } from 'child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import path from 'path';
 
 const TOVA = path.join(__dirname, '..', 'bin', 'tova.js');
@@ -136,52 +138,93 @@ describe('cli-deploy: parseDeployArgs', () => {
 // ─── CLI invocation tests ────────────────────────────────────────
 
 describe('cli-deploy: CLI invocation', () => {
+  // Create a temp project with a deploy block so the CLI has something to parse
+  let fixtureDir;
+  beforeAll(() => {
+    fixtureDir = mkdtempSync(path.join(tmpdir(), 'tova-deploy-cli-'));
+    writeFileSync(path.join(fixtureDir, 'app.tova'), `
+server {
+  route GET "/healthz" => fn() { "ok" }
+}
+
+deploy "prod" {
+  server: "root@example.com"
+  domain: "example.com"
+}
+
+deploy "staging" {
+  server: "root@staging.example.com"
+  domain: "staging.example.com"
+}
+`);
+  });
+
+  afterAll(() => {
+    if (fixtureDir) rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
   test('tova deploy with no args produces error', () => {
-    const result = runTova(['deploy']);
-    // deployCommand calls parseDeployArgs([]) => envName=null, list=false
-    // Then it prints an error and exits with code 1
+    const result = runTova(['deploy'], { cwd: fixtureDir });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('Error');
   });
 
-  test('tova deploy prod produces output about deployment', () => {
-    const result = runTova(['deploy', 'prod']);
-    // deployCommand calls parseDeployArgs(['prod']) => envName='prod'
-    // Then it prints "Deploy feature is being implemented..."
+  test('tova deploy prod prints deploying message', () => {
+    const result = runTova(['deploy', 'prod'], { cwd: fixtureDir });
     const combined = (result.stdout || '') + (result.stderr || '');
-    expect(combined).toContain('Deploy');
+    expect(combined).toContain('Deploying to prod');
   });
 
-  test('tova deploy --list does not error about missing env', () => {
-    const result = runTova(['deploy', '--list']);
-    // --list is set, so the envName check is bypassed
+  test('tova deploy --list with --server does not error about missing env', () => {
+    // Dry-run avoids actually contacting the host
+    const result = runTova(
+      ['deploy', '--list', '--server', 'root@127.0.0.1'],
+      { cwd: fixtureDir, env: { ...process.env, TOVA_DEPLOY_DRY_RUN: '1' } },
+    );
     const combined = (result.stdout || '') + (result.stderr || '');
-    // Should NOT contain the "requires an environment name" error
     expect(combined).not.toContain('requires an environment name');
+    expect(combined).toContain('Listing deployments');
   });
 
-  test('tova deploy prod --plan produces output', () => {
-    const result = runTova(['deploy', 'prod', '--plan']);
-    const combined = (result.stdout || '') + (result.stderr || '');
-    expect(combined).toContain('Deploy');
+  test('tova deploy --list without --server errors helpfully', () => {
+    const result = runTova(['deploy', '--list'], { cwd: fixtureDir });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr || '').toContain('--list requires --server');
   });
 
-  test('tova deploy staging --rollback produces output', () => {
-    const result = runTova(['deploy', 'staging', '--rollback']);
+  test('tova deploy prod --plan prints infrastructure plan', () => {
+    const result = runTova(['deploy', 'prod', '--plan'], { cwd: fixtureDir });
     const combined = (result.stdout || '') + (result.stderr || '');
-    expect(combined).toContain('Deploy');
+    expect(combined).toContain('Deploy Plan');
+    expect(combined).toContain('root@example.com');
+    expect(combined).toContain('example.com');
   });
 
-  test('tova deploy prod --status produces output', () => {
-    const result = runTova(['deploy', 'prod', '--status']);
+  test('tova deploy staging --rollback prints rollback message', () => {
+    const result = runTova(['deploy', 'staging', '--rollback'], { cwd: fixtureDir });
     const combined = (result.stdout || '') + (result.stderr || '');
-    expect(combined).toContain('Deploy');
+    expect(combined).toContain('Rolling back staging');
   });
 
-  test('tova deploy prod --logs produces output', () => {
-    const result = runTova(['deploy', 'prod', '--logs']);
+  test('tova deploy prod --status prints status message', () => {
+    const result = runTova(['deploy', 'prod', '--status'], { cwd: fixtureDir });
     const combined = (result.stdout || '') + (result.stderr || '');
-    expect(combined).toContain('Deploy');
+    expect(combined).toContain('Checking status of prod');
+  });
+
+  test('tova deploy prod --logs prints logs message', () => {
+    const result = runTova(['deploy', 'prod', '--logs'], { cwd: fixtureDir });
+    const combined = (result.stdout || '') + (result.stderr || '');
+    expect(combined).toContain('Fetching logs for prod');
+  });
+
+  test('tova deploy unknown-env --plan errors with helpful message', () => {
+    const result = runTova(['deploy', 'does-not-exist', '--plan'], { cwd: fixtureDir });
+    const combined = (result.stdout || '') + (result.stderr || '');
+    expect(result.status).not.toBe(0);
+    expect(combined).toContain('no deploy block named');
+    expect(combined).toContain('prod');
+    expect(combined).toContain('staging');
   });
 });
 

@@ -131,7 +131,7 @@ fn max_of(a, b) {
 This means you can chain expressions naturally:
 
 ```tova
-message = "You have " ++ toString(len(items)) ++ match len(items) {
+message = "You have " + toString(len(items)) + match len(items) {
   1 => " item"
   _ => " items"
 }
@@ -611,7 +611,9 @@ fn validate(user) {
     } else { Err("Empty name") }
   } else { Err("No user") }
 }
+```
 
+```tova
 // With guard (flat, readable)
 fn validate(user) {
   guard user != nil else { return Err("No user") }
@@ -667,8 +669,9 @@ These only work with `var` variables (mutable bindings).
 If you're coming from Rust, you might instinctively reach for `mut`. However, `mut` is a **hard error** in Tova. Use `var` instead:
 
 ```tova
-// This will NOT compile:
-// mut counter = 0   // Error: 'mut' is not supported in Tova. Use 'var' for mutable variables
+// This will NOT compile (uncommenting the next line raises a hard diagnostic):
+// mut counter = 0
+// Diagnostic: 'mut' is not supported in Tova. Use 'var' for mutable variables
 
 // Use 'var' instead:
 var counter = 0
@@ -727,7 +730,7 @@ Safely access nested properties without crashing on nil:
 user = { name: "Alice", address: { city: "Portland" } }
 
 // Without optional chaining — crashes if address is nil
-city = user.address.city
+var city = user.address.city
 
 // With optional chaining — returns nil if any part is missing
 city = user?.address?.city    // "Portland"
